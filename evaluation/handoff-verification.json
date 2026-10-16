@@ -930,6 +930,43 @@
         "EMA official JSON documentation verified; direct retrieval returned 429, ingestion not verified",
         "No new source collection, service restart, migration or graph change in this work"
       ]
+    },
+    {
+      "reviewed_at": "2026-10-16T10:39:51.859286+00:00",
+      "scope": "Synchronize four active Radar guides with the approved Data-Fabric acquisition task plan; documentation only",
+      "documents": [
+        "docs/开发说明.md",
+        "docs/开发分工.md",
+        "docs/接口说明.md",
+        "docs/资产盘点.md"
+      ],
+      "changes": [
+        "Replace choose-any-source task with FDA CRL, Europe PMC, EMA and NHSA order",
+        "Keep Li responsible for adapters and permission, Sun for investigation consumption, Liu for display/export/evaluation",
+        "Separate bounded fixed samples from continuous sync after upstream version/update protection",
+        "Explicitly keep current Data-Fabric research GETs and Radar dig CLI limited to ClinicalTrials; no invented implemented endpoints"
+      ],
+      "review": {
+        "requested_model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "max",
+        "engine_architecture": "Approved final four-document diff, no blocking findings",
+        "integration_product": "Approved final four-document diff, no blocking findings"
+      },
+      "checks": {
+        "local_markdown_links": 14,
+        "diff_check": "passed",
+        "source_boundary_verified": [
+          "services/bioradar/adapters/data_fabric_research.py",
+          "services/bioradar/research/investigations/digging.py",
+          "services/bioradar/ops/dig.py"
+        ],
+        "business_tests": "Not run: documentation-only change"
+      },
+      "business_code_changed": false,
+      "runtime_contract_changed": false,
+      "upstream_changed": false,
+      "service_actions": "none",
+      "new_branches": false
     }
   ]
 }
