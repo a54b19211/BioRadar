@@ -398,6 +398,198 @@
       "handoff_report": "artifacts/Data-Fabric_首批修改与回退说明_20261016.docx",
       "local_source": "work/datafabric-fix-20261016/repository",
       "runtime_script_scope": "One-time switch script outside product repo, approved specifically for baseline9bb63b89 to fix4e7ba15; not a general deployment tool"
+    },
+    {
+      "reviewed_at": "2026-10-16T08:36:22.739545+00:00",
+      "scope": "BioRadar independent source and development runtime on zktest; no algorithm or upstream code changes",
+      "repository": {
+        "host": "zktest",
+        "path": "/home/zk_test/zk_projects/BioRadar",
+        "tracked_files": 152,
+        "baseline": "48013e44e0965e8b06c9c8126c33f161e564b210",
+        "deployment_code": "2a1d4fa0157e35ba336e5ec3a212bfddd19f4276",
+        "branch": "main",
+        "baseline_tag": "baseline/bioradar-v0.4",
+        "remote_repository_configured": false
+      },
+      "changes": [
+        "Bootstrap starts with host python3, uv supplies project Python 3.12",
+        "Compose project name configurable; default remains bioradar-dev",
+        "Fresh initializer records project name without changing existing settings",
+        "web-check installs locked dependencies before checks",
+        "Student source/runtime location and access documented"
+      ],
+      "isolation": {
+        "compose_project": "bioradar-zktest",
+        "loopback_ports": {
+          "web": 15176,
+          "api": 18100,
+          "postgres": 15436,
+          "redis": 16379
+        },
+        "fresh_credentials": true,
+        "personal_env_or_databases_copied": false,
+        "public_base_images_cached": true,
+        "application_built_from_source_on_target": true,
+        "datafabric_environment_changed": false,
+        "personal_4022_runtime_changed": false
+      },
+      "checks": {
+        "local_boot": "10 passed, 228 deselected",
+        "local_contract_check": "passed",
+        "local_lint": "passed",
+        "local_web_install_typecheck_build": "passed",
+        "zktest_fresh_bootstrap": "passed",
+        "zktest_fresh_build_migration_start": "passed",
+        "zktest_real_postgres_rq_probe": "passed; infrastructure only",
+        "teaching_example": {
+          "is_demo": true,
+          "run_id": "c6ffdbd0-90e5-4330-9f8b-a94e85b85a88",
+          "investigation_id": "e1d98f3d-4d0f-4232-9fed-940fbf9d62ca",
+          "url": "http://127.0.0.1:15176/investigations?id=e1d98f3d-4d0f-4232-9fed-940fbf9d62ca",
+          "materials": 5,
+          "judgments": 2,
+          "snapshot_comparison": {
+            "added": 1,
+            "content_updated": 1,
+            "same": 14,
+            "not_seen": 1
+          },
+          "snapshot_ids": [
+            "7aaf43ad-f603-4114-9925-c140478cc7ba",
+            "2abde358-3fe2-4af7-95eb-1c05873bbdf9"
+          ],
+          "old_judgment_preserved": true,
+          "new_material_triggered_review": true,
+          "professional_status": "not_reviewed",
+          "retrieval_status": "not_connected"
+        },
+        "real_data": {
+          "schema_version": "bioradar.zktest-real-check.v1",
+          "status": "passed",
+          "is_demo": false,
+          "step": "finished",
+          "snapshot_ids": [
+            "32842662-5d09-4fde-b547-ba5846f91d89",
+            "c53270cb-cccd-434f-aa5b-00f76fff7268"
+          ],
+          "write_requests": [
+            {
+              "operation": "/api/engine/snapshots",
+              "idempotency_key": "ac279903-a384-4975-8d43-8e92a919fcee",
+              "status": "acknowledged"
+            },
+            {
+              "operation": "/api/engine/snapshots",
+              "idempotency_key": "ace91012-3181-4a4c-b2b2-b85d34781cbe",
+              "status": "acknowledged"
+            },
+            {
+              "operation": "/api/engine/runs",
+              "idempotency_key": "1ea288bf-98c2-4379-acaa-ee38b4561556",
+              "status": "acknowledged"
+            }
+          ],
+          "scientific_assessment": "not_performed",
+          "limitations": [
+            "仅验收所选最多三条现存ClinicalTrials记录，不代表专题或全库覆盖。",
+            "正文仅为上游已有研究摘要切片，不是完整报告；没有文本时如实列为不可用。",
+            "公开时间、上游首次可见时间、不可变版本及研究独立性尚未核验。",
+            "只运行文本存量探索；候选可以为零，不证明近期增长、新研究或战略价值。",
+            "两包比较仅说明所选采用集合差异，不证明删除、失败原因或独立研究数量。",
+            "没有调用采集、抽取、审核、附件、专业评价或调查自动补查接口。",
+            "没有创建调查或研究人员判断；接入验收不是专业评价或正式业务建议。"
+          ],
+          "document_ids": [
+            "ca86e778-2798-580b-b2e3-4d1698a06ec9",
+            "24ed81f2-4598-5564-b296-d0346b5a7d6e",
+            "2a3c39bf-a974-508c-ba40-a3d8d21e6d3b"
+          ],
+          "selected_record_count": 3,
+          "observation_id": "2d6989b5-c55b-469b-aad4-b2c7b3cbf4be",
+          "read_back_records": 6,
+          "readable_text_records": 3,
+          "comparison_counts": {
+            "added": 0,
+            "content_updated": 0,
+            "same": 3,
+            "not_seen": 0
+          },
+          "content_unchanged_between_reads": true,
+          "run_id": "d0a2221d-ac4f-476c-a0bc-193ae4754e3d",
+          "run_state": "completed",
+          "methods": [
+            {
+              "method_id": "lexical_emergence",
+              "readiness": "exploratory_only",
+              "execution_status": "success",
+              "candidate_count": 0
+            },
+            {
+              "method_id": "text_topics",
+              "readiness": "exploratory_only",
+              "execution_status": "success",
+              "candidate_count": 3
+            }
+          ],
+          "candidate_count": 3,
+          "verified_support_count": 3,
+          "verified_quote_count": 3
+        },
+        "runtime": {
+          "checked_at": "2026-10-16T08:35:25.323360+00:00",
+          "host": "zktest",
+          "code_commit": "2a1d4fa0157e35ba336e5ec3a212bfddd19f4276",
+          "fresh_config_mode": "0600",
+          "compose_project": "bioradar-zktest",
+          "web_html_and_api_proxy": "passed",
+          "http_cookie_login_and_invalid_origin_rejection": "passed",
+          "database_redis_worker_ready": {
+            "status": "ready",
+            "scope": "infrastructure_only",
+            "dependencies": {
+              "postgres": "ready",
+              "redis": "ready",
+              "worker": "ready"
+            },
+            "intelligence_ready": false
+          },
+          "stop_start_with_volumes_preserved": "passed",
+          "example_investigation_unchanged_after_restart": "e1d98f3d-4d0f-4232-9fed-940fbf9d62ca",
+          "actual_browser_interaction": "not repeated on zktest",
+          "server_reboot": "not tested; use make dev after host reboot",
+          "worktree_clean": true
+        }
+      },
+      "reviews": {
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "max",
+        "design": "engine_architecture, integration_product and mining_methods approved minimal existing-stack deployment",
+        "non_author_code": "engine_architecture and integration_product approved; no blockers",
+        "real_acceptance_script": "root and engine_architecture reviewed mining_methods script before target execution",
+        "restart_acceptance_script": "engine_architecture approved after forcing explicit bioradar-zktest Compose project",
+        "documents": "integration_product approved final student access and workflow instructions"
+      },
+      "access": {
+        "student_entry": "10.202.2.177:3022",
+        "student_entry_verified_by": "user confirmed campus access",
+        "deployment_connection": "172.16.10.3:22",
+        "web_access": "SSH forward to 127.0.0.1:15176 on zktest; same local port",
+        "uses_personal_4022": "no"
+      },
+      "rollback": {
+        "code_baseline_preserved": true,
+        "data_volumes_retained_during_verified_stop_start": true,
+        "database_backup_restore": "not executed; this is a fresh environment, no migrated research database",
+        "old_algorithm_or_migrations_changed": false
+      },
+      "remaining_limitations": [
+        "No full-corpus continuous feed or automatic investigation added in this deployment",
+        "Three existing summaries only; topic candidates are exploratory and have no strategic value evaluation",
+        "No new DOM/browser acceptance on zktest; HTML, proxy and real HTTP session verified",
+        "Host reboot not tested and no automatic startup configured; operator runs make dev",
+        "Git repository has local history only; central remote remains to be configured"
+      ]
     }
   ]
 }

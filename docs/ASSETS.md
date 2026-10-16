@@ -21,7 +21,7 @@
 | 位置 | 工程与依据 |
 |---|---|
 | `zktest:/home/zk_test/zk_projects/ZK_Data-Fabric-test` | 10 月 16 日已切换首批修复 `4e7ba15`，分支 `fix/zktest-task-safety`，原 `dev` 保留 `9bb63b89`；此前核查接口 77 条路径、78 个操作，本批未增加接口路径 |
-| `zkserver:/home/zk_admin/zk_project/ZK_Data-Fabric-test` | 同日核查，提交 `b1d895da`；与测试机不是同一版本 |
+| `zkserver:/home/zk_admin/zk_project/ZK_Data-Fabric-test` | 10 月 14 日历史核查，提交 `b1d895da`；与测试机不是同一版本 |
 | `zkserver:/home/zk_admin/zk_project/WeKnora` | 提交 `6f2c2955`，工作区有本地修改；实际定制内容不能只按提交号判断 |
 | `/data/CPUBrain` | 本地已阅读科研计划、执行、知识服务及引文检查代码；10 月 10 日资产报告另记录了桌面、云办公和科研工具运行情况 |
 | 用户提供的 `drug_qa_reference_prototype.zip` | 潘倩当前规则原型；已解包检查实现和测试，不是专业核验正式服务 |
