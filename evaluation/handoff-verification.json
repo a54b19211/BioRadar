@@ -967,6 +967,40 @@
       "upstream_changed": false,
       "service_actions": "none",
       "new_branches": false
+    },
+    {
+      "reviewed_at": "2026-10-16T11:01:24.552238+00:00",
+      "scope": "User-authorized retirement of the 4022 BioRadar checkout and its dedicated development stack; zktest is sole development workspace",
+      "pre_delete_check": {
+        "tracked_files_identical_to_zktest": 158,
+        "additional_business_source_changes": false
+      },
+      "archive": {
+        "directory": "artifacts/4022交接归档",
+        "transfer_verified_files": 7,
+        "archive_members": 118,
+        "postgres_validation": "pg_dump completed and pg_restore --list passed; restore not exercised",
+        "imported_into_live_database": false
+      },
+      "completed": {
+        "source_directory_removed": true,
+        "removed_directory": "/data/BioRadar",
+        "containers_removed": 6,
+        "volumes_removed": [
+          "bioradar-dev_postgres_data",
+          "bioradar-dev_redis_data"
+        ],
+        "project_images_removed": [
+          "bioradar-dev-web",
+          "bioradar-dev-worker",
+          "bioradar-dev-api",
+          "bioradar-dev-migrate"
+        ],
+        "archive": "/home/zk_test/zk_projects/BioRadar/artifacts/4022交接归档",
+        "zktest_live_database_changed": false
+      },
+      "zktest_runtime_changes": "none",
+      "new_branches": false
     }
   ]
 }
