@@ -162,7 +162,9 @@ class InvestigationView(InvestigationSummary):
     entries: list[InvestigationEntry]
     latest_judgment_entry_id: str | None
     professional_status: Literal["not_reviewed"] = "not_reviewed"
+    # This legacy field describes the shared WeKnora retrieval path.
     retrieval_status: Literal["not_connected"] = "not_connected"
+    data_fabric_retrieval: Literal["bounded_cli_available"] = "bounded_cli_available"
 
 
 class InvestigationList(RuntimeModel):

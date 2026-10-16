@@ -1578,6 +1578,12 @@ export interface components {
              * @constant
              */
             retrieval_status: "not_connected";
+            /**
+             * Data Fabric Retrieval
+             * @default bounded_cli_available
+             * @constant
+             */
+            data_fabric_retrieval: "bounded_cli_available";
         };
         JsonValue: unknown;
         /** Locator */

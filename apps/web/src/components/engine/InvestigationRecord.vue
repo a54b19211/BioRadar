@@ -96,7 +96,8 @@ function basisEntries(ids: string[]) {
       </p>
       <p v-else class="muted">这项调查来自研究人员直接提出的问题。</p>
       <p class="muted">
-        共享检索与专业评价未接通，目前由研究人员补充已采用材料。
+        可通过命令行从 Data-Fabric 进行有限追查；实际查找过程见调查笔记。
+        WeKnora 自动取证与专业评价尚未接通，研究人员仍需核对材料。
       </p>
       <details v-if="investigation.origin" class="run-policy">
         <summary>核对起始计算与资料版本</summary>

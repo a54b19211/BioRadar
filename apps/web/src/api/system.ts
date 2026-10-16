@@ -12,6 +12,7 @@ export interface SystemStatus {
   stage: "research_engine";
   discovery_mode: "frozen_snapshot";
   autonomous_investigation: false;
+  bounded_investigation: "data_fabric_cli";
   environment: string;
   intelligence_ready: false;
   dependencies: Record<string, string>;

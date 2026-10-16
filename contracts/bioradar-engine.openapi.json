@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "BioRadar research engine",
-    "version": "0.4.0"
+    "version": "0.5.0"
   },
   "paths": {
     "/api/engine/session": {
@@ -4550,6 +4550,12 @@
             "const": "not_connected",
             "title": "Retrieval Status",
             "default": "not_connected"
+          },
+          "data_fabric_retrieval": {
+            "type": "string",
+            "const": "bounded_cli_available",
+            "title": "Data Fabric Retrieval",
+            "default": "bounded_cli_available"
           }
         },
         "additionalProperties": false,

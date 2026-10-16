@@ -16,4 +16,4 @@ if args.action == "test" and args.card in {"BOOT", "ENGINE"}:
     raise SystemExit(subprocess.call([sys.executable, "-m", "pytest", "-m", args.card]))
 if args.action == "scenario" and args.case == "BOOT" and args.mode == "real":
     raise SystemExit(subprocess.call([sys.executable, "-m", "bioradar.ops.probe"]))
-parser.error(f"{args.action} is not implemented for this card/case; see docs/DEVELOPMENT.md")
+parser.error(f"{args.action} is not implemented for this card/case; see docs/开发说明.md")

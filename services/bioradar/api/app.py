@@ -72,6 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "intelligence_ready": False,
             "discovery_mode": "frozen_snapshot",
             "autonomous_investigation": False,
+            "bounded_investigation": "data_fabric_cli",
             "dependencies": await dependencies(settings, request.app.state.database),
             "providers": PROVIDERS,
             "research_stages": [{"key": s.key, "label": s.label} for s in STAGES],

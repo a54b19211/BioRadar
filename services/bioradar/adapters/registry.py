@@ -7,7 +7,7 @@ PROVIDERS = (
         "owner": "徐子雯",
         "capabilities": ["data.batch"],
         "state": "not_connected",
-        "note": "支持有界只读文档采用与 data.batch 转换；当前不是全量持续同步。",
+        "note": "支持命令行有界追查与原文采用；正式 data.batch 持续同步尚未接通。",
     },
     {
         "id": "identity",
