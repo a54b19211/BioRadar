@@ -6,6 +6,7 @@ from pathlib import Path
 
 path = Path(__file__).resolve().parents[1] / "ops/.env"
 defaults = {
+    "COMPOSE_PROJECT_NAME": os.environ.get("COMPOSE_PROJECT_NAME", "bioradar-dev"),
     "POSTGRES_PASSWORD": secrets.token_urlsafe(24),
     "POSTGRES_PORT": "15436",
     "REDIS_PORT": "16379",

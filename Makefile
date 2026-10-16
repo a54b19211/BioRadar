@@ -22,9 +22,9 @@ help:
 init:
 	python3 scripts/init_dev.py
 bootstrap:
-	python3.12 -m venv .tools/bootstrap
+	python3 -m venv .tools/bootstrap
 	.tools/bootstrap/bin/python -m pip install uv==0.13.0
-	$(UV) sync --frozen
+	$(UV) sync --frozen --python 3.12
 dev:
 	$(COMPOSE) up -d --build
 stop:
@@ -43,7 +43,7 @@ engine-contract:
 	$(UV) run --frozen python scripts/export_engine_contract.py
 web-install:
 	$(NODE) npm ci
-web-check:
+web-check: web-install
 	$(NODE) sh -c 'npm run generate && npm run check && npm run build'
 web-races:
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_engine_ui_races.cjs

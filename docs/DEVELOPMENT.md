@@ -2,15 +2,27 @@
 
 ## 环境和启动
 
-需要 Python 3.12 和 Docker Compose。前端构建使用项目已有的 Node 22 容器。由李明洋先在开发机执行：
+共享开发机是 zktest，项目目录为 `/home/zk_test/zk_projects/BioRadar`。学生在这台机器上修改和运行项目，李明洋负责合并和发布。这里有独立的数据库、Redis 和登录凭据，服务不依赖导师的 4022 服务器。
+
+首次安装由李明洋在 zktest 执行：
 
 ```bash
-make init
+cd /home/zk_test/zk_projects/BioRadar
+COMPOSE_PROJECT_NAME=bioradar-zktest make init
 make bootstrap
 make dev
 ```
 
-Web 默认地址为 `http://127.0.0.1:15176`，API 为 `http://127.0.0.1:18100`。远程使用由李明洋提供转发方式，例如 `ssh -L 15176:127.0.0.1:15176 <开发机>`，然后在自己电脑访问本地页面。目前只用于本地研究。
+宿主机的 Python 3 只负责安装工具；`make bootstrap` 由 uv 准备项目独立的 Python 3.12 和锁定依赖，不改变 Data-Fabric 的环境。前端构建使用 Node 22 容器。服务器保留公共基础镜像缓存，项目仍在 zktest 从源码构建。
+
+Web 地址为 `http://127.0.0.1:15176`，API 为 `http://127.0.0.1:18100`，都只监听服务器回环地址。在自己电脑另开一个终端，使用李明洋提供的授权账号建立转发；当前开发账号的命令如下：
+
+```bash
+ssh -N -o ExitOnForwardFailure=yes -p 3022 \
+  -L 15176:127.0.0.1:15176 zk_test@10.202.2.177
+```
+
+保持这个终端打开，在自己电脑访问 `http://127.0.0.1:15176`。本地转发端口也用 15176；换端口需同步服务的允许来源，否则写操作会被拒绝。目前仅供研究试用。
 
 登录凭据保存在 `ops/.env` 的 `ENGINE_DEV_CREDENTIAL`，与服务器密码、上游 API key 分开。由李明洋单独提供给使用者，不写进文档或截图。浏览器输入后换取短期会话。
 
@@ -25,6 +37,8 @@ make example
 命令通过实际接口和后台计算建立一项教学调查，最后打印页面地址。登录后能看到初始线索、五条采用材料和前后两次研究人员判断。每次运行新建一项调查，资料和同条件计算可以复用。结果位置记录在 `artifacts/example.json`，其中不含登录凭据。
 
 例子用的是明确标为测试的材料，作用是解释程序怎样运行，没有生成真实医学或投资建议。所有文字判断由示例脚本明确填写，不是模型评价。
+
+如果自己操作导入，文件选择器读取的是自己电脑上的文件；先取回 `contracts/examples/` 中相应教学文件。也可以直接运行上面的 `make example`，不需要手动上传。
 
 自己操作时：
 
@@ -47,7 +61,7 @@ make example
   --output <采用资料.json>
 ```
 
-服务地址从服务器环境变量 `BIORADAR_DATA_FABRIC_URL` 读取，来源许可按 `BIORADAR_ENGINE_SOURCE_ALLOWLIST` 和 `BIORADAR_ENGINE_SOURCE_ID_ALLOWLIST` 配置；默认仅包含已有教学来源和核对过的 ClinicalTrials 来源。配置由李明洋维护，页面不能自行扩大许可。
+在 zktest 宿主机执行前设置 `BIORADAR_DATA_FABRIC_URL=http://127.0.0.1:8100`，指向同机 Data-Fabric。不要把这个地址用于容器内调用。服务地址从该环境变量读取，来源许可按 `BIORADAR_ENGINE_SOURCE_ALLOWLIST` 和 `BIORADAR_ENGINE_SOURCE_ID_ALLOWLIST` 配置；默认仅包含已有教学来源和核对过的 ClinicalTrials 来源。配置由李明洋维护，页面不能自行扩大许可。这个宿主命令不会自动读取 `ops/.env`；若修改了许可，执行时须同时设置对应 `BIORADAR_ENGINE_*` 环境变量，与 API 保持一致。默认研究空间和 ClinicalTrials 许可已匹配。
 
 当前读取一批资料完整成功才输出资料包；失败直接报错，不输出空包，也不覆盖以前的资料。两批比较只处理已经成功采用的内容，不能判断某条未出现记录究竟是未选择、没读到还是已删除。稳定全库更新需要上游继续提供相应接口。
 
@@ -69,6 +83,12 @@ make example
 例如要修改“保存为调查”，先看 `CandidateDetail.vue` 发出的请求，再看调查 `service.py` 的保存，再看 `InvestigationsPage.vue` 怎样读取。沿着这个操作修改即可，不再为它建立通用流程平台。负责人的目录划分见[分工安排](OWNERSHIP.md)。
 
 调查页面拆成三部分：`InvestigationsPage.vue` 负责选择调查和保存，`InvestigationEntryForm.vue` 负责填写材料、判断和笔记，`InvestigationRecord.vue` 负责阅读当前内容和历史。改输入表单时，通常只需要先看第二个文件。
+
+## 改完代码怎样生效
+
+在 zktest 项目目录中改动，每项工作使用独立 Git 分支。李明洋合并和检查后执行 `make dev`，重新构建并更新本项目服务；前后端源码改动都通过这条命令发布。`make web-check` 会先安装锁定的前端依赖，再生成类型和构建。
+
+保存重要研究记录后，由李明洋在更新前备份 BioRadar 自己的数据库。代码回退用明确的 Git 提交，数据卷保留；涉及迁移时单独检查兼容性。`make stop` 不删除数据卷，禁止为回退执行 `down -v`。首次交付有 `baseline/bioradar-v0.4` 和 `handoff/zktest-20261016` 两个 Git 标记。
 
 ## 检查和运行问题
 

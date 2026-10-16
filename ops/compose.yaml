@@ -1,4 +1,4 @@
-name: bioradar-dev
+name: ${COMPOSE_PROJECT_NAME:-bioradar-dev}
 
 x-backend: &backend
   build:
