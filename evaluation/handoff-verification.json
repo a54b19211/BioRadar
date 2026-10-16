@@ -590,6 +590,202 @@
         "Host reboot not tested and no automatic startup configured; operator runs make dev",
         "Git repository has local history only; central remote remains to be configured"
       ]
+    },
+    {
+      "reviewed_at": "2026-10-16T09:39:36.951641+00:00",
+      "scope": "Real bounded Data-Fabric to BioRadar investigation, Chinese documentation and two recipient reports",
+      "repositories": {
+        "data_fabric": {
+          "path": "zktest:/home/zk_test/zk_projects/ZK_Data-Fabric-test",
+          "base": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+          "code": "9ab8bd473acd8884de69179216f945eb1b85b6a6",
+          "branch": "codex/datafabric-digging-20261016",
+          "release_tag": "release/zktest-digging-20261016"
+        },
+        "bioradar": {
+          "path": "zktest:/home/zk_test/zk_projects/BioRadar",
+          "base": "a89433f",
+          "code": "463c3cc",
+          "branch": "codex/bioradar-digging-20261016",
+          "handoff_tag": "handoff/bioradar-digging-20261016",
+          "version": "0.5.0"
+        }
+      },
+      "architecture": {
+        "new_database_tables": 0,
+        "new_analysis_run_kinds": 0,
+        "new_queues": 0,
+        "new_runtime_dependencies": 0,
+        "external_calls": "Data-Fabric GET through adapters only",
+        "source_scope": "clinicaltrials; literal title AND over current stored records",
+        "budget": {
+          "max_queries": 3,
+          "per_query": 6,
+          "max_documents": 18
+        },
+        "automatic_judgments": false,
+        "mining_and_decision_compute_versions_changed": false
+      },
+      "checks": {
+        "bioradar_boot": "21 passed",
+        "bioradar_engine_with_real_postgresql": "244 passed, 0 skipped",
+        "contract_check": "passed",
+        "generated_runtime_contract": "updated",
+        "lint": "passed",
+        "web_generated_types_and_build": "passed",
+        "datafabric_default_suite": "231 passed",
+        "datafabric_new_tests_in_zktest_original_environment": "30 passed",
+        "datafabric_explicit_real_postgresql": "2 scenarios passed; includes read-only SQLSTATE 25006, not a NOT NULL failure",
+        "target_saved_record_readback": {
+          "investigation_id": "0d61062d-1568-4066-9dfe-c8cf036f212d",
+          "source_records_read_back": 6,
+          "automatic_judgments": 0,
+          "literal_quotes_verified": 6,
+          "source_derived_followup_terms_verified": 2,
+          "old_teaching_materials_and_judgments_preserved": true,
+          "duplicate_output_rejected_without_record_change": true,
+          "result_file_mode": "0o600",
+          "research_value": "bounded_registered_field_comparison_only",
+          "status": "passed"
+        },
+        "new_browser_interaction": "not executed; user asked to leave frontend stopped"
+      },
+      "real_case": {
+        "execution_id": "2eed28f8-49f6-4f34-a6fc-8f2fbb6a8d38",
+        "investigation_id": "0d61062d-1568-4066-9dfe-c8cf036f212d",
+        "completion_status": "completed_with_gaps",
+        "research_status": "registered field comparison; not professional assessment",
+        "adopted_materials": 6,
+        "queries": [
+          {
+            "round": 1,
+            "terms": [
+              "BCMA",
+              "myeloma"
+            ],
+            "has_more": true,
+            "returned_records": 6,
+            "adopted_records": 6,
+            "reused_records": 0,
+            "status": "completed"
+          },
+          {
+            "round": 2,
+            "terms": [
+              "BCMA",
+              "myeloma",
+              "LCAR-B38M"
+            ],
+            "has_more": false,
+            "returned_records": 1,
+            "adopted_records": 0,
+            "reused_records": 1,
+            "status": "completed"
+          },
+          {
+            "round": 3,
+            "terms": [
+              "BCMA",
+              "myeloma",
+              "LCAR-BCX"
+            ],
+            "has_more": false,
+            "returned_records": 1,
+            "adopted_records": 0,
+            "reused_records": 1,
+            "status": "completed"
+          }
+        ],
+        "followup_terms_derived_from_adopted_intervention_fields": true,
+        "new_materials_from_followups": 0,
+        "stopping_state_records": 2,
+        "unclassified_state_records": 3,
+        "automatic_judgment_entries": 0,
+        "results_availability": "not exposed, remains unknown",
+        "preserved_difference": "Registered termination/withdrawal reasons reported business changes; not automatically classified as safety or efficacy failure",
+        "evidence_scope": "Current database observations, no live website update or full-topic coverage claim"
+      },
+      "deployment": {
+        "base": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+        "fix": "9ab8bd473acd8884de69179216f945eb1b85b6a6",
+        "before": {
+          "queued": 0,
+          "started": 0,
+          "paused": true,
+          "db_inflight": 0
+        },
+        "status": "deployed",
+        "after": {
+          "queued": 0,
+          "started": 0,
+          "paused": true,
+          "db_inflight": 0
+        },
+        "workers_unchanged": true,
+        "new_api_pid": 3923927,
+        "source_probe": "passed",
+        "source_record_uuid": "f7ecd135-ee2d-5f8c-ab39-92f6bf45c426",
+        "no_database_migrations": true
+      },
+      "rollback": {
+        "base": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+        "reverted_commit": "9ab8bd473acd8884de69179216f945eb1b85b6a6",
+        "reverted_index_equals_base": true,
+        "live_runtime_rollback_executed": false
+      },
+      "final_runtime_state": {
+        "zktest_bioradar": "all containers stopped and removed; volumes preserved",
+        "personal_bioradar_web": "stopped as requested",
+        "datafabric": "new API active; original six extraction workers and pause flag preserved",
+        "student_ssh_or_frontend_operation": "not managed; access/debug left to user and students"
+      },
+      "review": {
+        "requested_model": "gpt-6.1-sol",
+        "requested_reasoning_effort": "max",
+        "design": "engine_architecture, mining_methods, integration_product approved",
+        "fabric_non_author_code": "root and mining_methods approved; live PostgreSQL test reviewed by mining_methods",
+        "radar_non_author_code": "engine_architecture, integration_product and root approved; unknown-status classification correction independently checked",
+        "deployment_script": "engine_architecture approved after source-branch guards added before both new and rollback starts",
+        "closed_findings": [
+          "Facts must bind to literal protocol source before adoption",
+          "Unknown status must remain null rather than false",
+          "Read-only integration must assert SQLSTATE 25006",
+          "Existing execution ID must inspect current saved revision before rejecting replay",
+          "Switch and rollback must verify exact branch target before starting API"
+        ],
+        "remaining_blockers": []
+      },
+      "documentation": {
+        "normal_markdown": [
+          "README.md",
+          "docs/开发说明.md",
+          "docs/开发分工.md",
+          "docs/接口说明.md",
+          "docs/资产盘点.md"
+        ],
+        "coding_instructions": "AGENTS.md",
+        "tasks": {
+          "李明洋": 5,
+          "孙博文": 5,
+          "刘金彦": 5
+        },
+        "reports": [
+          "给徐子雯_Data-Fabric修改与接续说明_20261016.docx",
+          "给雷达组_真实调查与开发安排_20261016.docx"
+        ],
+        "reports_rendered_pages": [
+          4,
+          4
+        ]
+      },
+      "remaining_work": [
+        "Full-text and multi-source retrieval with measured coverage",
+        "Source aliases and scope experiments rather than assuming more hits mean better intelligence",
+        "Stable upstream versions and continuous change consumption",
+        "WeKnora retrieval and mechanism/generation verification integrations",
+        "Organization identity and permissions",
+        "Independent scientific/strategic evaluation, historical replay and automatic professional publication"
+      ]
     }
   ]
 }
