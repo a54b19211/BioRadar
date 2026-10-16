@@ -1,0 +1,403 @@
+{
+  "application_version": "0.4.0",
+  "checked_at": "2026-10-14T10:31:29.758008+00:00",
+  "scope": "Local development handoff; engineering behavior, not professional intelligence quality.",
+  "added": [
+    "Compare two successfully adopted material packages",
+    "Save investigation questions, materials, notes and progress",
+    "Preserve researcher judgments and their exact material lists",
+    "Read sources and print saved records",
+    "Run a labelled teaching example through the actual API"
+  ],
+  "maintenance": {
+    "李明洋": "Overall lead; integration, source adapters, database migration, operations and published interfaces",
+    "孙博文": "research: mining, decision, investigation rules and research runtime",
+    "刘金彦": "Web, delivery and evaluation facilities"
+  },
+  "checks": {
+    "python": {
+      "passed": 238,
+      "skipped": 0,
+      "warning": "Existing Starlette TestClient/httpx deprecation"
+    },
+    "boot": {
+      "passed": 10,
+      "included_in_python_total": true
+    },
+    "contract_check": "passed",
+    "running_openapi_matches_export": true,
+    "implemented_paths": 18,
+    "implemented_operations": 24,
+    "lint": "passed",
+    "web_generate_typecheck_build": "passed",
+    "ui_races": {
+      "groups_passed": 10,
+      "scope": "Current Vue scripts with controlled Promise delays; no DOM/browser/server claim",
+      "checks": {
+        "run_change_clears_old_candidate_and_updates_history": "passed",
+        "logout_drops_stale_refresh_and_blocks_new_refresh": "passed",
+        "feedback_parent_run_scope_dedup_and_result_unchanged": "passed",
+        "detail_context_switch_discards_old_snapshot_and_feedback": "passed",
+        "candidate_investigation_creation_binds_original_run_and_drops_stale_link": "passed",
+        "investigation_switch_and_return_preserve_newer_revision_and_material_context": "passed",
+        "investigation_source_order_close_and_fullref_match": "passed",
+        "judgment_includes_opposing_material_and_preserves_old_revision": "passed",
+        "logout_and_revisit_discard_stale_print_success_and_failure": "passed",
+        "comparison_switch_and_unmount_discard_old_response": "passed"
+      }
+    },
+    "database_migration": "0004_investigations",
+    "real_postgres_rq_worker_round_trip": "passed",
+    "browser": {
+      "example_record_and_original_sources": true,
+      "saved_record_print_action": true,
+      "print_styles_and_pdf": true,
+      "mobile_no_horizontal_overflow": true,
+      "candidate_investigation_id": "aa502a99-dd0e-4d21-a651-6d35eafc9f07",
+      "candidate_to_investigation": true,
+      "materials_notes_judgment_history_and_review": true,
+      "pause_continue_refresh": true,
+      "direct_question": true,
+      "two_adopted_packages_comparison": true,
+      "storage_empty": true,
+      "page_errors": []
+    },
+    "example": {
+      "is_demo": true,
+      "run_id": "53e6988a-af7f-4d4d-9b4a-794060f0fd5a",
+      "investigation_id": "da8b4041-9ad1-4a72-b6f0-5e324137f04b",
+      "url": "http://127.0.0.1:15176/investigations?id=da8b4041-9ad1-4a72-b6f0-5e324137f04b",
+      "materials": 5,
+      "judgments": 2,
+      "snapshot_comparison": {
+        "added": 1,
+        "content_updated": 1,
+        "same": 14,
+        "not_seen": 1
+      },
+      "snapshot_ids": [
+        "e8092216-8ad9-46ee-a817-1cc060067d29",
+        "942741b3-09d2-494c-b4b3-81c45f9b80c2"
+      ],
+      "old_judgment_preserved": true,
+      "new_material_triggered_review": true,
+      "professional_status": "not_reviewed",
+      "retrieval_status": "not_connected"
+    },
+    "example_repeat": {
+      "passed": true,
+      "creates_new_investigation": true,
+      "reuses_existing_adopted_materials_and_computation": true,
+      "browser_checked_investigation": "02fc46a1-22d3-4ba6-b8ea-587cbebab10e",
+      "latest_example_investigation": "da8b4041-9ad1-4a72-b6f0-5e324137f04b"
+    },
+    "existing_real_source_record": {
+      "source_instance": "datafabric-test",
+      "record_count_checked": 1,
+      "investigation_id": "e2382995-de7c-49f4-873c-68e0189cfa05",
+      "saved_source_and_version_match": true,
+      "is_demo": false,
+      "professional_status": "not_reviewed",
+      "scope": "Previously adopted real summary only; no new upstream read or professional evaluation."
+    }
+  },
+  "review": {
+    "requested_model": "gpt-6.1-sol",
+    "requested_reasoning_effort": "max",
+    "design": "Approved before implementation by engine_architecture, mining_methods and integration_product.",
+    "non_author_code_reviews": {
+      "engine_architecture": "Approved comparison/example and UI; separately approved the completed-run summary-to-detail script fix.",
+      "mining_methods": "Approved investigation backend, migration and teaching script; independent PostgreSQL probes passed.",
+      "integration_product": "Approved backend, comparison, example and documents; separately approved narrow-screen CSS fix."
+    },
+    "closed_findings": [
+      "Omitted opposing material must not clear review reminder",
+      "Reject mixed teaching and real source material",
+      "Align migration non-null columns with models",
+      "Late save/print responses must not replace newer selections",
+      "Do not silently bind an old judgment draft to new material",
+      "Display the actual saved material list for every judgment",
+      "Read complete run detail after reused completed submission",
+      "Wrap narrow-screen investigation heading"
+    ],
+    "remaining_blocking_findings": []
+  },
+  "documentation": {
+    "normal_markdown": [
+      "README.md",
+      "docs/DEVELOPMENT.md",
+      "docs/OWNERSHIP.md",
+      "docs/INTERFACES.md",
+      "docs/ASSETS.md"
+    ],
+    "coding_instructions": "AGENTS.md",
+    "previous_active_markdown_count": 42,
+    "current_count": 6
+  },
+  "preserved": {
+    "existing_mining_and_decision_source_files": 19,
+    "previous_release_archives": 4,
+    "compute_versions_changed": false
+  },
+  "not_completed": [
+    "Automatic WeKnora investigation retrieval",
+    "Mechanism evidence evaluation and constrained generation verification integration",
+    "Continuous all-source updates and full-corpus value validation",
+    "Organization identity, formal business publication and public deployment"
+  ],
+  "data_scope": "Synthetic teaching materials are clearly labelled; the real-data check reused one previously adopted ClinicalTrials summary without fetching upstream or evaluating clinical/strategic value.",
+  "follow_up_reviews": [
+    {
+      "reviewed_at": "2026-10-14T11:34:16.881698+00:00",
+      "scope": "Data-Fabric read-only source review and repository/data-acquisition advice; documentation only",
+      "upstream_head": "95adbd75c84f6daa42fe3328b4ba603623ab3ad8",
+      "upstream_branch": "dev",
+      "upstream_operations": "Read source, Git metadata and selected nonsensitive runtime configuration/process kinds; no upstream writes, task execution, restart or fault injection",
+      "source_conditions": {
+        "tracked_worktree_changes": false,
+        "configured_queue": "redis",
+        "observed_api_processes": 1,
+        "observed_rq_workers": 6,
+        "static_distinct_source_keys": 20,
+        "source_key_count_correction": "Previous document recorded 19; static source keys do not establish enabled or successful sources."
+      },
+      "changed_documents": [
+        "docs/DEVELOPMENT.md",
+        "docs/ASSETS.md"
+      ],
+      "local_runtime_code_changed": false,
+      "checks": {
+        "local_links": "passed",
+        "five_normal_documents_plus_agents": true,
+        "offline_existing_function_probes": [
+          "Missing or invalid integer currently becomes zero",
+          "ClinicalTrials second-page request failure currently ends iteration normally"
+        ],
+        "live_failure_scenarios": "not executed; recommendations for isolated validation"
+      },
+      "independent_review": {
+        "engine_architecture": "approved",
+        "integration_product": "approved",
+        "mining_methods": "approved"
+      },
+      "remaining_implementation": "All upstream remediation and new-source ingestion remain proposals; none are claimed deployed."
+    },
+    {
+      "reviewed_at": "2026-10-14T12:11:39.105544+00:00",
+      "scope": "Data-Fabric version verification and proposed modification/rollback report; no implementation or deployment",
+      "report": "artifacts/Data-Fabric_修改方案与回滚说明_20261014.docx",
+      "changed_documents": [
+        "docs/ASSETS.md"
+      ],
+      "version_verification": {
+        "baseline": "115db9f4ca1051e1a046a66d4c56454f05c323e3",
+        "branch": "codex/datafabric-reliability-20261014",
+        "worktree_clean": true,
+        "remote_tracking_dev": "115db9f4ca1051e1a046a66d4c56454f05c323e3",
+        "test_ahead_behind": [
+          "0",
+          "12"
+        ],
+        "server_ahead_behind": [
+          "0",
+          "36"
+        ],
+        "dev_tree": "4afae8960afb01c85a4100e54ddfa0430fa26258",
+        "quality_tree": "4afae8960afb01c85a4100e54ddfa0430fa26258",
+        "protected_files_same": {
+          "api/main.py": true,
+          "flows/extraction_worker.py": true,
+          "core_engine/task_queue.py": true,
+          "api/routers/extraction.py": true
+        },
+        "files_changed_since_test": 21,
+        "remote_worktrees_unchanged": {
+          "test": true,
+          "server": true
+        }
+      },
+      "remote_state_checked_at": "2026-10-14T20:07:49+08:00",
+      "operations": "Read original worktrees and actual remote refs; created a separate temporary remote review clone and local audit clone; did not modify either student worktree, business database, queue or deployed service",
+      "business_code_changed": false,
+      "upstream_source_snapshot": "work/datafabric-change/repository",
+      "plan": "First batch proposes four runtime-protection files only. Patch for 95adbd75, upgrade to 115db9f4, and work on b1d895da require separate validation; no patch has been written.",
+      "checks": {
+        "local_links": "passed",
+        "normal_markdown_plus_agents": 6,
+        "upstream_business_code_modified": false,
+        "deployments": false,
+        "database_or_queue_mutations": false,
+        "runtime_tests": "not executed; plan only",
+        "docx_structure": "read successfully with python-docx; 46 paragraphs and 5 tables",
+        "visual_rendering": "not performed; no DOCX renderer available"
+      },
+      "offline_probes": "work/datafabric-change/methods-probes.json; synthetic inputs and dependency substitutes, not live fault injection or whole-project test results",
+      "independent_review": {
+        "engine_architecture": "approved; no blocking issues; proposal/rollback only",
+        "integration_product": "approved; no blocking issues; proposal/rollback only",
+        "mining_methods": "approved; no blocking issues; proposal/rollback only"
+      },
+      "remaining_implementation": "All proposed source modifications, runtime integration tests, operational backups and deployment remain unperformed."
+    },
+    {
+      "reviewed_at": "2026-10-16T07:59:20.728685+00:00",
+      "scope": "Data-Fabric first runtime-protection patch, zktest only; implemented, independently reviewed and deployed",
+      "source_repository": "CPU-ZK-TEAM/ZK_Data-Fabric-test",
+      "baseline": "9bb63b89fd9af9401d77d522b56edbaaf57ace3c",
+      "fix_commit": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+      "branch": "fix/zktest-task-safety",
+      "business_files": [
+        "api/main.py",
+        "api/routers/extraction.py",
+        "core_engine/task_queue.py",
+        "flows/extraction_worker.py",
+        "flows/extraction_rq_job.py"
+      ],
+      "additional_files": [
+        "README.md",
+        "tests/test_extraction_runtime_safety.py",
+        "tests/integration_extraction_runtime.py"
+      ],
+      "checks": {
+        "default_suite": "201 passed; includes 17 new runtime-safety cases",
+        "isolated_postgresql_redis": "1 integrated scenario passed, with two real uvicorn starts/stops, active RQ Worker, queued job and actual database writes",
+        "zktest_original_python_environment": "17 passed in isolated review checkout",
+        "lint": "Relevant existing-code correctness rules and new-test E4/E7/E9/F/I checks passed for Python 3.10; git diff --check passed",
+        "known_warnings": "Existing FastAPI on_event deprecation; not changed in this patch",
+        "document_links": "passed",
+        "normal_markdown_plus_agents": 6
+      },
+      "rollback_demonstration": {
+        "baseline": "9bb63b89fd9af9401d77d522b56edbaaf57ace3c",
+        "fix": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+        "revert_demonstration": "d0f4fbdbbfd0232b4cb9d90f442b01c8397af865",
+        "reverted_tree_equals_baseline": true,
+        "runtime_rollback_executed": false
+      },
+      "deployment": {
+        "base": "9bb63b89fd9af9401d77d522b56edbaaf57ace3c",
+        "fix": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+        "branch": "fix/zktest-task-safety",
+        "before": {
+          "queued": 0,
+          "started": 0,
+          "paused": true,
+          "db_inflight": 0
+        },
+        "status": "deployed",
+        "after": {
+          "queued": 0,
+          "started": 0,
+          "paused": true,
+          "db_inflight": 0
+        },
+        "processes": [
+          {
+            "pid": 3748476,
+            "kind": "api"
+          },
+          {
+            "pid": 3748477,
+            "kind": "worker"
+          },
+          {
+            "pid": 3748478,
+            "kind": "worker"
+          },
+          {
+            "pid": 3748479,
+            "kind": "worker"
+          },
+          {
+            "pid": 3748480,
+            "kind": "worker"
+          },
+          {
+            "pid": 3748481,
+            "kind": "worker"
+          },
+          {
+            "pid": 3748482,
+            "kind": "worker"
+          }
+        ],
+        "original_dev_preserved": true,
+        "untracked_preserved": true,
+        "head_now": "4e7ba15e37b671ffe76b59e7ca5d4e911265ceab",
+        "dev_now": "9bb63b89fd9af9401d77d522b56edbaaf57ace3c",
+        "branch_now": "fix/zktest-task-safety",
+        "worktree": [
+          "?? .env.bak",
+          "?? start_workers.sh",
+          "?? zk_env/"
+        ],
+        "remote_dev": "9bb63b89fd9af9401d77d522b56edbaaf57ace3c\trefs/heads/dev",
+        "processes_running": true,
+        "health": {
+          "status": 200,
+          "body": {
+            "status": "ok"
+          }
+        },
+        "workers": {
+          "status": 200,
+          "body": {
+            "num_workers": 3,
+            "total_pending": 0,
+            "paused": true,
+            "workers": [
+              {
+                "worker_id": 0,
+                "queue_size": 0
+              }
+            ]
+          }
+        },
+        "frontend": {
+          "error_type": "URLError"
+        },
+        "checked_at": "2026-10-16T07:53:51.253178+00:00",
+        "frontend_local_check": {
+          "page": {
+            "status": 200,
+            "html": true
+          },
+          "proxy": {
+            "status": 200,
+            "body": {
+              "num_workers": 3,
+              "total_pending": 0,
+              "paused": true,
+              "workers": [
+                {
+                  "worker_id": 0,
+                  "queue_size": 0
+                }
+              ]
+            }
+          }
+        },
+        "frontend_port_explanation": "Existing Vite listens on 5174; 15174 is not a local listener. External forwarding not changed."
+      },
+      "independent_review": {
+        "engine_architecture": "business code and final switch script approved",
+        "integration_product": "business code, tests, README and final switch script approved",
+        "mining_methods": "authored isolated unit tests; non-author review approved actual PG/RQ integration and handoff README"
+      },
+      "upstream_effects": "Imported patch branch/tags into zktest Git, preserved dev pointer, stopped original API reload process family and six idle workers, switched worktree to patch branch, restarted with original arguments/environment/cwd; kept source pause flag. No other Data-Fabric server changes.",
+      "database_migrations": false,
+      "real_extraction_triggered": false,
+      "github_pushed": false,
+      "integration_test_scope": "Only dedicated temporary local PostgreSQL/Redis; professional extraction substituted with labelled synthetic function. No shared service fault injection. Temporary containers/network removed.",
+      "remaining_limitations": [
+        "Complete crash recovery and durable dispatch still pending",
+        "Existing worker-count response is configured concurrency, not a live process count",
+        "Failure cannot be persisted when the existing database helper cannot write",
+        "No new browser interaction acceptance; existing frontend HTML and API proxy checked"
+      ],
+      "handoff_report": "artifacts/Data-Fabric_首批修改与回退说明_20261016.docx",
+      "local_source": "work/datafabric-fix-20261016/repository",
+      "runtime_script_scope": "One-time switch script outside product repo, approved specifically for baseline9bb63b89 to fix4e7ba15; not a general deployment tool"
+    }
+  ]
+}

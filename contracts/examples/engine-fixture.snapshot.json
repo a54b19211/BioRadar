@@ -1,0 +1,3502 @@
+{
+  "schema_version": "bioradar.engine.snapshot.v1",
+  "snapshot_id": "fixture",
+  "is_demo": true,
+  "source_instance": "fixture",
+  "coverage_mode": "complete",
+  "observed_at": "2026-10-14T00:00:00Z",
+  "records": [
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "baseline",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "baseline",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "1158a8e3d238fef71329e57b732368fc6490a8a53ac78a9b60c579612e8e968d",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-04-15T00:00:00Z",
+      "source_family": "fixture-beta",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-baseline",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "522e28931d184c24523785d7547072b3006f49e07bc695aa852fd7c01893e880",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-04-15T00:00:00Z",
+      "published_time_raw": "2026-04-15T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-04-15T00:00:00Z",
+      "available_at": "2026-04-15T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Technology K improves endpoint E for disease D. Baseline blue circuit platform.",
+      "normalized_text_hash": "1158a8e3d238fef71329e57b732368fc6490a8a53ac78a9b60c579612e8e968d",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d8ba4b811fda90fa974c4bdf77729e25cd29713b6f468d475b8cd20472ef8604",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "disease",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "5afd86c90b5b090f9a10f4ad177b58d41cb3f3d56d00d0ea9d23fd24967f0b1f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "7c007416873fad7b4627ee4e0d0515a76f662804ceb4cab6724ae3f72ae7a4d6",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "entity",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "201dbe0c8bd54c261133a6fad98aa14f01830958023bc3f379a2e971a8053b8f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "681a4ba8642789851e1978f7ba86611003bd1559ccae16e5bb66e56eb5c0e733",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "bd27e8ef9c06afe54a6279e0642a847be08fb45c57e0d7d2b3a27f7f2725da45",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [
+          "J"
+        ],
+        "target_refs": [],
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "label_provider_ref": {
+          "provider": "fixture",
+          "object_type": "section",
+          "object_id": "labels",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "d772ebb4590212c65cc31888ee55c3a893d866d8479f84a4c0ca36918a3fa75f",
+          "authorization_ref": "development:development:sources"
+        },
+        "provenance": null
+      },
+      "project_ref": {
+        "provider": "fixture",
+        "object_type": "project",
+        "object_id": "P0",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+        "authorization_ref": "development:development:sources"
+      },
+      "project_stage": "alpha",
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [
+        {
+          "assertion_ref": {
+            "provider": "fixture",
+            "object_type": "assertion",
+            "object_id": "old-state",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "9e4af0c1bd46a78372f99f00873156d48a670790854a8cd7cb7a27c303720eef",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+            "authorization_ref": "development:development:sources"
+          },
+          "property": "stage",
+          "value": "alpha",
+          "qualifiers": [],
+          "effective_time": {
+            "raw": "2026-04-15T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-04-15T00:00:00Z"
+          },
+          "source_ref": {
+            "provider": "fixture",
+            "object_type": "document",
+            "object_id": "baseline",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+            "authorization_ref": "development:development:sources"
+          }
+        }
+      ],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": {
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "population": "P",
+        "treatment_line": "L",
+        "endpoint": "E",
+        "geography": "J",
+        "comparator": null,
+        "study_design": "synthetic",
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "context",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      },
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [
+        {
+          "judgment_id": "J0",
+          "claim_id": "C0",
+          "claim_text": "Technology K improves endpoint E for disease D",
+          "entity_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "entity",
+              "object_id": "K",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "context": {
+            "disease_refs": [
+              {
+                "provider": "fixture",
+                "object_type": "disease",
+                "object_id": "D",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+                "authorization_ref": "development:development:sources"
+              }
+            ],
+            "population": "P",
+            "treatment_line": "L",
+            "endpoint": "E",
+            "geography": "J",
+            "comparator": null,
+            "study_design": "synthetic",
+            "provenance": {
+              "schema_version": "bioradar.engine.fixture-section.v1",
+              "provider_ref": {
+                "provider": "fixture",
+                "object_type": "section",
+                "object_id": "context",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+                "authorization_ref": "development:development:sources"
+              },
+              "available_at": "2026-04-15T00:00:00Z"
+            }
+          },
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "baseline",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "claim",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "dd1b3c312cf7d816130354452e9629ce39355b0c534129dd26a08cd9a4502ede",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        }
+      ],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "current-0",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "c384537b33d331ab17aa6c9072ffd109b2c213746ae31123ef206708ce27d2e8",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "current-0",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "c384537b33d331ab17aa6c9072ffd109b2c213746ae31123ef206708ce27d2e8",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "478880f976a75ebdf277768267ec27d53d9e9203585abf858f811e7a9e6c14f3",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-current-0",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "d0e729cc6482a0a786621824cdeec228583e2ff61430cc4e5288117b3179bd21",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Amber lattice cascade connects technology K with disease D. Specific synthetic marker 0.",
+      "normalized_text_hash": "478880f976a75ebdf277768267ec27d53d9e9203585abf858f811e7a9e6c14f3",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d8ba4b811fda90fa974c4bdf77729e25cd29713b6f468d475b8cd20472ef8604",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "disease",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "5afd86c90b5b090f9a10f4ad177b58d41cb3f3d56d00d0ea9d23fd24967f0b1f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "7c007416873fad7b4627ee4e0d0515a76f662804ceb4cab6724ae3f72ae7a4d6",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "entity",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "201dbe0c8bd54c261133a6fad98aa14f01830958023bc3f379a2e971a8053b8f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "681a4ba8642789851e1978f7ba86611003bd1559ccae16e5bb66e56eb5c0e733",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "bd27e8ef9c06afe54a6279e0642a847be08fb45c57e0d7d2b3a27f7f2725da45",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [
+          "K"
+        ],
+        "target_refs": [],
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "label_provider_ref": {
+          "provider": "fixture",
+          "object_type": "section",
+          "object_id": "labels",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "d772ebb4590212c65cc31888ee55c3a893d866d8479f84a4c0ca36918a3fa75f",
+          "authorization_ref": "development:development:sources"
+        },
+        "provenance": null
+      },
+      "project_ref": {
+        "provider": "fixture",
+        "object_type": "project",
+        "object_id": "P0",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+        "authorization_ref": "development:development:sources"
+      },
+      "project_stage": "beta",
+      "company_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "entity",
+          "object_id": "F1",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "deae2d4d75857c1081f113bcfc950dca567dd5a2e14e6ac8fb8e5785ff4dd5ec",
+          "authorization_ref": "development:development:sources"
+        },
+        {
+          "provider": "fixture",
+          "object_type": "entity",
+          "object_id": "F2",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "8e2de3335023201ffa4d803767bdf12790c58f4f241554c544bde8bf7b8455a4",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": {
+        "raw": "2026-10-01T00:00:00+00:00",
+        "precision": "instant",
+        "instant": "2026-10-01T00:00:00Z"
+      },
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [
+        {
+          "assertion_ref": {
+            "provider": "fixture",
+            "object_type": "assertion",
+            "object_id": "new-state",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "1d481f2f7f211f8e07775d3dd43f63837de4b8f939e8d861e324c8e6dff17924",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+            "authorization_ref": "development:development:sources"
+          },
+          "property": "stage",
+          "value": "beta",
+          "qualifiers": [],
+          "effective_time": {
+            "raw": "2026-10-01T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-10-01T00:00:00Z"
+          },
+          "source_ref": {
+            "provider": "fixture",
+            "object_type": "document",
+            "object_id": "current-0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "c384537b33d331ab17aa6c9072ffd109b2c213746ae31123ef206708ce27d2e8",
+            "authorization_ref": "development:development:sources"
+          }
+        }
+      ],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": {
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "population": "P",
+        "treatment_line": "L",
+        "endpoint": "E",
+        "geography": "J",
+        "comparator": null,
+        "study_design": "synthetic",
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "context",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      },
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "current-1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "c65a417573fd1ff4e71b44672b9c0ae58ccc8243a93e8cfa329aada2a20efb2f",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "current-1",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "c65a417573fd1ff4e71b44672b9c0ae58ccc8243a93e8cfa329aada2a20efb2f",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "085c866bf2464282bea2c0ba43067d5d3d204f7580469c5d6af280f2c5cf1f00",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-current-1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "8790a1090dc9a49ccd90310e2a2a764422b77b17c8c2e417bc5ece7268e1571e",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Amber lattice cascade connects technology K with disease D. Specific synthetic marker 1.",
+      "normalized_text_hash": "085c866bf2464282bea2c0ba43067d5d3d204f7580469c5d6af280f2c5cf1f00",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d8ba4b811fda90fa974c4bdf77729e25cd29713b6f468d475b8cd20472ef8604",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "disease",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "5afd86c90b5b090f9a10f4ad177b58d41cb3f3d56d00d0ea9d23fd24967f0b1f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "7c007416873fad7b4627ee4e0d0515a76f662804ceb4cab6724ae3f72ae7a4d6",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "entity",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "201dbe0c8bd54c261133a6fad98aa14f01830958023bc3f379a2e971a8053b8f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "681a4ba8642789851e1978f7ba86611003bd1559ccae16e5bb66e56eb5c0e733",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "bd27e8ef9c06afe54a6279e0642a847be08fb45c57e0d7d2b3a27f7f2725da45",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [
+          "K"
+        ],
+        "target_refs": [],
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "label_provider_ref": {
+          "provider": "fixture",
+          "object_type": "section",
+          "object_id": "labels",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "d772ebb4590212c65cc31888ee55c3a893d866d8479f84a4c0ca36918a3fa75f",
+          "authorization_ref": "development:development:sources"
+        },
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": {
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "population": "P",
+        "treatment_line": "L",
+        "endpoint": "E",
+        "geography": "J",
+        "comparator": null,
+        "study_design": "synthetic",
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "context",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      },
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "current-2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "1555f17c25fa6472d0abbabf7627c139a4342f85b99d70d7d1d54a6bfaacafa2",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "current-2",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "1555f17c25fa6472d0abbabf7627c139a4342f85b99d70d7d1d54a6bfaacafa2",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "454370e40e436fff41d9bed3cfd402411203ce4b117d00087bbd193deb84e527",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-current-2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "ea8e14a9fd7beb686a016cdd0f52e6f64802b91ec4cc8e7778759e408745d69e",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Amber lattice cascade connects technology K with disease D. Specific synthetic marker 2.",
+      "normalized_text_hash": "454370e40e436fff41d9bed3cfd402411203ce4b117d00087bbd193deb84e527",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d8ba4b811fda90fa974c4bdf77729e25cd29713b6f468d475b8cd20472ef8604",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "disease",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "5afd86c90b5b090f9a10f4ad177b58d41cb3f3d56d00d0ea9d23fd24967f0b1f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "7c007416873fad7b4627ee4e0d0515a76f662804ceb4cab6724ae3f72ae7a4d6",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "entity",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "201dbe0c8bd54c261133a6fad98aa14f01830958023bc3f379a2e971a8053b8f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2842de9d43a98b535ed75b3176a95e9bb11fd5c7f04979b329a35f578f7e0ba2",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "681a4ba8642789851e1978f7ba86611003bd1559ccae16e5bb66e56eb5c0e733",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-P0",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "bd27e8ef9c06afe54a6279e0642a847be08fb45c57e0d7d2b3a27f7f2725da45",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [
+          "K"
+        ],
+        "target_refs": [],
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "label_provider_ref": {
+          "provider": "fixture",
+          "object_type": "section",
+          "object_id": "labels",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "d772ebb4590212c65cc31888ee55c3a893d866d8479f84a4c0ca36918a3fa75f",
+          "authorization_ref": "development:development:sources"
+        },
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": {
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "population": "P",
+        "treatment_line": "L",
+        "endpoint": "E",
+        "geography": "J",
+        "comparator": null,
+        "study_design": "synthetic",
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "context",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      },
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "negative",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "09f04951af4cd503877815fd30f98e3af8d3d50a0972e83a4aaa42f4fba59761",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "negative",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "09f04951af4cd503877815fd30f98e3af8d3d50a0972e83a4aaa42f4fba59761",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "fc0bf37f47f4b4d16488dcef4b5db9a1cc20b946bf39704cfc65f78b350d9210",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-beta",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-negative",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "e410b88de9fe8022a9718e5189c925303f12b60cc36676674a0f4286cb6954e1",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Technology K did not improve endpoint E for disease D. Negative result.",
+      "normalized_text_hash": "fc0bf37f47f4b4d16488dcef4b5db9a1cc20b946bf39704cfc65f78b350d9210",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "86be9a55762d316a3026c2836d044f5fc76e34da10e1b45feee5f18be7edb177",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "7c007416873fad7b4627ee4e0d0515a76f662804ceb4cab6724ae3f72ae7a4d6",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "entity",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-K",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "201dbe0c8bd54c261133a6fad98aa14f01830958023bc3f379a2e971a8053b8f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        },
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d8ba4b811fda90fa974c4bdf77729e25cd29713b6f468d475b8cd20472ef8604",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "disease",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "5afd86c90b5b090f9a10f4ad177b58d41cb3f3d56d00d0ea9d23fd24967f0b1f",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": {
+        "disease_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "disease",
+            "object_id": "D",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "population": "P",
+        "treatment_line": "L",
+        "endpoint": "E",
+        "geography": "J",
+        "comparator": null,
+        "study_design": "synthetic",
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "context",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      },
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "notice",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "9368a7d21e018f64ae3327d2f25cd4d7693b2d85328e4bb680bcfcbd4c26b90e",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "notice",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "9368a7d21e018f64ae3327d2f25cd4d7693b2d85328e4bb680bcfcbd4c26b90e",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "d3b8c6b93ed4c908fad7b11dd3178a1353820a84bad769f2ec7711057582946c",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-beta",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-notice",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "e96b1400a30995b7e4755286751f09792c57c09f6a17256ce5176cdf612e9ec1",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic source notice changes the previous evidence version.",
+      "normalized_text_hash": "d3b8c6b93ed4c908fad7b11dd3178a1353820a84bad769f2ec7711057582946c",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [
+        {
+          "event_ref": {
+            "provider": "fixture",
+            "object_type": "event",
+            "object_id": "withdrawal-event",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "3049db59d0d076820124f342448c9ea296f9e2a8677b611c59d088b02ba2e1ce",
+            "authorization_ref": "development:development:sources"
+          },
+          "event_type": "retraction",
+          "object_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "baseline",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "8ba8496a2525ae171ffd104d632dede6ef418d9b95962a9d88e2fcdbc8d48d24",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "jurisdiction": null,
+          "effective_time": {
+            "raw": "2026-10-01T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-10-01T00:00:00Z"
+          },
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "notice",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "9368a7d21e018f64ae3327d2f25cd4d7693b2d85328e4bb680bcfcbd4c26b90e",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "source_status": "supported",
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "withdrawal",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "b79e8c5b67bcad216587877d0fb5a69384a7ad582cfff769572b6eccc51a4ec6",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-10-01T00:00:00Z"
+          }
+        }
+      ],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "assessment-old",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "dd75d3d4206c31d44e4fe8fcfb0efc44d40046a7703543192d83343d623a54b2",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "assessment-old",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "dd75d3d4206c31d44e4fe8fcfb0efc44d40046a7703543192d83343d623a54b2",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "fb64b77800efa16fe4083c641627c92b0eae2806e8c570106585ac432015e66d",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-04-15T00:00:00Z",
+      "source_family": "fixture-beta",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-assessment-old",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "dd96cc8b76c8dc36aca8ffd6611a9c8f4c7ac92ebc6670d7c04a6c13dd7ab603",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-04-15T00:00:00Z",
+      "published_time_raw": "2026-04-15T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-04-15T00:00:00Z",
+      "available_at": "2026-04-15T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic reviewed stage in_vitro. Independent technical exercise.",
+      "normalized_text_hash": "fb64b77800efa16fe4083c641627c92b0eae2806e8c570106585ac432015e66d",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [
+        {
+          "assessment_ref": {
+            "provider": "fixture",
+            "object_type": "assessment",
+            "object_id": "assessment-old",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "dd75d3d4206c31d44e4fe8fcfb0efc44d40046a7703543192d83343d623a54b2",
+            "authorization_ref": "development:development:sources"
+          },
+          "study_cluster_ref": {
+            "provider": "fixture",
+            "object_type": "study",
+            "object_id": "assessment-old",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "dd75d3d4206c31d44e4fe8fcfb0efc44d40046a7703543192d83343d623a54b2",
+            "authorization_ref": "development:development:sources"
+          },
+          "stage": "in_vitro",
+          "review_status": "reviewed",
+          "stance": "supportive",
+          "assessor": "fixture-reviewer",
+          "context": {
+            "disease_refs": [
+              {
+                "provider": "fixture",
+                "object_type": "disease",
+                "object_id": "D",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+                "authorization_ref": "development:development:sources"
+              }
+            ],
+            "population": "P",
+            "treatment_line": "L",
+            "endpoint": "E",
+            "geography": "J",
+            "comparator": null,
+            "study_design": "synthetic",
+            "provenance": {
+              "schema_version": "bioradar.engine.fixture-section.v1",
+              "provider_ref": {
+                "provider": "fixture",
+                "object_type": "section",
+                "object_id": "context",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+                "authorization_ref": "development:development:sources"
+              },
+              "available_at": "2026-04-15T00:00:00Z"
+            }
+          },
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "assessment-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "dd75d3d4206c31d44e4fe8fcfb0efc44d40046a7703543192d83343d623a54b2",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "assessment-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "dd75d3d4206c31d44e4fe8fcfb0efc44d40046a7703543192d83343d623a54b2",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        }
+      ],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "assessment-new",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "ce4708db863261bbe81e6b6179dfc629360b9198c6da4c4cc9ad0425f3db34bf",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "assessment-new",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "ce4708db863261bbe81e6b6179dfc629360b9198c6da4c4cc9ad0425f3db34bf",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "7dc73b4fa3e7fbeeabb19ecee496ca33d4699eb3f096eec5375ddcb12f5e8ea3",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-beta",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-assessment-new",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "84f1ecdb6a3bfaafd08f3b7f25aa1f30b675c1c819bbcb7504b24990947bd054",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic reviewed stage animal. Independent technical exercise.",
+      "normalized_text_hash": "7dc73b4fa3e7fbeeabb19ecee496ca33d4699eb3f096eec5375ddcb12f5e8ea3",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [
+        {
+          "assessment_ref": {
+            "provider": "fixture",
+            "object_type": "assessment",
+            "object_id": "assessment-new",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ce4708db863261bbe81e6b6179dfc629360b9198c6da4c4cc9ad0425f3db34bf",
+            "authorization_ref": "development:development:sources"
+          },
+          "study_cluster_ref": {
+            "provider": "fixture",
+            "object_type": "study",
+            "object_id": "assessment-new",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "ce4708db863261bbe81e6b6179dfc629360b9198c6da4c4cc9ad0425f3db34bf",
+            "authorization_ref": "development:development:sources"
+          },
+          "stage": "animal",
+          "review_status": "reviewed",
+          "stance": "supportive",
+          "assessor": "fixture-reviewer",
+          "context": {
+            "disease_refs": [
+              {
+                "provider": "fixture",
+                "object_type": "disease",
+                "object_id": "D",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+                "authorization_ref": "development:development:sources"
+              }
+            ],
+            "population": "P",
+            "treatment_line": "L",
+            "endpoint": "E",
+            "geography": "J",
+            "comparator": null,
+            "study_design": "synthetic",
+            "provenance": {
+              "schema_version": "bioradar.engine.fixture-section.v1",
+              "provider_ref": {
+                "provider": "fixture",
+                "object_type": "section",
+                "object_id": "context",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+                "authorization_ref": "development:development:sources"
+              },
+              "available_at": "2026-04-15T00:00:00Z"
+            }
+          },
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "assessment-new",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "ce4708db863261bbe81e6b6179dfc629360b9198c6da4c4cc9ad0425f3db34bf",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "assessment-new",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "ce4708db863261bbe81e6b6179dfc629360b9198c6da4c4cc9ad0425f3db34bf",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-10-01T00:00:00Z"
+          }
+        }
+      ],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "network-old",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "network-old",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "ac9e207e32d235c5791a1c9521e388650a4d0a9c26c92f83f18a65182048a52e",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-04-15T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-network-old",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "80ce292c12fd43e30759f7af30a84bdcc719372d775411cbab5e35a5e52464af",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-04-15T00:00:00Z",
+      "published_time_raw": "2026-04-15T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-04-15T00:00:00Z",
+      "available_at": "2026-04-15T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic collaboration events with controlled identities.",
+      "normalized_text_hash": "ac9e207e32d235c5791a1c9521e388650a4d0a9c26c92f83f18a65182048a52e",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [
+        {
+          "relation_ref": {
+            "provider": "fixture",
+            "object_type": "relation",
+            "object_id": "co-A-B",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "17893ea5188c6b9f4a6abdc2f495fa7965cbcbd8aa07686d9805d680a1738f20",
+            "authorization_ref": "development:development:sources"
+          },
+          "subject_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "A",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "559aead08264d5795d3909718cdd05abd49572e84fe55590eef31a88a08fdffd",
+            "authorization_ref": "development:development:sources"
+          },
+          "object_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "B",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c",
+            "authorization_ref": "development:development:sources"
+          },
+          "relation_type": "coauthored",
+          "directed": false,
+          "identity_status": "confirmed",
+          "effective_time": {
+            "raw": "2026-04-15T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-04-15T00:00:00Z"
+          },
+          "valid_until": null,
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "network-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "study_cluster_ref": {
+            "provider": "fixture",
+            "object_type": "study",
+            "object_id": "paper-A-B",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "6860d76e3d65107fe33bf238981be78d036aee6ee9261f14d684f61264c395a8",
+            "authorization_ref": "development:development:sources"
+          },
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "network-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        },
+        {
+          "relation_ref": {
+            "provider": "fixture",
+            "object_type": "relation",
+            "object_id": "co-B-E",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "e97743028b55cdc4898a78becfb85941e049100089737b3b1164c2a527e18d67",
+            "authorization_ref": "development:development:sources"
+          },
+          "subject_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "B",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c",
+            "authorization_ref": "development:development:sources"
+          },
+          "object_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "E",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "a9f51566bd6705f7ea6ad54bb9deb449f795582d6529a0e22207b8981233ec58",
+            "authorization_ref": "development:development:sources"
+          },
+          "relation_type": "coauthored",
+          "directed": false,
+          "identity_status": "confirmed",
+          "effective_time": {
+            "raw": "2026-04-15T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-04-15T00:00:00Z"
+          },
+          "valid_until": null,
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "network-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "study_cluster_ref": {
+            "provider": "fixture",
+            "object_type": "study",
+            "object_id": "paper-B-E",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "fa46315f28ee8e0313cf2418a500d1fd0d6932a5ae476156f61ebb78f1669a8e",
+            "authorization_ref": "development:development:sources"
+          },
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "network-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        },
+        {
+          "relation_ref": {
+            "provider": "fixture",
+            "object_type": "relation",
+            "object_id": "co-C-D-org",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "5f45beed3a0d36e568d266d341c388fb421caa6c0f3c84442688d76e23879547",
+            "authorization_ref": "development:development:sources"
+          },
+          "subject_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "C",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d",
+            "authorization_ref": "development:development:sources"
+          },
+          "object_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "D-org",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "2c0e5f4c3648a7a42430041af417be322192c91d09faadbe39c7ad6efe35d45f",
+            "authorization_ref": "development:development:sources"
+          },
+          "relation_type": "coauthored",
+          "directed": false,
+          "identity_status": "confirmed",
+          "effective_time": {
+            "raw": "2026-04-15T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-04-15T00:00:00Z"
+          },
+          "valid_until": null,
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "network-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "study_cluster_ref": {
+            "provider": "fixture",
+            "object_type": "study",
+            "object_id": "paper-C-D-org",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "e7c6c7e366a6e9b7637e4e9713e5f606a9e5a5d70da225875900f1f0b401a0ca",
+            "authorization_ref": "development:development:sources"
+          },
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "network-old",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "5cedd0fd262413d2bea6495c7e6448554da5a545fc37871c686ccfae238547a0",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        }
+      ],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "network-new",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "b0d69b2d965505c5abb71defcf061312534a13d75b124eca147aa4b257236096",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "network-new",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "b0d69b2d965505c5abb71defcf061312534a13d75b124eca147aa4b257236096",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "ac9e207e32d235c5791a1c9521e388650a4d0a9c26c92f83f18a65182048a52e",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-network-new",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "c7e5e861c01928ec5a514915bccc4abf970cf08d9e954535fd98c7b43d7330cd",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic collaboration events with controlled identities.",
+      "normalized_text_hash": "ac9e207e32d235c5791a1c9521e388650a4d0a9c26c92f83f18a65182048a52e",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [
+        {
+          "relation_ref": {
+            "provider": "fixture",
+            "object_type": "relation",
+            "object_id": "co-B-C",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "c03897aed504524c3287734b06ee7a0467ec99663a0a0d97fd5c4c898a9d2625",
+            "authorization_ref": "development:development:sources"
+          },
+          "subject_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "B",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "df7e70e5021544f4834bbee64a9e3789febc4be81470df629cad6ddb03320a5c",
+            "authorization_ref": "development:development:sources"
+          },
+          "object_ref": {
+            "provider": "fixture",
+            "object_type": "organization",
+            "object_id": "C",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "6b23c0d5f35d1b11f9b683f0b0a617355deb11277d91ae091d399c655b87940d",
+            "authorization_ref": "development:development:sources"
+          },
+          "relation_type": "coauthored",
+          "directed": false,
+          "identity_status": "confirmed",
+          "effective_time": {
+            "raw": "2026-10-01T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-10-01T00:00:00Z"
+          },
+          "valid_until": null,
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "network-new",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "b0d69b2d965505c5abb71defcf061312534a13d75b124eca147aa4b257236096",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "study_cluster_ref": {
+            "provider": "fixture",
+            "object_type": "study",
+            "object_id": "paper-B-C",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "b308383af3970cb41f10176d5790759e7caa4e36b47ace1133869a3bae085d23",
+            "authorization_ref": "development:development:sources"
+          },
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "network-new",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "b0d69b2d965505c5abb71defcf061312534a13d75b124eca147aa4b257236096",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-10-01T00:00:00Z"
+          }
+        }
+      ],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "dwell-1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "dwell-1",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "7a803955f453fc7ca92f33446825c871ec794fdca3138a338aeeadfa76887b60",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-dwell-1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "4ff380557aba104bc606e23bb4a16501bad68bfc6b3b8d7f1ef253375c2988b8",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic stage timeline with explicit observation end.",
+      "normalized_text_hash": "7a803955f453fc7ca92f33446825c871ec794fdca3138a338aeeadfa76887b60",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "dwell-1",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-dwell-1",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "1ee26cc253224d3342d8ea7703c5ac53824568b84697ef9183de2c4794476659",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-dwell-1",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "26f331b6b45717d70afa6d3203ef5f4fac2757081a17e59ceed6877c8bdd04a1",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": {
+        "provider": "fixture",
+        "object_type": "project",
+        "object_id": "dwell-1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+        "authorization_ref": "development:development:sources"
+      },
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": {
+        "project_ref": {
+          "provider": "fixture",
+          "object_type": "project",
+          "object_id": "dwell-1",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+          "authorization_ref": "development:development:sources"
+        },
+        "stage": "alpha",
+        "entered_at": {
+          "raw": "2025-02-21T00:00:00+00:00",
+          "precision": "instant",
+          "instant": "2025-02-21T00:00:00Z"
+        },
+        "observation_end": "2026-10-14T00:00:00Z",
+        "event_time": null,
+        "event_kind": "no_event",
+        "observation_coverage": "continuous",
+        "context": {
+          "disease_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "disease",
+              "object_id": "D",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "population": "P",
+          "treatment_line": "L",
+          "endpoint": "E",
+          "geography": "J",
+          "comparator": null,
+          "study_design": "synthetic",
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "context",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        },
+        "evidence_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "document",
+            "object_id": "dwell-1",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "dwell-1",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "9b2537f547d9b25a34234acbbfadda19d5e898768fb6187016472fd3f49f4314",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      }
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "dwell-2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "dwell-2",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "7a803955f453fc7ca92f33446825c871ec794fdca3138a338aeeadfa76887b60",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-dwell-2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "3a5c200d5c256f27ef17178e895ef817e2dada35592bebaa2ee98aed4ce28309",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic stage timeline with explicit observation end.",
+      "normalized_text_hash": "7a803955f453fc7ca92f33446825c871ec794fdca3138a338aeeadfa76887b60",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "dwell-2",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-dwell-2",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "b0b72c6c4d2f6d632396542d8ee4a60cee6a3fc38b5507391b8433c2dd8cd8bc",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-dwell-2",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "27a6b63b93d89016eb1a7d77adfb4a4f7f9cdd4055c103bd18b792c1f87ac886",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": {
+        "provider": "fixture",
+        "object_type": "project",
+        "object_id": "dwell-2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+        "authorization_ref": "development:development:sources"
+      },
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": {
+        "project_ref": {
+          "provider": "fixture",
+          "object_type": "project",
+          "object_id": "dwell-2",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+          "authorization_ref": "development:development:sources"
+        },
+        "stage": "alpha",
+        "entered_at": {
+          "raw": "2025-06-01T00:00:00+00:00",
+          "precision": "instant",
+          "instant": "2025-06-01T00:00:00Z"
+        },
+        "observation_end": "2026-10-14T00:00:00Z",
+        "event_time": {
+          "raw": "2025-09-09T00:00:00+00:00",
+          "precision": "instant",
+          "instant": "2025-09-09T00:00:00Z"
+        },
+        "event_kind": "stage_advance",
+        "observation_coverage": "continuous",
+        "context": {
+          "disease_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "disease",
+              "object_id": "D",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "population": "P",
+          "treatment_line": "L",
+          "endpoint": "E",
+          "geography": "J",
+          "comparator": null,
+          "study_design": "synthetic",
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "context",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        },
+        "evidence_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "document",
+            "object_id": "dwell-2",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "dwell-2",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "314d9474e518888e2c8c801ab0b340088b346d45e54ec4a646e3c6b72b298012",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      }
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "dwell-3",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "dwell-3",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "7a803955f453fc7ca92f33446825c871ec794fdca3138a338aeeadfa76887b60",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-dwell-3",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "53013ee51c15bb84a433f3fe133fc7445d42860c125bad8046bc1966bd05c54f",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic stage timeline with explicit observation end.",
+      "normalized_text_hash": "7a803955f453fc7ca92f33446825c871ec794fdca3138a338aeeadfa76887b60",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [
+        {
+          "canonical_entity_ref": {
+            "provider": "fixture",
+            "object_type": "project",
+            "object_id": "dwell-3",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+            "authorization_ref": "development:development:sources"
+          },
+          "temporary_entity_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "temporary-dwell-3",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "e30ba469da7d5dc0b084dbf83bff80925c6a99aee868e2f7fae1bfc44b209830",
+            "authorization_ref": "development:development:sources"
+          },
+          "entity_type": "project",
+          "mapping_ref": {
+            "provider": "fixture",
+            "object_type": "mapping",
+            "object_id": "map-dwell-3",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "a0df9ca8dc771c507bf2b6d0482521fd5bcc0ec114e49d21a967dbe924a9bf55",
+            "authorization_ref": "development:development:sources"
+          },
+          "mapping_version": "mapping-fixture-v1",
+          "mapping_status": "confirmed",
+          "mapping_available_at": "2026-04-15T00:00:00Z"
+        }
+      ],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": {
+        "provider": "fixture",
+        "object_type": "project",
+        "object_id": "dwell-3",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+        "authorization_ref": "development:development:sources"
+      },
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [],
+      "timeline": {
+        "project_ref": {
+          "provider": "fixture",
+          "object_type": "project",
+          "object_id": "dwell-3",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+          "authorization_ref": "development:development:sources"
+        },
+        "stage": "alpha",
+        "entered_at": {
+          "raw": "2025-06-01T00:00:00+00:00",
+          "precision": "instant",
+          "instant": "2025-06-01T00:00:00Z"
+        },
+        "observation_end": "2026-10-14T00:00:00Z",
+        "event_time": {
+          "raw": "2025-10-29T00:00:00+00:00",
+          "precision": "instant",
+          "instant": "2025-10-29T00:00:00Z"
+        },
+        "event_kind": "commercial_exit",
+        "observation_coverage": "continuous",
+        "context": {
+          "disease_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "disease",
+              "object_id": "D",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "3f39d5c348e5b79d06e842c114e6cc571583bbf44e4b0ebfda1a01ec05745d43",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "population": "P",
+          "treatment_line": "L",
+          "endpoint": "E",
+          "geography": "J",
+          "comparator": null,
+          "study_design": "synthetic",
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "context",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "ea7792a26f405e2ae9c6f49ca93bbe6076ceac0a1fc53d83426c7d7f2d9377e4",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        },
+        "evidence_refs": [
+          {
+            "provider": "fixture",
+            "object_type": "document",
+            "object_id": "dwell-3",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+            "authorization_ref": "development:development:sources"
+          }
+        ],
+        "provenance": {
+          "schema_version": "bioradar.engine.fixture-section.v1",
+          "provider_ref": {
+            "provider": "fixture",
+            "object_type": "section",
+            "object_id": "dwell-3",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "d1d0d745a281f79a6814c424ad7dcf55581cf233375d21b88b7bf035fb1d9543",
+            "authorization_ref": "development:development:sources"
+          },
+          "available_at": "2026-04-15T00:00:00Z"
+        }
+      }
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "risk",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "risk",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "45d6b138377c3898aae55c6634f7584e7fee67d1788a16fdb873900353599f61",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-beta",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-risk",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "7689b4152cf10a087bae5b23217feb499318d5466789d611f37c559cce759f78",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic supported safety action with hypothetical supply exposures.",
+      "normalized_text_hash": "45d6b138377c3898aae55c6634f7584e7fee67d1788a16fdb873900353599f61",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [
+        {
+          "relation_ref": {
+            "provider": "fixture",
+            "object_type": "relation",
+            "object_id": "supply-SupplyS-ProductX",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "b3b986d4a7d69bea366b77d2b2cda68f2c36086e87ffe4ae8e7fa5d7d04d3b55",
+            "authorization_ref": "development:development:sources"
+          },
+          "subject_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "SupplyS",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "b19aeb4cf0367405dfc15f45db93e5b59624da64da91879a44a09a3b483a0d95",
+            "authorization_ref": "development:development:sources"
+          },
+          "object_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "ProductX",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "91a6f74fb11a1e570f5c91839583b967d2d13124b85ae9d14ab3edeffcffc08a",
+            "authorization_ref": "development:development:sources"
+          },
+          "relation_type": "supplies",
+          "directed": true,
+          "identity_status": "confirmed",
+          "effective_time": {
+            "raw": "2026-04-15T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-04-15T00:00:00Z"
+          },
+          "valid_until": null,
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "risk",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "study_cluster_ref": null,
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "risk",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        },
+        {
+          "relation_ref": {
+            "provider": "fixture",
+            "object_type": "relation",
+            "object_id": "supply-ProductX-BuyerY",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "eafa64fd619d0a4ea879a10464e20cba590508be0f9cc1a0c98cfae76f832a13",
+            "authorization_ref": "development:development:sources"
+          },
+          "subject_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "ProductX",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "91a6f74fb11a1e570f5c91839583b967d2d13124b85ae9d14ab3edeffcffc08a",
+            "authorization_ref": "development:development:sources"
+          },
+          "object_ref": {
+            "provider": "fixture",
+            "object_type": "entity",
+            "object_id": "BuyerY",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "7ff72b2f0d18de559f1511b2ed19cb0d0c1bd135db095790ec515a0b3de8a7d4",
+            "authorization_ref": "development:development:sources"
+          },
+          "relation_type": "supplies",
+          "directed": true,
+          "identity_status": "confirmed",
+          "effective_time": {
+            "raw": "2026-04-15T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-04-15T00:00:00Z"
+          },
+          "valid_until": null,
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "risk",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "study_cluster_ref": null,
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "risk",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        }
+      ],
+      "assessments": [],
+      "dependencies": [],
+      "events": [
+        {
+          "event_ref": {
+            "provider": "fixture",
+            "object_type": "event",
+            "object_id": "risk-event",
+            "adopted_version": "v1",
+            "version_source": "provider",
+            "content_hash": "eb4b9254722a4ab4a95809b871d7ed038ffbe6754d79645d348a8c5c6ba481b5",
+            "authorization_ref": "development:development:sources"
+          },
+          "event_type": "regulatory_safety_action",
+          "object_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "entity",
+              "object_id": "SupplyS",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "b19aeb4cf0367405dfc15f45db93e5b59624da64da91879a44a09a3b483a0d95",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "jurisdiction": "J",
+          "effective_time": {
+            "raw": "2026-10-01T00:00:00+00:00",
+            "precision": "instant",
+            "instant": "2026-10-01T00:00:00Z"
+          },
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "risk",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "2c6ef0f0d0e4cc6e9c15d05e0480151d4e3d0b8baa0423e660330d47f56e1a66",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "source_status": "supported",
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "risk-event",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "eb4b9254722a4ab4a95809b871d7ed038ffbe6754d79645d348a8c5c6ba481b5",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-10-01T00:00:00Z"
+          }
+        }
+      ],
+      "regional_indicators": [],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "region-R1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "1e588adc777e2067367d2f0ff64d685e55d6cc40b7998f40e415afaaea5f4244",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "region-R1",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "1e588adc777e2067367d2f0ff64d685e55d6cc40b7998f40e415afaaea5f4244",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "d8ab933c8d7ae991bef0ff48418d5b8c394d66a384dc9e4be84a3274290ba5fa",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-region-R1",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "411004b8629291747beacb9e10c14ab4cfcbcd0fd11ed60e5abb061c237f8847",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic same-scope regional observations.",
+      "normalized_text_hash": "d8ab933c8d7ae991bef0ff48418d5b8c394d66a384dc9e4be84a3274290ba5fa",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [
+        {
+          "indicator": "I",
+          "region": "R1",
+          "period": "2025",
+          "unit": "count",
+          "value": 20.0,
+          "denominator": 100.0,
+          "population_scope": "P",
+          "jurisdiction": "J",
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "region-R1",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "1e588adc777e2067367d2f0ff64d685e55d6cc40b7998f40e415afaaea5f4244",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "R1",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "a791366f6f6201254edcac9ec72017b12d8a69513b5e1e29a29a4048ffb16e27",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        }
+      ],
+      "timeline": null
+    },
+    {
+      "record_ref": {
+        "provider": "fixture",
+        "object_type": "document",
+        "object_id": "region-R2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "67657728fc65407b20396c3e16838f4d96c377822456d5ecf7d9cbad92f8d2df",
+        "authorization_ref": "development:development:sources"
+      },
+      "evidence_refs": [
+        {
+          "provider": "fixture",
+          "object_type": "document",
+          "object_id": "region-R2",
+          "adopted_version": "v1",
+          "version_source": "provider",
+          "content_hash": "67657728fc65407b20396c3e16838f4d96c377822456d5ecf7d9cbad92f8d2df",
+          "authorization_ref": "development:development:sources"
+        }
+      ],
+      "document_hash": "d8ab933c8d7ae991bef0ff48418d5b8c394d66a384dc9e4be84a3274290ba5fa",
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "observed_at": "2026-10-01T00:00:00Z",
+      "source_family": "fixture-alpha",
+      "source_independence_status": "confirmed",
+      "study_cluster_ref": {
+        "provider": "fixture",
+        "object_type": "study",
+        "object_id": "study-region-R2",
+        "adopted_version": "v1",
+        "version_source": "provider",
+        "content_hash": "df58e947fab598c190271ffcccab8f0a5a06e7554594ad869917d39ac500a903",
+        "authorization_ref": "development:development:sources"
+      },
+      "study_independence_status": "confirmed",
+      "published_at": "2026-10-01T00:00:00Z",
+      "published_time_raw": "2026-10-01T00:00:00+00:00",
+      "time_precision": "instant",
+      "publication_time_verified": true,
+      "first_seen_at": "2026-10-01T00:00:00Z",
+      "available_at": "2026-10-01T00:00:00Z",
+      "source_url": null,
+      "ingestion_mode": "fixture",
+      "text_status": "inline_authorized",
+      "normalized_text": "Synthetic same-scope regional observations.",
+      "normalized_text_hash": "d8ab933c8d7ae991bef0ff48418d5b8c394d66a384dc9e4be84a3274290ba5fa",
+      "normalization_version": "identity-fixture-v1",
+      "authorized_text_ref": null,
+      "locator": {
+        "type": "unavailable",
+        "page": null,
+        "paragraph_id": null,
+        "start": null,
+        "end": null,
+        "reason": null
+      },
+      "canonical_entity_refs": [],
+      "labels": {
+        "technology_form": [],
+        "target_refs": [],
+        "disease_refs": [],
+        "label_provider_ref": null,
+        "provenance": null
+      },
+      "project_ref": null,
+      "project_stage": null,
+      "company_refs": [],
+      "drug_ref": null,
+      "trial_refs": [],
+      "project_status": null,
+      "entry_time": null,
+      "exit_time": null,
+      "exit_reason": null,
+      "state_assertions": [],
+      "record_flags": [],
+      "quality_refs": [],
+      "lineage_refs": [],
+      "missing_fields": [],
+      "available_fields": [],
+      "rule_readiness": [],
+      "upstream_status": {},
+      "context": null,
+      "embedding": null,
+      "relations": [],
+      "assessments": [],
+      "dependencies": [],
+      "events": [],
+      "regional_indicators": [
+        {
+          "indicator": "I",
+          "region": "R2",
+          "period": "2025",
+          "unit": "count",
+          "value": 30.0,
+          "denominator": 300.0,
+          "population_scope": "P",
+          "jurisdiction": "J",
+          "evidence_refs": [
+            {
+              "provider": "fixture",
+              "object_type": "document",
+              "object_id": "region-R2",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "67657728fc65407b20396c3e16838f4d96c377822456d5ecf7d9cbad92f8d2df",
+              "authorization_ref": "development:development:sources"
+            }
+          ],
+          "provenance": {
+            "schema_version": "bioradar.engine.fixture-section.v1",
+            "provider_ref": {
+              "provider": "fixture",
+              "object_type": "section",
+              "object_id": "R2",
+              "adopted_version": "v1",
+              "version_source": "provider",
+              "content_hash": "d653b016db1da8f5b36f84a44465e5d6adffeb38ae46cc701e3462343727717b",
+              "authorization_ref": "development:development:sources"
+            },
+            "available_at": "2026-04-15T00:00:00Z"
+          }
+        }
+      ],
+      "timeline": null
+    }
+  ],
+  "coverage": [
+    {
+      "source_instance": "fixture",
+      "source_id": "fixture-source",
+      "mode": "complete",
+      "scope_description": "synthetic adopted fixture cohort, not real intelligence",
+      "record_count": 16,
+      "total_reported": null,
+      "is_consistent_snapshot": true,
+      "reasons": []
+    }
+  ],
+  "metadata_gaps": []
+}

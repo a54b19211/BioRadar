@@ -1,0 +1,7450 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "BioRadar research engine",
+    "version": "0.4.0"
+  },
+  "paths": {
+    "/api/engine/session": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Current Session",
+        "operationId": "current_session_api_engine_session_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Login",
+        "operationId": "login_api_engine_session_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionLogin"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_api_engine_session_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/methods": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Methods",
+        "operationId": "methods_api_engine_methods_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MethodInfo"
+                  },
+                  "type": "array",
+                  "title": "Response Methods Api Engine Methods Get"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ]
+      }
+    },
+    "/api/engine/snapshots": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Adopt Snapshot",
+        "operationId": "adopt_snapshot_api_engine_snapshots_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NormalizedSnapshot"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Snapshots",
+        "operationId": "snapshots_api_engine_snapshots_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/snapshots/{snapshot_id}": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Snapshot",
+        "operationId": "snapshot_api_engine_snapshots__snapshot_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "snapshot_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Snapshot Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/snapshot-comparisons": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Comparison",
+        "operationId": "comparison_api_engine_snapshot_comparisons_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "before_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36,
+              "title": "Before Id"
+            }
+          },
+          {
+            "name": "after_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 36,
+              "title": "After Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotComparison"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Create Investigation",
+        "operationId": "create_investigation_api_engine_investigations_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Investigations",
+        "operationId": "investigations_api_engine_investigations_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/{investigation_id}": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Investigation",
+        "operationId": "investigation_api_engine_investigations__investigation_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/{investigation_id}/entries": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Append Investigation",
+        "operationId": "append_investigation_api_engine_investigations__investigation_id__entries_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationEntryCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/runs": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Accept Run",
+        "operationId": "accept_run_api_engine_runs_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Runs",
+        "operationId": "runs_api_engine_runs_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/runs/{run_id}": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Run",
+        "operationId": "run_api_engine_runs__run_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/runs/{run_id}/actions": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Action",
+        "operationId": "action_api_engine_runs__run_id__actions_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/runs/{run_id}/feedback": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Feedback",
+        "operationId": "feedback_api_engine_runs__run_id__feedback_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeedbackCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedbackView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/decision-runs": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Accept Decision",
+        "operationId": "accept_decision_api_engine_decision_runs_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRunCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Decisions",
+        "operationId": "decisions_api_engine_decision_runs_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRunList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/decision-runs/{run_id}": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Decision",
+        "operationId": "decision_api_engine_decision_runs__run_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/decision-runs/{run_id}/actions": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Decision Action",
+        "operationId": "decision_action_api_engine_decision_runs__run_id__actions_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunAction"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecisionRunView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "summary": "Live",
+        "operationId": "live_health_live_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "summary": "Ready",
+        "operationId": "ready_health_ready_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/system/status": {
+      "get": {
+        "summary": "System Status",
+        "operationId": "system_status_api_system_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Assessment": {
+        "properties": {
+          "assessment_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "study_cluster_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "unreviewed",
+              "inconclusive"
+            ],
+            "title": "Review Status",
+            "default": "unreviewed"
+          },
+          "stance": {
+            "type": "string",
+            "enum": [
+              "supportive",
+              "negative",
+              "mixed",
+              "undetermined"
+            ],
+            "title": "Stance",
+            "default": "undetermined"
+          },
+          "assessor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessor"
+          },
+          "context": {
+            "$ref": "#/components/schemas/StudyContext"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assessment_ref",
+          "study_cluster_ref",
+          "stage",
+          "context",
+          "provenance"
+        ],
+        "title": "Assessment"
+      },
+      "AttemptDiagnostic": {
+        "properties": {
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "result_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Hash"
+          },
+          "method_results": {
+            "items": {
+              "$ref": "#/components/schemas/MethodResult"
+            },
+            "type": "array",
+            "title": "Method Results"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attempt",
+          "state",
+          "error_code",
+          "completed_at",
+          "result_hash"
+        ],
+        "title": "AttemptDiagnostic"
+      },
+      "BaselineDifference": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "baseline_option_id": {
+            "type": "string",
+            "title": "Baseline Option Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "difference": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "bounded",
+              "exact",
+              "unknown"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "baseline_option_id",
+          "scenario_id",
+          "metric_id",
+          "difference",
+          "status"
+        ],
+        "title": "BaselineDifference"
+      },
+      "Candidate": {
+        "properties": {
+          "candidate_key": {
+            "type": "string",
+            "title": "Candidate Key"
+          },
+          "method_id": {
+            "type": "string",
+            "title": "Method Id"
+          },
+          "method_version": {
+            "type": "string",
+            "title": "Method Version"
+          },
+          "group_key": {
+            "type": "string",
+            "title": "Group Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observed_change",
+              "association",
+              "hypothesis",
+              "data_quality"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons"
+          },
+          "supports": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceSupport"
+            },
+            "type": "array",
+            "title": "Supports"
+          },
+          "metrics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Metrics"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "default": 0.0
+          },
+          "evidence_status": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "partial"
+            ],
+            "title": "Evidence Status",
+            "default": "unverified"
+          },
+          "importance": {
+            "type": "string",
+            "enum": [
+              "undetermined",
+              "low",
+              "medium",
+              "high"
+            ],
+            "title": "Importance",
+            "default": "undetermined"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "undetermined",
+              "routine",
+              "soon",
+              "immediate"
+            ],
+            "title": "Urgency",
+            "default": "routine"
+          },
+          "data_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Gaps",
+            "default": []
+          },
+          "next_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Questions",
+            "default": []
+          },
+          "next_data_requirements": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Data Requirements",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_key",
+          "method_id",
+          "method_version",
+          "group_key",
+          "kind",
+          "title",
+          "reasons",
+          "supports"
+        ],
+        "title": "Candidate"
+      },
+      "ClaimDependency": {
+        "properties": {
+          "judgment_id": {
+            "type": "string",
+            "title": "Judgment Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "title": "Claim Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "title": "Claim Text"
+          },
+          "entity_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Entity Refs",
+            "default": []
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudyContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "judgment_id",
+          "claim_id",
+          "claim_text",
+          "provenance"
+        ],
+        "title": "ClaimDependency"
+      },
+      "ConstraintCheck": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "constraint_id": {
+            "type": "string",
+            "title": "Constraint Id"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "uncertain",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "shortfall": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "scenario_id",
+          "constraint_id",
+          "metric_id",
+          "status",
+          "value",
+          "threshold",
+          "reason"
+        ],
+        "title": "ConstraintCheck"
+      },
+      "DecisionAttemptDiagnostic": {
+        "properties": {
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "result_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Hash"
+          },
+          "decision_result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "attempt",
+          "state",
+          "error_code",
+          "completed_at",
+          "result_hash"
+        ],
+        "title": "DecisionAttemptDiagnostic"
+      },
+      "DecisionBrief": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 240,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "audience": {
+            "type": "string",
+            "enum": [
+              "central",
+              "provincial",
+              "university",
+              "enterprise"
+            ],
+            "title": "Audience"
+          },
+          "decision_question": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Decision Question"
+          },
+          "mandate": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Mandate"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "decision_deadline": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Decision Deadline"
+          },
+          "horizon_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Horizon Start"
+          },
+          "horizon_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Horizon End"
+          },
+          "baseline_option_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Baseline Option Id"
+          },
+          "scope_description": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Scope Description"
+          },
+          "why_now": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredStatement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interest_declarations": {
+            "$ref": "#/components/schemas/InterestDeclarations"
+          },
+          "review_plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReviewPlan"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "audience",
+          "decision_question",
+          "mandate",
+          "as_of",
+          "decision_deadline",
+          "horizon_start",
+          "horizon_end",
+          "baseline_option_id",
+          "scope_description"
+        ],
+        "title": "DecisionBrief"
+      },
+      "DecisionEvidenceLink": {
+        "properties": {
+          "snapshot_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Snapshot Hash"
+          },
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "evidence_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 8000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "field_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Field Path"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_hash",
+          "record_ref"
+        ],
+        "title": "DecisionEvidenceLink"
+      },
+      "DecisionInput-Input": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.decision.input.v1",
+            "title": "Schema Version",
+            "default": "bioradar.decision.input.v1"
+          },
+          "input_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Input Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "brief": {
+            "$ref": "#/components/schemas/DecisionBrief"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSpec-Input"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Metrics"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionOption"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "minItems": 1,
+            "title": "Options"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionScenario"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Scenarios"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/OutcomeCell-Input"
+            },
+            "type": "array",
+            "maxItems": 12288,
+            "title": "Outcomes",
+            "default": []
+          },
+          "constraints": {
+            "items": {
+              "$ref": "#/components/schemas/HardConstraint-Input"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Constraints",
+            "default": []
+          },
+          "evidence_snapshot_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence Snapshot Hashes",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input_id",
+          "brief",
+          "metrics",
+          "options",
+          "scenarios"
+        ],
+        "title": "DecisionInput"
+      },
+      "DecisionInput-Output": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.decision.input.v1",
+            "title": "Schema Version",
+            "default": "bioradar.decision.input.v1"
+          },
+          "input_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Input Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "brief": {
+            "$ref": "#/components/schemas/DecisionBrief"
+          },
+          "metrics": {
+            "items": {
+              "$ref": "#/components/schemas/MetricSpec-Output"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Metrics"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionOption"
+            },
+            "type": "array",
+            "maxItems": 24,
+            "minItems": 1,
+            "title": "Options"
+          },
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionScenario"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "minItems": 1,
+            "title": "Scenarios"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/OutcomeCell-Output"
+            },
+            "type": "array",
+            "maxItems": 12288,
+            "title": "Outcomes",
+            "default": []
+          },
+          "constraints": {
+            "items": {
+              "$ref": "#/components/schemas/HardConstraint-Output"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Constraints",
+            "default": []
+          },
+          "evidence_snapshot_hashes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence Snapshot Hashes",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input_id",
+          "brief",
+          "metrics",
+          "options",
+          "scenarios"
+        ],
+        "title": "DecisionInput"
+      },
+      "DecisionOption": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Option Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "implementation_owner": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredStatement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "implementation_steps": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredStatement"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Implementation Steps",
+            "default": []
+          },
+          "beneficiaries": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredStatement"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Beneficiaries",
+            "default": []
+          },
+          "adversely_affected": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredStatement"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Adversely Affected",
+            "default": []
+          },
+          "irreversible_commitments": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredStatement"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Irreversible Commitments",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "label",
+          "description"
+        ],
+        "title": "DecisionOption"
+      },
+      "DecisionPolicy": {
+        "properties": {
+          "policy_version": {
+            "type": "string",
+            "const": "bioradar.decision.policy.v1",
+            "title": "Policy Version",
+            "default": "bioradar.decision.policy.v1"
+          },
+          "time_mode": {
+            "type": "string",
+            "const": "current_appraisal",
+            "title": "Time Mode",
+            "default": "current_appraisal"
+          },
+          "pareto_metric_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Pareto Metric Ids"
+          },
+          "regret_metric_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Regret Metric Id"
+          },
+          "max_options": {
+            "type": "integer",
+            "maximum": 24.0,
+            "minimum": 1.0,
+            "title": "Max Options",
+            "default": 24
+          },
+          "max_scenarios": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 1.0,
+            "title": "Max Scenarios",
+            "default": 32
+          },
+          "max_metrics": {
+            "type": "integer",
+            "maximum": 16.0,
+            "minimum": 1.0,
+            "title": "Max Metrics",
+            "default": 16
+          },
+          "max_constraints": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 0.0,
+            "title": "Max Constraints",
+            "default": 32
+          },
+          "max_questions": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Max Questions",
+            "default": 48
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "pareto_metric_ids"
+        ],
+        "title": "DecisionPolicy"
+      },
+      "DecisionResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.decision.result.v1",
+            "title": "Schema Version",
+            "default": "bioradar.decision.result.v1"
+          },
+          "compute_version": {
+            "type": "string",
+            "const": "bioradar-decision-compute-v0.1",
+            "title": "Compute Version",
+            "default": "bioradar-decision-compute-v0.1"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "policy_hash": {
+            "type": "string",
+            "title": "Policy Hash"
+          },
+          "evidence_basis_hash": {
+            "type": "string",
+            "title": "Evidence Basis Hash"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash",
+            "default": ""
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "execution_status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "partial",
+              "unsupported"
+            ],
+            "title": "Execution Status"
+          },
+          "feasibility": {
+            "items": {
+              "$ref": "#/components/schemas/OptionFeasibility"
+            },
+            "type": "array",
+            "title": "Feasibility",
+            "default": []
+          },
+          "conditional_comparison_set": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conditional Comparison Set",
+            "default": []
+          },
+          "excluded_from_comparison": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Excluded From Comparison"
+          },
+          "baseline_differences": {
+            "items": {
+              "$ref": "#/components/schemas/BaselineDifference"
+            },
+            "type": "array",
+            "title": "Baseline Differences",
+            "default": []
+          },
+          "pareto_comparisons": {
+            "items": {
+              "$ref": "#/components/schemas/ParetoComparison"
+            },
+            "type": "array",
+            "title": "Pareto Comparisons",
+            "default": []
+          },
+          "regret": {
+            "$ref": "#/components/schemas/RegretSummary"
+          },
+          "investigation_questions": {
+            "items": {
+              "$ref": "#/components/schemas/bioradar__research__decision__models__InvestigationQuestion"
+            },
+            "type": "array",
+            "title": "Investigation Questions",
+            "default": []
+          },
+          "questions_omitted": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Questions Omitted",
+            "default": 0
+          },
+          "data_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Gaps",
+            "default": []
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input_hash",
+          "policy_hash",
+          "evidence_basis_hash",
+          "is_demo",
+          "execution_status",
+          "regret"
+        ],
+        "title": "DecisionResult"
+      },
+      "DecisionRunCreate": {
+        "properties": {
+          "snapshot_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Snapshot Ids"
+          },
+          "input": {
+            "$ref": "#/components/schemas/DecisionInput-Input"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/DecisionPolicy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "input",
+          "policy"
+        ],
+        "title": "DecisionRunCreate"
+      },
+      "DecisionRunList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionRunView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "DecisionRunList"
+      },
+      "DecisionRunView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "run_kind": {
+            "type": "string",
+            "const": "decision",
+            "title": "Run Kind",
+            "default": "decision"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "audience": {
+            "type": "string",
+            "title": "Audience"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "evidence_basis_hash": {
+            "type": "string",
+            "title": "Evidence Basis Hash"
+          },
+          "source_snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionSnapshotBinding"
+            },
+            "type": "array",
+            "title": "Source Snapshots"
+          },
+          "submitted_by": {
+            "type": "string",
+            "title": "Submitted By"
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Accepted At"
+          },
+          "submitted_request_hash": {
+            "type": "string",
+            "title": "Submitted Request Hash"
+          },
+          "decision_input": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionInput-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "original_input": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Input"
+          },
+          "input_view_status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "historical_requires_new_run"
+            ],
+            "title": "Input View Status"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "original_policy": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Original Policy"
+          },
+          "policy_view_status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "historical_requires_new_run"
+            ],
+            "title": "Policy View Status"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "dispatch_pending": {
+            "type": "boolean",
+            "title": "Dispatch Pending"
+          },
+          "dependency_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attempt_diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionAttemptDiagnostic"
+            },
+            "type": "array",
+            "title": "Attempt Diagnostics"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "audience",
+          "is_demo",
+          "input_hash",
+          "evidence_basis_hash",
+          "source_snapshots",
+          "submitted_by",
+          "accepted_at",
+          "submitted_request_hash",
+          "decision_input",
+          "original_input",
+          "input_view_status",
+          "policy",
+          "original_policy",
+          "policy_view_status",
+          "state",
+          "revision",
+          "attempt",
+          "dispatch_pending",
+          "created_at"
+        ],
+        "title": "DecisionRunView"
+      },
+      "DecisionScenario": {
+        "properties": {
+          "scenario_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Scenario Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Description"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scenario_id",
+          "label",
+          "description",
+          "basis"
+        ],
+        "title": "DecisionScenario"
+      },
+      "DecisionSnapshotBinding": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "source_instance": {
+            "type": "string",
+            "title": "Source Instance"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_hash",
+          "source_instance",
+          "is_demo"
+        ],
+        "title": "DecisionSnapshotBinding"
+      },
+      "DeclaredStatement": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "basis"
+        ],
+        "title": "DeclaredStatement"
+      },
+      "Embedding": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Provider"
+          },
+          "model_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model Version"
+          },
+          "dimension": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Dimension"
+          },
+          "vector": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Vector"
+          },
+          "text_hash": {
+            "type": "string",
+            "title": "Text Hash"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "model_version",
+          "dimension",
+          "vector",
+          "text_hash",
+          "provenance"
+        ],
+        "title": "Embedding"
+      },
+      "EngineRecord": {
+        "properties": {
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "document_hash": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Document Hash"
+          },
+          "source_instance": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Instance"
+          },
+          "source_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "source_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Family"
+          },
+          "source_independence_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "unresolved"
+            ],
+            "title": "Source Independence Status",
+            "default": "unresolved"
+          },
+          "study_cluster_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "study_independence_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "unresolved",
+              "not_applicable"
+            ],
+            "title": "Study Independence Status",
+            "default": "unresolved"
+          },
+          "published_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published At"
+          },
+          "published_time_raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Time Raw"
+          },
+          "time_precision": {
+            "type": "string",
+            "enum": [
+              "instant",
+              "day",
+              "month",
+              "year",
+              "interval",
+              "unknown"
+            ],
+            "title": "Time Precision",
+            "default": "unknown"
+          },
+          "publication_time_verified": {
+            "type": "boolean",
+            "title": "Publication Time Verified",
+            "default": false
+          },
+          "first_seen_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Seen At"
+          },
+          "available_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available At"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "ingestion_mode": {
+            "type": "string",
+            "enum": [
+              "live_delta",
+              "historical_backfill",
+              "sample_export",
+              "fixture"
+            ],
+            "title": "Ingestion Mode",
+            "default": "sample_export"
+          },
+          "text_status": {
+            "type": "string",
+            "enum": [
+              "inline_authorized",
+              "reference_authorized",
+              "unavailable"
+            ],
+            "title": "Text Status",
+            "default": "unavailable"
+          },
+          "normalized_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Text"
+          },
+          "normalized_text_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Text Hash"
+          },
+          "normalization_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalization Version"
+          },
+          "authorized_text_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locator": {
+            "$ref": "#/components/schemas/Locator"
+          },
+          "canonical_entity_refs": {
+            "items": {
+              "$ref": "#/components/schemas/MiningEntity"
+            },
+            "type": "array",
+            "title": "Canonical Entity Refs",
+            "default": []
+          },
+          "labels": {
+            "$ref": "#/components/schemas/MiningLabels"
+          },
+          "project_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "project_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Stage"
+          },
+          "company_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Company Refs",
+            "default": []
+          },
+          "drug_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "trial_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Trial Refs",
+            "default": []
+          },
+          "project_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Project Status"
+          },
+          "entry_time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeExpression"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit_time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeExpression"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "exit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Reason"
+          },
+          "state_assertions": {
+            "items": {
+              "$ref": "#/components/schemas/StateAssertion"
+            },
+            "type": "array",
+            "title": "State Assertions",
+            "default": []
+          },
+          "record_flags": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "revised",
+                "deleted",
+                "retracted",
+                "historical_backfill",
+                "new_source"
+              ]
+            },
+            "type": "array",
+            "title": "Record Flags",
+            "default": []
+          },
+          "quality_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Quality Refs",
+            "default": []
+          },
+          "lineage_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Lineage Refs",
+            "default": []
+          },
+          "missing_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Fields",
+            "default": []
+          },
+          "available_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Available Fields",
+            "default": []
+          },
+          "rule_readiness": {
+            "items": {
+              "$ref": "#/components/schemas/RuleReadiness"
+            },
+            "type": "array",
+            "title": "Rule Readiness",
+            "default": []
+          },
+          "upstream_status": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Upstream Status"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StudyContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "embedding": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Embedding"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "relations": {
+            "items": {
+              "$ref": "#/components/schemas/Relation"
+            },
+            "type": "array",
+            "title": "Relations",
+            "default": []
+          },
+          "assessments": {
+            "items": {
+              "$ref": "#/components/schemas/Assessment"
+            },
+            "type": "array",
+            "title": "Assessments",
+            "default": []
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimDependency"
+            },
+            "type": "array",
+            "title": "Dependencies",
+            "default": []
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/Event"
+            },
+            "type": "array",
+            "title": "Events",
+            "default": []
+          },
+          "regional_indicators": {
+            "items": {
+              "$ref": "#/components/schemas/RegionalIndicator"
+            },
+            "type": "array",
+            "title": "Regional Indicators",
+            "default": []
+          },
+          "timeline": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProjectTimeline"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ref",
+          "document_hash",
+          "source_instance",
+          "source_id",
+          "observed_at"
+        ],
+        "title": "EngineRecord"
+      },
+      "Event": {
+        "properties": {
+          "event_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "event_type": {
+            "type": "string",
+            "title": "Event Type"
+          },
+          "object_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Object Refs",
+            "default": []
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jurisdiction"
+          },
+          "effective_time": {
+            "$ref": "#/components/schemas/TimeExpression"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "source_status": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "unverified"
+            ],
+            "title": "Source Status",
+            "default": "unverified"
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "event_ref",
+          "event_type",
+          "provenance"
+        ],
+        "title": "Event"
+      },
+      "EvidenceSupport": {
+        "properties": {
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "document_hash": {
+            "type": "string",
+            "title": "Document Hash"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/Locator"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "normalized_start": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Start"
+          },
+          "normalized_end": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized End"
+          },
+          "normalized_text_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Text Hash"
+          },
+          "quote_status": {
+            "type": "string",
+            "enum": [
+              "normalized_only",
+              "source_verified",
+              "unavailable"
+            ],
+            "title": "Quote Status",
+            "default": "unavailable"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ref",
+          "document_hash",
+          "locator"
+        ],
+        "title": "EvidenceSupport"
+      },
+      "ExcludedRecord": {
+        "properties": {
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ref",
+          "reason"
+        ],
+        "title": "ExcludedRecord"
+      },
+      "FeedbackCreate": {
+        "properties": {
+          "candidate_key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Candidate Key"
+          },
+          "result_hash": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Result Hash"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "relevant",
+              "irrelevant",
+              "duplicate",
+              "needs_check"
+            ],
+            "title": "Decision"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "candidate_key",
+          "result_hash",
+          "decision",
+          "reason"
+        ],
+        "title": "FeedbackCreate"
+      },
+      "FeedbackView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "actor_id": {
+            "type": "string",
+            "title": "Actor Id"
+          },
+          "candidate_key": {
+            "type": "string",
+            "title": "Candidate Key"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash"
+          },
+          "decision": {
+            "type": "string",
+            "title": "Decision"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "run_id",
+          "actor_id",
+          "candidate_key",
+          "result_hash",
+          "decision",
+          "reason",
+          "created_at"
+        ],
+        "title": "FeedbackView"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HardConstraint-Input": {
+        "properties": {
+          "constraint_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Constraint Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "le",
+              "ge"
+            ],
+            "title": "Operator"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unknown_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Reason"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "constraint_id",
+          "label",
+          "metric_id",
+          "operator",
+          "basis"
+        ],
+        "title": "HardConstraint"
+      },
+      "HardConstraint-Output": {
+        "properties": {
+          "constraint_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Constraint Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "operator": {
+            "type": "string",
+            "enum": [
+              "le",
+              "ge"
+            ],
+            "title": "Operator"
+          },
+          "threshold": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unknown_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Reason"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "constraint_id",
+          "label",
+          "metric_id",
+          "operator",
+          "basis"
+        ],
+        "title": "HardConstraint"
+      },
+      "InputBasis": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observed",
+              "declared_assumption",
+              "supplied_model_result"
+            ],
+            "title": "Kind"
+          },
+          "claimed_author": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Claimed Author"
+          },
+          "authored_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Authored At"
+          },
+          "rationale": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Rationale"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/DecisionEvidenceLink"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Evidence",
+            "default": []
+          },
+          "model_description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Description"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "kind",
+          "claimed_author",
+          "authored_at",
+          "rationale"
+        ],
+        "title": "InputBasis"
+      },
+      "InterestDeclarations": {
+        "properties": {
+          "commissioner": {
+            "$ref": "#/components/schemas/InterestDisclosure"
+          },
+          "funder": {
+            "$ref": "#/components/schemas/InterestDisclosure"
+          },
+          "author": {
+            "$ref": "#/components/schemas/InterestDisclosure"
+          },
+          "reviewer": {
+            "$ref": "#/components/schemas/InterestDisclosure"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "InterestDeclarations"
+      },
+      "InterestDisclosure": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unknown",
+              "declared_none",
+              "declared_interest"
+            ],
+            "title": "Status",
+            "default": "unknown"
+          },
+          "statement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclaredStatement"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "InterestDisclosure"
+      },
+      "InvestigationCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "questions": {
+            "items": {
+              "type": "string",
+              "maxLength": 2000,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Questions"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationOriginCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "question"
+        ],
+        "title": "InvestigationCreate"
+      },
+      "InvestigationEntry": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "investigation_id": {
+            "type": "string",
+            "title": "Investigation Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "note",
+              "material",
+              "judgment",
+              "status"
+            ],
+            "title": "Kind"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "payload": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationNote"
+              },
+              {
+                "$ref": "#/components/schemas/InvestigationMaterial"
+              },
+              {
+                "$ref": "#/components/schemas/InvestigationJudgment"
+              },
+              {
+                "$ref": "#/components/schemas/InvestigationStatusChange"
+              }
+            ],
+            "title": "Payload",
+            "discriminator": {
+              "propertyName": "kind",
+              "mapping": {
+                "judgment": "#/components/schemas/InvestigationJudgment",
+                "material": "#/components/schemas/InvestigationMaterial",
+                "note": "#/components/schemas/InvestigationNote",
+                "status": "#/components/schemas/InvestigationStatusChange"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "investigation_id",
+          "revision",
+          "kind",
+          "created_by",
+          "created_at",
+          "payload"
+        ],
+        "title": "InvestigationEntry"
+      },
+      "InvestigationEntryCreate": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/InvestigationNoteCreate"
+          },
+          {
+            "$ref": "#/components/schemas/InvestigationMaterialCreate"
+          },
+          {
+            "$ref": "#/components/schemas/InvestigationJudgmentCreate"
+          },
+          {
+            "$ref": "#/components/schemas/InvestigationStatusCreate"
+          }
+        ],
+        "title": "InvestigationEntryCreate",
+        "description": "Named schema with a flat, discriminated JSON request body.",
+        "discriminator": {
+          "propertyName": "kind",
+          "mapping": {
+            "judgment": "#/components/schemas/InvestigationJudgmentCreate",
+            "material": "#/components/schemas/InvestigationMaterialCreate",
+            "note": "#/components/schemas/InvestigationNoteCreate",
+            "status": "#/components/schemas/InvestigationStatusCreate"
+          }
+        }
+      },
+      "InvestigationJudgment": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "judgment",
+            "title": "Kind",
+            "default": "judgment"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "conditions": {
+            "type": "string",
+            "title": "Conditions"
+          },
+          "assessment": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "unable_to_determine"
+            ],
+            "title": "Assessment"
+          },
+          "basis_entry_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Basis Entry Ids"
+          },
+          "based_on_revision": {
+            "type": "integer",
+            "title": "Based On Revision"
+          },
+          "parent_judgment_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Judgment Entry Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "conditions",
+          "assessment",
+          "basis_entry_ids",
+          "based_on_revision",
+          "parent_judgment_entry_id"
+        ],
+        "title": "InvestigationJudgment"
+      },
+      "InvestigationJudgmentCreate": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "kind": {
+            "type": "string",
+            "const": "judgment",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "conditions": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Conditions",
+            "default": ""
+          },
+          "assessment": {
+            "type": "string",
+            "enum": [
+              "provisional",
+              "unable_to_determine"
+            ],
+            "title": "Assessment"
+          },
+          "basis_entry_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 36,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 128,
+            "title": "Basis Entry Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "kind",
+          "text",
+          "assessment"
+        ],
+        "title": "InvestigationJudgmentCreate"
+      },
+      "InvestigationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "InvestigationList"
+      },
+      "InvestigationMaterial": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "material",
+            "title": "Kind",
+            "default": "material"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "stance": {
+            "type": "string",
+            "enum": [
+              "support",
+              "oppose",
+              "context",
+              "uncertain"
+            ],
+            "title": "Stance"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "support": {
+            "$ref": "#/components/schemas/EvidenceSupport"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "stance",
+          "snapshot_id",
+          "snapshot_hash",
+          "support"
+        ],
+        "title": "InvestigationMaterial"
+      },
+      "InvestigationMaterialCreate": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "kind": {
+            "type": "string",
+            "const": "material",
+            "title": "Kind"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Snapshot Id"
+          },
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "quote": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote"
+          },
+          "stance": {
+            "type": "string",
+            "enum": [
+              "support",
+              "oppose",
+              "context",
+              "uncertain"
+            ],
+            "title": "Stance"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "kind",
+          "snapshot_id",
+          "record_ref",
+          "stance",
+          "text"
+        ],
+        "title": "InvestigationMaterialCreate"
+      },
+      "InvestigationNote": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "note",
+            "title": "Kind",
+            "default": "note"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "InvestigationNote"
+      },
+      "InvestigationNoteCreate": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "kind": {
+            "type": "string",
+            "const": "note",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "kind",
+          "text"
+        ],
+        "title": "InvestigationNoteCreate"
+      },
+      "InvestigationOrigin": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash"
+          },
+          "candidate_key": {
+            "type": "string",
+            "title": "Candidate Key"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "candidate": {
+            "$ref": "#/components/schemas/Candidate"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "result_hash",
+          "candidate_key",
+          "snapshot_id",
+          "snapshot_hash",
+          "candidate"
+        ],
+        "title": "InvestigationOrigin"
+      },
+      "InvestigationOriginCreate": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Run Id"
+          },
+          "result_hash": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Result Hash"
+          },
+          "candidate_key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Candidate Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "run_id",
+          "result_hash",
+          "candidate_key"
+        ],
+        "title": "InvestigationOriginCreate"
+      },
+      "InvestigationQuestionUpdate": {
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Question Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "checking",
+              "resolved",
+              "blocked"
+            ],
+            "title": "Status"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "status"
+        ],
+        "title": "InvestigationQuestionUpdate"
+      },
+      "InvestigationStatusChange": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "status",
+            "title": "Kind",
+            "default": "status"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused",
+              "closed"
+            ],
+            "title": "Status"
+          },
+          "question_updates": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationQuestionUpdate"
+            },
+            "type": "array",
+            "title": "Question Updates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "text",
+          "status",
+          "question_updates"
+        ],
+        "title": "InvestigationStatusChange"
+      },
+      "InvestigationStatusCreate": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "kind": {
+            "type": "string",
+            "const": "status",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused",
+              "closed"
+            ],
+            "title": "Status"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "question_updates": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationQuestionUpdate"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Question Updates"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "kind",
+          "status",
+          "text"
+        ],
+        "title": "InvestigationStatusCreate"
+      },
+      "InvestigationSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused",
+              "closed"
+            ],
+            "title": "Status"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "needs_review": {
+            "type": "boolean",
+            "title": "Needs Review"
+          },
+          "material_count": {
+            "type": "integer",
+            "title": "Material Count"
+          },
+          "judgment_count": {
+            "type": "integer",
+            "title": "Judgment Count"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "question",
+          "status",
+          "revision",
+          "is_demo",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "needs_review",
+          "material_count",
+          "judgment_count"
+        ],
+        "title": "InvestigationSummary"
+      },
+      "InvestigationView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "open",
+              "paused",
+              "closed"
+            ],
+            "title": "Status"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "created_by": {
+            "type": "string",
+            "title": "Created By"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "needs_review": {
+            "type": "boolean",
+            "title": "Needs Review"
+          },
+          "material_count": {
+            "type": "integer",
+            "title": "Material Count"
+          },
+          "judgment_count": {
+            "type": "integer",
+            "title": "Judgment Count"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationOrigin"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/bioradar__research__investigations__models__InvestigationQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/InvestigationEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "latest_judgment_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Judgment Entry Id"
+          },
+          "professional_status": {
+            "type": "string",
+            "const": "not_reviewed",
+            "title": "Professional Status",
+            "default": "not_reviewed"
+          },
+          "retrieval_status": {
+            "type": "string",
+            "const": "not_connected",
+            "title": "Retrieval Status",
+            "default": "not_connected"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "question",
+          "status",
+          "revision",
+          "is_demo",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "needs_review",
+          "material_count",
+          "judgment_count",
+          "origin",
+          "questions",
+          "entries",
+          "latest_judgment_entry_id"
+        ],
+        "title": "InvestigationView"
+      },
+      "JsonValue": {},
+      "Locator": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "page",
+              "paragraph",
+              "offset",
+              "unavailable"
+            ],
+            "title": "Type",
+            "default": "unavailable"
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "paragraph_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paragraph Id"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "Locator"
+      },
+      "MethodInfo": {
+        "properties": {
+          "method_id": {
+            "type": "string",
+            "title": "Method Id"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "input_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Input Groups"
+          },
+          "goals": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Goals"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method_id",
+          "version",
+          "label",
+          "input_groups",
+          "goals"
+        ],
+        "title": "MethodInfo"
+      },
+      "MethodResult": {
+        "properties": {
+          "method_id": {
+            "type": "string",
+            "title": "Method Id"
+          },
+          "method_version": {
+            "type": "string",
+            "title": "Method Version"
+          },
+          "readiness": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "exploratory_only",
+              "unsupported"
+            ],
+            "title": "Readiness"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          },
+          "execution_status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "partial",
+              "failed",
+              "unsupported"
+            ],
+            "title": "Execution Status"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "type": "array",
+            "title": "Candidates",
+            "default": []
+          },
+          "statistics": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Statistics"
+          },
+          "excluded_records": {
+            "items": {
+              "$ref": "#/components/schemas/ExcludedRecord"
+            },
+            "type": "array",
+            "title": "Excluded Records",
+            "default": []
+          },
+          "truncated_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Truncated Count",
+            "default": 0
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "method_id",
+          "method_version",
+          "readiness",
+          "execution_status"
+        ],
+        "title": "MethodResult"
+      },
+      "MetricSpec-Input": {
+        "properties": {
+          "metric_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Metric Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "maximize",
+              "minimize"
+            ],
+            "title": "Direction"
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Unit"
+          },
+          "definition": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Definition"
+          },
+          "population": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Population"
+          },
+          "geography": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Geography"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Jurisdiction"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "price_base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Base"
+          },
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator"
+          },
+          "comparability_basis": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Comparability Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric_id",
+          "label",
+          "direction",
+          "unit",
+          "definition",
+          "population",
+          "geography",
+          "jurisdiction",
+          "period_start",
+          "period_end",
+          "comparability_basis"
+        ],
+        "title": "MetricSpec"
+      },
+      "MetricSpec-Output": {
+        "properties": {
+          "metric_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Metric Id"
+          },
+          "label": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "maximize",
+              "minimize"
+            ],
+            "title": "Direction"
+          },
+          "unit": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Unit"
+          },
+          "definition": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Definition"
+          },
+          "population": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Population"
+          },
+          "geography": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Geography"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Jurisdiction"
+          },
+          "period_start": {
+            "type": "string",
+            "format": "date",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "format": "date",
+            "title": "Period End"
+          },
+          "price_base": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Base"
+          },
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator"
+          },
+          "comparability_basis": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Comparability Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "metric_id",
+          "label",
+          "direction",
+          "unit",
+          "definition",
+          "population",
+          "geography",
+          "jurisdiction",
+          "period_start",
+          "period_end",
+          "comparability_basis"
+        ],
+        "title": "MetricSpec"
+      },
+      "MiningEntity": {
+        "properties": {
+          "canonical_entity_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "temporary_entity_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "entity_type": {
+            "type": "string",
+            "title": "Entity Type"
+          },
+          "mapping_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mapping_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Version"
+          },
+          "mapping_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "candidate",
+              "unresolved",
+              "new_entity"
+            ],
+            "title": "Mapping Status",
+            "default": "unresolved"
+          },
+          "mapping_available_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapping Available At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "temporary_entity_ref",
+          "entity_type"
+        ],
+        "title": "MiningEntity"
+      },
+      "MiningLabels": {
+        "properties": {
+          "technology_form": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Technology Form",
+            "default": []
+          },
+          "target_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Target Refs",
+            "default": []
+          },
+          "disease_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Disease Refs",
+            "default": []
+          },
+          "label_provider_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "MiningLabels"
+      },
+      "MiningPolicy": {
+        "properties": {
+          "policy_version": {
+            "type": "string",
+            "const": "bioradar.mining.policy.v1",
+            "title": "Policy Version",
+            "default": "bioradar.mining.policy.v1"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "time_mode": {
+            "type": "string",
+            "enum": [
+              "publication_retrospective",
+              "availability_replay"
+            ],
+            "title": "Time Mode",
+            "default": "publication_retrospective"
+          },
+          "discovery_mode": {
+            "type": "string",
+            "enum": [
+              "stock_and_incremental",
+              "incremental"
+            ],
+            "title": "Discovery Mode",
+            "default": "stock_and_incremental"
+          },
+          "baseline_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Start"
+          },
+          "baseline_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline End"
+          },
+          "current_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Start"
+          },
+          "current_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current End"
+          },
+          "method_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 11,
+            "title": "Method Ids",
+            "default": [
+              "lexical_emergence",
+              "text_topics",
+              "entity_combinations",
+              "state_transitions",
+              "pipeline_landscape",
+              "research_network",
+              "maturity_shift",
+              "counterevidence_impact",
+              "translation_dwell",
+              "event_exposure",
+              "regional_comparison"
+            ]
+          },
+          "limits": {
+            "$ref": "#/components/schemas/ResourceLimits"
+          },
+          "scope_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scope Label",
+            "description": "Annotation only; records are not filtered by this label"
+          },
+          "minimum_support": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Minimum Support",
+            "default": 2
+          },
+          "minimum_growth": {
+            "type": "number",
+            "minimum": 1.0,
+            "title": "Minimum Growth",
+            "default": 2.0
+          },
+          "exploration_fraction": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Exploration Fraction",
+            "default": 0.2
+          },
+          "known_vocabulary": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50000,
+            "title": "Known Vocabulary",
+            "default": []
+          },
+          "vocabulary_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vocabulary Version"
+          },
+          "stoplist": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Stoplist",
+            "default": []
+          },
+          "topic_components": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Topic Components",
+            "default": 8
+          },
+          "topic_similarity": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Topic Similarity",
+            "default": 0.55
+          },
+          "novelty_distance": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Novelty Distance",
+            "default": 0.45
+          },
+          "random_seed": {
+            "type": "integer",
+            "title": "Random Seed",
+            "default": 0
+          },
+          "burst_scale": {
+            "type": "number",
+            "exclusiveMinimum": 1.0,
+            "title": "Burst Scale",
+            "default": 2
+          },
+          "burst_penalty": {
+            "type": "number",
+            "minimum": 0.0,
+            "title": "Burst Penalty",
+            "default": 1
+          },
+          "burst_states": {
+            "type": "integer",
+            "maximum": 10.0,
+            "minimum": 2.0,
+            "title": "Burst States",
+            "default": 3
+          },
+          "dwell_threshold_days": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Dwell Threshold Days",
+            "default": 365
+          },
+          "maturity_stage_order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Maturity Stage Order",
+            "default": [
+              "hypothesis",
+              "in_vitro",
+              "animal",
+              "human_early_result",
+              "human_late_result",
+              "regulatory"
+            ]
+          },
+          "cooperation_relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Cooperation Relations",
+            "default": [
+              "coauthored",
+              "collaborated"
+            ]
+          },
+          "exposure_relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exposure Relations",
+            "default": [
+              "supplies",
+              "depends_on",
+              "licensed_to",
+              "manufactures"
+            ]
+          },
+          "exposure_reverse_relations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exposure Reverse Relations",
+            "default": [
+              "depends_on"
+            ]
+          },
+          "urgent_event_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Urgent Event Types",
+            "default": [
+              "regulatory_safety_action",
+              "product_recall"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "as_of"
+        ],
+        "title": "MiningPolicy"
+      },
+      "MiningResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.engine.result.v1",
+            "title": "Schema Version",
+            "default": "bioradar.engine.result.v1"
+          },
+          "compute_version": {
+            "type": "string",
+            "enum": [
+              "bioradar-mining-compute-v1",
+              "bioradar-mining-compute-v0.2"
+            ],
+            "title": "Compute Version",
+            "default": "bioradar-mining-compute-v0.2"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "policy_hash": {
+            "type": "string",
+            "title": "Policy Hash"
+          },
+          "method_results": {
+            "items": {
+              "$ref": "#/components/schemas/MethodResult"
+            },
+            "type": "array",
+            "title": "Method Results"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "result_hash": {
+            "type": "string",
+            "title": "Result Hash"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_hash",
+          "policy_hash",
+          "method_results",
+          "candidates",
+          "result_hash"
+        ],
+        "title": "MiningResult"
+      },
+      "NormalizedSnapshot": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.engine.snapshot.v1",
+            "title": "Schema Version",
+            "default": "bioradar.engine.snapshot.v1"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "source_instance": {
+            "type": "string",
+            "title": "Source Instance"
+          },
+          "coverage_mode": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "bounded_sample",
+              "manual_package",
+              "unknown"
+            ],
+            "title": "Coverage Mode",
+            "default": "unknown"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "records": {
+            "items": {
+              "$ref": "#/components/schemas/EngineRecord"
+            },
+            "type": "array",
+            "title": "Records"
+          },
+          "coverage": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotCoverage"
+            },
+            "type": "array",
+            "title": "Coverage",
+            "default": []
+          },
+          "metadata_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metadata Gaps",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "source_instance",
+          "observed_at",
+          "records"
+        ],
+        "title": "NormalizedSnapshot"
+      },
+      "NumericInterval-Input": {
+        "properties": {
+          "lower": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Lower"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              }
+            ],
+            "title": "Upper"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lower",
+          "upper"
+        ],
+        "title": "NumericInterval"
+      },
+      "NumericInterval-Output": {
+        "properties": {
+          "lower": {
+            "type": "string",
+            "title": "Lower"
+          },
+          "upper": {
+            "type": "string",
+            "title": "Upper"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lower",
+          "upper"
+        ],
+        "title": "NumericInterval"
+      },
+      "OptionFeasibility": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pass",
+              "fail",
+              "uncertain",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/ConstraintCheck"
+            },
+            "type": "array",
+            "title": "Checks",
+            "default": []
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "status"
+        ],
+        "title": "OptionFeasibility"
+      },
+      "OutcomeCell-Input": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unknown_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Reason"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "scenario_id",
+          "metric_id",
+          "basis"
+        ],
+        "title": "OutcomeCell"
+      },
+      "OutcomeCell-Output": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NumericInterval-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unknown_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unknown Reason"
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "scenario_id",
+          "metric_id",
+          "basis"
+        ],
+        "title": "OutcomeCell"
+      },
+      "ParetoComparison": {
+        "properties": {
+          "option_a": {
+            "type": "string",
+            "title": "Option A"
+          },
+          "option_b": {
+            "type": "string",
+            "title": "Option B"
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "a_dominates",
+              "b_dominates",
+              "tied",
+              "incomparable",
+              "unknown"
+            ],
+            "title": "Status"
+          },
+          "metric_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metric Ids"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_a",
+          "option_b",
+          "status",
+          "metric_ids",
+          "reason"
+        ],
+        "title": "ParetoComparison"
+      },
+      "ProjectTimeline": {
+        "properties": {
+          "project_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "stage": {
+            "type": "string",
+            "title": "Stage"
+          },
+          "entered_at": {
+            "$ref": "#/components/schemas/TimeExpression"
+          },
+          "observation_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observation End"
+          },
+          "event_time": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeExpression"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "event_kind": {
+            "type": "string",
+            "enum": [
+              "stage_advance",
+              "clinical_failure",
+              "commercial_exit",
+              "unknown_exit",
+              "no_event",
+              "coverage_loss"
+            ],
+            "title": "Event Kind",
+            "default": "no_event"
+          },
+          "observation_coverage": {
+            "type": "string",
+            "enum": [
+              "continuous",
+              "gaps",
+              "unknown"
+            ],
+            "title": "Observation Coverage",
+            "default": "unknown"
+          },
+          "context": {
+            "$ref": "#/components/schemas/StudyContext"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "project_ref",
+          "stage",
+          "entered_at",
+          "observation_end",
+          "context",
+          "provenance"
+        ],
+        "title": "ProjectTimeline"
+      },
+      "ProviderRef": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Provider"
+          },
+          "object_type": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Object Type"
+          },
+          "object_id": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Object Id"
+          },
+          "adopted_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Adopted Version"
+          },
+          "version_source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "export_hash"
+            ],
+            "title": "Version Source"
+          },
+          "content_hash": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Content Hash"
+          },
+          "authorization_ref": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Authorization Ref"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "provider",
+          "object_type",
+          "object_id",
+          "adopted_version",
+          "version_source",
+          "content_hash",
+          "authorization_ref"
+        ],
+        "title": "ProviderRef"
+      },
+      "Qualifier": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "Qualifier"
+      },
+      "RecordIdentity": {
+        "properties": {
+          "source_instance": {
+            "type": "string",
+            "title": "Source Instance"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "object_type": {
+            "type": "string",
+            "title": "Object Type"
+          },
+          "object_id": {
+            "type": "string",
+            "title": "Object Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_instance",
+          "provider",
+          "object_type",
+          "object_id"
+        ],
+        "title": "RecordIdentity"
+      },
+      "RegionalIndicator": {
+        "properties": {
+          "indicator": {
+            "type": "string",
+            "title": "Indicator"
+          },
+          "region": {
+            "type": "string",
+            "title": "Region"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          },
+          "denominator": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator"
+          },
+          "population_scope": {
+            "type": "string",
+            "title": "Population Scope"
+          },
+          "jurisdiction": {
+            "type": "string",
+            "title": "Jurisdiction"
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "indicator",
+          "region",
+          "period",
+          "unit",
+          "value",
+          "population_scope",
+          "jurisdiction",
+          "provenance"
+        ],
+        "title": "RegionalIndicator"
+      },
+      "RegretCase": {
+        "properties": {
+          "option_id": {
+            "type": "string",
+            "title": "Option Id"
+          },
+          "scenario_id": {
+            "type": "string",
+            "title": "Scenario Id"
+          },
+          "value": {
+            "$ref": "#/components/schemas/NumericInterval-Output"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "option_id",
+          "scenario_id",
+          "value"
+        ],
+        "title": "RegretCase"
+      },
+      "RegretSummary": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_requested",
+              "unsupported",
+              "partial",
+              "complete"
+            ],
+            "title": "Status"
+          },
+          "metric_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric Id"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          },
+          "interpretation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "exact_on_declared_scenarios",
+                  "conservative_outer_bounds"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interpretation"
+          },
+          "conditional_comparison_set": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Conditional Comparison Set",
+            "default": []
+          },
+          "excluded_options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Excluded Options",
+            "default": []
+          },
+          "exclusion_reasons": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "type": "object",
+            "title": "Exclusion Reasons"
+          },
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/RegretCase"
+            },
+            "type": "array",
+            "title": "Cases",
+            "default": []
+          },
+          "worst_case_bounds": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/NumericInterval-Output"
+            },
+            "type": "object",
+            "title": "Worst Case Bounds"
+          },
+          "least_upper_bound_options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Least Upper Bound Options",
+            "default": []
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "RegretSummary"
+      },
+      "Relation": {
+        "properties": {
+          "relation_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "subject_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "object_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "relation_type": {
+            "type": "string",
+            "title": "Relation Type"
+          },
+          "directed": {
+            "type": "boolean",
+            "title": "Directed",
+            "default": true
+          },
+          "identity_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "unresolved"
+            ],
+            "title": "Identity Status",
+            "default": "unresolved"
+          },
+          "effective_time": {
+            "$ref": "#/components/schemas/TimeExpression"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TimeExpression"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Evidence Refs",
+            "default": []
+          },
+          "study_cluster_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provenance": {
+            "$ref": "#/components/schemas/SectionProvenance"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "relation_ref",
+          "subject_ref",
+          "object_ref",
+          "relation_type",
+          "provenance"
+        ],
+        "title": "Relation"
+      },
+      "ResourceLimits": {
+        "properties": {
+          "max_records": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Max Records",
+            "default": 2000
+          },
+          "max_text_characters": {
+            "type": "integer",
+            "maximum": 50000000.0,
+            "minimum": 100.0,
+            "title": "Max Text Characters",
+            "default": 2000000
+          },
+          "max_features": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 10.0,
+            "title": "Max Features",
+            "default": 15000
+          },
+          "max_candidates_per_method": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Candidates Per Method",
+            "default": 100
+          },
+          "review_capacity": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Review Capacity",
+            "default": 20
+          },
+          "max_candidates_per_group": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Max Candidates Per Group",
+            "default": 2
+          },
+          "max_graph_edges": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Max Graph Edges",
+            "default": 10000
+          },
+          "max_graph_hops": {
+            "type": "integer",
+            "maximum": 6.0,
+            "minimum": 1.0,
+            "title": "Max Graph Hops",
+            "default": 3
+          },
+          "max_paths": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Max Paths",
+            "default": 50
+          },
+          "max_link_pairs": {
+            "type": "integer",
+            "maximum": 20000.0,
+            "minimum": 1.0,
+            "title": "Max Link Pairs",
+            "default": 1000
+          },
+          "max_temporal_bins": {
+            "type": "integer",
+            "maximum": 2048.0,
+            "minimum": 2.0,
+            "title": "Max Temporal Bins",
+            "default": 128
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "ResourceLimits"
+      },
+      "ReviewPlan": {
+        "properties": {
+          "review_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review At"
+          },
+          "trigger_indicators": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredStatement"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Trigger Indicators",
+            "default": []
+          },
+          "change_conditions": {
+            "items": {
+              "$ref": "#/components/schemas/DeclaredStatement"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Change Conditions",
+            "default": []
+          },
+          "basis": {
+            "$ref": "#/components/schemas/InputBasis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "basis"
+        ],
+        "title": "ReviewPlan"
+      },
+      "RuleReadiness": {
+        "properties": {
+          "rule": {
+            "type": "string",
+            "enum": [
+              "R1",
+              "R2",
+              "R3",
+              "R4"
+            ],
+            "title": "Rule"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "exploratory_only",
+              "unsupported"
+            ],
+            "title": "State"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "rule",
+          "state"
+        ],
+        "title": "RuleReadiness"
+      },
+      "RunAction": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "const": "retry_failed",
+            "title": "Action"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action",
+          "expected_revision"
+        ],
+        "title": "RunAction"
+      },
+      "RunCreate": {
+        "properties": {
+          "snapshot_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Snapshot Id"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/MiningPolicy"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "snapshot_id",
+          "policy"
+        ],
+        "title": "RunCreate"
+      },
+      "RunError": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "RunError"
+      },
+      "RunList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RunView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "RunList"
+      },
+      "RunView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "original_policy": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/JsonValue"
+            },
+            "type": "object",
+            "title": "Original Policy"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MiningPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current schema view only; original_policy is the frozen input"
+          },
+          "policy_view_status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "historical_requires_new_run"
+            ],
+            "title": "Policy View Status"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "partial",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "attempt": {
+            "type": "integer",
+            "title": "Attempt"
+          },
+          "dispatch_pending": {
+            "type": "boolean",
+            "title": "Dispatch Pending"
+          },
+          "dependency_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dependency Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunError"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MiningResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "candidate_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candidate Count"
+          },
+          "feedback": {
+            "items": {
+              "$ref": "#/components/schemas/FeedbackView"
+            },
+            "type": "array",
+            "title": "Feedback"
+          },
+          "attempt_diagnostics": {
+            "items": {
+              "$ref": "#/components/schemas/AttemptDiagnostic"
+            },
+            "type": "array",
+            "title": "Attempt Diagnostics"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_id",
+          "input_hash",
+          "original_policy",
+          "policy",
+          "policy_view_status",
+          "state",
+          "revision",
+          "attempt",
+          "dispatch_pending",
+          "created_at"
+        ],
+        "title": "RunView"
+      },
+      "SectionProvenance": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Schema Version"
+          },
+          "provider_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "available_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "provider_ref"
+        ],
+        "title": "SectionProvenance"
+      },
+      "SessionLogin": {
+        "properties": {
+          "credential": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "format": "password",
+            "title": "Credential",
+            "writeOnly": true
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "credential"
+        ],
+        "title": "SessionLogin"
+      },
+      "SessionView": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "authenticated": {
+            "type": "boolean",
+            "title": "Authenticated"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled",
+          "authenticated"
+        ],
+        "title": "SessionView"
+      },
+      "SnapshotComparison": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.engine.comparison.v1",
+            "title": "Schema Version",
+            "default": "bioradar.engine.comparison.v1"
+          },
+          "comparison_version": {
+            "type": "string",
+            "const": "bioradar-comparison-v0.1",
+            "title": "Comparison Version",
+            "default": "bioradar-comparison-v0.1"
+          },
+          "source_instance": {
+            "type": "string",
+            "title": "Source Instance"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "before_hash": {
+            "type": "string",
+            "title": "Before Hash"
+          },
+          "after_hash": {
+            "type": "string",
+            "title": "After Hash"
+          },
+          "before_observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Before Observed At"
+          },
+          "after_observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "After Observed At"
+          },
+          "scope": {
+            "type": "string",
+            "const": "selected_adopted_records",
+            "title": "Scope",
+            "default": "selected_adopted_records"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotComparisonItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "enum": [
+                "added",
+                "content_updated",
+                "same",
+                "not_seen"
+              ]
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_instance",
+          "is_demo",
+          "before_hash",
+          "after_hash",
+          "before_observed_at",
+          "after_observed_at",
+          "items",
+          "counts",
+          "limitations"
+        ],
+        "title": "SnapshotComparison"
+      },
+      "SnapshotComparisonItem": {
+        "properties": {
+          "identity": {
+            "$ref": "#/components/schemas/RecordIdentity"
+          },
+          "before_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "added",
+              "content_updated",
+              "same",
+              "not_seen"
+            ],
+            "title": "Status"
+          },
+          "changed_fields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changed Fields",
+            "default": []
+          },
+          "reason_codes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reason Codes",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "identity",
+          "status"
+        ],
+        "title": "SnapshotComparisonItem"
+      },
+      "SnapshotCoverage": {
+        "properties": {
+          "source_instance": {
+            "type": "string",
+            "title": "Source Instance"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "bounded_sample",
+              "manual_package",
+              "unknown"
+            ],
+            "title": "Mode",
+            "default": "unknown"
+          },
+          "scope_description": {
+            "type": "string",
+            "title": "Scope Description"
+          },
+          "record_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Record Count"
+          },
+          "total_reported": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Reported"
+          },
+          "is_consistent_snapshot": {
+            "type": "boolean",
+            "title": "Is Consistent Snapshot",
+            "default": false
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_instance",
+          "source_id",
+          "scope_description",
+          "record_count"
+        ],
+        "title": "SnapshotCoverage"
+      },
+      "SnapshotDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/NormalizedSnapshot"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_hash",
+          "snapshot"
+        ],
+        "title": "SnapshotDetail"
+      },
+      "SnapshotList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "SnapshotList"
+      },
+      "SnapshotSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "snapshot_hash": {
+            "type": "string",
+            "title": "Snapshot Hash"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "source_instance": {
+            "type": "string",
+            "title": "Source Instance"
+          },
+          "coverage_mode": {
+            "type": "string",
+            "title": "Coverage Mode"
+          },
+          "record_count": {
+            "type": "integer",
+            "title": "Record Count"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Observed At"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "metadata_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Metadata Gaps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "snapshot_hash",
+          "is_demo",
+          "source_instance",
+          "coverage_mode",
+          "record_count",
+          "observed_at",
+          "created_at",
+          "metadata_gaps"
+        ],
+        "title": "SnapshotSummary"
+      },
+      "StateAssertion": {
+        "properties": {
+          "assertion_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "entity_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "property": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Property"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "number"
+              },
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "qualifiers": {
+            "items": {
+              "$ref": "#/components/schemas/Qualifier"
+            },
+            "type": "array",
+            "title": "Qualifiers",
+            "default": []
+          },
+          "effective_time": {
+            "$ref": "#/components/schemas/TimeExpression"
+          },
+          "source_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "assertion_ref",
+          "property",
+          "source_ref"
+        ],
+        "title": "StateAssertion"
+      },
+      "StudyContext": {
+        "properties": {
+          "disease_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Disease Refs",
+            "default": []
+          },
+          "population": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "treatment_line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Treatment Line"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "geography": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Geography"
+          },
+          "comparator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparator"
+          },
+          "study_design": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Study Design"
+          },
+          "provenance": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SectionProvenance"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "StudyContext"
+      },
+      "TimeExpression": {
+        "properties": {
+          "raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw"
+          },
+          "precision": {
+            "type": "string",
+            "enum": [
+              "instant",
+              "day",
+              "month",
+              "year",
+              "interval",
+              "unknown"
+            ],
+            "title": "Precision",
+            "default": "unknown"
+          },
+          "instant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instant"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TimeExpression"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "bioradar__research__decision__models__InvestigationQuestion": {
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "title": "Question Id"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "hard_gate",
+              "missing_comparison",
+              "overlapping_comparison",
+              "governance",
+              "source"
+            ],
+            "title": "Category"
+          },
+          "option_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Option Ids",
+            "default": []
+          },
+          "scenario_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario Id"
+          },
+          "metric_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metric Id"
+          },
+          "constraint_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constraint Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "category",
+          "question",
+          "reason"
+        ],
+        "title": "InvestigationQuestion"
+      },
+      "bioradar__research__investigations__models__InvestigationQuestion": {
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "title": "Question Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "checking",
+              "resolved",
+              "blocked"
+            ],
+            "title": "Status",
+            "default": "pending"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question_id",
+          "text"
+        ],
+        "title": "InvestigationQuestion"
+      }
+    },
+    "securitySchemes": {
+      "DevelopmentUserCredential": {
+        "type": "http",
+        "description": "Local development-user credential for CLI; never an upstream or shared service API key.",
+        "scheme": "bearer"
+      },
+      "DevelopmentUserSession": {
+        "type": "apiKey",
+        "description": "Short-lived HttpOnly local development login session; no SSO or production authorization.",
+        "in": "cookie",
+        "name": "bioradar_engine_session"
+      }
+    }
+  }
+}

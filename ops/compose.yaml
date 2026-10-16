@@ -1,0 +1,90 @@
+name: bioradar-dev
+
+x-backend: &backend
+  build:
+    context: ..
+    dockerfile: ops/Dockerfile.api
+    network: host
+    args:
+      HTTP_PROXY: ${HTTP_PROXY:-}
+      HTTPS_PROXY: ${HTTPS_PROXY:-}
+  environment:
+    BIORADAR_ENVIRONMENT: development
+    BIORADAR_DATABASE_URL: postgresql+psycopg://bioradar:${POSTGRES_PASSWORD:?Run make init}@postgres:5432/bioradar
+    BIORADAR_REDIS_URL: redis://redis:6379/0
+    BIORADAR_QUEUE_PREFIX: bioradar:dev
+    BIORADAR_ENGINE_DEV_CREDENTIAL: ${ENGINE_DEV_CREDENTIAL:?Run make init}
+    BIORADAR_ENGINE_SOURCE_ALLOWLIST: ${ENGINE_SOURCE_ALLOWLIST:?Run make init}
+    BIORADAR_ENGINE_SOURCE_ID_ALLOWLIST: ${ENGINE_SOURCE_ID_ALLOWLIST:?Run make init}
+    BIORADAR_ENGINE_ALLOWED_ORIGINS: '["http://127.0.0.1:${WEB_PORT:-15176}","http://localhost:${WEB_PORT:-15176}","http://127.0.0.1:${API_PORT:-18100}","http://localhost:${API_PORT:-18100}"]'
+    OMP_NUM_THREADS: '1'
+    OPENBLAS_NUM_THREADS: '1'
+    MKL_NUM_THREADS: '1'
+  init: true
+
+services:
+  postgres:
+    image: public.ecr.aws/docker/library/postgres:17-alpine
+    environment:
+      POSTGRES_DB: bioradar
+      POSTGRES_USER: bioradar
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run make init}
+    ports: ["127.0.0.1:${POSTGRES_PORT:-15436}:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bioradar -d bioradar"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports: ["127.0.0.1:${REDIS_PORT:-16379}:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+  migrate:
+    <<: *backend
+    command: ["alembic", "-c", "db/alembic.ini", "upgrade", "head"]
+    depends_on:
+      postgres: {condition: service_healthy}
+  api:
+    <<: *backend
+    ports: ["127.0.0.1:${API_PORT:-18100}:8100"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health/live', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
+  worker:
+    <<: *backend
+    command: ["python", "-m", "bioradar.ops.worker"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  web:
+    build:
+      context: ..
+      dockerfile: ops/Dockerfile.web
+      network: host
+      args:
+        HTTP_PROXY: ${HTTP_PROXY:-}
+        HTTPS_PROXY: ${HTTPS_PROXY:-}
+    ports: ["127.0.0.1:${WEB_PORT:-15176}:80"]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

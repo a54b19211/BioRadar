@@ -1,0 +1,16 @@
+{
+  "scope": "契约静态校验，未运行业务服务",
+  "operations": 31,
+  "schemas": 38,
+  "resolved_refs": 87,
+  "validated_examples": 6,
+  "checks": [
+    "JSON语法",
+    "Schema结构",
+    "内部引用",
+    "路径参数一致性",
+    "操作ID唯一",
+    "POST幂等头",
+    "示例请求符合Schema"
+  ]
+}

@@ -1,0 +1,5976 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "BioRadar 首轮核心业务接口",
+    "version": "1.0.0",
+    "description": "拟开发契约：模块化单体、固定流水线、RQ/Redis执行、PostgreSQL业务状态。接口存在不证明服务上线。共享事实/身份/原文由上游拥有，BioRadar保存采用引用、授权冻结副本及业务版本。"
+  },
+  "servers": [
+    {
+      "url": "/api/v1"
+    }
+  ],
+  "security": [
+    {
+      "SessionCookie": []
+    },
+    {
+      "UserBearer": []
+    }
+  ],
+  "paths": {
+    "/me": {
+      "get": {
+        "operationId": "getCurrentUser",
+        "summary": "读取当前用户与角色",
+        "description": "读取当前用户与角色",
+        "responses": {
+          "200": {
+            "description": "读取当前用户与角色",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/User"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics": {
+      "get": {
+        "operationId": "listTopics",
+        "summary": "读取有权访问的专题",
+        "description": "读取有权访问的专题",
+        "responses": {
+          "200": {
+            "description": "读取有权访问的专题",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "createTopic",
+        "summary": "创建长期专题及首个范围版本",
+        "description": "创建长期专题及首个范围版本",
+        "responses": {
+          "201": {
+            "description": "创建长期专题及首个范围版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topic"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTopic"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics/{topic_id}": {
+      "get": {
+        "operationId": "getTopic",
+        "summary": "读取专题及当前范围",
+        "description": "读取专题及当前范围",
+        "responses": {
+          "200": {
+            "description": "读取专题及当前范围",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topic"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/topics/{topic_id}/scope-versions": {
+      "post": {
+        "operationId": "reviseTopicScope",
+        "summary": "保存新的范围版本",
+        "description": "校验专题 expected_revision；新版本不能改写原调查，调查采用新范围通过控制接口单独指定。",
+        "responses": {
+          "201": {
+            "description": "保存新的范围版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScopeVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviseScope"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/signals": {
+      "get": {
+        "operationId": "listSignals",
+        "summary": "读取信号与关注外发现",
+        "description": "读取信号与关注外发现",
+        "responses": {
+          "200": {
+            "description": "读取信号与关注外发现",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignalPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "view",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all",
+                "following",
+                "discovery"
+              ]
+            }
+          },
+          {
+            "name": "topic_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/signals/{signal_id}": {
+      "get": {
+        "operationId": "getSignal",
+        "summary": "读取候选及其依据",
+        "description": "读取候选及其依据",
+        "responses": {
+          "200": {
+            "description": "读取候选及其依据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Signal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/signals/{signal_id}/actions": {
+      "post": {
+        "operationId": "actOnSignal",
+        "summary": "认领观察关闭或重开信号",
+        "description": "认领观察关闭或重开信号",
+        "responses": {
+          "200": {
+            "description": "认领观察关闭或重开信号",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Signal"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "signal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignalAction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/investigations": {
+      "post": {
+        "operationId": "createInvestigation",
+        "summary": "受理用户或信号触发的调查",
+        "description": "existing_topic与new_topic互斥；同事务持久创建专题、范围、调查、dispatch。校验范围归属、成果版本与截止时间、来源覆盖、服务器项目预算；signal触发必填signal_id。RQ/Redis离线不丢失已受理jobs，状态保持queued。",
+        "responses": {
+          "202": {
+            "description": "受理用户或信号触发的调查",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Investigation"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "持久化任务或资源的状态查询地址",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvestigation"
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "listInvestigations",
+        "summary": "读取有权访问的调查任务",
+        "description": "读取有权访问的调查任务",
+        "responses": {
+          "200": {
+            "description": "读取有权访问的调查任务",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "topic_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/investigations/{investigation_id}": {
+      "get": {
+        "operationId": "getInvestigation",
+        "summary": "读取服务器保存的调查状态",
+        "description": "读取服务器保存的调查状态",
+        "responses": {
+          "200": {
+            "description": "读取服务器保存的调查状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Investigation"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/investigations/{investigation_id}/steps": {
+      "get": {
+        "operationId": "listInvestigationSteps",
+        "summary": "读取调查步骤与结果引用",
+        "description": "读取调查步骤与结果引用",
+        "responses": {
+          "200": {
+            "description": "读取调查步骤与结果引用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StepPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
+      }
+    },
+    "/investigations/{investigation_id}/actions": {
+      "post": {
+        "operationId": "controlInvestigation",
+        "summary": "暂停恢复取消重试或修订范围",
+        "description": "revise_scope及submit_input创建parent_investigation_id新调查，返回successor_investigation；submit_input只采用授权上游引用，request_material只提交上游申请；completed回执经data验证采用后调用同一submit_input命令接续。不得修改旧运行输入、步骤哈希或费用；旧waiting_input记partial/continued_with_new_input。；按(provider_request/receipt,input_hash)幂等，重复回执只返回同一后继，GET旧调查可读successor_investigation_id。",
+        "responses": {
+          "202": {
+            "description": "暂停恢复取消重试或修订范围",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvestigationActionResult"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "持久化任务或资源的状态查询地址",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvestigationAction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/evidence/{evidence_id}": {
+      "get": {
+        "operationId": "getEvidence",
+        "summary": "读取证据和固定版本原文定位",
+        "description": "读取证据和固定版本原文定位",
+        "responses": {
+          "200": {
+            "description": "读取证据和固定版本原文定位",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Evidence"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "evidence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/analyses/{analysis_id}": {
+      "get": {
+        "operationId": "getAnalysis",
+        "summary": "读取可复算统计口径和记录清单",
+        "description": "首轮返回冻结记录引用；大规模结果实施时增加分页读取，不得静默截断清单。",
+        "responses": {
+          "200": {
+            "description": "读取可复算统计口径和记录清单",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Analysis"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/deliverables": {
+      "get": {
+        "operationId": "listDeliverables",
+        "summary": "读取有权访问的情报成果",
+        "description": "读取有权访问的情报成果",
+        "responses": {
+          "200": {
+            "description": "读取有权访问的情报成果",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableSummaryPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "topic_id",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/deliverables/{deliverable_id}/versions/{version}": {
+      "get": {
+        "operationId": "getDeliverableVersion",
+        "summary": "读取指定成果版本及主张依据",
+        "description": "读取指定成果版本及主张依据",
+        "responses": {
+          "200": {
+            "description": "读取指定成果版本及主张依据",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deliverable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ]
+      }
+    },
+    "/deliverables/{deliverable_id}/versions/{version}/reviews": {
+      "post": {
+        "operationId": "reviewDeliverableVersion",
+        "summary": "审阅指定内容版本",
+        "description": "仅in_review且内容哈希匹配；追加有效决议，approve→approved、request_changes→draft。作者不得自审重大判断，审核域需成员资质配置；与发布事务锁定同一版本。",
+        "responses": {
+          "201": {
+            "description": "审阅指定内容版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Review"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deliverable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/deliverables/{deliverable_id}/versions/{version}/exports": {
+      "post": {
+        "operationId": "exportDeliverableVersion",
+        "summary": "异步导出固定成果版本",
+        "description": "下载时再次鉴权；草稿可导出但保留草稿标识。未实现格式返回422 UNSUPPORTED_FORMAT；不能返回虚假成功。",
+        "responses": {
+          "202": {
+            "description": "异步导出固定成果版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "headers": {
+              "Location": {
+                "description": "持久化任务或资源的状态查询地址",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deliverable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "operationId": "getBackgroundJob",
+        "summary": "读取导出状态与受控结果引用",
+        "description": "读取导出状态与受控结果引用",
+        "responses": {
+          "200": {
+            "description": "读取导出状态与受控结果引用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/subscriptions": {
+      "get": {
+        "operationId": "listSubscriptions",
+        "summary": "读取当前用户订阅",
+        "description": "读取当前用户订阅",
+        "responses": {
+          "200": {
+            "description": "读取当前用户订阅",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SubscriptionPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
+      },
+      "post": {
+        "operationId": "upsertSubscription",
+        "summary": "创建或更新当前用户的专题订阅",
+        "description": "同一用户与专题唯一；更新事件集合，起步仅站内渠道，不自行向外部发送消息。",
+        "responses": {
+          "200": {
+            "description": "创建或更新当前用户的专题订阅",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Subscription"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubscriptionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/subscriptions/{subscription_id}": {
+      "delete": {
+        "operationId": "deleteSubscription",
+        "summary": "取消当前用户订阅",
+        "description": "取消当前用户订阅",
+        "responses": {
+          "204": {
+            "description": "取消当前用户订阅"
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "subscription_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ]
+      }
+    },
+    "/notifications": {
+      "get": {
+        "operationId": "listNotifications",
+        "summary": "读取当前用户站内通知",
+        "description": "读取当前用户站内通知",
+        "responses": {
+          "200": {
+            "description": "读取当前用户站内通知",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
+      }
+    },
+    "/notifications/{notification_id}/read": {
+      "post": {
+        "operationId": "markNotificationRead",
+        "summary": "将当前用户通知标为已读",
+        "description": "将当前用户通知标为已读",
+        "responses": {
+          "200": {
+            "description": "将当前用户通知标为已读",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Notification"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "notification_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ]
+      }
+    },
+    "/sources": {
+      "get": {
+        "operationId": "listSourceCoverage",
+        "summary": "读取有权访问的来源覆盖与健康",
+        "description": "读取有权访问的来源覆盖与健康",
+        "responses": {
+          "200": {
+            "description": "读取有权访问的来源覆盖与健康",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoveragePage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
+      }
+    },
+    "/sources/{source_id}": {
+      "get": {
+        "operationId": "getSourceCoverage",
+        "summary": "读取来源健康与覆盖局限",
+        "description": "读取来源健康与覆盖局限",
+        "responses": {
+          "200": {
+            "description": "读取来源健康与覆盖局限",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Coverage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/documents/{document_version_id}": {
+      "get": {
+        "operationId": "getDocumentVersion",
+        "summary": "读取固定原文版本及受控内容入口",
+        "description": "读取固定原文版本及受控内容入口",
+        "responses": {
+          "200": {
+            "description": "读取固定原文版本及受控内容入口",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DocumentVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "document_version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/documents/{document_version_id}/content": {
+      "get": {
+        "operationId": "getDocumentContent",
+        "summary": "读取授权原文内容",
+        "description": "每次请求校验原文权限；不可用返回404或503且明确错误码；原文内文本一律视为资料，不能作为系统指令执行。",
+        "responses": {
+          "200": {
+            "description": "实际原文；Content-Type按存储版本返回，不主动执行HTML或脚本。",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "document_version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ]
+      }
+    },
+    "/topics/{topic_id}/history": {
+      "get": {
+        "operationId": "getTopicHistory",
+        "summary": "读取专题范围判断成果调查的版本与差异",
+        "description": "读取专题范围判断成果调查的版本与差异",
+        "responses": {
+          "200": {
+            "description": "读取专题范围判断成果调查的版本与差异",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ]
+      }
+    },
+    "/judgments/{judgment_version_id}": {
+      "get": {
+        "operationId": "getJudgmentVersion",
+        "summary": "读取固定判断版本与影响检查",
+        "description": "读取固定判断版本与影响检查",
+        "responses": {
+          "200": {
+            "description": "读取固定判断版本与影响检查",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JudgmentVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "judgment_version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/entities/{entity_id}": {
+      "get": {
+        "operationId": "getEntityProjection",
+        "summary": "读取已采用的上游对象投影",
+        "description": "读取已采用的上游对象投影",
+        "responses": {
+          "200": {
+            "description": "读取已采用的上游对象投影",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntityProjection"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "entity_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/provider-requests": {
+      "post": {
+        "operationId": "createProviderRequest",
+        "summary": "向上游提交补材料纠错或同步请求",
+        "description": "向上游提交补材料纠错或同步请求",
+        "responses": {
+          "202": {
+            "description": "向上游提交补材料纠错或同步请求",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderRequestInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/provider-requests/{request_id}": {
+      "get": {
+        "operationId": "getProviderRequest",
+        "summary": "读取上游请求回执与业务接续状态",
+        "description": "读取上游请求回执与业务接续状态",
+        "responses": {
+          "200": {
+            "description": "读取上游请求回执与业务接续状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/deliverables/{deliverable_id}/revisions": {
+      "post": {
+        "operationId": "createDeliverableRevision",
+        "summary": "创建绑定新判断的不可变成果修订",
+        "description": "纯措辞修改可复用原judgment，但成果全文检查重跑；事实/计算/主张/条件改变必须先B创建parent后继调查与新judgment，禁止只改Markdown沿用旧主张。parent hash匹配并生成固定新版。",
+        "responses": {
+          "201": {
+            "description": "创建绑定新判断的不可变成果修订",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deliverable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverableRevisionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/deliverables/{deliverable_id}/versions/{version}/actions": {
+      "post": {
+        "operationId": "actOnDeliverableVersion",
+        "summary": "提交审阅发布或撤回固定版本",
+        "description": "指定content_hash并事务锁定版本；submit_review仅draft，publish仅approved且最新有效审阅通过、必要专业域通过、critical=0、来源授权通过；withdraw仅published/superseded，保留正文并发更正通知。分析员不得发布，重大判断不得自审。",
+        "responses": {
+          "200": {
+            "description": "提交审阅发布或撤回固定版本",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliverableVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "deliverable_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverableAction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/execution-requests": {
+      "post": {
+        "operationId": "createExecutionRequest",
+        "summary": "确认冻结科研执行委托；未接通明确不可用",
+        "description": "P1契约；冻结输入、授权和预算预占，确认人来自服务端身份；未接通返回持久unavailable并说明原因，不制造外部ID。只保存CPUBrain权威状态映射，未知副作用waiting_reconciliation禁止盲重发。",
+        "responses": {
+          "202": {
+            "description": "确认冻结科研执行委托；未接通明确不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/execution-requests/{execution_request_id}": {
+      "get": {
+        "operationId": "getExecutionRequest",
+        "summary": "读取执行端权威状态映射与真实产物",
+        "description": "读取执行端权威状态映射与真实产物",
+        "responses": {
+          "200": {
+            "description": "读取执行端权威状态映射与真实产物",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "execution_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/judgments/{judgment_version_id}/impacts/{impact_id}/actions": {
+      "post": {
+        "operationId": "reviewJudgmentImpact",
+        "summary": "复核潜在反证或依赖失效并记录维持或修订",
+        "description": "reviewer审核对应专业域；pending状态CAS，maintained持久保留理由，revision_required创建新判断草稿但不改旧正文。",
+        "responses": {
+          "200": {
+            "description": "固定版本内容和最新影响评估",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JudgmentVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          },
+          {
+            "name": "judgment_version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "impact_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImpactAction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{job_id}/content": {
+      "get": {
+        "operationId": "downloadJobResult",
+        "summary": "下载固定授权导出；每次访问重新鉴权",
+        "description": "每次请求校验原文权限；不可用返回404或503且明确错误码；原文内文本一律视为资料，不能作为系统指令执行。",
+        "responses": {
+          "200": {
+            "description": "固定版本导出文件；仅completed且当前授权有效时返回，Content-Type按导出格式返回。",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/execution-requests/{execution_request_id}/actions": {
+      "post": {
+        "operationId": "cancelExecutionRequest",
+        "summary": "请求执行端取消并保存真实回执",
+        "description": "P1；取消只有执行端确认后才进入cancelled，未知或离线保留cancel_requested/waiting_reconciliation，不伪造取消。",
+        "responses": {
+          "202": {
+            "description": "确认冻结科研执行委托；未接通明确不可用",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionRequest"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          },
+          {
+            "name": "execution_request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionAction"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/topics/{topic_id}/actions": {
+      "post": {
+        "operationId": "controlTopicMonitoring",
+        "summary": "暂停或恢复专题监测；不影响全库扫描或其他用户关注",
+        "description": "analyst以上且expected_revision匹配；暂停专题匹配/自动调查，不删除订阅、不取消正在运行调查、不停止全库探索。",
+        "responses": {
+          "200": {
+            "description": "专题监测状态",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Topic"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "标准错误；401/403/404/409/422/429/503 按系统设计区分",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "topic_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "description": "唯一范围是workspace+actor+operation+key；保存canonical请求哈希。同键同体重放原响应，同键异体409。持久请求至少保留任务/版本存续期，不按body hash另开键。"
+          },
+          {
+            "name": "X-CSRF-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Cookie 会话的写操作必须提供；Bearer 身份不适用。"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicAction"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "SessionCookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "bioradar_session"
+      },
+      "UserBearer": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "绑定用户和授权范围的凭据，具体签发与单位登录联调确定。"
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "retryable": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "code",
+              "message",
+              "retryable"
+            ],
+            "additionalProperties": false
+          },
+          "request_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error",
+          "request_id"
+        ],
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "reader",
+                "analyst",
+                "reviewer",
+                "publisher",
+                "admin"
+              ]
+            }
+          },
+          "review_domains": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "mechanism",
+                "clinical",
+                "policy"
+              ]
+            }
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "roles",
+          "review_domains"
+        ],
+        "additionalProperties": false
+      },
+      "Scope": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "entity_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "keywords": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "data_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "comparison_context": {
+            "$ref": "#/components/schemas/StudyContext"
+          }
+        },
+        "required": [
+          "purpose",
+          "entity_ids",
+          "keywords",
+          "as_of",
+          "conditions",
+          "data_gaps"
+        ],
+        "additionalProperties": false
+      },
+      "ScopeVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "version",
+          "scope",
+          "reason",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "CreateTopic": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1
+          },
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          }
+        },
+        "required": [
+          "title",
+          "question",
+          "scope"
+        ],
+        "additionalProperties": false
+      },
+      "Topic": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "current_scope_version": {
+            "$ref": "#/components/schemas/ScopeVersion"
+          },
+          "current_judgment_version_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_demo": {
+            "type": "boolean"
+          },
+          "current_judgment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/JudgmentVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "history_url": {
+            "type": "string"
+          },
+          "monitoring_state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "paused"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "workspace_id",
+          "title",
+          "question",
+          "revision",
+          "current_scope_version",
+          "current_judgment_version_id",
+          "created_at",
+          "updated_at",
+          "is_demo",
+          "current_judgment",
+          "history_url",
+          "monitoring_state"
+        ],
+        "additionalProperties": false
+      },
+      "ReviseScope": {
+        "type": "object",
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/Scope"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "scope",
+          "reason",
+          "expected_revision"
+        ],
+        "additionalProperties": false
+      },
+      "Coverage": {
+        "type": "object",
+        "properties": {
+          "source_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "healthy",
+              "delayed",
+              "partial",
+              "failed",
+              "not_connected"
+            ]
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "coverage_note": {
+            "type": "string"
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "as_of": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "authorization_note": {
+            "type": "string"
+          },
+          "record_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "source_id",
+          "status",
+          "last_success_at",
+          "coverage_note",
+          "limitations",
+          "as_of",
+          "authorization_note",
+          "record_count"
+        ],
+        "additionalProperties": false
+      },
+      "Signal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "topic_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "entity_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "new",
+              "pending_verification",
+              "investigating",
+              "confirmed",
+              "watching",
+              "closed"
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "novelty_reason": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "string",
+            "enum": [
+              "low",
+              "medium",
+              "high",
+              "undetermined"
+            ]
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "routine",
+              "soon",
+              "immediate",
+              "undetermined"
+            ]
+          },
+          "evidence_status": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "partial",
+              "verified",
+              "contradicted"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "analysis_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "mining_run_id": {
+            "type": "string",
+            "description": "所有信号包括人工线索均绑定一条analysis_runs采用记录；人工线索type=manual_lead，不伪造自动挖掘。"
+          },
+          "baseline_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "data_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_demo": {
+            "type": "boolean"
+          },
+          "assigned_to": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "verification_records": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VerificationRecord"
+            }
+          },
+          "mining_run_url": {
+            "type": "string",
+            "description": "必须指向GET /analyses/{analysis_id}，该analysis type=scan/combination/state_change携带完整baseline、覆盖、筛除和方法版本。人工线索type=manual_lead记录actor、输入原文与原因，不声称算法发现。"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "topic_ids",
+          "entity_ids",
+          "state",
+          "revision",
+          "novelty_reason",
+          "importance",
+          "urgency",
+          "evidence_status",
+          "reason",
+          "evidence_ids",
+          "analysis_ids",
+          "mining_run_id",
+          "baseline_ref",
+          "data_gaps",
+          "first_seen_at",
+          "is_demo",
+          "assigned_to",
+          "verification_records",
+          "mining_run_url"
+        ],
+        "additionalProperties": false
+      },
+      "SignalAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "claim",
+                  "observe",
+                  "close",
+                  "reopen"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "required": [
+              "action",
+              "reason",
+              "expected_revision"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "verify"
+                ]
+              },
+              "reason": {
+                "type": "string"
+              },
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "outcome": {
+                "type": "string",
+                "enum": [
+                  "confirmed",
+                  "contradicted",
+                  "inconclusive"
+                ]
+              },
+              "evidence_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "analysis_ids": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "impact_boundary": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "action",
+              "reason",
+              "expected_revision",
+              "outcome",
+              "evidence_ids",
+              "analysis_ids",
+              "impact_boundary"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Budget": {
+        "type": "object",
+        "properties": {
+          "max_tool_calls": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_runtime_seconds": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "max_cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "currency": {
+            "type": "string",
+            "enum": [
+              "CNY",
+              "USD"
+            ]
+          }
+        },
+        "required": [
+          "max_tool_calls",
+          "max_runtime_seconds",
+          "max_cost",
+          "currency"
+        ],
+        "additionalProperties": false
+      },
+      "CreateInvestigation": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string",
+                "minLength": 1
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "signal"
+                ]
+              },
+              "budget": {
+                "$ref": "#/components/schemas/Budget"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "routine",
+                  "urgent"
+                ]
+              },
+              "signal_id": {
+                "type": "string"
+              },
+              "reading_deliverable_version_id": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "existing_topic"
+                ]
+              },
+              "topic_id": {
+                "type": "string"
+              },
+              "scope_version_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "question",
+              "trigger",
+              "budget",
+              "priority",
+              "mode",
+              "topic_id",
+              "scope_version_id"
+            ],
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "trigger": {
+                      "const": "signal"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "signal_id"
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string",
+                "minLength": 1
+              },
+              "trigger": {
+                "type": "string",
+                "enum": [
+                  "user",
+                  "signal"
+                ]
+              },
+              "budget": {
+                "$ref": "#/components/schemas/Budget"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "routine",
+                  "urgent"
+                ]
+              },
+              "signal_id": {
+                "type": "string"
+              },
+              "reading_deliverable_version_id": {
+                "type": "string"
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "new_topic"
+                ]
+              },
+              "new_topic": {
+                "$ref": "#/components/schemas/CreateTopic"
+              }
+            },
+            "required": [
+              "question",
+              "trigger",
+              "budget",
+              "priority",
+              "mode",
+              "new_topic"
+            ],
+            "additionalProperties": false,
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "trigger": {
+                      "const": "signal"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "signal_id"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "Investigation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "scope_version_id": {
+            "type": "string"
+          },
+          "question": {
+            "type": "string"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "user",
+              "signal"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting_input",
+              "paused",
+              "completed",
+              "partial",
+              "failed",
+              "cancelled",
+              "waiting_reconciliation"
+            ]
+          },
+          "requested_action": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "pause",
+              "cancel",
+              null
+            ]
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "budget": {
+            "$ref": "#/components/schemas/Budget"
+          },
+          "used_tool_calls": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "used_cost": {
+            "type": "number",
+            "minimum": 0
+          },
+          "data_gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "coverage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Coverage"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_demo": {
+            "type": "boolean"
+          },
+          "parent_investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "routine",
+              "urgent"
+            ]
+          },
+          "queue_name": {
+            "type": "string"
+          },
+          "deadline_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "primary_deliverable_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "execution_request_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "successor_investigation_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "scope_version_id",
+          "question",
+          "trigger",
+          "state",
+          "requested_action",
+          "revision",
+          "budget",
+          "used_tool_calls",
+          "used_cost",
+          "data_gaps",
+          "coverage",
+          "created_at",
+          "updated_at",
+          "is_demo",
+          "parent_investigation_id",
+          "priority",
+          "queue_name",
+          "deadline_at",
+          "stop_reason",
+          "primary_deliverable_id",
+          "execution_request_ids",
+          "successor_investigation_id"
+        ],
+        "additionalProperties": false
+      },
+      "InvestigationAction": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "pause",
+                  "resume",
+                  "cancel",
+                  "retry_failed"
+                ]
+              }
+            },
+            "required": [
+              "expected_revision",
+              "reason",
+              "action"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "revise_scope"
+                ]
+              },
+              "scope": {
+                "$ref": "#/components/schemas/Scope"
+              }
+            },
+            "required": [
+              "expected_revision",
+              "reason",
+              "action",
+              "scope"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "adjust_budget"
+                ]
+              },
+              "budget": {
+                "$ref": "#/components/schemas/Budget"
+              }
+            },
+            "required": [
+              "expected_revision",
+              "reason",
+              "action",
+              "budget"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "submit_input"
+                ]
+              },
+              "provider_refs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ProviderRef"
+                }
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "expected_revision",
+              "reason",
+              "action",
+              "provider_refs",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "expected_revision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "action": {
+                "type": "string",
+                "enum": [
+                  "request_material"
+                ]
+              },
+              "request": {
+                "$ref": "#/components/schemas/ProviderRequestInput"
+              }
+            },
+            "required": [
+              "expected_revision",
+              "reason",
+              "action",
+              "request"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      },
+      "Step": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "investigation_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting_input",
+              "paused",
+              "succeeded",
+              "partial",
+              "failed",
+              "cancelled",
+              "invalidated"
+            ]
+          },
+          "dependency_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "input_hash": {
+            "type": "string"
+          },
+          "output_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRef"
+            }
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider_version": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "investigation_id",
+          "name",
+          "state",
+          "dependency_ids",
+          "input_hash",
+          "output_refs",
+          "error_code",
+          "provider_version",
+          "updated_at",
+          "attempt",
+          "stop_reason"
+        ],
+        "additionalProperties": false
+      },
+      "Locator": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "page",
+              "paragraph",
+              "offset",
+              "unavailable"
+            ]
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "paragraph_id": {
+            "type": "string"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type"
+        ],
+        "additionalProperties": false
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "document_version_id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "time_precision": {
+            "type": "string",
+            "enum": [
+              "instant",
+              "day",
+              "month",
+              "year",
+              "interval",
+              "unknown"
+            ]
+          },
+          "quote": {
+            "type": "string"
+          },
+          "quote_hash": {
+            "type": "string"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/Locator"
+          },
+          "study_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "independent_cluster_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification": {
+            "type": "string",
+            "enum": [
+              "unchecked",
+              "exact_match",
+              "reviewed",
+              "failed"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "corrected",
+              "retracted",
+              "unavailable"
+            ]
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "is_demo": {
+            "type": "boolean"
+          },
+          "published_time_raw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "provider_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "study_context": {
+            "$ref": "#/components/schemas/StudyContext"
+          }
+        },
+        "required": [
+          "id",
+          "document_version_id",
+          "source_id",
+          "source_url",
+          "published_at",
+          "time_precision",
+          "quote",
+          "quote_hash",
+          "locator",
+          "study_id",
+          "independent_cluster_id",
+          "verification",
+          "status",
+          "limitations",
+          "is_demo",
+          "published_time_raw",
+          "provider_ref",
+          "study_context"
+        ],
+        "additionalProperties": false
+      },
+      "Analysis": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "snapshot_id": {
+            "type": "string"
+          },
+          "method_version": {
+            "type": "string"
+          },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "drug",
+              "project",
+              "trial",
+              "study",
+              "organization",
+              "other"
+            ]
+          },
+          "inclusion_rule": {
+            "type": "string"
+          },
+          "exclusion_rule": {
+            "type": "string"
+          },
+          "denominator": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "record_refs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "result": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_demo": {
+            "type": "boolean"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ComparisonRow"
+            }
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "comparison",
+              "state_change",
+              "combination",
+              "scan",
+              "policy",
+              "manual_lead"
+            ]
+          },
+          "coverage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Coverage"
+            }
+          },
+          "excluded_records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "provider_ref": {
+                  "$ref": "#/components/schemas/ProviderRef"
+                },
+                "reason": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "provider_ref",
+                "reason"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "baseline": {
+            "type": "object",
+            "properties": {
+              "snapshot_ref": {
+                "type": "string"
+              },
+              "windows": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "identity_version": {
+                "type": "string"
+              },
+              "vocabulary_version": {
+                "type": "string"
+              },
+              "source_changes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "review_capacity": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "snapshot_ref",
+              "windows",
+              "identity_version",
+              "vocabulary_version",
+              "source_changes",
+              "review_capacity"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "snapshot_id",
+          "method_version",
+          "parameters",
+          "unit",
+          "inclusion_rule",
+          "exclusion_rule",
+          "denominator",
+          "missing_count",
+          "record_refs",
+          "result",
+          "created_at",
+          "is_demo",
+          "rows",
+          "type",
+          "coverage",
+          "excluded_records",
+          "baseline"
+        ],
+        "additionalProperties": false
+      },
+      "Claim": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fact",
+              "inference",
+              "recommendation"
+            ]
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "supporting_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "opposing_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "analysis_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "support_check": {
+            "type": "string",
+            "enum": [
+              "not_checked",
+              "supported",
+              "partially_supported",
+              "unsupported",
+              "disputed"
+            ]
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "alternative_explanations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "change_indicators": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "impact_reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "topic_terms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "entity_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "kind",
+          "conditions",
+          "supporting_evidence_ids",
+          "opposing_evidence_ids",
+          "analysis_ids",
+          "support_check",
+          "limitations",
+          "version",
+          "assumptions",
+          "alternative_explanations",
+          "change_indicators",
+          "impact_reasons",
+          "topic_terms",
+          "entity_refs"
+        ],
+        "additionalProperties": false
+      },
+      "DeliverableSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "brief",
+              "research_report",
+              "policy_reference"
+            ]
+          },
+          "latest_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "published_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "title",
+          "type",
+          "latest_version",
+          "published_version",
+          "updated_at"
+        ],
+        "additionalProperties": false
+      },
+      "DeliverableVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deliverable_id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "in_review",
+              "approved",
+              "published",
+              "superseded",
+              "withdrawn"
+            ]
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope_version_id": {
+            "type": "string"
+          },
+          "judgment_version_id": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "body_markdown": {
+            "type": "string"
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            }
+          },
+          "unresolved_critical_issues": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "impact_status": {
+            "type": "string",
+            "enum": [
+              "current",
+              "new_evidence_pending",
+              "evidence_invalidated"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "is_demo": {
+            "type": "boolean"
+          },
+          "parent_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision_reason": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfessionalCheck"
+            }
+          },
+          "policy_options": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PolicyOption"
+            }
+          },
+          "withdrawal_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "effective_review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Review"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "deliverable_id",
+          "topic_id",
+          "version",
+          "state",
+          "content_hash",
+          "as_of",
+          "scope_version_id",
+          "judgment_version_id",
+          "summary",
+          "body_markdown",
+          "claims",
+          "unresolved_critical_issues",
+          "impact_status",
+          "created_at",
+          "is_demo",
+          "parent_version_id",
+          "revision_reason",
+          "checks",
+          "policy_options",
+          "withdrawal_reason",
+          "effective_review"
+        ],
+        "additionalProperties": false
+      },
+      "VersionGuard": {
+        "type": "object",
+        "properties": {
+          "content_hash": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "content_hash"
+        ],
+        "additionalProperties": false
+      },
+      "ReviewInput": {
+        "type": "object",
+        "properties": {
+          "content_hash": {
+            "type": "string",
+            "minLength": 1
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "request_changes"
+            ]
+          },
+          "comment": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "content_hash",
+          "decision",
+          "comment"
+        ],
+        "additionalProperties": false
+      },
+      "Review": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "deliverable_version_id": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "request_changes"
+            ]
+          },
+          "reviewer_id": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "deliverable_version_id",
+          "content_hash",
+          "decision",
+          "reviewer_id",
+          "comment",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "ExportInput": {
+        "type": "object",
+        "properties": {
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "docx"
+            ]
+          },
+          "include_evidence_appendix": {
+            "type": "boolean"
+          },
+          "content_hash": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "format",
+          "include_evidence_appendix",
+          "content_hash"
+        ],
+        "additionalProperties": false
+      },
+      "Job": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "export",
+              "provider_request",
+              "execution"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "waiting_reconciliation",
+              "unavailable"
+            ]
+          },
+          "result_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "error_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "download_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "attempt": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "state",
+          "result_ref",
+          "error_code",
+          "created_at",
+          "download_url",
+          "attempt"
+        ],
+        "additionalProperties": false
+      },
+      "SubscriptionInput": {
+        "type": "object",
+        "properties": {
+          "topic_id": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "important_change",
+                "urgent_verification",
+                "published",
+                "correction",
+                "withdrawal"
+              ]
+            }
+          }
+        },
+        "required": [
+          "topic_id",
+          "events"
+        ],
+        "additionalProperties": false
+      },
+      "Subscription": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "user_id": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "important_change",
+                "urgent_verification",
+                "published",
+                "correction",
+                "withdrawal"
+              ]
+            }
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "in_app"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "user_id",
+          "events",
+          "channel",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "Notification": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "important_change",
+              "urgent_verification",
+              "published",
+              "correction",
+              "withdrawal"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "target_ref": {
+            "type": "string"
+          },
+          "related_notification_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "read_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "verification_record_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "event_type",
+          "title",
+          "target_ref",
+          "related_notification_id",
+          "read_at",
+          "created_at",
+          "verification_record_id"
+        ],
+        "additionalProperties": false
+      },
+      "TopicPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Topic"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "SignalPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "StepPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Step"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "DeliverableSummaryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeliverableSummary"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "SubscriptionPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Subscription"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "NotificationPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Notification"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "CoveragePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Coverage"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "InvestigationPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Investigation"
+            }
+          },
+          "next_cursor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "DocumentVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "source_record_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "media_type": {
+            "type": "string"
+          },
+          "published_time_raw": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "content_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "指向需鉴权的内容接口；无原文时为null。"
+          },
+          "availability": {
+            "type": "string",
+            "enum": [
+              "available",
+              "metadata_only",
+              "unavailable"
+            ]
+          },
+          "limitations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "source_id",
+          "source_record_id",
+          "title",
+          "content_hash",
+          "media_type",
+          "published_time_raw",
+          "first_seen_at",
+          "content_url",
+          "availability",
+          "limitations"
+        ],
+        "additionalProperties": false
+      },
+      "ProviderRef": {
+        "type": "object",
+        "properties": {
+          "provider": {
+            "type": "string"
+          },
+          "object_type": {
+            "type": "string"
+          },
+          "object_id": {
+            "type": "string"
+          },
+          "adopted_version": {
+            "type": "string"
+          },
+          "version_source": {
+            "type": "string",
+            "enum": [
+              "provider",
+              "export_hash"
+            ]
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "authorization_ref": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "object_type",
+          "object_id",
+          "adopted_version",
+          "version_source",
+          "content_hash",
+          "authorization_ref"
+        ],
+        "additionalProperties": false
+      },
+      "ArtifactRef": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "evidence",
+              "analysis",
+              "judgment",
+              "deliverable",
+              "provider_artifact"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "StudyContext": {
+        "type": "object",
+        "properties": {
+          "design": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "population": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "indication": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "comparator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "endpoint_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "follow_up": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_time_raw": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing_fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "design",
+          "population",
+          "indication",
+          "stage",
+          "comparator",
+          "endpoint",
+          "endpoint_unit",
+          "follow_up",
+          "result_time_raw",
+          "missing_fields"
+        ],
+        "additionalProperties": false
+      },
+      "EffectEstimate": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "interval_kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "value",
+          "unit",
+          "lower",
+          "upper",
+          "interval_kind",
+          "missing_reason"
+        ],
+        "additionalProperties": false
+      },
+      "ComparisonRow": {
+        "type": "object",
+        "properties": {
+          "row_id": {
+            "type": "string"
+          },
+          "unit_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "drug",
+              "project",
+              "trial",
+              "study",
+              "organization",
+              "other"
+            ]
+          },
+          "provider_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "technology_form": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_action": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "context": {
+            "$ref": "#/components/schemas/StudyContext"
+          },
+          "effect": {
+            "$ref": "#/components/schemas/EffectEstimate"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "comparability": {
+            "type": "string",
+            "enum": [
+              "comparable",
+              "not_comparable",
+              "undetermined"
+            ]
+          },
+          "comparability_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "row_id",
+          "unit_id",
+          "label",
+          "unit",
+          "provider_ref",
+          "technology_form",
+          "target_action",
+          "context",
+          "effect",
+          "evidence_ids",
+          "comparability",
+          "comparability_reason"
+        ],
+        "additionalProperties": false
+      },
+      "ProfessionalCheck": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "citation",
+              "claim_support",
+              "applicability",
+              "comparability",
+              "mechanism",
+              "clinical",
+              "policy"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "not_checked",
+              "passed",
+              "partial",
+              "failed",
+              "unavailable"
+            ]
+          },
+          "method_version": {
+            "type": "string"
+          },
+          "reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "scope": {
+            "type": "string"
+          },
+          "issues": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "content_hash": {
+            "type": "string",
+            "description": "仅指target_kind/target_id所对应固定内容哈希，不可跨判断/成果或新版复用。"
+          },
+          "target_kind": {
+            "type": "string",
+            "enum": [
+              "judgment",
+              "deliverable"
+            ]
+          },
+          "target_id": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "id",
+          "domain",
+          "status",
+          "method_version",
+          "reviewer_id",
+          "claim_ids",
+          "scope",
+          "issues",
+          "content_hash",
+          "target_kind",
+          "target_id"
+        ],
+        "additionalProperties": false
+      },
+      "ImpactAssessment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "dependency_invalidated",
+              "potential_counter_evidence"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "provider_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            }
+          },
+          "claim_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "maintained",
+              "revision_required"
+            ]
+          },
+          "decision_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reviewer_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "reason",
+          "provider_refs",
+          "claim_ids",
+          "state",
+          "decision_reason",
+          "reviewer_id"
+        ],
+        "additionalProperties": false
+      },
+      "JudgmentVersion": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "topic_id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "parent_version_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scope_version_id": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "claims": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Claim"
+            }
+          },
+          "disagreements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision_reason": {
+            "type": "string"
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProfessionalCheck"
+            }
+          },
+          "impacts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImpactAssessment"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "topic_id",
+          "version",
+          "parent_version_id",
+          "scope_version_id",
+          "summary",
+          "conditions",
+          "claims",
+          "disagreements",
+          "revision_reason",
+          "content_hash",
+          "checks",
+          "impacts",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "HistoryEntry": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "scope",
+              "judgment",
+              "deliverable",
+              "investigation"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "changed_evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "scope_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resource_url": {
+            "type": "string",
+            "description": "授权业务读取URL；成果条目指向deliverable_id/version精确路径，不能仅返回不可解析的version ID。"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "version",
+          "parent_id",
+          "reason",
+          "changed_evidence_ids",
+          "created_at",
+          "scope_version",
+          "resource_url"
+        ],
+        "additionalProperties": false
+      },
+      "HistoryPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryEntry"
+            }
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "additionalProperties": false
+      },
+      "VerificationRecord": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "actor_id": {
+            "type": "string"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "contradicted",
+              "inconclusive"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "analysis_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "impact_boundary": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "actor_id",
+          "outcome",
+          "reason",
+          "evidence_ids",
+          "analysis_ids",
+          "impact_boundary",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "InvestigationActionResult": {
+        "type": "object",
+        "properties": {
+          "investigation": {
+            "$ref": "#/components/schemas/Investigation"
+          },
+          "successor_investigation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Investigation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "investigation",
+          "successor_investigation",
+          "provider_request"
+        ],
+        "additionalProperties": false
+      },
+      "PolicyOption": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "is_status_quo": {
+            "type": "boolean"
+          },
+          "mechanism": {
+            "type": "string"
+          },
+          "beneficiaries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "adversely_affected": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "public_cost": {
+            "type": "string"
+          },
+          "implementation_constraints": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "legal_provider_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            }
+          },
+          "assumptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "parameter_ranges": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "lower": {
+                  "type": "number"
+                },
+                "upper": {
+                  "type": "number"
+                }
+              },
+              "required": [
+                "name",
+                "unit",
+                "lower",
+                "upper"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "analysis_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "reversal_conditions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "monitoring_indicators": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "is_status_quo",
+          "mechanism",
+          "beneficiaries",
+          "adversely_affected",
+          "public_cost",
+          "implementation_constraints",
+          "legal_provider_refs",
+          "assumptions",
+          "parameter_ranges",
+          "analysis_ids",
+          "evidence_ids",
+          "reversal_conditions",
+          "monitoring_indicators"
+        ],
+        "additionalProperties": false
+      },
+      "DeliverableRevisionInput": {
+        "type": "object",
+        "properties": {
+          "parent_version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "parent_content_hash": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "body_markdown": {
+            "type": "string"
+          },
+          "judgment_version_id": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "parent_version",
+          "parent_content_hash",
+          "summary",
+          "body_markdown",
+          "judgment_version_id",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "DeliverableAction": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "submit_review",
+              "publish",
+              "withdraw"
+            ]
+          },
+          "content_hash": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "action",
+          "content_hash",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "ProviderRequestInput": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "material",
+              "identity_correction",
+              "source_retry"
+            ]
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            }
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "kind",
+          "investigation_id",
+          "provider_refs",
+          "note"
+        ],
+        "additionalProperties": false
+      },
+      "ProviderRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "material",
+              "identity_correction",
+              "source_retry"
+            ]
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "submitted",
+              "accepted",
+              "completed",
+              "rejected",
+              "unavailable",
+              "waiting_reconciliation"
+            ]
+          },
+          "provider_request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            }
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "investigation_id",
+          "state",
+          "provider_request_id",
+          "result_refs",
+          "reason",
+          "created_at"
+        ],
+        "additionalProperties": false
+      },
+      "EntityProjection": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "provider_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "label": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "mapping_state": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "unresolved",
+              "conflicted"
+            ]
+          },
+          "relationships": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "relation": {
+                  "type": "string"
+                },
+                "target": {
+                  "$ref": "#/components/schemas/ProviderRef"
+                }
+              },
+              "required": [
+                "relation",
+                "target"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "id",
+          "provider_ref",
+          "label",
+          "type",
+          "mapping_state",
+          "relationships"
+        ],
+        "additionalProperties": false
+      },
+      "ExecutionInput": {
+        "type": "object",
+        "properties": {
+          "investigation_id": {
+            "type": "string"
+          },
+          "capability": {
+            "type": "string"
+          },
+          "frozen_inputs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRef"
+            }
+          },
+          "allowed_tools": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "budget": {
+            "$ref": "#/components/schemas/Budget"
+          },
+          "confirmation_reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "investigation_id",
+          "capability",
+          "frozen_inputs",
+          "allowed_tools",
+          "budget",
+          "confirmation_reason"
+        ],
+        "additionalProperties": false
+      },
+      "ExecutionRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "investigation_id": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "waiting_confirmation",
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "unavailable",
+              "waiting_reconciliation",
+              "cancel_requested",
+              "cancelled"
+            ]
+          },
+          "external_task_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "provider_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "result_refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRef"
+            }
+          },
+          "confirmed_by": {
+            "type": "string"
+          },
+          "input_hash": {
+            "type": "string"
+          },
+          "stop_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "investigation_id",
+          "state",
+          "external_task_id",
+          "provider_version",
+          "result_refs",
+          "confirmed_by",
+          "input_hash",
+          "stop_reason"
+        ],
+        "additionalProperties": false
+      },
+      "ImpactAction": {
+        "type": "object",
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "maintained",
+              "revision_required"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_state": {
+            "type": "string",
+            "enum": [
+              "pending"
+            ]
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "expected_state"
+        ],
+        "additionalProperties": false
+      },
+      "ExecutionAction": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "const": "cancel",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "action",
+          "reason"
+        ],
+        "additionalProperties": false
+      },
+      "TopicAction": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "pause_monitoring",
+              "resume_monitoring"
+            ]
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "action",
+          "expected_revision",
+          "reason"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "x-contract-status": "proposed",
+  "x-common-rules": [
+    "所有业务ID在工作空间和权限范围内解析",
+    "POST要求幂等键；生产环境设置并登记去重记录保留期限",
+    "写请求的Cookie会话必须校验CSRF",
+    "所有主体时间为UTC且保留来源时间精度",
+    "成本使用预算指定币种，不混合计算",
+    "鉴权、数据过滤、预算、幂等和领域关系验证均由后端执行"
+  ]
+}

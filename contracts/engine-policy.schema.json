@@ -1,0 +1,374 @@
+{
+  "$defs": {
+    "ResourceLimits": {
+      "additionalProperties": false,
+      "properties": {
+        "max_records": {
+          "default": 2000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Records",
+          "type": "integer"
+        },
+        "max_text_characters": {
+          "default": 2000000,
+          "maximum": 50000000,
+          "minimum": 100,
+          "title": "Max Text Characters",
+          "type": "integer"
+        },
+        "max_features": {
+          "default": 15000,
+          "maximum": 100000,
+          "minimum": 10,
+          "title": "Max Features",
+          "type": "integer"
+        },
+        "max_candidates_per_method": {
+          "default": 100,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Max Candidates Per Method",
+          "type": "integer"
+        },
+        "review_capacity": {
+          "default": 20,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Review Capacity",
+          "type": "integer"
+        },
+        "max_candidates_per_group": {
+          "default": 2,
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Max Candidates Per Group",
+          "type": "integer"
+        },
+        "max_graph_edges": {
+          "default": 10000,
+          "maximum": 100000,
+          "minimum": 1,
+          "title": "Max Graph Edges",
+          "type": "integer"
+        },
+        "max_graph_hops": {
+          "default": 3,
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Max Graph Hops",
+          "type": "integer"
+        },
+        "max_paths": {
+          "default": 50,
+          "maximum": 1000,
+          "minimum": 1,
+          "title": "Max Paths",
+          "type": "integer"
+        },
+        "max_link_pairs": {
+          "default": 1000,
+          "maximum": 20000,
+          "minimum": 1,
+          "title": "Max Link Pairs",
+          "type": "integer"
+        },
+        "max_temporal_bins": {
+          "default": 128,
+          "maximum": 2048,
+          "minimum": 2,
+          "title": "Max Temporal Bins",
+          "type": "integer"
+        }
+      },
+      "title": "ResourceLimits",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "policy_version": {
+      "const": "bioradar.mining.policy.v1",
+      "default": "bioradar.mining.policy.v1",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "as_of": {
+      "format": "date-time",
+      "title": "As Of",
+      "type": "string"
+    },
+    "time_mode": {
+      "default": "publication_retrospective",
+      "enum": [
+        "publication_retrospective",
+        "availability_replay"
+      ],
+      "title": "Time Mode",
+      "type": "string"
+    },
+    "discovery_mode": {
+      "default": "stock_and_incremental",
+      "enum": [
+        "stock_and_incremental",
+        "incremental"
+      ],
+      "title": "Discovery Mode",
+      "type": "string"
+    },
+    "baseline_start": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Baseline Start"
+    },
+    "baseline_end": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Baseline End"
+    },
+    "current_start": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Current Start"
+    },
+    "current_end": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Current End"
+    },
+    "method_ids": {
+      "default": [
+        "lexical_emergence",
+        "text_topics",
+        "entity_combinations",
+        "state_transitions",
+        "pipeline_landscape",
+        "research_network",
+        "maturity_shift",
+        "counterevidence_impact",
+        "translation_dwell",
+        "event_exposure",
+        "regional_comparison"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 11,
+      "title": "Method Ids",
+      "type": "array"
+    },
+    "limits": {
+      "$ref": "#/$defs/ResourceLimits"
+    },
+    "scope_label": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Annotation only; records are not filtered by this label",
+      "title": "Scope Label"
+    },
+    "minimum_support": {
+      "default": 2,
+      "minimum": 1,
+      "title": "Minimum Support",
+      "type": "integer"
+    },
+    "minimum_growth": {
+      "default": 2.0,
+      "minimum": 1,
+      "title": "Minimum Growth",
+      "type": "number"
+    },
+    "exploration_fraction": {
+      "default": 0.2,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Exploration Fraction",
+      "type": "number"
+    },
+    "known_vocabulary": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 50000,
+      "title": "Known Vocabulary",
+      "type": "array"
+    },
+    "vocabulary_version": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Vocabulary Version"
+    },
+    "stoplist": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 2000,
+      "title": "Stoplist",
+      "type": "array"
+    },
+    "topic_components": {
+      "default": 8,
+      "maximum": 100,
+      "minimum": 1,
+      "title": "Topic Components",
+      "type": "integer"
+    },
+    "topic_similarity": {
+      "default": 0.55,
+      "maximum": 1,
+      "minimum": 0,
+      "title": "Topic Similarity",
+      "type": "number"
+    },
+    "novelty_distance": {
+      "default": 0.45,
+      "maximum": 2,
+      "minimum": 0,
+      "title": "Novelty Distance",
+      "type": "number"
+    },
+    "random_seed": {
+      "default": 0,
+      "title": "Random Seed",
+      "type": "integer"
+    },
+    "burst_scale": {
+      "default": 2,
+      "exclusiveMinimum": 1,
+      "title": "Burst Scale",
+      "type": "number"
+    },
+    "burst_penalty": {
+      "default": 1,
+      "minimum": 0,
+      "title": "Burst Penalty",
+      "type": "number"
+    },
+    "burst_states": {
+      "default": 3,
+      "maximum": 10,
+      "minimum": 2,
+      "title": "Burst States",
+      "type": "integer"
+    },
+    "dwell_threshold_days": {
+      "default": 365,
+      "minimum": 1,
+      "title": "Dwell Threshold Days",
+      "type": "integer"
+    },
+    "maturity_stage_order": {
+      "default": [
+        "hypothesis",
+        "in_vitro",
+        "animal",
+        "human_early_result",
+        "human_late_result",
+        "regulatory"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Maturity Stage Order",
+      "type": "array"
+    },
+    "cooperation_relations": {
+      "default": [
+        "coauthored",
+        "collaborated"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Cooperation Relations",
+      "type": "array"
+    },
+    "exposure_relations": {
+      "default": [
+        "supplies",
+        "depends_on",
+        "licensed_to",
+        "manufactures"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Exposure Relations",
+      "type": "array"
+    },
+    "exposure_reverse_relations": {
+      "default": [
+        "depends_on"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Exposure Reverse Relations",
+      "type": "array"
+    },
+    "urgent_event_types": {
+      "default": [
+        "regulatory_safety_action",
+        "product_recall"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Urgent Event Types",
+      "type": "array"
+    }
+  },
+  "required": [
+    "as_of"
+  ],
+  "title": "MiningPolicy",
+  "type": "object"
+}

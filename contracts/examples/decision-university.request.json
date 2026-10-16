@@ -1,0 +1,1463 @@
+{
+  "input": {
+    "schema_version": "bioradar.decision.input.v1",
+    "input_id": "decision-university-synthetic-v1",
+    "is_demo": true,
+    "brief": {
+      "title": "学校委托合成例：人员门槛下的公共平台",
+      "audience": "university",
+      "decision_question": "在校级人员需求不超过35人月的假设条件下，比较自建与合作服务的可行性。",
+      "mandate": "以学校公共平台使命为研究范围；院系、附属医院、伦理与产权权利不从数量推定。",
+      "as_of": "2026-10-13T00:00:00Z",
+      "decision_deadline": "2026-12-01T00:00:00Z",
+      "horizon_start": "2027-01-01",
+      "horizon_end": "2027-12-31",
+      "baseline_option_id": "baseline",
+      "scope_description": "同一合成地域R与当前容量80slots事实；未来需求、费用、人员、群体和现金效果均是独立署名假设。",
+      "why_now": {
+        "text": "演示一项有截止时间的配置问题；不表示实际新技术突破。",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      "interest_declarations": {
+        "commissioner": {
+          "status": "unknown",
+          "statement": null
+        },
+        "funder": {
+          "status": "unknown",
+          "statement": null
+        },
+        "author": {
+          "status": "unknown",
+          "statement": null
+        },
+        "reviewer": {
+          "status": "unknown",
+          "statement": null
+        }
+      },
+      "review_plan": {
+        "review_at": "2026-11-15T00:00:00Z",
+        "trigger_indicators": [
+          {
+            "text": "核实未来服务量、预算和外部合作承诺。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "change_conditions": [
+          {
+            "text": "预算或最低服务约束得到不同证据时重新比较；不执行自动投资。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      }
+    },
+    "metrics": [
+      {
+        "metric_id": "cost",
+        "label": "合成年度总费用",
+        "direction": "minimize",
+        "unit": "synthetic_budget_unit",
+        "definition": "declared_total_annual_cost",
+        "population": "authorized_K_service",
+        "geography": "R",
+        "jurisdiction": "test-only",
+        "period_start": "2027-01-01",
+        "period_end": "2027-12-31",
+        "price_base": "synthetic_constant_2026",
+        "denominator": null,
+        "comparability_basis": "All scenarios/options use the identical declared definition, population and period."
+      },
+      {
+        "metric_id": "service",
+        "label": "合成服务量",
+        "direction": "maximize",
+        "unit": "synthetic_service_unit",
+        "definition": "declared_annual_service_volume",
+        "population": "authorized_K_service",
+        "geography": "R",
+        "jurisdiction": "test-only",
+        "period_start": "2027-01-01",
+        "period_end": "2027-12-31",
+        "price_base": null,
+        "denominator": null,
+        "comparability_basis": "All scenarios/options use the identical declared definition, population and period."
+      },
+      {
+        "metric_id": "current_slots",
+        "label": "合成当前容量观察",
+        "direction": "maximize",
+        "unit": "slot/day",
+        "definition": "available_assay_slots",
+        "population": "authorized_K_service",
+        "geography": "R",
+        "jurisdiction": "test-only",
+        "period_start": "2026-10-01",
+        "period_end": "2026-10-01",
+        "price_base": null,
+        "denominator": null,
+        "comparability_basis": "All scenarios/options use the identical declared definition, population and period."
+      },
+      {
+        "metric_id": "staff_load",
+        "label": "合成人员需求",
+        "direction": "minimize",
+        "unit": "synthetic_person_month",
+        "definition": "declared_staff_required_for_complete_option",
+        "population": "synthetic_university_staff",
+        "geography": "R",
+        "jurisdiction": "test-only",
+        "period_start": "2027-01-01",
+        "period_end": "2027-12-31",
+        "price_base": null,
+        "denominator": null,
+        "comparability_basis": "All scenarios/options use the identical declared definition, population and period."
+      }
+    ],
+    "options": [
+      {
+        "option_id": "baseline",
+        "label": "维持现状",
+        "description": "Declared independent option totals; no addition of project benefits.",
+        "implementation_owner": {
+          "text": "合成责任主体；实施权限尚须另行核实。",
+          "basis": {
+            "kind": "declared_assumption",
+            "claimed_author": "Synthetic fixture analyst",
+            "authored_at": "2026-10-01T00:00:00Z",
+            "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+            "evidence": [],
+            "model_description": null
+          }
+        },
+        "implementation_steps": [
+          {
+            "text": "先核实预算、容量与专业适用性，再由有权主体决定。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "beneficiaries": [
+          {
+            "text": "目标服务群体为假设受益者，真实效果未知。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "adversely_affected": [
+          {
+            "text": "其他用途可能承担机会成本，分配效果尚未核实。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "irreversible_commitments": [
+          {
+            "text": "扩大投入可能形成沉没成本；数值未作真实估计。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ]
+      },
+      {
+        "option_id": "pilot",
+        "label": "有限试点",
+        "description": "Declared independent option totals; no addition of project benefits.",
+        "implementation_owner": {
+          "text": "合成责任主体；实施权限尚须另行核实。",
+          "basis": {
+            "kind": "declared_assumption",
+            "claimed_author": "Synthetic fixture analyst",
+            "authored_at": "2026-10-01T00:00:00Z",
+            "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+            "evidence": [],
+            "model_description": null
+          }
+        },
+        "implementation_steps": [
+          {
+            "text": "先核实预算、容量与专业适用性，再由有权主体决定。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "beneficiaries": [
+          {
+            "text": "目标服务群体为假设受益者，真实效果未知。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "adversely_affected": [
+          {
+            "text": "其他用途可能承担机会成本，分配效果尚未核实。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "irreversible_commitments": [
+          {
+            "text": "扩大投入可能形成沉没成本；数值未作真实估计。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ]
+      },
+      {
+        "option_id": "partner",
+        "label": "外部合作",
+        "description": "Declared independent option totals; no addition of project benefits.",
+        "implementation_owner": {
+          "text": "合成责任主体；实施权限尚须另行核实。",
+          "basis": {
+            "kind": "declared_assumption",
+            "claimed_author": "Synthetic fixture analyst",
+            "authored_at": "2026-10-01T00:00:00Z",
+            "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+            "evidence": [],
+            "model_description": null
+          }
+        },
+        "implementation_steps": [
+          {
+            "text": "先核实预算、容量与专业适用性，再由有权主体决定。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "beneficiaries": [
+          {
+            "text": "目标服务群体为假设受益者，真实效果未知。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "adversely_affected": [
+          {
+            "text": "其他用途可能承担机会成本，分配效果尚未核实。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "irreversible_commitments": [
+          {
+            "text": "扩大投入可能形成沉没成本；数值未作真实估计。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ]
+      },
+      {
+        "option_id": "expand",
+        "label": "扩大配置",
+        "description": "Declared independent option totals; no addition of project benefits.",
+        "implementation_owner": {
+          "text": "合成责任主体；实施权限尚须另行核实。",
+          "basis": {
+            "kind": "declared_assumption",
+            "claimed_author": "Synthetic fixture analyst",
+            "authored_at": "2026-10-01T00:00:00Z",
+            "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+            "evidence": [],
+            "model_description": null
+          }
+        },
+        "implementation_steps": [
+          {
+            "text": "先核实预算、容量与专业适用性，再由有权主体决定。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "beneficiaries": [
+          {
+            "text": "目标服务群体为假设受益者，真实效果未知。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "adversely_affected": [
+          {
+            "text": "其他用途可能承担机会成本，分配效果尚未核实。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "irreversible_commitments": [
+          {
+            "text": "扩大投入可能形成沉没成本；数值未作真实估计。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ]
+      },
+      {
+        "option_id": "unknown",
+        "label": "待补证方案",
+        "description": "Declared independent option totals; no addition of project benefits.",
+        "implementation_owner": {
+          "text": "合成责任主体；实施权限尚须另行核实。",
+          "basis": {
+            "kind": "declared_assumption",
+            "claimed_author": "Synthetic fixture analyst",
+            "authored_at": "2026-10-01T00:00:00Z",
+            "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+            "evidence": [],
+            "model_description": null
+          }
+        },
+        "implementation_steps": [
+          {
+            "text": "先核实预算、容量与专业适用性，再由有权主体决定。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "beneficiaries": [
+          {
+            "text": "目标服务群体为假设受益者，真实效果未知。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "adversely_affected": [
+          {
+            "text": "其他用途可能承担机会成本，分配效果尚未核实。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ],
+        "irreversible_commitments": [
+          {
+            "text": "扩大投入可能形成沉没成本；数值未作真实估计。",
+            "basis": {
+              "kind": "declared_assumption",
+              "claimed_author": "Synthetic fixture analyst",
+              "authored_at": "2026-10-01T00:00:00Z",
+              "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+              "evidence": [],
+              "model_description": null
+            }
+          }
+        ]
+      }
+    ],
+    "scenarios": [
+      {
+        "scenario_id": "normal",
+        "label": "常态假设",
+        "description": "Synthetic future; no assigned probability.",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "scenario_id": "stress",
+        "label": "供需压力假设",
+        "description": "Synthetic future; no assigned probability.",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      }
+    ],
+    "outcomes": [
+      {
+        "option_id": "baseline",
+        "scenario_id": "normal",
+        "metric_id": "cost",
+        "value": {
+          "lower": "25",
+          "upper": "30"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "normal",
+        "metric_id": "service",
+        "value": {
+          "lower": "20",
+          "upper": "30"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "normal",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "stress",
+        "metric_id": "cost",
+        "value": {
+          "lower": "25",
+          "upper": "30"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "stress",
+        "metric_id": "service",
+        "value": {
+          "lower": "10",
+          "upper": "15"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "stress",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "normal",
+        "metric_id": "cost",
+        "value": {
+          "lower": "65",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "normal",
+        "metric_id": "service",
+        "value": {
+          "lower": "50",
+          "upper": "65"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "normal",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "stress",
+        "metric_id": "cost",
+        "value": {
+          "lower": "65",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "stress",
+        "metric_id": "service",
+        "value": {
+          "lower": "30",
+          "upper": "45"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "stress",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "normal",
+        "metric_id": "cost",
+        "value": {
+          "lower": "45",
+          "upper": "60"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "normal",
+        "metric_id": "service",
+        "value": {
+          "lower": "35",
+          "upper": "55"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "normal",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "stress",
+        "metric_id": "cost",
+        "value": {
+          "lower": "45",
+          "upper": "60"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "stress",
+        "metric_id": "service",
+        "value": {
+          "lower": "25",
+          "upper": "40"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "stress",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "normal",
+        "metric_id": "cost",
+        "value": {
+          "lower": "95",
+          "upper": "120"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "normal",
+        "metric_id": "service",
+        "value": {
+          "lower": "70",
+          "upper": "90"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "normal",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "stress",
+        "metric_id": "cost",
+        "value": {
+          "lower": "95",
+          "upper": "120"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "stress",
+        "metric_id": "service",
+        "value": {
+          "lower": "45",
+          "upper": "70"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "stress",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "normal",
+        "metric_id": "cost",
+        "value": {
+          "lower": "15",
+          "upper": "20"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "normal",
+        "metric_id": "service",
+        "value": null,
+        "unknown_reason": "Synthetic option has no defensible effect estimate.",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "normal",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "stress",
+        "metric_id": "cost",
+        "value": {
+          "lower": "15",
+          "upper": "20"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "stress",
+        "metric_id": "service",
+        "value": null,
+        "unknown_reason": "Synthetic option has no defensible effect estimate.",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "stress",
+        "metric_id": "current_slots",
+        "value": {
+          "lower": "80",
+          "upper": "80"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "observed",
+          "claimed_author": "Synthetic source curator",
+          "authored_at": "2026-10-10T00:00:00Z",
+          "rationale": "Exact adopted synthetic capacity value; an engineered fixture, not a professional finding.",
+          "evidence": [
+            {
+              "snapshot_hash": "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e",
+              "record_ref": {
+                "provider": "fixture",
+                "object_type": "source_record",
+                "object_id": "K-capacity",
+                "adopted_version": "v1",
+                "version_source": "provider",
+                "content_hash": "bd5cc8e8cc8799a5b83f215650ae00c00e310de3d2a17f5c82d555fa77807685",
+                "authorization_ref": "development:development:sources"
+              },
+              "evidence_ref": null,
+              "quote": null,
+              "field_path": "/regional_indicators/0/value"
+            }
+          ],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "normal",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "15",
+          "upper": "20"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "baseline",
+        "scenario_id": "stress",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "15",
+          "upper": "20"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "normal",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "30",
+          "upper": "40"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "pilot",
+        "scenario_id": "stress",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "30",
+          "upper": "40"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "normal",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "20",
+          "upper": "30"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "partner",
+        "scenario_id": "stress",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "20",
+          "upper": "30"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "normal",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "50",
+          "upper": "70"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "expand",
+        "scenario_id": "stress",
+        "metric_id": "staff_load",
+        "value": {
+          "lower": "50",
+          "upper": "70"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "normal",
+        "metric_id": "staff_load",
+        "value": null,
+        "unknown_reason": "Future staff need unknown",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "option_id": "unknown",
+        "scenario_id": "stress",
+        "metric_id": "staff_load",
+        "value": null,
+        "unknown_reason": "Future staff need unknown",
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      }
+    ],
+    "constraints": [
+      {
+        "constraint_id": "budget",
+        "label": "声明预算上限",
+        "metric_id": "cost",
+        "operator": "le",
+        "threshold": {
+          "lower": "100",
+          "upper": "100"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "constraint_id": "minimum_service",
+        "label": "声明最低服务",
+        "metric_id": "service",
+        "operator": "ge",
+        "threshold": {
+          "lower": "20",
+          "upper": "20"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      },
+      {
+        "constraint_id": "staff_limit",
+        "label": "未来可承担人员需求35人月（假设）",
+        "metric_id": "staff_load",
+        "operator": "le",
+        "threshold": {
+          "lower": "35",
+          "upper": "35"
+        },
+        "unknown_reason": null,
+        "basis": {
+          "kind": "declared_assumption",
+          "claimed_author": "Synthetic fixture analyst",
+          "authored_at": "2026-10-01T00:00:00Z",
+          "rationale": "Synthetic arithmetic demonstration; no biomedical, policy or investment effect established.",
+          "evidence": [],
+          "model_description": null
+        }
+      }
+    ],
+    "evidence_snapshot_hashes": [
+      "999b6af439d7e829e3c75ea1ee871769752486bf06beb87578ebb7ed4350ff4e"
+    ]
+  },
+  "policy": {
+    "policy_version": "bioradar.decision.policy.v1",
+    "time_mode": "current_appraisal",
+    "pareto_metric_ids": [
+      "service",
+      "staff_load"
+    ],
+    "regret_metric_id": "service",
+    "max_options": 24,
+    "max_scenarios": 32,
+    "max_metrics": 16,
+    "max_constraints": 32,
+    "max_questions": 48
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "scope": "仅静态JSON Schema/引用/示例验证；未实现/运行FastAPI、RQ、Redis或上游服务",
+  "version": "1.0.0",
+  "operations": 42,
+  "schemas": 61,
+  "resolved_refs": 152,
+  "validated_examples": 12,
+  "rejected_negative_examples": 3,
+  "checks": [
+    "JSON语法",
+    "Draft2020-12 Schema结构",
+    "内部引用",
+    "路径参数一致性",
+    "操作ID唯一",
+    "POST幂等头",
+    "示例请求符合Schema和格式",
+    "关键负例拒绝",
+    "OpenAPI3.1专用规范验证(openapi-spec-validator)"
+  ],
+  "provider_exchange": {
+    "capabilities": 12,
+    "validated_examples": 16,
+    "rejected_negative_examples": 3,
+    "validated_original_call_id_queries": 2,
+    "checks": [
+      "Draft2020-12结构与正例格式",
+      "拒绝额外credential",
+      "拒绝无版本引用",
+      "拒绝错能力payload"
+    ]
+  },
+  "validator_dependencies": {
+    "jsonschema": "4.26.0",
+    "openapi-spec-validator": "0.9.0"
+  },
+  "limitations": [
+    "未实测任务恢复、权限传播、预算竞争、数据库备份、来源覆盖或CPUBrain执行"
+  ],
+  "archive": "archive/v0.1/"
+}

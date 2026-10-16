@@ -1,0 +1,17 @@
+.venv/
+.tools/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+node_modules/
+apps/web/dist/
+*.tsbuildinfo
+.env
+ops/.env
+work/
+dist/
+artifacts/
+.DS_Store
