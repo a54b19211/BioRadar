@@ -868,6 +868,68 @@
       "independent_review": "engine_architecture approved same-tree consolidation and deletion with git branch -d only",
       "new_branches_or_tags": false,
       "remote_push": false
+    },
+    {
+      "reviewed_at": "2026-10-16T10:26:17.029715+00:00",
+      "scope": "Data-Fabric near-term acquisition, cleaning and reliability task plan; documentation only, not implementation or a source launch",
+      "upstream": {
+        "host": "zktest",
+        "branch": "dev",
+        "head": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
+        "business_code_changed": false
+      },
+      "owner": "徐子雯; assigns source tasks herself; shared ingestion, persistence, migrations and runtime remain under her review",
+      "source_order": [
+        "FDA CRL",
+        "Europe PMC",
+        "EMA human medicine and regulatory documents",
+        "NHSA official annual formulary and payment-scope changes"
+      ],
+      "existing_sources_in_parallel": [
+        "ClinicalTrials coverage, field meaning and reliable updates",
+        "PubMed EFetch content and baseline/update maintenance",
+        "CDE/NMPA/ChiCTR declared columns, details and attachments"
+      ],
+      "delivery_stages": {
+        "first": "Real failure outcomes, preserve prior materials on recrawl failure, reject unsupported API by-ID recrawl, bounded immutable FDA samples and one Radar read",
+        "second": "Content versions, exact version read, reliable changes, persistent recrawl, Europe PMC and continuous sync only after update protections pass",
+        "later": "EMA followed by NHSA; national procurement final/correction records after formulary work"
+      },
+      "reviews": {
+        "model": "gpt-6.1-sol",
+        "reasoning_effort": "max",
+        "engine_architecture": "Approved revised task book and assets summary; no remaining blocking findings",
+        "mining_methods": "Approved source facts, priorities, date/rights boundaries and acceptance; requested wording changed from one study to one publication",
+        "integration_product": "Approved final revisions and assets summary; responsibility and staged acceptance clear",
+        "closed_findings": [
+          "CLI seen-ID skip limited to webpage/local PDF paths, not all API ingestion",
+          "7-day continuous observation and periodic runs start after second-stage version/update protection",
+          "FDA same PDF may contain multiple letters; transfer text offsets do not imply PDF page locations",
+          "PubMed ESummary output is not proof of a complete abstract; DateRevised alone cannot guarantee updates"
+        ],
+        "remaining_blocking_findings": []
+      },
+      "artifacts": [
+        "artifacts/交接报告/给徐子雯_近期开发任务与验收标准_20261016.docx",
+        "artifacts/交接报告/给徐子雯_近期开发任务与验收标准_20261016.pdf"
+      ],
+      "checks": {
+        "docx_opened": true,
+        "pdf_pages": 11,
+        "pdf_text_outside_page": 0,
+        "visual_pages_inspected": [
+          1,
+          6,
+          7
+        ],
+        "stage_dependency_checked_in_rendered_pdf": true,
+        "business_tests": "Not run: no business code, interface or database change"
+      },
+      "limitations": [
+        "Tasks and acceptance targets are not delivered capabilities",
+        "EMA official JSON documentation verified; direct retrieval returned 429, ingestion not verified",
+        "No new source collection, service restart, migration or graph change in this work"
+      ]
     }
   ]
 }
