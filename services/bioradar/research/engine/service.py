@@ -492,7 +492,16 @@ class EngineService:
 
             def mutate():
                 row = self._run(session, actor, identifier, lock=True)
-                if row.revision != action.expected_revision or row.state != "failed":
+                partial_failure = (
+                    row.run_kind == "mining"
+                    and row.state == "partial"
+                    and row.result
+                    and any(
+                        item.get("execution_status") == "failed"
+                        for item in row.result.get("method_results", [])
+                    )
+                )
+                if row.revision != action.expected_revision or not (row.state == "failed" or partial_failure):
                     raise DomainError("run_state_conflict", "运行版本或状态不允许重试", 409)
                 if row.attempt >= self.settings.engine_retry_limit:
                     raise DomainError("retry_limit_exceeded", "已达到本次固定输入重试上限", 409)

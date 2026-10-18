@@ -22,6 +22,7 @@ from bioradar.data.database import Base
 from bioradar.research.engine.auth import DevelopmentAccess, EngineActor
 from bioradar.research.engine.service import SOURCE_LIST_NOTE, SOURCE_READ_UNAVAILABLE, EngineService
 from bioradar.research.investigations.models import (
+    InvestigationAutomation,
     InvestigationCreate,
     InvestigationEntry,
     InvestigationEntryCreate,
@@ -299,9 +300,19 @@ class InvestigationService:
             support=support,
         ), snapshot.is_demo
 
-    def append(self, actor: EngineActor, identifier: str, body: InvestigationEntryCreate, key: str):
+    def append(
+        self,
+        actor: EngineActor,
+        identifier: str,
+        body: InvestigationEntryCreate,
+        key: str,
+        *,
+        automation: InvestigationAutomation | None = None,
+    ):
         request = body.root
         self._actor(actor)
+        if automation is not None and request.kind not in {"material", "note"}:
+            raise DomainError("automation_judgment_forbidden", "后台仅可整理材料和笔记，不能签研究判断", 422)
         with Session(self.engine.database) as session, session.begin():
 
             def mutate():
@@ -349,6 +360,8 @@ class InvestigationService:
                         for question in row.questions
                     ]
                     row.status = request.status
+                if automation is not None:
+                    payload["automation"] = automation.model_dump(mode="json")
                 row.revision += 1
                 row.updated_at = datetime.now(UTC)
                 entry = InvestigationEntryRecord(
@@ -368,7 +381,9 @@ class InvestigationService:
                 actor,
                 "investigation.append:" + identifier,
                 key,
-                body,
+                {"request": body.model_dump(mode="json"), "automation": automation.model_dump(mode="json")}
+                if automation
+                else body,
                 mutate,
             )
             self._row(session, actor, identifier)

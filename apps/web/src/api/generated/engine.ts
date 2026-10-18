@@ -299,6 +299,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/monitor/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Monitor Status */
+        get: operations["monitor_status_api_engine_monitor_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/monitor/batches": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Monitor Batches */
+        get: operations["monitor_batches_api_engine_monitor_batches_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/monitor/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Monitor Leads */
+        get: operations["monitor_leads_api_engine_monitor_leads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/monitor/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Monitor Control */
+        post: operations["monitor_control_api_engine_monitor_control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/history/sources": {
         parameters: {
             query?: never;
@@ -2131,6 +2199,19 @@ export interface components {
             status: "unknown" | "declared_none" | "declared_interest";
             statement?: components["schemas"]["DeclaredStatement"] | null;
         };
+        /** InvestigationAutomation */
+        InvestigationAutomation: {
+            /**
+             * Source
+             * @default monitor
+             * @constant
+             */
+            source: "monitor";
+            /** Batch Id */
+            batch_id: string;
+            /** Lead Key */
+            lead_key: string;
+        };
         /** InvestigationCreate */
         InvestigationCreate: {
             /** Title */
@@ -2237,6 +2318,7 @@ export interface components {
         };
         /** InvestigationMaterial */
         InvestigationMaterial: {
+            automation?: components["schemas"]["InvestigationAutomation"] | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -2279,6 +2361,7 @@ export interface components {
         };
         /** InvestigationNote */
         InvestigationNote: {
+            automation?: components["schemas"]["InvestigationAutomation"] | null;
             /**
              * @description discriminator enum property added by openapi-typescript
              * @enum {string}
@@ -2855,6 +2938,215 @@ export interface components {
              * Limitations
              * @default []
              */
+            limitations: string[];
+        };
+        /** MonitorBatchList */
+        MonitorBatchList: {
+            /** Items */
+            items: components["schemas"]["MonitorBatchView"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** MonitorBatchView */
+        MonitorBatchView: {
+            /** Id */
+            id: string;
+            /** Source Id */
+            source_id: string;
+            /** Is Demo */
+            is_demo: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "accepted" | "queued" | "investigating" | "completed" | "blocked";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Run Id */
+            run_id: string | null;
+            /** Snapshot Id */
+            snapshot_id: string | null;
+            /** From After */
+            from_after: number;
+            /** Next After */
+            next_after: number;
+            /** Max Seq */
+            max_seq: number;
+            /** Changed Versions */
+            changed_versions: number;
+            /** Window Records */
+            window_records: number;
+            /**
+             * Scope Complete
+             * @default false
+             */
+            scope_complete: boolean;
+            /** Investigation Ids */
+            investigation_ids: string[];
+            /** Error Code */
+            error_code: string | null;
+            /** Limitations */
+            limitations: string[];
+        };
+        /** MonitorControl */
+        MonitorControl: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Paused */
+            paused: boolean;
+        };
+        /** MonitorLeadList */
+        MonitorLeadList: {
+            /** Items */
+            items: components["schemas"]["MonitorLeadView"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** MonitorLeadView */
+        MonitorLeadView: {
+            /** Id */
+            id: string;
+            /** Lead Key */
+            lead_key: string;
+            /** Title */
+            title: string;
+            /** Method Id */
+            method_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "investigating" | "investigated" | "deferred" | "blocked";
+            /** Run Id */
+            run_id: string;
+            /** Investigation Id */
+            investigation_id: string | null;
+            /** Batch Id */
+            batch_id: string;
+            /** New To Radar */
+            new_to_radar: boolean;
+            /** Needs Investigation */
+            needs_investigation: boolean;
+            /**
+             * Urgency
+             * @enum {string}
+             */
+            urgency: "undetermined" | "routine" | "soon" | "immediate";
+            /** Changed Support Versions */
+            changed_support_versions: number;
+            /** Error Code */
+            error_code?: string | null;
+            /** Data Gaps */
+            data_gaps: string[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** MonitorPublicationStatus */
+        MonitorPublicationStatus: {
+            /** Source Id */
+            source_id: string;
+            /**
+             * Publisher State
+             * @enum {string}
+             */
+            publisher_state: "running" | "idle" | "resource_blocked" | "unavailable" | "not_started" | "stale";
+            /** Last Heartbeat */
+            last_heartbeat?: string | null;
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            };
+            /** Disk Paused */
+            disk_paused?: boolean | null;
+            /** Error Code */
+            error_code?: string | null;
+        };
+        /** MonitorSourceStatus */
+        MonitorSourceStatus: {
+            /** Source Id */
+            source_id: string;
+            /** Is Demo */
+            is_demo: boolean;
+            /**
+             * Acked After
+             * @default 0
+             */
+            acked_after: number;
+            /** Scan Max Seq */
+            scan_max_seq?: number | null;
+            /** Active Batch Id */
+            active_batch_id?: string | null;
+            /**
+             * State
+             * @default idle
+             */
+            state: string;
+            /** Last Poll At */
+            last_poll_at?: string | null;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /**
+             * Retained Records
+             * @default 0
+             */
+            retained_records: number;
+        };
+        /** MonitorStatus */
+        MonitorStatus: {
+            /** Enabled */
+            enabled: boolean;
+            /** Paused */
+            paused: boolean;
+            /** Control Revision */
+            control_revision: number;
+            /**
+             * Process Status
+             * @enum {string}
+             */
+            process_status: "disabled" | "paused" | "starting" | "running" | "stale" | "not_connected";
+            /** Last Heartbeat */
+            last_heartbeat?: string | null;
+            /** Limits */
+            limits: {
+                [key: string]: number;
+            };
+            /** Sources */
+            sources: components["schemas"]["MonitorSourceStatus"][];
+            /** Publication Sources */
+            publication_sources?: components["schemas"]["MonitorPublicationStatus"][];
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** Limitations */
             limitations: string[];
         };
         /** NormalizedSnapshot */
@@ -4336,6 +4628,125 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DecisionRunView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_status_api_engine_monitor_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorStatus"];
+                };
+            };
+        };
+    };
+    monitor_batches_api_engine_monitor_batches_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorBatchList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_leads_api_engine_monitor_leads_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonitorLeadList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    monitor_control_api_engine_monitor_control_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MonitorControl"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

@@ -236,7 +236,7 @@ function basisEntries(ids: string[]) {
     <section class="engine-panel">
       <h2>采用材料 · {{ materials.length }} 项</h2>
       <p class="muted">
-        支持、反面和背景是研究人员分类；材料数量不等于独立研究数量。
+        材料注明由研究人员分类还是由程序整理；材料数量不等于独立研究数量。
       </p>
       <article
         v-for="entry in materials"
@@ -249,7 +249,7 @@ function basisEntries(ids: string[]) {
               :type="entry.payload.stance === 'oppose' ? 'warning' : 'info'"
               >{{ stanceLabels[entry.payload.stance] }}</ElTag
             ><span
-              >人工分类 · {{ entry.created_by }} · {{ entry.created_at }}</span
+              >{{ entry.payload.automation ? "程序整理，待人工核对" : "研究人员分类" }} · {{ entry.created_by }} · {{ entry.created_at }}</span
             >
           </div>
           <p class="source-id">

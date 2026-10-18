@@ -40,6 +40,15 @@ class Settings(BaseSettings):
     engine_max_decision_bytes: int = Field(default=2_000_000, ge=1024, le=16_000_000)
     engine_max_records: int = Field(default=5000, ge=1, le=20000)
     engine_retry_limit: int = Field(default=3, ge=1, le=5)
+    monitor_enabled: bool = False
+    monitor_is_demo: bool = False
+    monitor_poll_seconds: int = Field(default=30, ge=1, le=3600)
+    monitor_batch_records: int = Field(default=50, ge=1, le=100)
+    monitor_context_records: int = Field(default=2000, ge=10, le=20000)
+    monitor_pending_runs: int = Field(default=2, ge=1, le=8)
+    monitor_hourly_investigations: int = Field(default=6, ge=0, le=100)
+    monitor_cooldown_minutes: int = Field(default=60, ge=1, le=1440)
+    monitor_investigations_per_batch: int = Field(default=2, ge=1, le=5)
 
     @field_validator("data_fabric_url", "data_fabric_research_url")
     @classmethod

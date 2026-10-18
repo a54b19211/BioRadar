@@ -1,0 +1,18 @@
+[Unit]
+Description=BioRadar local API
+After=network.target
+StartLimitIntervalSec=0
+
+[Service]
+WorkingDirectory=%h/zk_projects/BioRadar
+EnvironmentFile=%h/.config/bioradar/runtime.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=%h/zk_projects/BioRadar/.venv/bin/python -m uvicorn bioradar.api.app:app --host 127.0.0.1 --port 18100
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=120
+KillMode=control-group
+UMask=0077
+
+[Install]
+WantedBy=default.target

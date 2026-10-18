@@ -88,12 +88,20 @@ class InvestigationEntryCreate(RootModel[EntryRequest]):
     """Named schema with a flat, discriminated JSON request body."""
 
 
+class InvestigationAutomation(RuntimeModel):
+    source: Literal["monitor"] = "monitor"
+    batch_id: str = Field(min_length=1, max_length=36)
+    lead_key: str = Field(min_length=64, max_length=64)
+
+
 class InvestigationNote(RuntimeModel):
+    automation: InvestigationAutomation | None = None
     kind: Literal["note"] = "note"
     text: str
 
 
 class InvestigationMaterial(RuntimeModel):
+    automation: InvestigationAutomation | None = None
     kind: Literal["material"] = "material"
     text: str
     stance: MaterialStance

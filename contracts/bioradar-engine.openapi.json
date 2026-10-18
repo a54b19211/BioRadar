@@ -1356,6 +1356,235 @@
         }
       }
     },
+    "/api/engine/monitor/status": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Monitor Status",
+        "operationId": "monitor_status_api_engine_monitor_status_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ]
+      }
+    },
+    "/api/engine/monitor/batches": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Monitor Batches",
+        "operationId": "monitor_batches_api_engine_monitor_batches_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorBatchList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/monitor/leads": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Monitor Leads",
+        "operationId": "monitor_leads_api_engine_monitor_leads_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonitorLeadList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/monitor/control": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Monitor Control",
+        "operationId": "monitor_control_api_engine_monitor_control_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MonitorControl"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/engine/history/sources": {
       "get": {
         "tags": [
@@ -5997,6 +6226,35 @@
         "type": "object",
         "title": "InterestDisclosure"
       },
+      "InvestigationAutomation": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "const": "monitor",
+            "title": "Source",
+            "default": "monitor"
+          },
+          "batch_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Batch Id"
+          },
+          "lead_key": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Lead Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "batch_id",
+          "lead_key"
+        ],
+        "title": "InvestigationAutomation"
+      },
       "InvestigationCreate": {
         "properties": {
           "title": {
@@ -6304,6 +6562,16 @@
       },
       "InvestigationMaterial": {
         "properties": {
+          "automation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationAutomation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "kind": {
             "type": "string",
             "const": "material",
@@ -6412,6 +6680,16 @@
       },
       "InvestigationNote": {
         "properties": {
+          "automation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InvestigationAutomation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "kind": {
             "type": "string",
             "const": "note",
@@ -7738,6 +8016,589 @@
           "result_hash"
         ],
         "title": "MiningResult"
+      },
+      "MonitorBatchList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MonitorBatchView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "title": "Unavailable Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "MonitorBatchList"
+      },
+      "MonitorBatchView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "accepted",
+              "queued",
+              "investigating",
+              "completed",
+              "blocked"
+            ],
+            "title": "State"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "from_after": {
+            "type": "integer",
+            "title": "From After"
+          },
+          "next_after": {
+            "type": "integer",
+            "title": "Next After"
+          },
+          "max_seq": {
+            "type": "integer",
+            "title": "Max Seq"
+          },
+          "changed_versions": {
+            "type": "integer",
+            "title": "Changed Versions"
+          },
+          "window_records": {
+            "type": "integer",
+            "title": "Window Records"
+          },
+          "scope_complete": {
+            "type": "boolean",
+            "title": "Scope Complete",
+            "default": false
+          },
+          "investigation_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Investigation Ids"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "source_id",
+          "is_demo",
+          "state",
+          "created_at",
+          "updated_at",
+          "run_id",
+          "snapshot_id",
+          "from_after",
+          "next_after",
+          "max_seq",
+          "changed_versions",
+          "window_records",
+          "investigation_ids",
+          "error_code",
+          "limitations"
+        ],
+        "title": "MonitorBatchView"
+      },
+      "MonitorControl": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "paused"
+        ],
+        "title": "MonitorControl"
+      },
+      "MonitorLeadList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MonitorLeadView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "title": "Unavailable Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "MonitorLeadList"
+      },
+      "MonitorLeadView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "lead_key": {
+            "type": "string",
+            "title": "Lead Key"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "method_id": {
+            "type": "string",
+            "title": "Method Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "investigating",
+              "investigated",
+              "deferred",
+              "blocked"
+            ],
+            "title": "State"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "batch_id": {
+            "type": "string",
+            "title": "Batch Id"
+          },
+          "new_to_radar": {
+            "type": "boolean",
+            "title": "New To Radar"
+          },
+          "needs_investigation": {
+            "type": "boolean",
+            "title": "Needs Investigation"
+          },
+          "urgency": {
+            "type": "string",
+            "enum": [
+              "undetermined",
+              "routine",
+              "soon",
+              "immediate"
+            ],
+            "title": "Urgency"
+          },
+          "changed_support_versions": {
+            "type": "integer",
+            "title": "Changed Support Versions"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "data_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Gaps"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "lead_key",
+          "title",
+          "method_id",
+          "state",
+          "run_id",
+          "investigation_id",
+          "batch_id",
+          "new_to_radar",
+          "needs_investigation",
+          "urgency",
+          "changed_support_versions",
+          "data_gaps",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MonitorLeadView"
+      },
+      "MonitorPublicationStatus": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "publisher_state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "idle",
+              "resource_blocked",
+              "unavailable",
+              "not_started",
+              "stale"
+            ],
+            "title": "Publisher State"
+          },
+          "last_heartbeat": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "disk_paused": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disk Paused"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "publisher_state"
+        ],
+        "title": "MonitorPublicationStatus"
+      },
+      "MonitorSourceStatus": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "acked_after": {
+            "type": "integer",
+            "title": "Acked After",
+            "default": 0
+          },
+          "scan_max_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Max Seq"
+          },
+          "active_batch_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Batch Id"
+          },
+          "state": {
+            "type": "string",
+            "title": "State",
+            "default": "idle"
+          },
+          "last_poll_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Poll At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "retained_records": {
+            "type": "integer",
+            "title": "Retained Records",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "is_demo"
+        ],
+        "title": "MonitorSourceStatus"
+      },
+      "MonitorStatus": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "control_revision": {
+            "type": "integer",
+            "title": "Control Revision"
+          },
+          "process_status": {
+            "type": "string",
+            "enum": [
+              "disabled",
+              "paused",
+              "starting",
+              "running",
+              "stale",
+              "not_connected"
+            ],
+            "title": "Process Status"
+          },
+          "last_heartbeat": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Heartbeat"
+          },
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Limits"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/MonitorSourceStatus"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "publication_sources": {
+            "items": {
+              "$ref": "#/components/schemas/MonitorPublicationStatus"
+            },
+            "type": "array",
+            "title": "Publication Sources"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled",
+          "paused",
+          "control_revision",
+          "process_status",
+          "limits",
+          "sources",
+          "counts",
+          "limitations"
+        ],
+        "title": "MonitorStatus"
       },
       "NormalizedSnapshot": {
         "properties": {

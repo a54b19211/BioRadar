@@ -10,6 +10,7 @@ from bioradar.api.config import Settings
 from bioradar.api.errors import DomainError
 from bioradar.api.health import dependencies
 from bioradar.data.database import create_database
+from bioradar.research.engine.auth import DevelopmentAccess
 from bioradar.research.engine.routes import create_engine_router
 from bioradar.research.history.routes import create_history_router
 from bioradar.research.pipeline import STAGES
@@ -67,13 +68,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/system/status")
     async def system_status(request: Request):
+        configured = bool(
+            settings.monitor_enabled
+            and DevelopmentAccess(settings).enabled
+            and settings.data_fabric_url
+            and settings.data_fabric_history_read_token
+        )
         return {
             "version": __version__,
             "stage": "research_engine",
             "environment": settings.environment,
             "intelligence_ready": False,
-            "discovery_mode": "frozen_snapshot",
-            "autonomous_investigation": False,
+            "discovery_mode": "bounded_incremental_monitor" if configured else "frozen_snapshot",
+            "autonomous_investigation": configured,
+            "monitor_configuration": "configured_not_observed" if configured else "not_configured",
+            "monitor_status_url": "/api/engine/monitor/status",
             "bounded_investigation": "data_fabric_cli",
             "dependencies": await dependencies(settings, request.app.state.database),
             "providers": PROVIDERS,

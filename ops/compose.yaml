@@ -15,6 +15,11 @@ x-backend: &backend
     BIORADAR_QUEUE_PREFIX: bioradar:dev
     BIORADAR_DATA_FABRIC_URL: ${DATA_FABRIC_HISTORY_URL:-}
     BIORADAR_DATA_FABRIC_RESEARCH_URL: ${DATA_FABRIC_RESEARCH_URL:-}
+    BIORADAR_MONITOR_ENABLED: ${MONITOR_ENABLED:-true}
+    BIORADAR_MONITOR_POLL_SECONDS: ${MONITOR_POLL_SECONDS:-30}
+    BIORADAR_MONITOR_CONTEXT_RECORDS: ${MONITOR_CONTEXT_RECORDS:-2000}
+    BIORADAR_MONITOR_HOURLY_INVESTIGATIONS: ${MONITOR_HOURLY_INVESTIGATIONS:-6}
+    BIORADAR_MONITOR_COOLDOWN_MINUTES: ${MONITOR_COOLDOWN_MINUTES:-60}
     BIORADAR_DATA_FABRIC_HISTORY_READ_TOKEN: ${DATA_FABRIC_HISTORY_READ_TOKEN:-}
     BIORADAR_ENGINE_DEV_CREDENTIAL: ${ENGINE_DEV_CREDENTIAL:?Run make init}
     BIORADAR_ENGINE_SOURCE_ALLOWLIST: ${ENGINE_SOURCE_ALLOWLIST:?Run make init}
@@ -27,6 +32,7 @@ x-backend: &backend
 
 services:
   postgres:
+    restart: unless-stopped
     image: public.ecr.aws/docker/library/postgres:17-alpine
     environment:
       POSTGRES_DB: bioradar
@@ -40,6 +46,7 @@ services:
       timeout: 3s
       retries: 15
   redis:
+    restart: unless-stopped
     image: redis:7.4-alpine
     command: ["redis-server", "--appendonly", "yes"]
     ports: ["127.0.0.1:${REDIS_PORT:-16379}:6379"]
@@ -68,6 +75,13 @@ services:
   worker:
     <<: *backend
     command: ["python", "-m", "bioradar.ops.worker"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+  monitor:
+    <<: *backend
+    command: ["python", "-m", "bioradar.ops.monitor"]
+    restart: unless-stopped
     depends_on:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}

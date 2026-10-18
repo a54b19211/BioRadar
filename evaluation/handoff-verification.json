@@ -1811,5 +1811,131 @@
       "zktest_runtime_changes": "none",
       "new_branches": false
     }
-  ]
+  ],
+  "continuous_monitor_20261018": {
+    "implementation": "Fabric source commit -> version publication -> Radar incremental RQ calculation -> bounded automatic investigation",
+    "source_roots": {
+      "radar": "/home/zk_test/zk_projects/BioRadar",
+      "fabric": "/home/zk_test/zk_projects/ZK_Data-Fabric-test"
+    },
+    "previous_primary_heads": {
+      "radar": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
+      "fabric": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf"
+    },
+    "isolated_acceptance": {
+      "checks": [
+        "server_confirms_disposable_synthetic_source_before_any_upload",
+        "monitor_enabled",
+        "monitor_reads_only_demo_versions",
+        "automatically_published_version_is_demo",
+        "paused_monitor_does_not_schedule_new_computation",
+        "source_write_started_existing_run_queue",
+        "real_worker_completed_calculation",
+        "automatic_materials_keep_program_provenance",
+        "program_does_not_forge_human_stance_or_judgment",
+        "automatic_digging_performed_an_actual_read_and_saved_a_snapshot",
+        "investigation_refers_to_exact_automatically_published_version",
+        "repeated_upload_keeps_document_identity",
+        "identical_source_write_does_not_launch_another_run",
+        "fabric_publication_continues_while_radar_is_paused",
+        "durable_source_cursor_advances_after_a_second_completed_batch"
+      ],
+      "prefix": "DEMO-HISTORY-10f95d97dae8",
+      "source_record_id": "legacy:nmpa:4f8f5bf4-2d3c-551f-8fd8-c41f1810b580",
+      "version_id": "a1efcca5b860345184b35eee7ffb2ab66382885f0df643b56ffe4bae4af82493",
+      "batch_ids": [
+        "7a71e581-36d1-4f93-a602-1517a5d8e817",
+        "ee03f188-337c-4a55-9adc-67c44ca886c0"
+      ],
+      "investigation_id": "c47becf0-32d9-466d-b9ad-d832bd440bd2",
+      "automatic_read_receipts": 1,
+      "limitation": "Synthetic engineering exercise; not a real scientific discovery."
+    },
+    "actual_redis_outage_and_restart": {
+      "checks": [
+        "pause_persists_across_actual_monitor_restart",
+        "redis_outage_does_not_ack_unfinished_input",
+        "redis_recovery_completes_the_original_batch_without_manual_run",
+        "recovery_does_not_create_duplicate_batches",
+        "cursor_advances_only_after_recovered_run_completes",
+        "second_restart_keeps_cursor_and_does_not_recompute"
+      ],
+      "batch_id": "14d01577-8ae2-46dc-85a6-53da172fde05",
+      "run_id": "e7b6e2dd-6f50-47c9-b8fb-424cfa17fcef",
+      "from_after": 4,
+      "next_after": 5
+    },
+    "actual_browser": {
+      "checks": [
+        "authenticated_panel_shows_real_publisher_and_monitor_status",
+        "browser_pause_is_persisted_after_reload",
+        "browser_resumes_with_current_control_revision",
+        "monitor_panel_has_no_mobile_horizontal_overflow",
+        "automatic_lead_opens_investigation_with_program_attribution",
+        "logout_clears_monitor_and_lead_content",
+        "no_browser_runtime_errors"
+      ]
+    },
+    "checks": {
+      "radar_full_suite_before_last_fairness_fix": {
+        "passed": 329,
+        "postgres_used": true,
+        "skipped": 0
+      },
+      "radar_monitor_after_final_fairness_fix": {
+        "passed": 22,
+        "postgres_used": true,
+        "skipped": 0
+      },
+      "fabric_targeted_final": {
+        "passed": 49,
+        "groups": [
+          "9 pure/CLI",
+          "19 actual source/history PostgreSQL",
+          "21 history PostgreSQL"
+        ],
+        "skipped": 0
+      },
+      "fabric_general_before_narrow_publication_fixes": {
+        "passed": 265
+      },
+      "required": "BOOT 21, contracts, lint, generated types, web build, 11 web race checks passed; actual infrastructure probe follows deployment",
+      "counts_note": "Overlapping test selections are not added into a total."
+    },
+    "review": {
+      "authors": [
+        "engine_architecture (Fabric)",
+        "mining_methods (Radar)"
+      ],
+      "cross_review": "both approved each other",
+      "independent": "continuous_runtime_review approved both and all 6 systemd units",
+      "model": "gpt-6.1-sol",
+      "resolved": [
+        "concurrent inventory backfill must not overwrite newer update/delete",
+        "persisted lead selection resumes after process exit",
+        "human revision conflict blocks only the affected work",
+        "deferred lead resumes after its batch was acknowledged",
+        "revoked cross-source evidence does not starve other sources",
+        "failed source does not freeze all authorized backfill"
+      ]
+    },
+    "limits": {
+      "feature_window_records": 2000,
+      "hourly_investigations": 6,
+      "nonurgent_cooldown_minutes": 60,
+      "publication_min_free_gib": 15,
+      "initial_backfill": "1 record per publisher poll; tune from measured disk/latency, not a claim of complete inventory"
+    },
+    "deployment": {
+      "state": "approved_pending_activation",
+      "web_15176": "remains stopped",
+      "runtime": "user systemd; linger enabled, original Compose PostgreSQL/Redis volumes"
+    },
+    "limitations": [
+      "Engineering fixtures are synthetic and do not prove intelligence value.",
+      "Real inventory is progressively adopted, not already fully mined.",
+      "Current followups query published Fabric versions; complete WeKnora and specialist review remain pending.",
+      "No complete historical snapshot archive was supplied; no verified ten-year prediction claim."
+    ]
+  }
 }

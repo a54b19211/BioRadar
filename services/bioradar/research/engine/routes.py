@@ -1,5 +1,6 @@
 """Actual development engine endpoints; the frozen /api/v1 remains separate."""
 
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Annotated, Literal
 
@@ -46,6 +47,8 @@ from bioradar.research.investigations.models import (
 from bioradar.research.investigations.service import InvestigationService
 from bioradar.research.mining.models import NormalizedSnapshot
 from bioradar.research.mining.registry import methods_metadata
+from bioradar.research.monitor.models import MonitorBatchList, MonitorControl, MonitorLeadList, MonitorStatus
+from bioradar.research.monitor.service import MonitorService
 
 IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=160)]
 
@@ -380,6 +383,52 @@ def create_engine_router(settings: Settings) -> APIRouter:
         engine = service(request)
         code, payload = engine.decisions().retry(actor, run_id, body, idempotency_key)
         engine.dispatch(payload["id"])
+        return JSONResponse(status_code=code, content=payload)
+
+    @contextmanager
+    def monitor_runtime(request):
+        engine = service(request)
+        if settings.data_fabric_url and settings.data_fabric_history_read_token:
+            from bioradar.research.history.service import history_reader
+
+            with history_reader(settings) as reader:
+                yield MonitorService(engine, reader)
+        else:
+            yield MonitorService(engine)
+
+    @router.get("/monitor/status", response_model=MonitorStatus)
+    def monitor_status(request: Request, actor: EngineActor = Depends(access.require_actor)):
+        with monitor_runtime(request) as runtime:
+            return runtime.status(actor)
+
+    @router.get("/monitor/batches", response_model=MonitorBatchList)
+    def monitor_batches(
+        request: Request,
+        cursor: Annotated[str | None, Query(max_length=1000)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 30,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with monitor_runtime(request) as runtime:
+            return runtime.batches(actor, cursor, limit)
+
+    @router.get("/monitor/leads", response_model=MonitorLeadList)
+    def monitor_leads(
+        request: Request,
+        cursor: Annotated[str | None, Query(max_length=1000)] = None,
+        limit: Annotated[int, Query(ge=1, le=100)] = 30,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with monitor_runtime(request) as runtime:
+            return runtime.leads(actor, cursor, limit)
+
+    @router.post("/monitor/control")
+    def monitor_control(
+        body: MonitorControl,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        code, payload = MonitorService(service(request)).control(actor, body, idempotency_key)
         return JSONResponse(status_code=code, content=payload)
 
     return router

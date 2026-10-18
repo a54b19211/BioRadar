@@ -5,6 +5,7 @@ import { explainCode } from "../api/engineLabels";
 import EngineLogin from "../components/engine/EngineLogin.vue";
 import CandidateDetail from "../components/engine/CandidateDetail.vue";
 import SnapshotComparison from "../components/engine/SnapshotComparison.vue";
+import MonitorPanel from "../components/engine/MonitorPanel.vue";
 import {
   engineRequest,
   EngineError,
@@ -308,9 +309,10 @@ onUnmounted(() => {
     @authenticated="refresh"
   />
   <template v-if="authenticated">
+    <MonitorPanel @open-run="openRun" @unauthorized="handleError" />
     <section class="engine-panel analysis-composer">
       <div class="section-heading">
-        <h2>本次分析</h2>
+        <h2>手动分析（可选）</h2>
         <ElButton :disabled="busy" @click="importFile?.click()"
           >导入采用包</ElButton
         ><input
