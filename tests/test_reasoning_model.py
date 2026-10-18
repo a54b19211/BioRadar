@@ -411,7 +411,7 @@ def test_legacy_parameter_defaults_cannot_inherit_current_thinking_configuration
         {"semantic_llm_top_p": 1.1},
         {"semantic_llm_top_k": 0},
         {"semantic_llm_top_k": 1001},
-        {"semantic_llm_max_output_tokens": 16_385},
+        {"semantic_llm_max_output_tokens": 32_769},
         {"semantic_llm_timeout_seconds": 181},
     ],
 )
@@ -471,7 +471,10 @@ def test_existing_vllm_core_shape_is_identical_without_provider_or_effort_keys()
 
 
 @pytest.mark.parametrize("effort", ["high", "max"])
-def test_deepseek_thinking_uses_explicit_json_profile_and_only_effective_parameters(effort):
+@pytest.mark.parametrize("output_tokens,timeout_seconds", [(12_288, 150), (32_768, 180)])
+def test_deepseek_thinking_uses_explicit_json_profile_and_only_effective_parameters(
+    effort, output_tokens, timeout_seconds
+):
     configured = settings(
         semantic_llm_provider="deepseek",
         semantic_llm_model="deepseek-flash",
@@ -480,8 +483,8 @@ def test_deepseek_thinking_uses_explicit_json_profile_and_only_effective_paramet
         semantic_llm_temperature=0.6,
         semantic_llm_top_p=0.95,
         semantic_llm_top_k=20,
-        semantic_llm_max_output_tokens=12_288,
-        semantic_llm_timeout_seconds=150,
+        semantic_llm_max_output_tokens=output_tokens,
+        semantic_llm_timeout_seconds=timeout_seconds,
     )
     frozen = model_parameters(configured)
     assert frozen["provider"] == "deepseek" and frozen["reasoning_effort"] == effort
@@ -503,7 +506,8 @@ def test_deepseek_thinking_uses_explicit_json_profile_and_only_effective_paramet
             "reasoning_effort",
             "top_p",
         }
-        assert body["model"] == "deepseek-flash" and body["max_tokens"] == 12_288
+        assert body["model"] == "deepseek-flash" and body["max_tokens"] == output_tokens
+        assert request.extensions["timeout"]["read"] == timeout_seconds
         assert body["thinking"] == {"type": "enabled"}
         assert body["reasoning_effort"] == effort and body["top_p"] == 0.95
         assert body["response_format"] == {"type": "json_object"}
@@ -518,6 +522,7 @@ def test_deepseek_thinking_uses_explicit_json_profile_and_only_effective_paramet
     assert len(requests) == 1
     assert result.receipt.request_sha256 == hashlib.sha256(requests[0].content).hexdigest()
     assert result.receipt.provider_model == "deepseek-flash"
+    assert result.receipt.max_output_tokens == frozen["max_output_tokens"] == output_tokens
     assert "DO-NOT-RETAIN-PRIVATE-REASONING" not in result.model_dump_json()
 
 

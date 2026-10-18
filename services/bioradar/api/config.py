@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     semantic_llm_model_revision: str | None = Field(default=None, max_length=200)
     semantic_llm_timeout_seconds: int = Field(default=45, ge=5, le=180)
     semantic_llm_max_input_bytes: int = Field(default=65_536, ge=1024, le=131_072)
-    semantic_llm_max_output_tokens: int = Field(default=4096, ge=128, le=16_384)
+    semantic_llm_max_output_tokens: int = Field(default=4096, ge=128, le=32_768)
     semantic_llm_enable_thinking: bool = False
     semantic_llm_temperature: float = Field(default=0, ge=0, le=2, allow_inf_nan=False)
     semantic_llm_top_p: float = Field(default=1, gt=0, le=1, allow_inf_nan=False)

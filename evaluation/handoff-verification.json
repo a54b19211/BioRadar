@@ -3322,7 +3322,7 @@
     }
   },
   "semantic_deepseek_20261019": {
-    "status": "provider_adaptation_in_progress_not_deployed",
+    "status": "one_explicit_budget_adjustment_in_progress",
     "started_at": "2026-10-18T16:25:25.252878+00:00",
     "authorization": "User provided DeepSeek service and model for the pending real semantic validation; credential stored outside repository in private server configuration.",
     "requested_model": "deepseek-flash",
@@ -3361,6 +3361,51 @@
       "content": "pending actual run",
       "deployment": "pending content acceptance"
     },
-    "heldout_basis": "semantic-heldout-review-basis-before-deepseek.json; written before any new model output, never included in model input"
+    "heldout_basis": "semantic-heldout-review-basis-before-deepseek.json; written before any new model output, never included in model input",
+    "first_actual_attempt": {
+      "analysis_id": "34c8820e-4d2c-4912-9afd-1aead61f412d",
+      "state": "blocked",
+      "error_code": "model_output_truncated",
+      "stages": [
+        {
+          "stage": "read_plan",
+          "finish_reason": "stop",
+          "completion_tokens": 10029,
+          "elapsed_ms": 50617
+        },
+        {
+          "stage": "synthesize",
+          "finish_reason": "stop",
+          "completion_tokens": 6250,
+          "elapsed_ms": 30901
+        },
+        {
+          "stage": "check",
+          "finish_reason": "length",
+          "completion_tokens": 12288,
+          "elapsed_ms": 53467
+        }
+      ],
+      "total_tokens": 51835,
+      "full_content_approval": false,
+      "scope": "Initial draft improved key facts, but generic review was truncated; no repair or comparison executed. Failure and receipts preserved.",
+      "report": "semantic-e2e-deepseek-result.json",
+      "execution_audit": "semantic-e2e-deepseek-execution-audit.json",
+      "old_raw_records_unchanged": 13,
+      "independent_audit": {
+        "file": "semantic-deepseek-initial-independent-review.json",
+        "sha256": "166ac089f074df9e0e9d1d57fa859c6e3c7ebdeb45e6da37b530a8b0034bcce5"
+      }
+    },
+    "budget_adjustment": {
+      "reason": "Actual check output hit 12288 exactly; no format or semantic relaxation.",
+      "planned_max_output_tokens": 32768,
+      "planned_timeout_seconds": 180,
+      "maximum_calls": 6,
+      "maximum_job_seconds": 1140,
+      "default_output_tokens_unchanged": 4096,
+      "repeat_policy": "One new explicit bounded attempt after code review; no automatic resend of the previous check.",
+      "code_review": "Author and independent reviewer passed all 55 adapter tests; upper bound only, defaults unchanged, configured budget frozen in wire and receipt."
+    }
   }
 }
