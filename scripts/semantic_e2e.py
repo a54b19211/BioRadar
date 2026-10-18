@@ -265,7 +265,7 @@ class SemanticExercise(TopicExercise):
                 else None
             ),
             "RQ machine analysis did not reach a terminal state",
-            seconds=600,
+            seconds=max(600, 6 * Settings().semantic_llm_timeout_seconds + 90),
         )
         self.receipt["analyses"][identifier] = {
             "investigation_id": investigation_id,
