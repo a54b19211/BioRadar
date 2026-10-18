@@ -491,20 +491,19 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-18T06:48:03.684101+00:00",
-    "status": "running_on_zktest",
-    "details": "long_term_topics_20261018",
+    "checked_at": "2026-10-18T17:22:03.649539+00:00",
+    "status": "running_on_zktest_as_review_required_machine_drafts",
+    "details": "semantic_deepseek_20261019",
     "application_version": "0.5.0",
-    "topic_compute_version": "bioradar-topic-series-v0.3",
-    "code_commits": {
-      "radar": "70db52e569e267c7cd6b95d78fc311b11b91a145",
+    "runtime_code_commits": {
+      "radar": "a6b1e7fcafaa19d87ac8de048c1636bb898d58f7",
       "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
     },
     "source_roots": {
       "radar": "/home/zk_test/zk_projects/BioRadar",
       "fabric": "/home/zk_test/zk_projects/ZK_Data-Fabric-test"
     },
-    "scope": "Continuous scoped observations, fair bounded investigations, real WHO round-trip and separate labelled domain acceptance. Not a certification of professional intelligence quality or Palantir equivalence."
+    "scope": "Real clinical content accepted in a finite case; held-out automatic update works but retains semantic errors and needs_review. Continuous machine drafts enabled; no automatic professional approval."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -3322,7 +3321,7 @@
     }
   },
   "semantic_deepseek_20261019": {
-    "status": "clinical_content_approved_controlled_deployment_pending",
+    "status": "running_on_zktest_as_review_required_machine_drafts",
     "started_at": "2026-10-18T16:25:25.252878+00:00",
     "authorization": "User provided DeepSeek service and model for the pending real semantic validation; credential stored outside repository in private server configuration.",
     "requested_model": "deepseek-flash",
@@ -3342,30 +3341,28 @@
     "comparison_qualification": "Transport format and supported sampling parameters also differ; results compare the configured service combinations, not a controlled single-variable proof of model superiority.",
     "candidate_branch": "codex/historical-intelligence",
     "prior_candidate_head": "ebe69268df55cb50d6fde2e924a7774c26aeee41",
-    "canonical_heads": {
-      "radar": "c638e45e8cf8dd7d210ee2e416d589fec6f14653",
-      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
-    },
-    "live_configuration_changed": false,
-    "actual_content_approval": "Limited clinical case approved by root, two authors and independent reviewer; professional_status remains not_reviewed.",
+    "live_configuration_changed": true,
+    "actual_content_approval": "Finite clinical case approved. Held-out baseline and automatic child retain needs_review; only continuous machine-draft operation approved, not professional judgment or full semantic acceptance.",
     "checks": {
-      "adapter": "53 passed by author and independent reviewer",
+      "adapter": "55 passed by author and independent reviewer after output-budget change; earlier 53 passed for provider branch, not additive",
       "research": "57 passed on real PostgreSQL; new provider-boundary 2 independently passed",
       "required_checks": "make BOOT, web-check, lint, contract-check and web-races all passed",
-      "credential_scan": "provided credential absent from candidate tracked/unignored files"
+      "credential_scan": "provided credential absent from candidate tracked/unignored files",
+      "e2e_client_wait": "Two non-author reviews approved max(600, 6 * configured_model_timeout + 90); Ruff passed; service/model budget unchanged."
     },
     "review": {
       "code_approved": true,
       "independent_audit": "semantic-deepseek-adapter-independent-review.json",
       "audit_sha256": "5525cb9128f419a2391be2b72fda50950332adb42f4bdc257524aca0df8f782b",
       "content": "Limited clinical content approved; source attribution, cutoff, denominators, mortality, source-bound design and interpretation correction checked.",
-      "deployment": "Independent reviewer approved controlled main merge and migration, API/worker only, auto disabled and monitor daemon stopped until held-out baseline plus one genuinely new-to-investigation material child passes.",
+      "deployment": "Initially API/worker only. After baseline and automatic child review found no blocking P0/P1, independent reviewer and research reviewer approved resuming existing monitor and auto flag only for explicitly review-required machine drafts. P2 findings retained.",
       "browser": {
         "analysis_id": "6d4efac9-4e83-4cf2-80bf-73b10c30a4f2",
         "checks": 10,
         "page_errors": [],
         "export_matches_actual_result": true
-      }
+      },
+      "final_documentation": "Independent reviewer approved actual outcomes, limitations, post-resume budget states, artifact hashes and cleanup; exact HistoryRecord source ID corrected to MED:38744277. No new backend changes."
     },
     "heldout_basis": "semantic-heldout-review-basis-before-deepseek.json; written before any new model output, never included in model input",
     "first_actual_attempt": {
@@ -3438,8 +3435,237 @@
       "comparison_stance": "revised",
       "comparison_scope": "Old claims only; same source material reinterpreted, not newly arriving medical evidence. Old gaps/unknowns are not part of this comparison.",
       "execution_audit": "semantic-e2e-deepseek32k-execution-audit.json",
-      "content_approved": true
+      "content_approved": true,
+      "independent_review": {
+        "file": "semantic-case-deepseek32k-independent-review.json",
+        "sha256": "1e7f117c9dd75273ead1f418f8882f7b534827f57ee3305065175ba0e7fc8a81"
+      }
     },
-    "checked_at": "2026-10-18T16:49:41.979843+00:00"
+    "checked_at": "2026-10-18T17:22:03.649539+00:00",
+    "predeployment_heads": {
+      "radar": "c638e45e8cf8dd7d210ee2e416d589fec6f14653",
+      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
+    },
+    "runtime_code_commits": {
+      "radar": "a6b1e7fcafaa19d87ac8de048c1636bb898d58f7",
+      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
+    },
+    "heldout_live_case": {
+      "investigation_id": "38a51ce4-eb20-4123-91bc-248f7b0b539b",
+      "question": "这些原文能否构成同一研究主题，是否存在只是模板相同的记录？",
+      "baseline": {
+        "analysis_id": "59ad497e-6e7b-4544-be06-b6ebbf868647",
+        "state": "needs_review",
+        "source_papers": 4,
+        "actual_model_calls": 5,
+        "report": "semantic-live-progress.json",
+        "independent_review": {
+          "file": "semantic-heldout-baseline-independent-review.json",
+          "sha256": "cd04b7f60459afd6196966c0e7992a272689b63a00bbf0744ba6f463442545ae"
+        },
+        "remaining_findings": [
+          "Overall template-repetition uncertainty has insufficient citation coverage.",
+          "Tumor-immunity/TME theme is overbroad for the ADC study."
+        ]
+      },
+      "material_addition": {
+        "source_record_id": "MED:38744277",
+        "version_id": "71f4408f6a894497c6f442986bdb9ad615cb8dbec9e08b78117010e527276f3c",
+        "method": "normal POST investigation entry; no second POST analyses",
+        "entry_status": 201,
+        "new_to_all_parent_inputs": true,
+        "publication_year": 2024,
+        "new_to_investigation_not_new_2026_research": true,
+        "preoutput_reference": {
+          "file": "semantic-heldout-followup-reference.json",
+          "sha256": "fce2290d1fcf7274fc94f6ffcfb80f166cdf474fd7dfb77226d5c5b96bd0de73"
+        }
+      },
+      "automatic_child": {
+        "analysis_id": "f26e59a7-c923-4cee-9bc4-9d51d39ecff9",
+        "trigger": "material_update",
+        "state": "needs_review",
+        "professional_status": "not_reviewed",
+        "actual_model_calls": 5,
+        "stages": [
+          "read_plan",
+          "synthesize",
+          "check",
+          "revise",
+          "recheck"
+        ],
+        "exact_quotes_checked": 12,
+        "versions_adopted": 6,
+        "unique_papers": 5,
+        "same_ADC_article_versions_not_independent_studies": true,
+        "comparison_executed": false,
+        "update": "unable_to_compare",
+        "full_content_passed": false,
+        "report": "semantic-live-child-progress.json",
+        "independent_review": {
+          "file": "semantic-heldout-child-independent-review.json",
+          "sha256": "d1604a28a3cc523fa86fc347276e8f285a31ec1c45758041aa213c29a79586dc"
+        }
+      },
+      "parent_preserved": {
+        "input_hash": true,
+        "fixed_input": true,
+        "result": true,
+        "calls": true
+      },
+      "controlled_case_completion_snapshot": {
+        "analyses": 2,
+        "materials": 6,
+        "human_judgments": 0,
+        "scope": "before continuous monitor resumed; not a permanent whole-database count"
+      },
+      "supported_content": [
+        "Actual new IL-7/TCE bystander-CD8-TIL mechanism used without a patient-benefit claim.",
+        "ROR1 engineering, ADC, innate-immune review and different evidence types distinguished.",
+        "ADC alternative version recognized as the same paper."
+      ],
+      "remaining_findings": [
+        {
+          "priority": "P2",
+          "location": "c6",
+          "type": "real_scope_inference_error_missed_by_recheck",
+          "assessment": "Osteosarcoma is within solid tumors. Different label breadth does not prove mutually exclusive diseases. Different intervention/document purposes are real, but they do not justify the disease-disjoint clause or exclude a TCE/TME subtheme."
+        },
+        {
+          "priority": "P2",
+          "location": "exp-theme-boundary and gap-project-link",
+          "type": "theme_project_conflation",
+          "assessment": "A common research theme need not share a project number, trial registration or team. Such identifiers would support common-project identity, not be a prerequisite for thematic relatedness."
+        },
+        {
+          "priority": "P2",
+          "location": "c3 and conditional_answer",
+          "type": "same_article_version_wording_and_collective_scope",
+          "assessment": "Two adopted versions of one ADC article is the precise description. Duplicate wording is ambiguous, although the draft expressly disclaims import-cause judgment. The collective disease/intervention difference statement needs an exception for the same-article pair."
+        },
+        {
+          "priority": "P2",
+          "location": "unknowns and review version commentary",
+          "type": "model_visibility_vs_system_knowledge",
+          "assessment": "Actual model wire omits record_ref/version_id, so exact version numbers are absent from model input while the application has both IDs. new_versions1 indicates newly adopted version, not its creation/import cause."
+        }
+      ],
+      "acceptance": "No P0/P1; usable only as explicitly flagged machine drafts. Same-model recheck missed a real subset/scope inference error. Independent citation matching does not certify entailment."
+    },
+    "runtime": {
+      "resumption": {
+        "resumed_at": "2026-10-18T17:19:02.409928+00:00",
+        "scope": "continuous_machine_drafts_require_professional_review",
+        "automatic_semantic_analysis": true,
+        "units": {
+          "bioradar-api": {
+            "active": "active",
+            "enabled": "enabled"
+          },
+          "bioradar-worker": {
+            "active": "active",
+            "enabled": "enabled"
+          },
+          "bioradar-monitor": {
+            "active": "active",
+            "enabled": "enabled"
+          },
+          "datafabric-history": {
+            "active": "active",
+            "enabled": "enabled"
+          },
+          "datafabric-history-worker": {
+            "active": "active",
+            "enabled": "enabled"
+          },
+          "datafabric-publisher": {
+            "active": "active",
+            "enabled": "enabled"
+          }
+        },
+        "review": "semantic-heldout-child-independent-review.json",
+        "limits_unchanged": true,
+        "private_configuration_mode": "0o600"
+      },
+      "verification": "semantic-main-running-status.json",
+      "database_migration": "0008_investigation_analyses",
+      "provider": "deepseek",
+      "model": "deepseek-flash",
+      "enable_thinking": true,
+      "reasoning_effort": "high",
+      "top_p": 0.95,
+      "max_output_tokens": 32768,
+      "timeout_seconds": 180,
+      "max_wire_bytes": 65536,
+      "manual_per_hour": 2,
+      "shared_automatic_per_hour": 6,
+      "max_model_calls_per_analysis": 6,
+      "monitor_running": true,
+      "global_pause": false,
+      "postgres_redis_worker": "ready",
+      "port15176_open": false,
+      "runtime_config_mode": "0600",
+      "fabric_and_weknora_model_configuration_changed": false,
+      "post_resume_observations": [
+        {
+          "analysis_id": "f5b05609-6bb8-4977-ac1d-09b9559cadcf",
+          "trigger": "topic",
+          "state": "blocked",
+          "error_code": "model_input_budget",
+          "scope": "Prepared request exceeds existing input budget; not a successful automatic draft."
+        },
+        {
+          "analysis_id": "a3008b82-e093-46a4-9740-21f7b58c58d2",
+          "trigger": "material_update",
+          "state": "queued",
+          "error_code": "analysis_manual_budget",
+          "model_calls": 0,
+          "scope": "New material after monitor resumption; waiting under unchanged 2/h manual budget."
+        }
+      ],
+      "post_resume_report": "semantic-main-post-resume-analyses.json",
+      "limits_not_relaxed_to_force_success": true
+    },
+    "rollback": {
+      "first_choice": "disable semantic and auto flags; retain current record readers, source ACL and migration 0008",
+      "latest_predeployment_database": "before-semantic-deepseek-20261019.dump",
+      "backup_bytes": 855416168,
+      "backup_verified": "pg_restore --list; 90 non-comment entries",
+      "private_presemantic_configuration": "pre-semantic-runtime.json",
+      "no_database_downgrade_or_history_deletion": true
+    },
+    "limitations": [
+      "Continuous reviewed drafts, not automatic professional conclusions or Palantir equivalence.",
+      "Search limited to currently adopted Fabric versions and fixed per-analysis budgets.",
+      "Same-model verification can miss scope errors or overcriticize valid uncertainty.",
+      "Held-out child comparison deliberately not executed because current review did not pass.",
+      "Exact source version IDs exist in the backend but are not all supplied to the model payload.",
+      "Immutable provider weights unavailable; current model alias/receipt do not prove historical model replay.",
+      "Full WeKnora/Pan/Wang professional integration and broad independent quality evaluation remain incomplete."
+    ],
+    "isolated_cleanup": {
+      "file": "semantic-deepseek-cleanup.json",
+      "sha256": "769ef949314d1cfe79b9ff0064e4df4441c2c861bc15d3cdb6387086cd020788",
+      "five_processes_stopped": true,
+      "three_test_containers_stopped": true,
+      "database_and_redis_volumes_preserved": true,
+      "analysis_records_preserved": 28,
+      "frozen_receipts_preserved": true,
+      "main_six_units_unchanged": true,
+      "temporary_ports_closed": [
+        18510,
+        18512,
+        18513,
+        18436,
+        16479
+      ],
+      "port15176_closed": true
+    },
+    "documentation_checks": {
+      "diff_check": "passed",
+      "relative_links": "passed",
+      "changed_files_credential_scan": "no_matches",
+      "new_markdown_files": 0
+    }
   }
 }
