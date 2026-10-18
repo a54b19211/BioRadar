@@ -131,12 +131,13 @@ class Source:
 
 @pytest.fixture
 def runtime(database):
-    path = Path(__file__).resolve().parents[1] / "db/migrations/versions/0006_monitor.py"
-    spec = importlib.util.spec_from_file_location("monitor_migration", path)
-    migration = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(migration)
-    with database.begin() as conn, Operations.context(MigrationContext.configure(conn)):
-        migration.upgrade()
+    for name in ("0006_monitor.py", "0007_topics.py"):
+        path = Path(__file__).resolve().parents[1] / "db/migrations/versions" / name
+        spec = importlib.util.spec_from_file_location("monitor_migration", path)
+        migration = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(migration)
+        with database.begin() as conn, Operations.context(MigrationContext.configure(conn)):
+            migration.upgrade()
     source = Source()
     settings = Settings(
         environment="test",

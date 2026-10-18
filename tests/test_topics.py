@@ -1008,3 +1008,316 @@ def test_closed_topic_inquiry_needs_human_review_not_permanent_deferred(runtime)
     assert current.automation_status == "needs_review"
     assert current.investigation_id == investigation.id
     assert InvestigationService(make().engine).get(make().actor, investigation.id).status == "closed"
+
+
+def fairness_topic(runtime, *, suffix="one", sources=None):
+    make, source, settings = runtime
+    settings.monitor_hourly_investigations = 0
+    if "topic-source" not in settings.engine_source_id_allowlist["fixture"]:
+        settings.engine_source_id_allowlist["fixture"].append("topic-source")
+    source.enabled.add("topic-source")
+    if not any(item["source_id"] == "topic-source" for item in source.records):
+        item = event()
+        item["source_id"] = "topic-source"
+        source.records.append(item)
+    service = make()
+    _, view = service.create(
+        service.actor,
+        TopicCreate(
+            is_demo=True,
+            definition=definition(
+                title="SYNTHETIC fairness " + suffix,
+                source_ids=sources or ["topic-source"],
+            ),
+        ),
+        "synthetic-fairness-" + suffix,
+    )
+    service.tick(now=NOW)
+    report = latest(make, view["id"])
+    assert report.automation_status == "deferred"
+    with Session(service.engine.database) as session:
+        scope_id = session.scalar(select(TopicScopeRecord.id).where(TopicScopeRecord.topic_id == view["id"]))
+    return view["id"], scope_id, report.id
+
+
+def fairness_monitor(runtime):
+    from bioradar.research.monitor.models import MonitorLead
+    from bioradar.research.monitor.service import MonitorService
+    from test_monitor import finish_pending
+
+    make, source, settings = runtime
+    settings.monitor_hourly_investigations = 0
+    old = [v for v in source.records if v["source_id"] != "fixture-source"]
+    shared = "adaptive immune vesicle. optical quantum tracer. ribosome peptide vector. "
+    source.records = [
+        record(1, "SYNTHETIC " + shared + "transient treatment.", seq=1),
+        record(2, "SYNTHETIC " + shared + "persistent treatment.", seq=2),
+        *old,
+    ]
+
+    def monitor():
+        service = make()
+        return MonitorService(service.engine, service.reader)
+
+    for _ in range(6):
+        monitor().tick()
+        finish_pending(monitor)
+        with Session(make().engine.database) as session:
+            leads = list(session.scalars(select(MonitorLead)))
+            if leads:
+                break
+    assert len(leads) >= 3
+    return monitor, [(lead.lead_key, lead.batch_id) for lead in leads]
+
+
+def test_shared_budget_alternates_both_ready_classes_and_never_exceeds_total(runtime):
+    from bioradar.research.engine.models import EngineIdempotency
+    from bioradar.research.mining.models import canonical_hash
+
+    make, _, settings = runtime
+    _, scope1, eval1 = fairness_topic(runtime, suffix="one")
+    _, scope2, eval2 = fairness_topic(runtime, suffix="two")
+    _, scope3, eval3 = fairness_topic(runtime, suffix="three")
+    monitor, leads = fairness_monitor(runtime)
+    settings.monitor_hourly_investigations = 6
+    current = monitor()
+    assert current.claim()
+    for i, (scope, evaluation) in enumerate([(scope1, eval1), (scope2, eval2), (scope3, eval3)]):
+        assert current.reserve_investigation(*leads[i], "routine")
+        assert not current.reserve_investigation("synthetic-extra-monitor-" + str(i), "extra", "routine")
+        assert current.reserve_investigation(
+            canonical_hash(["topic", scope]), evaluation, "routine", origin="topic"
+        )
+    assert not current.reserve_investigation("synthetic-over-budget", "extra", "routine")
+    current.release()
+    with Session(make().engine.database) as session:
+        receipts = list(
+            session.scalars(
+                select(EngineIdempotency).where(EngineIdempotency.operation == "monitor.dig.start")
+            )
+        )
+    assert len(receipts) == 6
+    assert sorted(r.response_body["origin"] for r in receipts) == ["monitor"] * 3 + ["topic"] * 3
+
+
+def test_shared_quota_one_retains_turn_across_hours_and_legacy_receipts(runtime):
+    from bioradar.research.engine.models import EngineIdempotency
+    from bioradar.research.mining.models import canonical_hash
+
+    make, _, settings = runtime
+    _, scope, evaluation = fairness_topic(runtime)
+    monitor, leads = fairness_monitor(runtime)
+    settings.monitor_hourly_investigations = 1
+    current = monitor()
+    assert current.claim()
+    assert current.reserve_investigation(*leads[0], "routine")
+    current.release()
+
+    def expire_and_remove_origin():
+        with Session(make().engine.database) as session, session.begin():
+            rows = list(
+                session.scalars(
+                    select(EngineIdempotency).where(EngineIdempotency.operation == "monitor.dig.start")
+                )
+            )
+            for row in rows:
+                row.created_at -= timedelta(hours=2)
+                body = copy.deepcopy(row.response_body)
+                body.pop("origin", None)
+                row.response_body = body
+
+    expire_and_remove_origin()
+    current = monitor()
+    assert current.claim()
+    assert current.reserve_investigation(*leads[0], "routine")  # Same attempt resumes without a new turn.
+    assert not current.reserve_investigation(*leads[1], "routine")
+    assert current.reserve_investigation(
+        canonical_hash(["topic", scope]), evaluation, "routine", origin="topic"
+    )
+    current.release()
+    expire_and_remove_origin()
+    current = monitor()
+    assert current.claim()
+    assert not current.reserve_investigation(
+        "synthetic-next-topic", "synthetic-next-evaluation", "routine", origin="topic"
+    )
+    assert current.reserve_investigation(*leads[1], "routine")
+    current.release()
+    with Session(make().engine.database) as session:
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(EngineIdempotency)
+                .where(EngineIdempotency.operation == "monitor.dig.start")
+            )
+            == 3
+        )
+
+
+@pytest.mark.parametrize("origin", ["monitor", "topic"])
+def test_single_ready_class_can_use_the_whole_shared_quota(runtime, origin):
+    from bioradar.research.monitor.service import MonitorService
+
+    make, _, settings = runtime
+    settings.monitor_hourly_investigations = 6
+    service = make()
+    monitor = MonitorService(service.engine, service.reader)
+    assert monitor.claim()
+    for i in range(6):
+        assert monitor.reserve_investigation("synthetic-lead-" + str(i), str(i), "routine", origin=origin)
+    assert not monitor.reserve_investigation("synthetic-seventh", "seventh", "routine", origin=origin)
+    monitor.release()
+
+
+@pytest.mark.parametrize(
+    "unrunnable", ["paused", "old_scope", "blocked", "closed", "revoked", "source_error"]
+)
+def test_unrunnable_topic_does_not_reserve_a_phantom_turn(runtime, unrunnable):
+    from bioradar.research.investigations.models import InvestigationCreate, InvestigationEntryCreate
+    from bioradar.research.monitor.service import MonitorService
+
+    make, source, settings = runtime
+    topic, scope_id, evaluation_id = fairness_topic(runtime)
+    service = make()
+    if unrunnable == "paused":
+        view = service.get(service.actor, topic)
+        service.control(
+            service.actor,
+            topic,
+            TopicControl(expected_revision=view.control_revision, paused=True),
+            "synthetic-pause-rival",
+        )
+    elif unrunnable == "old_scope":
+        view = service.get(service.actor, topic)
+        service.update(
+            service.actor,
+            topic,
+            TopicUpdate(
+                is_demo=True,
+                definition=definition(source_ids=["topic-source"]),
+                expected_revision=view.control_revision,
+            ),
+            "synthetic-replace-rival-scope",
+        )
+    elif unrunnable == "blocked":
+        service._save_followup(evaluation_id, {"status": "blocked"})
+    elif unrunnable == "closed":
+        investigations = InvestigationService(service.engine)
+        _, existing = investigations.create(
+            service.actor,
+            InvestigationCreate(title="SYNTHETIC closed rival", question="SYNTHETIC", is_demo=True),
+            "topic-investigation:" + scope_id,
+        )
+        investigations.append(
+            service.actor,
+            existing["id"],
+            InvestigationEntryCreate.model_validate(
+                {
+                    "kind": "status",
+                    "expected_revision": existing["revision"],
+                    "status": "closed",
+                    "text": "SYNTHETIC closed",
+                }
+            ),
+            "synthetic-close-rival",
+        )
+    elif unrunnable == "revoked":
+        source.enabled.remove("topic-source")
+    else:
+        with Session(service.engine.database) as session, session.begin():
+            scope = session.get(TopicScopeRecord, scope_id)
+            progress = copy.deepcopy(scope.progress)
+            progress["topic-source"]["error_code"] = "history_read_failed"
+            scope.progress = progress
+    settings.monitor_hourly_investigations = 6
+    current = make()
+    monitor = MonitorService(current.engine, current.reader)
+    assert monitor.claim()
+    assert monitor.reserve_investigation("synthetic-first-monitor", "first", "routine")
+    assert monitor.reserve_investigation("synthetic-second-monitor", "second", "routine")
+    monitor.release()
+
+
+def test_one_unrelated_source_error_does_not_hide_a_runnable_topic(runtime):
+    from bioradar.research.monitor.service import MonitorService
+
+    make, _, settings = runtime
+    _, scope_id, _ = fairness_topic(runtime, sources=["topic-source", "fixture-source"])
+    with Session(make().engine.database) as session, session.begin():
+        scope = session.get(TopicScopeRecord, scope_id)
+        progress = copy.deepcopy(scope.progress)
+        progress["fixture-source"] = {"error_code": "history_read_failed"}
+        scope.progress = progress
+    settings.monitor_hourly_investigations = 6
+    current = make()
+    monitor = MonitorService(current.engine, current.reader)
+    assert monitor.claim()
+    assert monitor.reserve_investigation("synthetic-first-monitor", "first", "routine")
+    assert not monitor.reserve_investigation("synthetic-next-monitor", "next", "routine")
+    monitor.release()
+
+
+def test_reserved_or_cooling_topic_does_not_claim_another_new_turn(runtime):
+    from bioradar.research.mining.models import canonical_hash
+    from bioradar.research.monitor.service import MonitorService
+
+    make, _, settings = runtime
+    _, scope, evaluation = fairness_topic(runtime)
+    settings.monitor_hourly_investigations = 6
+    current = make()
+    monitor = MonitorService(current.engine, current.reader)
+    assert monitor.claim()
+    key = canonical_hash(["topic", scope])
+    assert monitor.reserve_investigation(key, evaluation, "routine", origin="topic")
+    assert monitor.reserve_investigation("synthetic-m1", "one", "routine")
+    assert monitor.reserve_investigation("synthetic-m2", "two", "routine")
+    with Session(current.engine.database) as session, session.begin():
+        previous = session.get(TopicEvaluationRecord, evaluation)
+        other_id = "00000000-0000-4000-8000-000000000001"
+        result = copy.deepcopy(previous.result)
+        result["id"] = other_id
+        session.add(
+            TopicEvaluationRecord(
+                id=other_id,
+                scope_id=scope,
+                observation_revision=previous.observation_revision,
+                evaluation_key="f" * 64,
+                result=result,
+                followup={"status": "deferred"},
+            )
+        )
+    assert monitor.reserve_investigation("synthetic-m3", "three", "routine")
+    monitor.release()
+
+
+def test_full_ledger_summary_and_same_input_compute_upgrade(runtime, monkeypatch):
+    import bioradar.topics.service as module
+
+    make, source, settings = runtime
+    settings.monitor_batch_records = 50
+    source.records = [
+        original_record(
+            "SYNTHETIC-undated-" + str(i),
+            {
+                "body": "SYNTHETIC undated scientific material " + str(i),
+            },
+        )
+        for i in range(9)
+    ]
+    for i, item in enumerate(source.records):
+        item["published_seq"] = i + 1
+    monkeypatch.setattr(module, "TOPIC_COMPUTE_VERSION", "bioradar-topic-series-v0.2")
+    identifier = create(make, definition(profiles=["text_exposure"]))
+    make().tick(now=NOW)
+    old = latest(make, identifier)
+    assert old.coverage.active_records == 9 and old.coverage.evaluated_records == 0
+    assert "9条当前有效记录" in old.summary and "有限计算0条" in old.summary
+    assert "9条当前有效记录" in old.draft
+    assert "no_eligible_observations_not_evidence_of_absence" not in old.data_gaps
+    assert not any("尚未提供合格资料" in q for q in old.next_questions)
+    monkeypatch.setattr(module, "TOPIC_COMPUTE_VERSION", "bioradar-topic-series-v0.3")
+    make().tick(now=NOW)
+    new = latest(make, identifier)
+    assert new.id != old.id and new.compute_version == "bioradar-topic-series-v0.3"
+    assert new.observation_revision == old.observation_revision
+    assert make().evaluation(make().actor, identifier, old.id).model_dump() == old.model_dump()

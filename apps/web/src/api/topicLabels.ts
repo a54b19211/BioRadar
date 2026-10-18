@@ -1,5 +1,8 @@
 // The API keeps stable codes; readers see their practical meaning.
 const gaps: Record<string, string> = {
+  adopted_records_outside_current_computation: "资料已经累计，当前窗口或日期、字段条件尚不足以参与本次计算。",
+  source_collection_freshness_unknown: "尚不能确认原站最后一次成功检查的时间。",
+  registered_state_preview_limited: "登记状态总数完整统计，页面只列出部分登记供核对。",
   adopted_records_not_complete_domain_denominator:
     "只统计已采用资料，尚无全领域的完整比较基数。",
   evaluation_feature_admission_limited:

@@ -690,6 +690,7 @@ class TopicService:
             # Source changes can freeze an updated report; a quiet topic only re-evaluates when due.
             if (
                 previous
+                and previous.result.get("compute_version") == TOPIC_COMPUTE_VERSION
                 and (
                     previous.observation_revision == revision
                     or not all(
@@ -873,13 +874,40 @@ class TopicService:
             observed_source_sites=observed_sites,
             missing_source_sites=sorted(set(definition["source_sites"]) - set(observed_sites)),
         )
-        if omitted:
-            old_summary = computed["summary"]
-            computed["summary"] = (
-                f"已采用范围共有{int(full_counts[2] or 0)}条当前有效记录；"
-                f"本次有限计算{len(values)}条，文字窗口另有{omitted}条未参与，不能确认整体趋势。"
+        old_summary = computed["summary"]
+        active_count = int(full_counts[2] or 0)
+        undated_count = int(full_counts[4] or 0)
+        computed["summary"] = (
+            f"已采用范围共有{active_count}条当前有效记录；本次有限计算{len(values)}条，"
+            f"形成{len(computed['signals'])}项待核变化。"
+        )
+        if undated_count:
+            computed["summary"] += (
+                f"累计采用记录中有{undated_count}条缺少可用于分期的日期，不据此填成零增长。"
             )
-            computed["draft"] = computed["draft"].replace(old_summary, computed["summary"], 1)
+            if "undated_or_unverified_publication_time" not in computed["data_gaps"]:
+                computed["data_gaps"].append("undated_or_unverified_publication_time")
+        if omitted:
+            computed["summary"] += f"文字窗口另有{omitted}条未参与，不能确认整体趋势。"
+        if active_count and not values:
+            computed["data_gaps"] = [
+                gap
+                for gap in computed["data_gaps"]
+                if gap != "no_eligible_observations_not_evidence_of_absence"
+            ]
+            computed["data_gaps"].append("adopted_records_outside_current_computation")
+            computed["next_questions"] = [
+                "已累计资料，但当前计算窗口或日期、字段资格不足；哪些原始字段需要补齐？"
+                if question == "当前来源尚未提供合格资料；请核对采集与发布覆盖。"
+                else question
+                for question in computed["next_questions"]
+            ]
+            computed["state"] = "insufficient_data"
+            computed["draft"] = computed["draft"].replace(
+                "当前来源尚未提供合格资料；请核对采集与发布覆盖。",
+                "已累计资料，但当前计算窗口或日期、字段资格不足；请核对原始日期与覆盖。",
+            )
+        computed["draft"] = computed["draft"].replace(old_summary, computed["summary"], 1)
         if sum(status_counts.values()) > 100:
             computed["data_gaps"].append("registered_state_preview_limited")
         closed_bucket_end = max(
@@ -1073,7 +1101,7 @@ class TopicService:
             view = None
         lead_key = canonical_hash(["topic", scope_id])
         self._followup_guard(evaluation_id)
-        if not monitor.reserve_investigation(lead_key, evaluation_id, "routine"):
+        if not monitor.reserve_investigation(lead_key, evaluation_id, "routine", origin="topic"):
             return
         if view is None:
             self._followup_guard(evaluation_id)

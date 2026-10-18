@@ -981,12 +981,164 @@ class MonitorService:
         )
         return InvestigationService(self.engine).get(self.actor, saved["id"])
 
-    def reserve_investigation(self, lead_key, batch_id, urgency):
+    def _reservation_origin(self, session, receipt):
+        origin = (receipt.response_body or {}).get("origin")
+        if origin in {"monitor", "topic"}:
+            return origin
+        # Old receipts predate this field. Existing topic attempts are identifiable
+        # by their ordinary evaluation ID; other old attempts belong to the monitor.
+        target = (receipt.response_body or {}).get("batch_id")
+        if session.scalar(
+            select(MonitorBatch.id).where(
+                MonitorBatch.workspace_id == self.actor.workspace_id, MonitorBatch.id == target
+            )
+        ):
+            return "monitor"
+        from bioradar.topics.models import TopicEvaluationRecord, TopicScopeRecord
+
+        topic = session.scalar(
+            select(TopicEvaluationRecord.id)
+            .join(TopicScopeRecord)
+            .where(
+                TopicScopeRecord.workspace_id == self.actor.workspace_id,
+                TopicEvaluationRecord.id == target,
+            )
+        )
+        return "topic" if topic else "monitor"
+
+    def _has_runnable_rival(self, session, origin, now):
+        """Only an unreserved, currently resumable opposite inquiry can claim a turn."""
+        from bioradar.topics.models import TopicEvaluationRecord, TopicScopeRecord
+        from bioradar.topics.service import TopicService
+
+        def needs_slot(lead_key, target, urgency="routine"):
+            key = "monitor-dig:" + canonical_hash([lead_key, target])
+            existing = session.scalar(
+                select(EngineIdempotency.id).where(
+                    EngineIdempotency.workspace_id == self.actor.workspace_id,
+                    EngineIdempotency.actor_id == self.actor.actor_id,
+                    EngineIdempotency.operation == "monitor.dig.start",
+                    EngineIdempotency.key == key,
+                )
+            )
+            if existing:
+                return False
+            if urgency == "immediate":
+                return True
+            recent = session.scalar(
+                select(EngineIdempotency.id)
+                .where(
+                    EngineIdempotency.workspace_id == self.actor.workspace_id,
+                    EngineIdempotency.actor_id == self.actor.actor_id,
+                    EngineIdempotency.operation == "monitor.dig.start",
+                    EngineIdempotency.response_body["lead_key"].astext == lead_key,
+                    EngineIdempotency.created_at
+                    > now - timedelta(minutes=self.settings.monitor_cooldown_minutes),
+                )
+                .limit(1)
+            )
+            return recent is None
+
+        def open_inquiry(identifier, create_key):
+            if not identifier:
+                saved = session.scalar(
+                    select(EngineIdempotency.response_body).where(
+                        EngineIdempotency.workspace_id == self.actor.workspace_id,
+                        EngineIdempotency.actor_id == self.actor.actor_id,
+                        EngineIdempotency.operation == "investigation.create",
+                        EngineIdempotency.key == create_key,
+                    )
+                )
+                identifier = saved.get("id") if saved else None
+            if not identifier:
+                return True
+            return InvestigationService(self.engine)._row(session, self.actor, identifier)[0].status == "open"
+
+        if origin == "monitor":
+            candidates = session.execute(
+                select(
+                    TopicEvaluationRecord.id,
+                    TopicScopeRecord.id.label("scope_id"),
+                    TopicScopeRecord.topic_id,
+                    TopicScopeRecord.progress,
+                    TopicScopeRecord.definition,
+                    TopicEvaluationRecord.followup["investigation_id"].astext.label("investigation_id"),
+                )
+                .join(TopicScopeRecord)
+                .where(
+                    TopicScopeRecord.workspace_id == self.actor.workspace_id,
+                    TopicScopeRecord.is_current.is_(True),
+                    TopicScopeRecord.paused.is_(False),
+                    TopicEvaluationRecord.followup["status"].astext == "deferred",
+                )
+                .order_by(TopicEvaluationRecord.created_at, TopicEvaluationRecord.id)
+            )
+            topics = TopicService(self.engine)
+            for item in candidates:
+                lead_key = canonical_hash(["topic", item.scope_id])
+                if not needs_slot(lead_key, item.id):
+                    continue
+                if all(
+                    item.progress.get(source, {}).get("error_code")
+                    for source in item.definition["source_ids"]
+                ):
+                    continue
+                try:
+                    topics._evaluation_row(session, self.actor, item.topic_id, item.id)
+                    if open_inquiry(item.investigation_id, "topic-investigation:" + item.scope_id):
+                        return True
+                except DomainError as exc:
+                    if (
+                        exc.code in SOURCE_READ_UNAVAILABLE | {"source_not_authorized"}
+                        or exc.status_code == 404
+                    ):
+                        continue
+                    raise
+        else:
+            candidates = session.scalars(
+                select(MonitorLead)
+                .join(MonitorBatch, MonitorLead.batch_id == MonitorBatch.id)
+                .where(
+                    MonitorLead.workspace_id == self.actor.workspace_id,
+                    MonitorLead.state.in_(("pending", "deferred", "investigating")),
+                    MonitorBatch.state.in_(("investigating", "completed")),
+                    MonitorBatch.is_demo == self.settings.monitor_is_demo,
+                    MonitorBatch.source_id.in_(self.permitted()),
+                )
+                .order_by(MonitorLead.updated_at, MonitorLead.id)
+                .execution_options(yield_per=16)
+            )
+            checked_runs = set()
+            for lead in candidates:
+                urgency = lead.payload.get("candidate", {}).get("urgency", "routine")
+                if not needs_slot(lead.lead_key, lead.batch_id, urgency):
+                    continue
+                try:
+                    if lead.run_id not in checked_runs:
+                        self.engine._run(session, self.actor, lead.run_id)
+                        checked_runs.add(lead.run_id)
+                    if open_inquiry(lead.investigation_id, "monitor-investigation:" + lead.lead_key):
+                        return True
+                except DomainError as exc:
+                    if (
+                        exc.code in SOURCE_READ_UNAVAILABLE | {"source_not_authorized"}
+                        or exc.status_code == 404
+                    ):
+                        continue
+                    raise
+        return False
+
+    def reserve_investigation(self, lead_key, batch_id, urgency, *, origin="monitor"):
+        if origin not in {"monitor", "topic"}:
+            raise ValueError("Unsupported automatic investigation origin")
         key = "monitor-dig:" + canonical_hash([lead_key, batch_id])
         if self._saved_response("monitor.dig.start", key) is not None:
             return True
+        # Warm the existing request-local catalog before taking the shared row lock.
+        self._catalog()
         with Session(self.engine.database) as session, session.begin():
-            self._guard(self._state(session, lock=True))
+            state = self._state(session, lock=True)
+            self._guard(state)
             now = session.scalar(select(func.now()))
             base = select(EngineIdempotency).where(
                 EngineIdempotency.workspace_id == self.actor.workspace_id,
@@ -1011,13 +1163,30 @@ class MonitorService:
                 and latest.created_at > now - timedelta(minutes=self.settings.monitor_cooldown_minutes)
             ):
                 return False
+            previous = session.scalar(
+                base.order_by(EngineIdempotency.created_at.desc(), EngineIdempotency.id.desc()).limit(1)
+            )
+            if (
+                previous
+                and self._reservation_origin(session, previous) == origin
+                and self._has_runnable_rival(session, origin, now)
+            ):
+                return False
             self.engine._idempotent(
                 session,
                 self.actor,
                 "monitor.dig.start",
                 key,
                 {"lead_key": lead_key, "batch_id": batch_id},
-                lambda: (201, {"lead_key": lead_key, "batch_id": batch_id, "started_at": now.isoformat()}),
+                lambda: (
+                    201,
+                    {
+                        "lead_key": lead_key,
+                        "batch_id": batch_id,
+                        "started_at": now.isoformat(),
+                        "origin": origin,
+                    },
+                ),
             )
             return True
 

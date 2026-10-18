@@ -2224,7 +2224,17 @@
         "web_build": "passed",
         "topic_ui_races": 6,
         "existing_ui_races": 11,
-        "actual_pg_rq_worker_probe": "10ca821d-b698-4466-8fb4-c0c02af72bbd"
+        "actual_pg_rq_worker_probe": "10ca821d-b698-4466-8fb4-c0c02af72bbd",
+        "after_fairness_fix": "BOOT 21, lint, contract-check, generated types, TypeScript, web build and all 17 UI race checks passed."
+      },
+      "final_fairness_and_summary": {
+        "author_topics_monitor_passed": 59,
+        "independent_topics_monitor_investigations_passed": 72,
+        "postgres": true,
+        "skipped": 0,
+        "compute_version": "bioradar-topic-series-v0.3",
+        "feature_version": "bioradar-topic-series-v0.1",
+        "notes": "Real independent tests cover shared quota 1 across hours, same-key recovery, paused/closed/revoked rivals, partial source failure, SQL total vs computation window and immutable previous evaluations."
       }
     },
     "lifecycle_e2e": {
@@ -2354,7 +2364,8 @@
         "mining_methods",
         "continuous_runtime_review"
       ],
-      "status": "approved, including final template fallback; no remaining deployment blockers"
+      "status": "approved, including final template fallback; no remaining deployment blockers",
+      "final_fix_approval": "continuous_runtime_review independently approved final fairness/summary candidate after 72 real PostgreSQL tests; mining_methods approved three Chinese gap labels."
     },
     "recovery": {
       "private_directory": "/home/zk_test/zk_projects/.bioradar-history",
@@ -2372,6 +2383,141 @@
       "Current original storage and topic contributions do not manufacture ten years of historical vintages",
       "Saved automatic investigation is not an expert judgment or approved report",
       "No claim of Palantir equivalence or superiority without matched independent evaluation"
-    ]
+    ],
+    "clinical_bootstrap": {
+      "purpose": "One bounded real clinical bootstrap; not a persistent ClinicalTrials watch or complete 403-study query",
+      "request": {
+        "source_id": "clinicaltrials",
+        "query": "BCMA AND myeloma",
+        "max_records": 6,
+        "max_pages": 1,
+        "deadline_seconds": 30
+      },
+      "run": {
+        "id": "7a360218-00fa-4c0c-98f7-2ef54c588e96",
+        "source_id": "clinicaltrials",
+        "is_demo": false,
+        "kind": "fetch",
+        "state": "partial",
+        "attempt": 1,
+        "created_at": "2026-10-18T06:43:47.093734Z",
+        "completed_at": "2026-10-18T06:43:48.824355Z",
+        "scope_description": "公开有界检索：BCMA AND myeloma",
+        "version_ids": [
+          "85ca014c6f1dfd1bfd01c5ccf8ee96388c754144c095ea38190b9bf8f846e8f9",
+          "dbf7ea89a8634b210d974c31c1113e0eec6fdae5d8f6d02683b4f4e231c0dbc6",
+          "9838c4057ebc4c712e075fb94d64f971fe6dc4a7e59e7dfdc3408d3be7ad5cf8",
+          "3c12f4acae04856d9a1861da0040dba162a8cad439db07d70d3e02bb417fe4d7",
+          "e30a19aaf54ea0bfbc074b445d15659d77e40a8fe6024ba36bfa228a91203950",
+          "a51b8f865e57d17a02509331633a07dec94568da631c6ce73f9f3ce73d5fb6c1"
+        ],
+        "manifest_sha256": "b13e426f6f6d244546d7ef2646afc3d76857c46367de143f903f50b7170f7d2e",
+        "coverage": {
+          "mode": "bounded_public_query",
+          "bytes": 133544,
+          "complete": false,
+          "requests": 1,
+          "limitations": [
+            "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+          ],
+          "stop_reason": "record_budget",
+          "source_total": null,
+          "adopted_count": 6,
+          "new_version_count": 6,
+          "same_version_count": 0,
+          "upstream_pagination_exhausted": false
+        },
+        "error": null,
+        "attempts": [
+          {
+            "error": null,
+            "state": "partial",
+            "attempt": 1,
+            "version_ids": [
+              "85ca014c6f1dfd1bfd01c5ccf8ee96388c754144c095ea38190b9bf8f846e8f9",
+              "dbf7ea89a8634b210d974c31c1113e0eec6fdae5d8f6d02683b4f4e231c0dbc6",
+              "9838c4057ebc4c712e075fb94d64f971fe6dc4a7e59e7dfdc3408d3be7ad5cf8",
+              "3c12f4acae04856d9a1861da0040dba162a8cad439db07d70d3e02bb417fe4d7",
+              "e30a19aaf54ea0bfbc074b445d15659d77e40a8fe6024ba36bfa228a91203950",
+              "a51b8f865e57d17a02509331633a07dec94568da631c6ce73f9f3ce73d5fb6c1"
+            ],
+            "completed_at": "2026-10-18T06:43:48.824355+00:00"
+          }
+        ]
+      }
+    },
+    "domain_e2e_final_v03": {
+      "started_at": "2026-10-18T06:44:34.212176+00:00",
+      "status": "passed",
+      "checks": [
+        "server_confirms_isolated_teaching_database_before_writes",
+        "real_background_monitor_is_running",
+        "wrong_metric_value_rejected_by_fabric",
+        "business_demo_keeps_template_profiles_and_sites",
+        "two_bound_months_are_saved_before_the_new_arrival",
+        "declaration_never_becomes_source_bound",
+        "4d4189ba-678e-4179-870b-ad7c01f6a6ef_has_materials_and_readable_notes",
+        "4d4189ba-678e-4179-870b-ad7c01f6a6ef_automation_does_not_write_human_judgment",
+        "three_comparable_reported_months_have_descriptive_slope",
+        "bound_fields_are_qualified_literally",
+        "new_same_scope_metric_runs_automatic_followup",
+        "metric_evidence_reads_exact_adopted_original",
+        "later_numeric_data_does_not_rewrite_old_evaluation",
+        "public_health_demo_keeps_template_profiles_and_sites",
+        "changed_testing_denominator_prevents_comparable_trend",
+        "denominator_drift_is_an_explicit_gap_not_incidence",
+        "reported_counts_not_renamed_to_population_incidence",
+        "pipeline_demo_keeps_template_profiles_and_sites",
+        "3414d6e7-a7e2-4405-92c6-ce675af8f724_has_materials_and_readable_notes",
+        "3414d6e7-a7e2-4405-92c6-ce675af8f724_automation_does_not_write_human_judgment",
+        "native_trial_state_change_creates_ordinary_investigation",
+        "termination_is_registration_status_not_drug_failure",
+        "real_who_notices_remain_non_demo",
+        "public_health_real_keeps_template_profiles_and_sites",
+        "e21aedc5-445d-4d5f-be7d-fde920af695a_has_materials_and_readable_notes",
+        "e21aedc5-445d-4d5f-be7d-fde920af695a_automation_does_not_write_human_judgment",
+        "real_who_notice_publication_triggers_followup",
+        "who_announcements_do_not_invent_case_metrics",
+        "real_who_evidence_keeps_native_id_and_frozen_hash",
+        "real_who_investigation_keeps_actual_bounded_query_receipt",
+        "followup_does_not_search_an_internal_enum_as_if_it_were_source_text"
+      ],
+      "teaching_prefix": "DEMO-HISTORY-5dd5e3355dc0",
+      "domains": {
+        "business": {
+          "topic_id": "4d4189ba-678e-4179-870b-ad7c01f6a6ef",
+          "evaluation_id": "502eee67-e557-45b3-b1bf-dc1044ecf2ea",
+          "investigation_id": "713dd8ad-b47d-4981-804f-d767e8ccb0ea",
+          "qualification": "synthetic literal-scope arithmetic only; no real company result"
+        },
+        "public_health": {
+          "topic_id": "35642a7f-eddf-4b90-b1b0-fbf24e937156",
+          "evaluation_id": "f5fcc906-c3f8-4740-9ccb-fd2c2fe842e1",
+          "qualification": "synthetic reporting scope and denominator; no real outbreak/case rate"
+        },
+        "pipeline": {
+          "topic_id": "3414d6e7-a7e2-4405-92c6-ce675af8f724",
+          "trial_id": "NCT96951395",
+          "evaluation_id": "ff2111b9-3b6e-4b0f-a8d3-1f05f3dad583",
+          "investigation_id": "1b331497-4541-4d81-bddb-b38e1c877e90",
+          "qualification": "synthetic native registry fields; no drug-program mapping or efficacy judgment"
+        },
+        "who": {
+          "topic_id": "e21aedc5-445d-4d5f-be7d-fde920af695a",
+          "evaluation_id": "16d012be-6d37-449f-95e2-c26487026422",
+          "investigation_id": "20f2a87d-78bc-4f63-b908-9ed65a01e8d7",
+          "native_notice_id": "8fbb14a7-4f4d-4e4a-b113-68b944028ebf",
+          "version_id": "e35c8ac03a1f4b5a237e6c6f60b0d8765d21582da4f814e875ab7436401f8d18",
+          "qualification": "real selected WHO notices; no incidence or complete global coverage"
+        }
+      },
+      "topic_ids": [
+        "4d4189ba-678e-4179-870b-ad7c01f6a6ef",
+        "35642a7f-eddf-4b90-b1b0-fbf24e937156",
+        "3414d6e7-a7e2-4405-92c6-ce675af8f724",
+        "e21aedc5-445d-4d5f-be7d-fde920af695a"
+      ],
+      "finished_at": "2026-10-18T06:45:56.187936+00:00"
+    }
   }
 }
