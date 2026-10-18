@@ -3322,7 +3322,7 @@
     }
   },
   "semantic_deepseek_20261019": {
-    "status": "one_explicit_budget_adjustment_in_progress",
+    "status": "clinical_content_approved_controlled_deployment_pending",
     "started_at": "2026-10-18T16:25:25.252878+00:00",
     "authorization": "User provided DeepSeek service and model for the pending real semantic validation; credential stored outside repository in private server configuration.",
     "requested_model": "deepseek-flash",
@@ -3347,7 +3347,7 @@
       "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
     },
     "live_configuration_changed": false,
-    "actual_content_approval": "pending",
+    "actual_content_approval": "Limited clinical case approved by root, two authors and independent reviewer; professional_status remains not_reviewed.",
     "checks": {
       "adapter": "53 passed by author and independent reviewer",
       "research": "57 passed on real PostgreSQL; new provider-boundary 2 independently passed",
@@ -3358,8 +3358,14 @@
       "code_approved": true,
       "independent_audit": "semantic-deepseek-adapter-independent-review.json",
       "audit_sha256": "5525cb9128f419a2391be2b72fda50950332adb42f4bdc257524aca0df8f782b",
-      "content": "pending actual run",
-      "deployment": "pending content acceptance"
+      "content": "Limited clinical content approved; source attribution, cutoff, denominators, mortality, source-bound design and interpretation correction checked.",
+      "deployment": "Independent reviewer approved controlled main merge and migration, API/worker only, auto disabled and monitor daemon stopped until held-out baseline plus one genuinely new-to-investigation material child passes.",
+      "browser": {
+        "analysis_id": "6d4efac9-4e83-4cf2-80bf-73b10c30a4f2",
+        "checks": 10,
+        "page_errors": [],
+        "export_matches_actual_result": true
+      }
     },
     "heldout_basis": "semantic-heldout-review-basis-before-deepseek.json; written before any new model output, never included in model input",
     "first_actual_attempt": {
@@ -3406,6 +3412,34 @@
       "default_output_tokens_unchanged": 4096,
       "repeat_policy": "One new explicit bounded attempt after code review; no automatic resend of the previous check.",
       "code_review": "Author and independent reviewer passed all 55 adapter tests; upper bound only, defaults unchanged, configured budget frozen in wire and receipt."
-    }
+    },
+    "second_actual_attempt": {
+      "analysis_id": "6d4efac9-4e83-4cf2-80bf-73b10c30a4f2",
+      "parent_analysis_id": "7ffd7392-c684-477a-b2ba-1d31ed77ada6",
+      "state": "completed",
+      "error_code": null,
+      "stages": [
+        "read_plan",
+        "synthesize",
+        "check",
+        "revise",
+        "recheck",
+        "compare"
+      ],
+      "all_received_stop": true,
+      "actual_model_elapsed_seconds": 257.456,
+      "total_input_tokens": 55974,
+      "total_completion_tokens": 57154,
+      "old_raw_records_unchanged": 14,
+      "largest_wire_bytes": 48439,
+      "wire_limit_bytes": 65536,
+      "ten_current_quotes_exact": true,
+      "review_findings_after_revision": 0,
+      "comparison_stance": "revised",
+      "comparison_scope": "Old claims only; same source material reinterpreted, not newly arriving medical evidence. Old gaps/unknowns are not part of this comparison.",
+      "execution_audit": "semantic-e2e-deepseek32k-execution-audit.json",
+      "content_approved": true
+    },
+    "checked_at": "2026-10-18T16:49:41.979843+00:00"
   }
 }
