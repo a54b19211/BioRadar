@@ -16,7 +16,7 @@ const navigation = [
   {
     path: "/topics",
     mark: "▤",
-    title: "研究专题",
+    title: "长期专题",
     subtitle: "长期跟踪与判断积累",
   },
   {

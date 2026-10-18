@@ -6,6 +6,7 @@ from bioradar.research.engine import models as engine_models  # noqa: F401
 from bioradar.research.history import service as history_models  # noqa: F401
 from bioradar.research.investigations import service as investigation_models  # noqa: F401
 from bioradar.research.monitor import models as monitor_models  # noqa: F401
+from bioradar.topics import models as topic_models  # noqa: F401
 
 engine = create_database(Settings())
 if engine is None:

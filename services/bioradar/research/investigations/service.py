@@ -112,6 +112,19 @@ class InvestigationService:
         if row is None:
             raise DomainError("not_found", "未找到可访问的调查记录", 404)
         entries = self._entries(session, row.id)
+        topic_bases = {
+            (automation.get("topic_id"), automation.get("evaluation_id"))
+            for entry in entries
+            if (automation := entry.payload.get("automation") or {}).get("source") == "topic"
+        }
+        if topic_bases:
+            # A program note can be saved before its material preview. Its full frozen
+            # evaluation, including evidence outside that preview, retains source access.
+            from bioradar.topics.service import TopicService
+
+            topics = TopicService(self.engine)
+            for topic_id, evaluation_id in topic_bases:
+                topics._evaluation_row(session, actor, topic_id, evaluation_id)
         bindings = []
         if row.origin is not None:
             bindings.append(row.origin)
@@ -313,6 +326,14 @@ class InvestigationService:
         self._actor(actor)
         if automation is not None and request.kind not in {"material", "note"}:
             raise DomainError("automation_judgment_forbidden", "后台仅可整理材料和笔记，不能签研究判断", 422)
+        with Session(self.engine.database) as session:
+            self._row(session, actor, identifier)
+            if automation is not None and automation.source == "topic":
+                from bioradar.topics.service import TopicService
+
+                TopicService(self.engine)._evaluation_row(
+                    session, actor, automation.topic_id, automation.evaluation_id
+                )
         with Session(self.engine.database) as session, session.begin():
 
             def mutate():
@@ -361,7 +382,7 @@ class InvestigationService:
                     ]
                     row.status = request.status
                 if automation is not None:
-                    payload["automation"] = automation.model_dump(mode="json")
+                    payload["automation"] = automation.model_dump(mode="json", exclude_none=True)
                 row.revision += 1
                 row.updated_at = datetime.now(UTC)
                 entry = InvestigationEntryRecord(
@@ -381,7 +402,10 @@ class InvestigationService:
                 actor,
                 "investigation.append:" + identifier,
                 key,
-                {"request": body.model_dump(mode="json"), "automation": automation.model_dump(mode="json")}
+                {
+                    "request": body.model_dump(mode="json"),
+                    "automation": automation.model_dump(mode="json", exclude_none=True),
+                }
                 if automation
                 else body,
                 mutate,

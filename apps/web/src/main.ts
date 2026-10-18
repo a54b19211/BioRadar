@@ -9,6 +9,7 @@ import RadarPage from "./pages/RadarPage.vue";
 import DecisionPage from "./pages/DecisionPage.vue";
 import HistoryPage from "./pages/HistoryPage.vue";
 import InvestigationsPage from "./pages/InvestigationsPage.vue";
+import TopicsPage from "./pages/TopicsPage.vue";
 
 const router = createRouter({
   history: createWebHistory(),
@@ -17,7 +18,7 @@ const router = createRouter({
     { path: "/radar", component: RadarPage },
     { path: "/decisions", component: DecisionPage },
     { path: "/history", component: HistoryPage },
-    { path: "/topics", component: WorkbenchPage, props: { kind: "topics" } },
+    { path: "/topics", component: TopicsPage },
     {
       path: "/investigations",
       component: InvestigationsPage,

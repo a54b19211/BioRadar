@@ -6,7 +6,7 @@ CASE ?= BOOT
 MODE ?= real
 MANIFEST ?=
 
-.PHONY: help init bootstrap dev stop status migrate test history-test history-cli graph-test graph-cli monitor-test engine-integration contract-check engine-contract web-install web-check web-races decision-probes example smoke scenario snapshot-import evaluate lint
+.PHONY: help init bootstrap dev stop status migrate test history-test history-cli graph-test graph-cli monitor-test topics-test engine-integration contract-check engine-contract web-install web-check web-races decision-probes example smoke scenario snapshot-import evaluate lint
 help:
 	@echo 'make init && make dev       start isolated local framework'
 	@echo 'make bootstrap             install Python development dependencies with uv'
@@ -47,13 +47,14 @@ web-check: web-install
 	$(NODE) sh -c 'npm run generate && npm run check && npm run build'
 web-races:
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_engine_ui_races.cjs
+	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_topic_ui_races.cjs
 decision-probes:
 	$(UV) run --frozen python scripts/check_decision_semantics.py
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_decision_ui_races.cjs
 example:
 	$(UV) run --frozen python scripts/example.py
 lint:
-	$(UV) run --frozen ruff check services tests db/migrations scripts/init_dev.py scripts/task_entry.py scripts/export_engine_contract.py scripts/check_engine_runtime.py scripts/check_decision_runtime.py scripts/check_postgres_tests.py scripts/check_decision_semantics.py scripts/example.py scripts/history_e2e.py scripts/graph_e2e.py scripts/monitor_e2e.py
+	$(UV) run --frozen ruff check services tests db/migrations scripts/init_dev.py scripts/task_entry.py scripts/export_engine_contract.py scripts/check_engine_runtime.py scripts/check_decision_runtime.py scripts/check_postgres_tests.py scripts/check_decision_semantics.py scripts/example.py scripts/history_e2e.py scripts/graph_e2e.py scripts/monitor_e2e.py scripts/topic_e2e.py scripts/topic_sources_e2e.py
 smoke:
 	$(COMPOSE) exec -T api python -m bioradar.ops.probe
 scenario:
@@ -75,3 +76,6 @@ graph-cli:
 
 monitor-test:
 	$(UV) run --frozen python scripts/check_postgres_tests.py tests/test_monitor.py
+
+topics-test:
+	$(UV) run --frozen python scripts/check_postgres_tests.py tests/test_topics.py

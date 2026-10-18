@@ -14,6 +14,7 @@ from bioradar.research.engine.auth import DevelopmentAccess
 from bioradar.research.engine.routes import create_engine_router
 from bioradar.research.history.routes import create_history_router
 from bioradar.research.pipeline import STAGES
+from bioradar.topics.routes import create_topic_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -29,6 +30,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="BioRadar research engine", version=__version__, lifespan=lifespan)
     app.include_router(create_engine_router(settings))
     app.include_router(create_history_router(settings))
+    app.include_router(create_topic_router(settings))
 
     @app.middleware("http")
     async def request_identity(request: Request, call_next):

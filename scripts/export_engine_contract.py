@@ -9,6 +9,7 @@ from bioradar.research.decision.models import DecisionInput, DecisionPolicy
 from bioradar.research.history.models import HistoryEvaluationCreate, HistoryStudyCreate
 from bioradar.research.investigations.graph import GraphBundle, GraphInvestigationCreate
 from bioradar.research.mining.models import MiningPolicy, NormalizedSnapshot
+from bioradar.topics.models import TopicCreate
 
 
 def main() -> None:
@@ -18,6 +19,7 @@ def main() -> None:
         json.dumps(contract, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     for name, model in (
+        ("topic-request", TopicCreate),
         ("graph-request", GraphInvestigationCreate),
         ("graph-bundle", GraphBundle),
         ("history-request", HistoryStudyCreate),
@@ -30,7 +32,7 @@ def main() -> None:
         (root / f"contracts/{name}.schema.json").write_text(
             json.dumps(model.model_json_schema(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
-    print(f"Exported actual runtime contract: {len(contract['paths'])} paths, plus eight input schemas")
+    print(f"Exported actual runtime contract: {len(contract['paths'])} paths, plus nine input schemas")
 
 
 if __name__ == "__main__":

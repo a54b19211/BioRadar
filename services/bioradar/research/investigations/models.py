@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import Field, RootModel
+from pydantic import Field, RootModel, model_validator
 
 from bioradar.research.engine.schemas import RuntimeModel
 from bioradar.research.mining.models import Candidate, EvidenceSupport, ProviderRef
@@ -89,9 +89,19 @@ class InvestigationEntryCreate(RootModel[EntryRequest]):
 
 
 class InvestigationAutomation(RuntimeModel):
-    source: Literal["monitor"] = "monitor"
-    batch_id: str = Field(min_length=1, max_length=36)
-    lead_key: str = Field(min_length=64, max_length=64)
+    source: Literal["monitor", "topic"] = "monitor"
+    batch_id: str | None = Field(default=None, min_length=1, max_length=36)
+    lead_key: str | None = Field(default=None, min_length=64, max_length=64)
+    topic_id: str | None = Field(default=None, min_length=1, max_length=36)
+    evaluation_id: str | None = Field(default=None, min_length=1, max_length=36)
+
+    @model_validator(mode="after")
+    def source_fields(self):
+        if self.source == "monitor" and (not self.batch_id or not self.lead_key):
+            raise ValueError("monitor provenance requires the original batch and lead")
+        if self.source == "topic" and (not self.topic_id or not self.evaluation_id):
+            raise ValueError("topic provenance requires the frozen evaluation")
+        return self
 
 
 class InvestigationNote(RuntimeModel):

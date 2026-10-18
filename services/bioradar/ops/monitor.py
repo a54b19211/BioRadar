@@ -15,6 +15,7 @@ from bioradar.data.database import create_database
 from bioradar.research.engine.auth import DevelopmentAccess
 from bioradar.research.engine.service import EngineService
 from bioradar.research.monitor.service import MonitorService
+from bioradar.topics.service import TopicService
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,10 @@ def main():
                             max_bytes=settings.engine_max_snapshot_bytes,
                             max_seconds=90,
                         )
-                        result = MonitorService(EngineService(database, settings), reader).tick()
+                        engine = EngineService(database, settings)
+                        result = MonitorService(engine, reader).tick()
+                        # Topics seed independently; a global monitor ACK cannot skip their history.
+                        TopicService(engine, reader).tick()
                         logger.info(
                             "Monitor tick state=%s code=%s", result["state"], result.get("error_code", "none")
                         )

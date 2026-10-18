@@ -487,6 +487,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/topics/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Templates */
+        get: operations["templates_api_engine_topics_templates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listing */
+        get: operations["listing_api_engine_topics_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_engine_topics_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_engine_topics__identifier__get"];
+        /** Update */
+        put: operations["update_api_engine_topics__identifier__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}/control": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Control */
+        post: operations["control_api_engine_topics__identifier__control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluations */
+        get: operations["evaluations_api_engine_topics__identifier__evaluations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}/evaluations/{evaluation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation */
+        get: operations["evaluation_api_engine_topics__identifier__evaluations__evaluation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}/evaluations/{evaluation_id}/evidence/{evidence_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evidence */
+        get: operations["evidence_api_engine_topics__identifier__evaluations__evaluation_id__evidence__evidence_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}/evaluations/{evaluation_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export */
+        get: operations["export_api_engine_topics__identifier__evaluations__evaluation_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -2204,13 +2342,17 @@ export interface components {
             /**
              * Source
              * @default monitor
-             * @constant
+             * @enum {string}
              */
-            source: "monitor";
+            source: "monitor" | "topic";
             /** Batch Id */
-            batch_id: string;
+            batch_id?: string | null;
             /** Lead Key */
-            lead_key: string;
+            lead_key?: string | null;
+            /** Topic Id */
+            topic_id?: string | null;
+            /** Evaluation Id */
+            evaluation_id?: string | null;
         };
         /** InvestigationCreate */
         InvestigationCreate: {
@@ -3846,6 +3988,474 @@ export interface components {
             /** Instant */
             instant?: string | null;
         };
+        /** TopicBucket */
+        TopicBucket: {
+            /** Start */
+            start: string;
+            /** End */
+            end: string;
+            /** Complete Time Bucket */
+            complete_time_bucket: boolean;
+            /** Exposures */
+            exposures: number;
+            /** Confirmed Study Units */
+            confirmed_study_units: number;
+            /** Unresolved Units */
+            unresolved_units: number;
+            /** Source Counts */
+            source_counts: {
+                [key: string]: number;
+            };
+            /** Feature Counts */
+            feature_counts: {
+                [key: string]: number;
+            };
+            /**
+             * Qualification
+             * @default adopted_exposure_only
+             * @enum {string}
+             */
+            qualification: "adopted_exposure_only" | "comparable_study_exposure";
+        };
+        /** TopicControl */
+        TopicControl: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Paused */
+            paused: boolean;
+        };
+        /** TopicCoverage */
+        TopicCoverage: {
+            /**
+             * Scope
+             * @default committed_adoptions
+             * @constant
+             */
+            scope: "committed_adoptions";
+            /** Seed Complete */
+            seed_complete: boolean;
+            /** Source Watermarks */
+            source_watermarks: {
+                [key: string]: number;
+            };
+            /** Source Errors */
+            source_errors: {
+                [key: string]: string;
+            };
+            /** Observed Source Sites */
+            observed_source_sites: string[];
+            /** Missing Source Sites */
+            missing_source_sites: string[];
+            /** Matched Records */
+            matched_records: number;
+            /** Active Records */
+            active_records: number;
+            /** Withdrawn Records */
+            withdrawn_records: number;
+            /** Undated Records */
+            undated_records: number;
+            /** Limited Feature Records */
+            limited_feature_records: number;
+            /**
+             * Evaluated Records
+             * @default 0
+             */
+            evaluated_records: number;
+            /**
+             * Omitted Records
+             * @default 0
+             */
+            omitted_records: number;
+            /** Registered Status Counts */
+            registered_status_counts?: {
+                [key: string]: number;
+            };
+            /**
+             * Original Source Coverage Known
+             * @default false
+             */
+            original_source_coverage_known: boolean;
+            /** Limitations */
+            limitations: string[];
+        };
+        /** TopicCreate */
+        TopicCreate: {
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            definition: components["schemas"]["TopicDefinition"];
+        };
+        /** TopicDefinition */
+        TopicDefinition: {
+            /** Title */
+            title: string;
+            /** Question */
+            question: string;
+            /**
+             * Domain
+             * @enum {string}
+             */
+            domain: "pipeline" | "research" | "business" | "public_health" | "policy" | "regulatory" | "supply" | "regional" | "other";
+            /**
+             * Source Instance
+             * @default datafabric-test
+             */
+            source_instance: string;
+            /** Source Ids */
+            source_ids: string[];
+            /** Source Sites */
+            source_sites?: string[];
+            /** Terms All */
+            terms_all?: string[];
+            /** Terms Any */
+            terms_any?: string[];
+            /** Profiles */
+            profiles: ("text_exposure" | "registered_state" | "typed_metric" | "source_event")[];
+            /** Metric Ids */
+            metric_ids?: string[];
+            /**
+             * Bucket
+             * @default month
+             * @enum {string}
+             */
+            bucket: "week" | "month";
+            /**
+             * Lookback Buckets
+             * @default 24
+             */
+            lookback_buckets: number;
+            /**
+             * Cadence Hours
+             * @default 24
+             */
+            cadence_hours: number;
+            /**
+             * Minimum Support
+             * @default 2
+             */
+            minimum_support: number;
+        };
+        /** TopicEvaluation */
+        TopicEvaluation: {
+            /** Id */
+            id: string;
+            /** Topic Id */
+            topic_id: string;
+            /** Scope Revision */
+            scope_revision: number;
+            /** Compute Version */
+            compute_version: string;
+            definition: components["schemas"]["TopicDefinition"];
+            /** Observation Revision */
+            observation_revision: number;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "descriptive" | "insufficient_data";
+            /** Summary */
+            summary: string;
+            /** Buckets */
+            buckets: components["schemas"]["TopicBucket"][];
+            /** Signals */
+            signals: components["schemas"]["TopicSignal"][];
+            /** Registered States */
+            registered_states: components["schemas"]["TopicRegisteredState"][];
+            /** Metric Series */
+            metric_series: components["schemas"]["TopicMetricSeries"][];
+            coverage: components["schemas"]["TopicCoverage"];
+            /** Evidence */
+            evidence: components["schemas"]["TopicEvidence"][];
+            /**
+             * Evidence Truncated
+             * @default false
+             */
+            evidence_truncated: boolean;
+            /** Data Gaps */
+            data_gaps: string[];
+            /** Next Questions */
+            next_questions: string[];
+            /** Draft */
+            draft: string;
+            /** Investigation Id */
+            investigation_id?: string | null;
+            /**
+             * Automation Status
+             * @default not_needed
+             * @enum {string}
+             */
+            automation_status: "not_needed" | "deferred" | "saved" | "needs_review" | "blocked";
+        };
+        /** TopicEvaluationList */
+        TopicEvaluationList: {
+            /** Items */
+            items: components["schemas"]["TopicEvaluation"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** TopicEvidence */
+        TopicEvidence: {
+            /** Key */
+            key: string;
+            record_ref: components["schemas"]["ProviderRef"];
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Raw Sha256 */
+            raw_sha256: string;
+            /** Source Site */
+            source_site?: string | null;
+            /** Field Locators */
+            field_locators?: {
+                [key: string]: unknown;
+            };
+        };
+        /** TopicList */
+        TopicList: {
+            /** Items */
+            items: components["schemas"]["TopicView"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** TopicMetricPoint */
+        TopicMetricPoint: {
+            /** Period Start */
+            period_start: string;
+            /** Period End */
+            period_end: string;
+            /** Lower */
+            lower: string | null;
+            /** Upper */
+            upper: string | null;
+            /** Measurement Basis */
+            measurement_basis: string;
+            /** Denominator */
+            denominator?: {
+                [key: string]: unknown;
+            } | null;
+            /** Evidence Key */
+            evidence_key: string;
+            /** Qualified */
+            qualified: boolean;
+        };
+        /** TopicMetricSeries */
+        TopicMetricSeries: {
+            /** Key */
+            key: string;
+            /** Subject */
+            subject: {
+                [key: string]: unknown;
+            };
+            /** Metric Id */
+            metric_id: string;
+            /** Metric Version */
+            metric_version: string;
+            /** Unit */
+            unit: string;
+            /** Population */
+            population: string | null;
+            /** Region */
+            region: string | null;
+            /** Denominator Unit */
+            denominator_unit?: string | null;
+            /** Points */
+            points: components["schemas"]["TopicMetricPoint"][];
+            /** Descriptive Slope */
+            descriptive_slope?: string | null;
+            /** Qualification */
+            qualification: string;
+        };
+        /** TopicRegisteredState */
+        TopicRegisteredState: {
+            /** Unit Id */
+            unit_id: string;
+            /** Status */
+            status?: string | null;
+            /** Phase */
+            phase?: string[] | null;
+            /** First Observed At */
+            first_observed_at: string;
+            /** Last Observed At */
+            last_observed_at: string;
+            /** Source Updated At */
+            source_updated_at?: {
+                [key: string]: unknown;
+            } | null;
+            /** Primary Completion Date */
+            primary_completion_date?: {
+                [key: string]: unknown;
+            } | string | null;
+            /** Completion Date */
+            completion_date?: {
+                [key: string]: unknown;
+            } | string | null;
+            /** Evidence Key */
+            evidence_key: string;
+            /**
+             * Qualification
+             * @default last_known_registration_not_current_clinical_truth
+             */
+            qualification: string;
+        };
+        /** TopicSignal */
+        TopicSignal: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "text_pattern" | "state_change" | "milestone_check" | "metric_change" | "source_event" | "evidence_revision";
+            /** Title */
+            title: string;
+            /** Reason */
+            reason: string;
+            /**
+             * Support Units
+             * @default 0
+             */
+            support_units: number;
+            /** Qualification */
+            qualification: string;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+            /** Evidence Keys */
+            evidence_keys?: string[];
+            /** Next Questions */
+            next_questions?: string[];
+        };
+        /** TopicSourceProgress */
+        TopicSourceProgress: {
+            /** Source Id */
+            source_id: string;
+            /**
+             * After
+             * @default 0
+             */
+            after: number;
+            /** Scan Max Seq */
+            scan_max_seq?: number | null;
+            /**
+             * Seed Complete
+             * @default false
+             */
+            seed_complete: boolean;
+            /** Last Success At */
+            last_success_at?: string | null;
+            /** Error Code */
+            error_code?: string | null;
+            /** Upstream Health */
+            upstream_health?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /** TopicTemplate */
+        TopicTemplate: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "pipeline" | "research" | "business" | "public_health" | "policy" | "regulatory" | "supply" | "regional" | "other";
+            /** Title */
+            title: string;
+            /** Description */
+            description: string;
+            definition: components["schemas"]["TopicDefinition"];
+            /** Qualification */
+            qualification: string;
+            /** Missing Sources */
+            missing_sources: string[];
+        };
+        /** TopicTemplates */
+        TopicTemplates: {
+            /** Items */
+            items: components["schemas"]["TopicTemplate"][];
+            /** Limitations */
+            limitations: string[];
+        };
+        /** TopicUpdate */
+        TopicUpdate: {
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            definition: components["schemas"]["TopicDefinition"];
+            /** Expected Revision */
+            expected_revision: number;
+        };
+        /** TopicView */
+        TopicView: {
+            /** Id */
+            id: string;
+            /** Is Demo */
+            is_demo: boolean;
+            definition: components["schemas"]["TopicDefinition"];
+            /** Scope Revision */
+            scope_revision: number;
+            /** Control Revision */
+            control_revision: number;
+            /** Observation Revision */
+            observation_revision: number;
+            /** Paused */
+            paused: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "paused" | "seeding" | "catching_up" | "current" | "source_unavailable";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /** Last Checked At */
+            last_checked_at?: string | null;
+            /** Last Evaluated At */
+            last_evaluated_at?: string | null;
+            /** Next Evaluation At */
+            next_evaluation_at?: string | null;
+            /** Sources */
+            sources: components["schemas"]["TopicSourceProgress"][];
+            /** Observation Count */
+            observation_count: number;
+            /** Latest Evaluation Id */
+            latest_evaluation_id?: string | null;
+            /** Data Gaps */
+            data_gaps: string[];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -4998,6 +5608,329 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    templates_api_engine_topics_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicTemplates"];
+                };
+            };
+        };
+    };
+    listing_api_engine_topics_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_api_engine_topics_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_engine_topics__identifier__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_api_engine_topics__identifier__put: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    control_api_engine_topics__identifier__control_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicControl"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluations_api_engine_topics__identifier__evaluations_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                cursor?: string | null;
+            };
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicEvaluationList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluation_api_engine_topics__identifier__evaluations__evaluation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+                evaluation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicEvaluation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evidence_api_engine_topics__identifier__evaluations__evaluation_id__evidence__evidence_key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+                evaluation_id: string;
+                evidence_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_api_engine_topics__identifier__evaluations__evaluation_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+                evaluation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicEvaluation"];
                 };
             };
             /** @description Validation Error */

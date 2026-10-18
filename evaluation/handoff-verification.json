@@ -2178,5 +2178,200 @@
       "audit": "Source manifest, fixed reimport receipts and exact before/after maintenance receipt retained privately on zktest.",
       "partial_state_investigation": "No partial-state defect: a legitimate bounded result completed through the existing path after 69 seconds, consistent with the previous 7-source/10s round. Poll interval subsequently adjusted to 2s; computation semantics unchanged."
     }
+  },
+  "long_term_topics_20261018": {
+    "status": "reviewed_pending_activation",
+    "implementation": "Persistent scoped topics -> independent source seeding/catchup -> qualified slow-series/event observations -> existing automatic investigation, fixed originals and historical scope export",
+    "previous_primary_heads": {
+      "radar": "a5c57514929354151efc524f16cfe1f5c39be29c",
+      "fabric": "7aa6b162a34421ea7ac327f13d488ae9cab403c0"
+    },
+    "checks": {
+      "radar_full_suite_before_last_recovery_and_template_changes": {
+        "passed": 353,
+        "skipped": 0,
+        "postgres": true
+      },
+      "radar_topics_after_recovery": {
+        "passed": 24,
+        "skipped": 0,
+        "postgres": true
+      },
+      "final_template_scope": {
+        "passed": 1,
+        "independently_repeated": true,
+        "postgres": true
+      },
+      "fabric_full_suite": {
+        "passed": 291,
+        "skipped": 0
+      },
+      "independent_radar": {
+        "passed": 58,
+        "skipped": 0
+      },
+      "independent_fabric": {
+        "passed": 48,
+        "skipped": 0
+      },
+      "counts_note": "Overlapping test selections are not summed.",
+      "final_required": {
+        "boot_passed": 21,
+        "lint": "passed",
+        "contracts": "passed",
+        "generated_types": "passed",
+        "typescript": "passed",
+        "web_build": "passed",
+        "topic_ui_races": 6,
+        "existing_ui_races": 11,
+        "actual_pg_rq_worker_probe": "10ca821d-b698-4466-8fb4-c0c02af72bbd"
+      }
+    },
+    "lifecycle_e2e": {
+      "checks": [
+        "server_confirms_isolated_teaching_source_before_writes",
+        "real_monitor_is_enabled",
+        "twelve_cross_month_contributions_survive_a_ten_record_monitor_window",
+        "adopted_counts_do_not_forge_domain_coverage_or_independent_studies",
+        "initial_archive_builds_a_baseline_without_claiming_new_progress",
+        "fixed_evidence_reads_original_version",
+        "paused_topic_does_not_consume_new_source_record",
+        "resume_catches_up_from_own_durable_cursor",
+        "slow_signal_enters_real_investigation_without_forging_expert_judgment",
+        "scope_change_keeps_topic_identity",
+        "scope_change_preserves_old_observation_question_and_export"
+      ],
+      "topic_id": "553c2dd1-50d2-41aa-8888-6bbc701dce59",
+      "evaluation_ids": [
+        "2ee1ccff-1af3-46d7-9a38-d6c67feb2835",
+        "34edf994-45bd-43fa-b70d-214e27388028"
+      ],
+      "investigation_id": "823684d4-c3ec-46ac-9b55-c34693eee2d1",
+      "teaching_prefix": "DEMO-HISTORY-1fa45d39e1b5",
+      "limitation": "Synthetic engineering acceptance; biomedical accuracy is not evaluated."
+    },
+    "domain_e2e": {
+      "started_at": "2026-10-18T06:12:36.935261+00:00",
+      "status": "passed",
+      "checks": [
+        "server_confirms_isolated_teaching_database_before_writes",
+        "real_background_monitor_is_running",
+        "wrong_metric_value_rejected_by_fabric",
+        "business_demo_keeps_template_profiles_and_sites",
+        "two_bound_months_are_saved_before_the_new_arrival",
+        "declaration_never_becomes_source_bound",
+        "a3859662-8658-4b57-944f-78124ebd4ced_has_materials_and_readable_notes",
+        "a3859662-8658-4b57-944f-78124ebd4ced_automation_does_not_write_human_judgment",
+        "three_comparable_reported_months_have_descriptive_slope",
+        "bound_fields_are_qualified_literally",
+        "new_same_scope_metric_runs_automatic_followup",
+        "metric_evidence_reads_exact_adopted_original",
+        "later_numeric_data_does_not_rewrite_old_evaluation",
+        "public_health_demo_keeps_template_profiles_and_sites",
+        "changed_testing_denominator_prevents_comparable_trend",
+        "denominator_drift_is_an_explicit_gap_not_incidence",
+        "reported_counts_not_renamed_to_population_incidence",
+        "pipeline_demo_keeps_template_profiles_and_sites",
+        "d11aac42-5a2c-4919-8c88-605c85807bc3_has_materials_and_readable_notes",
+        "d11aac42-5a2c-4919-8c88-605c85807bc3_automation_does_not_write_human_judgment",
+        "native_trial_state_change_creates_ordinary_investigation",
+        "termination_is_registration_status_not_drug_failure",
+        "real_who_notices_remain_non_demo",
+        "public_health_real_keeps_template_profiles_and_sites",
+        "4445b77e-822d-4674-9cdc-55ac2b0478ad_has_materials_and_readable_notes",
+        "4445b77e-822d-4674-9cdc-55ac2b0478ad_automation_does_not_write_human_judgment",
+        "real_who_notice_publication_triggers_followup",
+        "who_announcements_do_not_invent_case_metrics",
+        "real_who_evidence_keeps_native_id_and_frozen_hash",
+        "real_who_investigation_keeps_actual_bounded_query_receipt",
+        "followup_does_not_search_an_internal_enum_as_if_it_were_source_text"
+      ],
+      "teaching_prefix": "DEMO-HISTORY-2749fbf34174",
+      "domains": {
+        "business": {
+          "topic_id": "a3859662-8658-4b57-944f-78124ebd4ced",
+          "evaluation_id": "ba12af8b-8309-4cef-94c0-0fd65430fe83",
+          "investigation_id": "584b7620-7078-45c7-bb21-328e723c0f99",
+          "qualification": "synthetic literal-scope arithmetic only; no real company result"
+        },
+        "public_health": {
+          "topic_id": "668eb417-a8f0-4448-96f2-4784a68ce2bf",
+          "evaluation_id": "4102542c-bc4f-4cdc-9322-65342c20f686",
+          "qualification": "synthetic reporting scope and denominator; no real outbreak/case rate"
+        },
+        "pipeline": {
+          "topic_id": "d11aac42-5a2c-4919-8c88-605c85807bc3",
+          "trial_id": "NCT91221089",
+          "evaluation_id": "38a9f428-4ac0-4a19-9816-261298d8fab5",
+          "investigation_id": "a4aaf795-ad97-4dfa-9a12-8aae796c2181",
+          "qualification": "synthetic native registry fields; no drug-program mapping or efficacy judgment"
+        },
+        "who": {
+          "topic_id": "4445b77e-822d-4674-9cdc-55ac2b0478ad",
+          "evaluation_id": "9525265b-0de0-45e9-a470-d5d5657c9cdf",
+          "investigation_id": "a002a3d1-725f-4dbb-967a-4d109f23efbe",
+          "native_notice_id": "8fbb14a7-4f4d-4e4a-b113-68b944028ebf",
+          "version_id": "e35c8ac03a1f4b5a237e6c6f60b0d8765d21582da4f814e875ab7436401f8d18",
+          "qualification": "real selected WHO notices; no incidence or complete global coverage"
+        }
+      },
+      "topic_ids": [
+        "a3859662-8658-4b57-944f-78124ebd4ced",
+        "668eb417-a8f0-4448-96f2-4784a68ce2bf",
+        "d11aac42-5a2c-4919-8c88-605c85807bc3",
+        "4445b77e-822d-4674-9cdc-55ac2b0478ad"
+      ],
+      "finished_at": "2026-10-18T06:14:37.685595+00:00"
+    },
+    "browser": {
+      "status": "passed",
+      "checks": [
+        "real_session_login",
+        "create_topic_from_native_form_with_explicit_teaching_namespace",
+        "pause_persists_across_browser_reload",
+        "inflight_refresh_does_not_change_edit_target_or_create_duplicate",
+        "actual_401_during_save_recovers_after_login",
+        "read_exact_saved_original_from_older_scope",
+        "download_keeps_old_question_and_scope",
+        "mobile_no_page_overflow",
+        "no_credentials_in_browser_storage",
+        "logout_removes_private_topic_content"
+      ],
+      "page_errors": [],
+      "created_topic": "dafde64c-a528-4473-b8c4-1af5f2e55de6",
+      "scope": "Real Chromium, HTTP and isolated PostgreSQL; teaching data only"
+    },
+    "review": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "authors": [
+        "engine_architecture (Fabric)",
+        "mining_methods (Radar)",
+        "root (UI/integration)"
+      ],
+      "non_author_approval": [
+        "engine_architecture",
+        "mining_methods",
+        "continuous_runtime_review"
+      ],
+      "status": "approved, including final template fallback; no remaining deployment blockers"
+    },
+    "recovery": {
+      "private_directory": "/home/zk_test/zk_projects/.bioradar-history",
+      "database_backups": [
+        "before-topics-radar.dump",
+        "before-topics-fabric-history.dump"
+      ],
+      "config_backup": "pre-topics-runtime.json",
+      "code": "revert task commits; keep added tables and immutable data; no reset/force-push"
+    },
+    "limitations": [
+      "WHO provides selected notices, not global incidence coverage",
+      "EPMC live query is BCMA AND myeloma, not all biomedical literature",
+      "Commercial and comparable population metrics are synthetic in acceptance; real continuous sources remain to be connected",
+      "Current original storage and topic contributions do not manufacture ten years of historical vintages",
+      "Saved automatic investigation is not an expert judgment or approved report",
+      "No claim of Palantir equivalence or superiority without matched independent evaluation"
+    ]
   }
 }

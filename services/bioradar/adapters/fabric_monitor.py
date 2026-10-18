@@ -117,7 +117,7 @@ def project_record(reader, record, *, as_of, bootstrap=False):
         flags.add("retracted")
     clean = record["clean_text"]
     for field in ("summary", "brief_summary", "abstract"):
-        if isinstance(facts.get(field), str) and facts[field].strip():
+        if record["source_id"] != "who_don" and isinstance(facts.get(field), str) and facts[field].strip():
             clean = facts[field]
             break
     provenance = SectionProvenance(

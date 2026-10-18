@@ -62,10 +62,12 @@ class EngineRoute(APIRoute):
         async def safe_handler(request: Request):
             over_budget = False
             max_bytes = None
-            if request.method == "POST":
+            if request.method in {"POST", "PUT"}:
                 if self.path.startswith("/api/engine/decision-runs"):
                     max_bytes = self.decision_max_bytes
-                elif self.path.startswith(("/api/engine/investigations", "/api/engine/history")):
+                elif self.path.startswith(
+                    ("/api/engine/investigations", "/api/engine/history", "/api/engine/topics")
+                ):
                     max_bytes = 64_000
             if max_bytes is not None:
                 try:

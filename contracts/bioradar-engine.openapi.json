@@ -2023,6 +2023,618 @@
         }
       }
     },
+    "/api/engine/topics/templates": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Templates",
+        "operationId": "templates_api_engine_topics_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicTemplates"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ]
+      }
+    },
+    "/api/engine/topics": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_engine_topics_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_engine_topics_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/topics/{identifier}": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Detail",
+        "operationId": "detail_api_engine_topics__identifier__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Update",
+        "operationId": "update_api_engine_topics__identifier__put",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/topics/{identifier}/control": {
+      "post": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Control",
+        "operationId": "control_api_engine_topics__identifier__control_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicControl"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/topics/{identifier}/evaluations": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Evaluations",
+        "operationId": "evaluations_api_engine_topics__identifier__evaluations_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicEvaluationList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/topics/{identifier}/evaluations/{evaluation_id}": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Evaluation",
+        "operationId": "evaluation_api_engine_topics__identifier__evaluations__evaluation_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicEvaluation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/topics/{identifier}/evaluations/{evaluation_id}/evidence/{evidence_key}": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Evidence",
+        "operationId": "evidence_api_engine_topics__identifier__evaluations__evaluation_id__evidence__evidence_key__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          },
+          {
+            "name": "evidence_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/topics/{identifier}/evaluations/{evaluation_id}/export": {
+      "get": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Export",
+        "operationId": "export_api_engine_topics__identifier__evaluations__evaluation_id__export_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicEvaluation"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "summary": "Live",
@@ -6230,29 +6842,68 @@
         "properties": {
           "source": {
             "type": "string",
-            "const": "monitor",
+            "enum": [
+              "monitor",
+              "topic"
+            ],
             "title": "Source",
             "default": "monitor"
           },
           "batch_id": {
-            "type": "string",
-            "maxLength": 36,
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Batch Id"
           },
           "lead_key": {
-            "type": "string",
-            "maxLength": 64,
-            "minLength": 64,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64,
+                "minLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Lead Key"
+          },
+          "topic_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topic Id"
+          },
+          "evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluation Id"
           }
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "batch_id",
-          "lead_key"
-        ],
         "title": "InvestigationAutomation"
       },
       "InvestigationCreate": {
@@ -10451,6 +11102,1273 @@
         "additionalProperties": false,
         "type": "object",
         "title": "TimeExpression"
+      },
+      "TopicBucket": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "title": "End"
+          },
+          "complete_time_bucket": {
+            "type": "boolean",
+            "title": "Complete Time Bucket"
+          },
+          "exposures": {
+            "type": "integer",
+            "title": "Exposures"
+          },
+          "confirmed_study_units": {
+            "type": "integer",
+            "title": "Confirmed Study Units"
+          },
+          "unresolved_units": {
+            "type": "integer",
+            "title": "Unresolved Units"
+          },
+          "source_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Source Counts"
+          },
+          "feature_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Feature Counts"
+          },
+          "qualification": {
+            "type": "string",
+            "enum": [
+              "adopted_exposure_only",
+              "comparable_study_exposure"
+            ],
+            "title": "Qualification",
+            "default": "adopted_exposure_only"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "complete_time_bucket",
+          "exposures",
+          "confirmed_study_units",
+          "unresolved_units",
+          "source_counts",
+          "feature_counts"
+        ],
+        "title": "TopicBucket"
+      },
+      "TopicControl": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "paused"
+        ],
+        "title": "TopicControl"
+      },
+      "TopicCoverage": {
+        "properties": {
+          "scope": {
+            "type": "string",
+            "const": "committed_adoptions",
+            "title": "Scope",
+            "default": "committed_adoptions"
+          },
+          "seed_complete": {
+            "type": "boolean",
+            "title": "Seed Complete"
+          },
+          "source_watermarks": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Source Watermarks"
+          },
+          "source_errors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Source Errors"
+          },
+          "observed_source_sites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Observed Source Sites"
+          },
+          "missing_source_sites": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Source Sites"
+          },
+          "matched_records": {
+            "type": "integer",
+            "title": "Matched Records"
+          },
+          "active_records": {
+            "type": "integer",
+            "title": "Active Records"
+          },
+          "withdrawn_records": {
+            "type": "integer",
+            "title": "Withdrawn Records"
+          },
+          "undated_records": {
+            "type": "integer",
+            "title": "Undated Records"
+          },
+          "limited_feature_records": {
+            "type": "integer",
+            "title": "Limited Feature Records"
+          },
+          "evaluated_records": {
+            "type": "integer",
+            "title": "Evaluated Records",
+            "default": 0
+          },
+          "omitted_records": {
+            "type": "integer",
+            "title": "Omitted Records",
+            "default": 0
+          },
+          "registered_status_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Registered Status Counts"
+          },
+          "original_source_coverage_known": {
+            "type": "boolean",
+            "title": "Original Source Coverage Known",
+            "default": false
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "seed_complete",
+          "source_watermarks",
+          "source_errors",
+          "observed_source_sites",
+          "missing_source_sites",
+          "matched_records",
+          "active_records",
+          "withdrawn_records",
+          "undated_records",
+          "limited_feature_records",
+          "limitations"
+        ],
+        "title": "TopicCoverage"
+      },
+      "TopicCreate": {
+        "properties": {
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "definition": {
+            "$ref": "#/components/schemas/TopicDefinition"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "definition"
+        ],
+        "title": "TopicCreate"
+      },
+      "TopicDefinition": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "domain": {
+            "type": "string",
+            "enum": [
+              "pipeline",
+              "research",
+              "business",
+              "public_health",
+              "policy",
+              "regulatory",
+              "supply",
+              "regional",
+              "other"
+            ],
+            "title": "Domain"
+          },
+          "source_instance": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Instance",
+            "default": "datafabric-test"
+          },
+          "source_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 16,
+            "minItems": 1,
+            "title": "Source Ids"
+          },
+          "source_sites": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Source Sites"
+          },
+          "terms_all": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Terms All"
+          },
+          "terms_any": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Terms Any"
+          },
+          "profiles": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "text_exposure",
+                "registered_state",
+                "typed_metric",
+                "source_event"
+              ]
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Profiles"
+          },
+          "metric_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Metric Ids"
+          },
+          "bucket": {
+            "type": "string",
+            "enum": [
+              "week",
+              "month"
+            ],
+            "title": "Bucket",
+            "default": "month"
+          },
+          "lookback_buckets": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 3.0,
+            "title": "Lookback Buckets",
+            "default": 24
+          },
+          "cadence_hours": {
+            "type": "integer",
+            "maximum": 720.0,
+            "minimum": 1.0,
+            "title": "Cadence Hours",
+            "default": 24
+          },
+          "minimum_support": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 2.0,
+            "title": "Minimum Support",
+            "default": 2
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "question",
+          "domain",
+          "source_ids",
+          "profiles"
+        ],
+        "title": "TopicDefinition"
+      },
+      "TopicEvaluation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "topic_id": {
+            "type": "string",
+            "title": "Topic Id"
+          },
+          "scope_revision": {
+            "type": "integer",
+            "title": "Scope Revision"
+          },
+          "compute_version": {
+            "type": "string",
+            "title": "Compute Version"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/TopicDefinition"
+          },
+          "observation_revision": {
+            "type": "integer",
+            "title": "Observation Revision"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "descriptive",
+              "insufficient_data"
+            ],
+            "title": "State"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/TopicBucket"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSignal"
+            },
+            "type": "array",
+            "title": "Signals"
+          },
+          "registered_states": {
+            "items": {
+              "$ref": "#/components/schemas/TopicRegisteredState"
+            },
+            "type": "array",
+            "title": "Registered States"
+          },
+          "metric_series": {
+            "items": {
+              "$ref": "#/components/schemas/TopicMetricSeries"
+            },
+            "type": "array",
+            "title": "Metric Series"
+          },
+          "coverage": {
+            "$ref": "#/components/schemas/TopicCoverage"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/TopicEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "evidence_truncated": {
+            "type": "boolean",
+            "title": "Evidence Truncated",
+            "default": false
+          },
+          "data_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Gaps"
+          },
+          "next_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Questions"
+          },
+          "draft": {
+            "type": "string",
+            "title": "Draft"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "automation_status": {
+            "type": "string",
+            "enum": [
+              "not_needed",
+              "deferred",
+              "saved",
+              "needs_review",
+              "blocked"
+            ],
+            "title": "Automation Status",
+            "default": "not_needed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "topic_id",
+          "scope_revision",
+          "compute_version",
+          "definition",
+          "observation_revision",
+          "as_of",
+          "created_at",
+          "state",
+          "summary",
+          "buckets",
+          "signals",
+          "registered_states",
+          "metric_series",
+          "coverage",
+          "evidence",
+          "data_gaps",
+          "next_questions",
+          "draft"
+        ],
+        "title": "TopicEvaluation"
+      },
+      "TopicEvaluationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicEvaluation"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "title": "Unavailable Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TopicEvaluationList"
+      },
+      "TopicEvidence": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "title": "Source Record Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "raw_sha256": {
+            "type": "string",
+            "title": "Raw Sha256"
+          },
+          "source_site": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Site"
+          },
+          "field_locators": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Field Locators"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "record_ref",
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "raw_sha256"
+        ],
+        "title": "TopicEvidence"
+      },
+      "TopicList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicView"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "title": "Unavailable Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "TopicList"
+      },
+      "TopicMetricPoint": {
+        "properties": {
+          "period_start": {
+            "type": "string",
+            "title": "Period Start"
+          },
+          "period_end": {
+            "type": "string",
+            "title": "Period End"
+          },
+          "lower": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lower"
+          },
+          "upper": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upper"
+          },
+          "measurement_basis": {
+            "type": "string",
+            "title": "Measurement Basis"
+          },
+          "denominator": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator"
+          },
+          "evidence_key": {
+            "type": "string",
+            "title": "Evidence Key"
+          },
+          "qualified": {
+            "type": "boolean",
+            "title": "Qualified"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "period_start",
+          "period_end",
+          "lower",
+          "upper",
+          "measurement_basis",
+          "evidence_key",
+          "qualified"
+        ],
+        "title": "TopicMetricPoint"
+      },
+      "TopicMetricSeries": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "subject": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Subject"
+          },
+          "metric_id": {
+            "type": "string",
+            "title": "Metric Id"
+          },
+          "metric_version": {
+            "type": "string",
+            "title": "Metric Version"
+          },
+          "unit": {
+            "type": "string",
+            "title": "Unit"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "denominator_unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Denominator Unit"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/TopicMetricPoint"
+            },
+            "type": "array",
+            "title": "Points"
+          },
+          "descriptive_slope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Descriptive Slope"
+          },
+          "qualification": {
+            "type": "string",
+            "title": "Qualification"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "subject",
+          "metric_id",
+          "metric_version",
+          "unit",
+          "population",
+          "region",
+          "points",
+          "qualification"
+        ],
+        "title": "TopicMetricSeries"
+      },
+      "TopicRegisteredState": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "title": "Unit Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "first_observed_at": {
+            "type": "string",
+            "title": "First Observed At"
+          },
+          "last_observed_at": {
+            "type": "string",
+            "title": "Last Observed At"
+          },
+          "source_updated_at": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Updated At"
+          },
+          "primary_completion_date": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Completion Date"
+          },
+          "completion_date": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completion Date"
+          },
+          "evidence_key": {
+            "type": "string",
+            "title": "Evidence Key"
+          },
+          "qualification": {
+            "type": "string",
+            "title": "Qualification",
+            "default": "last_known_registration_not_current_clinical_truth"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit_id",
+          "first_observed_at",
+          "last_observed_at",
+          "evidence_key"
+        ],
+        "title": "TopicRegisteredState"
+      },
+      "TopicSignal": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "text_pattern",
+              "state_change",
+              "milestone_check",
+              "metric_change",
+              "source_event",
+              "evidence_revision"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "support_units": {
+            "type": "integer",
+            "title": "Support Units",
+            "default": 0
+          },
+          "qualification": {
+            "type": "string",
+            "title": "Qualification"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Keys"
+          },
+          "next_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Questions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "kind",
+          "title",
+          "reason",
+          "qualification"
+        ],
+        "title": "TopicSignal"
+      },
+      "TopicSourceProgress": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "after": {
+            "type": "integer",
+            "title": "After",
+            "default": 0
+          },
+          "scan_max_seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scan Max Seq"
+          },
+          "seed_complete": {
+            "type": "boolean",
+            "title": "Seed Complete",
+            "default": false
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "upstream_health": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upstream Health"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id"
+        ],
+        "title": "TopicSourceProgress"
+      },
+      "TopicTemplate": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "pipeline",
+              "research",
+              "business",
+              "public_health",
+              "policy",
+              "regulatory",
+              "supply",
+              "regional",
+              "other"
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/TopicDefinition"
+          },
+          "qualification": {
+            "type": "string",
+            "title": "Qualification"
+          },
+          "missing_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Missing Sources"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "definition",
+          "qualification",
+          "missing_sources"
+        ],
+        "title": "TopicTemplate"
+      },
+      "TopicTemplates": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TopicTemplate"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "limitations"
+        ],
+        "title": "TopicTemplates"
+      },
+      "TopicUpdate": {
+        "properties": {
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "definition": {
+            "$ref": "#/components/schemas/TopicDefinition"
+          },
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "definition",
+          "expected_revision"
+        ],
+        "title": "TopicUpdate"
+      },
+      "TopicView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/TopicDefinition"
+          },
+          "scope_revision": {
+            "type": "integer",
+            "title": "Scope Revision"
+          },
+          "control_revision": {
+            "type": "integer",
+            "title": "Control Revision"
+          },
+          "observation_revision": {
+            "type": "integer",
+            "title": "Observation Revision"
+          },
+          "paused": {
+            "type": "boolean",
+            "title": "Paused"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "paused",
+              "seeding",
+              "catching_up",
+              "current",
+              "source_unavailable"
+            ],
+            "title": "State"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          },
+          "last_checked_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Checked At"
+          },
+          "last_evaluated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Evaluated At"
+          },
+          "next_evaluation_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Evaluation At"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/TopicSourceProgress"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "observation_count": {
+            "type": "integer",
+            "title": "Observation Count"
+          },
+          "latest_evaluation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Evaluation Id"
+          },
+          "data_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Data Gaps"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "is_demo",
+          "definition",
+          "scope_revision",
+          "control_revision",
+          "observation_revision",
+          "paused",
+          "state",
+          "created_at",
+          "updated_at",
+          "sources",
+          "observation_count",
+          "data_gaps"
+        ],
+        "title": "TopicView"
       },
       "ValidationError": {
         "properties": {
