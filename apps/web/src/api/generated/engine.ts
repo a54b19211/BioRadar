@@ -110,6 +110,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/graph/packages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Graph Packages */
+        get: operations["graph_packages_api_engine_graph_packages_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/investigations/graph": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Graph Investigation */
+        post: operations["graph_investigation_api_engine_investigations_graph_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/investigations/{investigation_id}": {
         parameters: {
             query?: never;
@@ -1296,6 +1330,342 @@ export interface components {
              */
             created_at: string;
         };
+        /** GraphEvidence */
+        GraphEvidence: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Raw Sha256 */
+            raw_sha256: string;
+            /** Origin Doc Uuid */
+            origin_doc_uuid?: string | null;
+            /** Quote */
+            quote: string;
+            locator: components["schemas"]["GraphLocator"];
+        };
+        /** GraphFollowUp */
+        GraphFollowUp: {
+            /** Edge Id */
+            edge_id: string;
+            source: components["schemas"]["GraphIdentity"];
+            target: components["schemas"]["GraphIdentity"];
+            /** Relation Type */
+            relation_type: string;
+            neighbor: components["schemas"]["GraphIdentity"];
+            /** Neighbor Name */
+            neighbor_name: string;
+            /** Provider Review Status */
+            provider_review_status: string;
+            /**
+             * Binding Status
+             * @enum {string}
+             */
+            binding_status: "bound" | "unbound" | "background";
+            /** Question */
+            question: string;
+            /**
+             * Search Terms
+             * @default []
+             */
+            search_terms: string[];
+        };
+        /** GraphIdentity */
+        GraphIdentity: {
+            /** Namespace */
+            namespace: string;
+            /** Id */
+            id: string;
+        };
+        /** GraphInvestigationCreate */
+        GraphInvestigationCreate: {
+            /**
+             * Title
+             * @default 图谱引导的有界调查
+             */
+            title: string;
+            /** Question */
+            question: string;
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Graph Version Id */
+            graph_version_id: string;
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            /**
+             * Seed Ids
+             * @default []
+             */
+            seed_ids: string[];
+            /**
+             * Seed Names
+             * @default []
+             */
+            seed_names: string[];
+            /**
+             * Relation Types
+             * @default []
+             */
+            relation_types: string[];
+            /**
+             * Direction
+             * @default both
+             * @enum {string}
+             */
+            direction: "out" | "in" | "both";
+            /**
+             * Max Depth
+             * @default 1
+             */
+            max_depth: number;
+            /**
+             * Max Nodes
+             * @default 40
+             */
+            max_nodes: number;
+            /**
+             * Max Edges
+             * @default 60
+             */
+            max_edges: number;
+            /**
+             * Max Followups
+             * @default 2
+             */
+            max_followups: number;
+            /**
+             * Max Evidence Records
+             * @default 4
+             */
+            max_evidence_records: number;
+            /**
+             * Topic Terms
+             * @default []
+             */
+            topic_terms: string[];
+            /**
+             * Search Clinicaltrials
+             * @default true
+             */
+            search_clinicaltrials: boolean;
+            /** Compare Version Id */
+            compare_version_id?: string | null;
+            /** Investigation Id */
+            investigation_id?: string | null;
+            /** Expected Revision */
+            expected_revision?: number | null;
+            /**
+             * Mode
+             * @default current
+             * @enum {string}
+             */
+            mode: "current" | "operational_replay" | "public_history_reconstruction";
+            /** Cutoff */
+            cutoff?: string | null;
+        };
+        /** GraphInvestigationResult */
+        GraphInvestigationResult: {
+            /**
+             * Schema Version
+             * @default bioradar.graph-investigation.v1
+             * @constant
+             */
+            schema_version: "bioradar.graph-investigation.v1";
+            /** Execution Id */
+            execution_id: string;
+            investigation: components["schemas"]["InvestigationView"];
+            /**
+             * Completion Status
+             * @enum {string}
+             */
+            completion_status: "bounded_context_saved" | "partial" | "read_failed" | "empty_neighborhood" | "awaiting_seed_selection";
+            /** Graph Snapshot Id */
+            graph_snapshot_id?: string | null;
+            /** Mining Snapshot Id */
+            mining_snapshot_id?: string | null;
+            graph_ref?: components["schemas"]["ProviderRef"] | null;
+            /** Followups */
+            followups?: components["schemas"]["GraphFollowUp"][];
+            /** Reads */
+            reads?: {
+                [key: string]: unknown;
+            }[];
+            /** Comparison */
+            comparison?: {
+                [key: string]: unknown;
+            } | null;
+            /** Qualification Gaps */
+            qualification_gaps?: string[];
+            /** Seed Resolutions */
+            seed_resolutions?: components["schemas"]["GraphResolution"][];
+        };
+        /** GraphLocator */
+        GraphLocator: {
+            /**
+             * Basis
+             * @constant
+             */
+            basis: "clean_text";
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+        };
+        /** GraphNode */
+        GraphNode: {
+            /** Namespace */
+            namespace: string;
+            /** Id */
+            id: string;
+            /** Entity Type */
+            entity_type: string;
+            /** Name */
+            name: string;
+            /**
+             * Aliases
+             * @default []
+             */
+            aliases: string[];
+            /** External Ids */
+            external_ids?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Identity Status
+             * @enum {string}
+             */
+            identity_status: "confirmed" | "unresolved" | "background";
+            /** Identity Review Basis */
+            identity_review_basis?: string | null;
+            review: components["schemas"]["GraphReview"];
+            /**
+             * Mention Ids
+             * @default []
+             */
+            mention_ids: string[];
+            /**
+             * Evidence
+             * @default []
+             */
+            evidence: components["schemas"]["GraphEvidence"][];
+        };
+        /** GraphPackageList */
+        GraphPackageList: {
+            /** Items */
+            items: components["schemas"]["GraphPackageSummary"][];
+            /** Unavailable Packages */
+            unavailable_packages?: components["schemas"]["GraphPackageUnavailable"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Limitations */
+            limitations: string[];
+        };
+        /** GraphPackageSummary */
+        GraphPackageSummary: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Is Demo */
+            is_demo: boolean;
+            /** Title */
+            title: string;
+            /** Namespace */
+            namespace: string;
+            /**
+             * Graph Kind
+             * @enum {string}
+             */
+            graph_kind: "reviewed" | "background";
+            /** Scope Description */
+            scope_description: string;
+            /** Selection Truncated */
+            selection_truncated: boolean;
+        };
+        /** GraphPackageUnavailable */
+        GraphPackageUnavailable: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Reason */
+            reason: string;
+        };
+        /** GraphReference */
+        GraphReference: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Raw Sha256 */
+            raw_sha256: string;
+            /** Origin Doc Uuid */
+            origin_doc_uuid?: string | null;
+            /** Is Demo */
+            is_demo: boolean;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+        };
+        /** GraphResolution */
+        GraphResolution: {
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "datafabric.graph.resolution.v1";
+            graph_ref: components["schemas"]["GraphReference"];
+            /** Query */
+            query: {
+                [key: string]: string | null;
+            };
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "resolved" | "ambiguous" | "not_found";
+            /**
+             * Candidates
+             * @default []
+             */
+            candidates: components["schemas"]["GraphNode"][];
+            /** Truncated */
+            truncated: boolean;
+            /**
+             * Limitations
+             * @default []
+             */
+            limitations: string[];
+        };
+        /** GraphReview */
+        GraphReview: {
+            /** Status */
+            status: string;
+            /** Reviewed By */
+            reviewed_by?: string | null;
+            /** Reviewed At */
+            reviewed_at?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -1857,6 +2227,13 @@ export interface components {
             items: components["schemas"]["InvestigationSummary"][];
             /** Next Cursor */
             next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+            /** Availability Note */
+            availability_note?: string | null;
         };
         /** InvestigationMaterial */
         InvestigationMaterial: {
@@ -2898,6 +3275,13 @@ export interface components {
             items: components["schemas"]["RunView"][];
             /** Next Cursor */
             next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+            /** Availability Note */
+            availability_note?: string | null;
         };
         /** RunView */
         RunView: {
@@ -3085,6 +3469,13 @@ export interface components {
             items: components["schemas"]["SnapshotSummary"][];
             /** Next Cursor */
             next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+            /** Availability Note */
+            availability_note?: string | null;
         };
         /** SnapshotSummary */
         SnapshotSummary: {
@@ -3500,6 +3891,76 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvestigationView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    graph_packages_api_engine_graph_packages_get: {
+        parameters: {
+            query: {
+                source_id: "reviewed_graph" | "primekg_graph";
+                is_demo?: boolean;
+                cursor?: string | null;
+                cutoff?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphPackageList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    graph_investigation_api_engine_investigations_graph_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraphInvestigationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphInvestigationResult"];
                 };
             };
             /** @description Validation Error */

@@ -490,6 +490,178 @@
         }
       }
     },
+    "/api/engine/graph/packages": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Graph Packages",
+        "operationId": "graph_packages_api_engine_graph_packages_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "source_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "enum": [
+                "reviewed_graph",
+                "primekg_graph"
+              ],
+              "type": "string",
+              "title": "Source Id"
+            }
+          },
+          {
+            "name": "is_demo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Is Demo"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 6000
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "cutoff",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cutoff"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphPackageList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/graph": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Graph Investigation",
+        "operationId": "graph_investigation_api_engine_investigations_graph_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphInvestigationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphInvestigationResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/engine/investigations/{investigation_id}": {
       "get": {
         "tags": [
@@ -3938,6 +4110,876 @@
         ],
         "title": "FeedbackView"
       },
+      "GraphEvidence": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Source Record Id"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Version Id"
+          },
+          "raw_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Raw Sha256"
+          },
+          "origin_doc_uuid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Doc Uuid"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 100000,
+            "minLength": 1,
+            "title": "Quote"
+          },
+          "locator": {
+            "$ref": "#/components/schemas/GraphLocator"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "raw_sha256",
+          "quote",
+          "locator"
+        ],
+        "title": "GraphEvidence"
+      },
+      "GraphFollowUp": {
+        "properties": {
+          "edge_id": {
+            "type": "string",
+            "title": "Edge Id"
+          },
+          "source": {
+            "$ref": "#/components/schemas/GraphIdentity"
+          },
+          "target": {
+            "$ref": "#/components/schemas/GraphIdentity"
+          },
+          "relation_type": {
+            "type": "string",
+            "title": "Relation Type"
+          },
+          "neighbor": {
+            "$ref": "#/components/schemas/GraphIdentity"
+          },
+          "neighbor_name": {
+            "type": "string",
+            "title": "Neighbor Name"
+          },
+          "provider_review_status": {
+            "type": "string",
+            "title": "Provider Review Status"
+          },
+          "binding_status": {
+            "type": "string",
+            "enum": [
+              "bound",
+              "unbound",
+              "background"
+            ],
+            "title": "Binding Status"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "search_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Search Terms",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "edge_id",
+          "source",
+          "target",
+          "relation_type",
+          "neighbor",
+          "neighbor_name",
+          "provider_review_status",
+          "binding_status",
+          "question"
+        ],
+        "title": "GraphFollowUp"
+      },
+      "GraphIdentity": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Namespace"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "namespace",
+          "id"
+        ],
+        "title": "GraphIdentity"
+      },
+      "GraphInvestigationCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "default": "图谱引导的有界调查"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "source_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Source Record Id"
+          },
+          "graph_version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Graph Version Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "seed_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Seed Ids",
+            "default": []
+          },
+          "seed_names": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Seed Names",
+            "default": []
+          },
+          "relation_types": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 16,
+            "title": "Relation Types",
+            "default": []
+          },
+          "direction": {
+            "type": "string",
+            "enum": [
+              "out",
+              "in",
+              "both"
+            ],
+            "title": "Direction",
+            "default": "both"
+          },
+          "max_depth": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Max Depth",
+            "default": 1
+          },
+          "max_nodes": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Max Nodes",
+            "default": 40
+          },
+          "max_edges": {
+            "type": "integer",
+            "maximum": 200.0,
+            "minimum": 1.0,
+            "title": "Max Edges",
+            "default": 60
+          },
+          "max_followups": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Max Followups",
+            "default": 2
+          },
+          "max_evidence_records": {
+            "type": "integer",
+            "maximum": 4.0,
+            "minimum": 0.0,
+            "title": "Max Evidence Records",
+            "default": 4
+          },
+          "topic_terms": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 2
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Topic Terms",
+            "default": []
+          },
+          "search_clinicaltrials": {
+            "type": "boolean",
+            "title": "Search Clinicaltrials",
+            "default": true
+          },
+          "compare_version_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compare Version Id"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "expected_revision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Revision"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "current",
+              "operational_replay",
+              "public_history_reconstruction"
+            ],
+            "title": "Mode",
+            "default": "current"
+          },
+          "cutoff": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cutoff"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question",
+          "source_id",
+          "source_record_id",
+          "graph_version_id"
+        ],
+        "title": "GraphInvestigationCreate"
+      },
+      "GraphInvestigationResult": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.graph-investigation.v1",
+            "title": "Schema Version",
+            "default": "bioradar.graph-investigation.v1"
+          },
+          "execution_id": {
+            "type": "string",
+            "title": "Execution Id"
+          },
+          "investigation": {
+            "$ref": "#/components/schemas/InvestigationView"
+          },
+          "completion_status": {
+            "type": "string",
+            "enum": [
+              "bounded_context_saved",
+              "partial",
+              "read_failed",
+              "empty_neighborhood",
+              "awaiting_seed_selection"
+            ],
+            "title": "Completion Status"
+          },
+          "graph_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Snapshot Id"
+          },
+          "mining_snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mining Snapshot Id"
+          },
+          "graph_ref": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "followups": {
+            "items": {
+              "$ref": "#/components/schemas/GraphFollowUp"
+            },
+            "type": "array",
+            "title": "Followups"
+          },
+          "reads": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Reads"
+          },
+          "comparison": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Comparison"
+          },
+          "qualification_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Qualification Gaps"
+          },
+          "seed_resolutions": {
+            "items": {
+              "$ref": "#/components/schemas/GraphResolution"
+            },
+            "type": "array",
+            "title": "Seed Resolutions"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "execution_id",
+          "investigation",
+          "completion_status"
+        ],
+        "title": "GraphInvestigationResult"
+      },
+      "GraphLocator": {
+        "properties": {
+          "basis": {
+            "type": "string",
+            "const": "clean_text",
+            "title": "Basis"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "End"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "basis",
+          "start",
+          "end"
+        ],
+        "title": "GraphLocator"
+      },
+      "GraphNode": {
+        "properties": {
+          "namespace": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Namespace"
+          },
+          "id": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "entity_type": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Entity Type"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "aliases": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Aliases",
+            "default": []
+          },
+          "external_ids": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "External Ids"
+          },
+          "identity_status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "unresolved",
+              "background"
+            ],
+            "title": "Identity Status"
+          },
+          "identity_review_basis": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity Review Basis"
+          },
+          "review": {
+            "$ref": "#/components/schemas/GraphReview"
+          },
+          "mention_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Mention Ids",
+            "default": []
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/GraphEvidence"
+            },
+            "type": "array",
+            "title": "Evidence",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "namespace",
+          "id",
+          "entity_type",
+          "name",
+          "identity_status",
+          "review"
+        ],
+        "title": "GraphNode"
+      },
+      "GraphPackageList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/GraphPackageSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "unavailable_packages": {
+            "items": {
+              "$ref": "#/components/schemas/GraphPackageUnavailable"
+            },
+            "type": "array",
+            "title": "Unavailable Packages"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "as_of": {
+            "type": "string",
+            "format": "date-time",
+            "title": "As Of"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "next_cursor",
+          "as_of",
+          "limitations"
+        ],
+        "title": "GraphPackageList"
+      },
+      "GraphPackageSummary": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "title": "Source Record Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "namespace": {
+            "type": "string",
+            "title": "Namespace"
+          },
+          "graph_kind": {
+            "type": "string",
+            "enum": [
+              "reviewed",
+              "background"
+            ],
+            "title": "Graph Kind"
+          },
+          "scope_description": {
+            "type": "string",
+            "title": "Scope Description"
+          },
+          "selection_truncated": {
+            "type": "boolean",
+            "title": "Selection Truncated"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "is_demo",
+          "title",
+          "namespace",
+          "graph_kind",
+          "scope_description",
+          "selection_truncated"
+        ],
+        "title": "GraphPackageSummary"
+      },
+      "GraphPackageUnavailable": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "title": "Source Record Id"
+          },
+          "version_id": {
+            "type": "string",
+            "title": "Version Id"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "reason"
+        ],
+        "title": "GraphPackageUnavailable"
+      },
+      "GraphReference": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 1,
+            "title": "Source Record Id"
+          },
+          "version_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Version Id"
+          },
+          "raw_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Raw Sha256"
+          },
+          "origin_doc_uuid": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 400
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin Doc Uuid"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "first_seen_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "First Seen At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id",
+          "raw_sha256",
+          "is_demo",
+          "first_seen_at"
+        ],
+        "title": "GraphReference"
+      },
+      "GraphResolution": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "datafabric.graph.resolution.v1",
+            "title": "Schema Version"
+          },
+          "graph_ref": {
+            "$ref": "#/components/schemas/GraphReference"
+          },
+          "query": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Query"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "resolved",
+              "ambiguous",
+              "not_found"
+            ],
+            "title": "Status"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/GraphNode"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Candidates",
+            "default": []
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "schema_version",
+          "graph_ref",
+          "query",
+          "status",
+          "truncated"
+        ],
+        "title": "GraphResolution"
+      },
+      "GraphReview": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Status"
+          },
+          "reviewed_by": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "GraphReview"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5234,6 +6276,23 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Unavailable Count",
+            "default": 0
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
           }
         },
         "additionalProperties": false,
@@ -7719,6 +8778,23 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Unavailable Count",
+            "default": 0
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
           }
         },
         "additionalProperties": false,
@@ -8232,6 +9308,23 @@
               }
             ],
             "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Unavailable Count",
+            "default": 0
+          },
+          "availability_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availability Note"
           }
         },
         "additionalProperties": false,

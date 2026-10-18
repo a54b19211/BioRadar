@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     queue_prefix: str = "bioradar:dev"
     contract_dir: Path = Path("contracts")
     data_fabric_url: str | None = None
+    data_fabric_research_url: str | None = None
     data_fabric_history_read_token: SecretStr | None = None
 
     # A local development-user credential, never an upstream/service API key.
@@ -40,7 +41,7 @@ class Settings(BaseSettings):
     engine_max_records: int = Field(default=5000, ge=1, le=20000)
     engine_retry_limit: int = Field(default=3, ge=1, le=5)
 
-    @field_validator("data_fabric_url")
+    @field_validator("data_fabric_url", "data_fabric_research_url")
     @classmethod
     def local_fabric(cls, value: str | None) -> str | None:
         from urllib.parse import urlsplit

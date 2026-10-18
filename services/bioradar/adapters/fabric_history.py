@@ -110,7 +110,7 @@ def validate_record(record, source_id, is_demo, mode, cutoff):
         or not record.get("source_record_id")
         or not isinstance(record.get("version_id"), str)
         or len(record["version_id"]) != 64
-        or record.get("record_kind") not in {"trial", "program", "outcome", "document"}
+        or record.get("record_kind") not in {"trial", "program", "outcome", "document", "graph"}
         or record.get("schema_version") != "datafabric.history.record.v1"
     ):
         raise history_error()

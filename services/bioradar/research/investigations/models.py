@@ -170,3 +170,5 @@ class InvestigationView(InvestigationSummary):
 class InvestigationList(RuntimeModel):
     items: list[InvestigationSummary]
     next_cursor: str | None = None
+    unavailable_count: int = Field(default=0, ge=0)
+    availability_note: str | None = None

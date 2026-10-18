@@ -53,6 +53,8 @@ class SnapshotDetail(RuntimeModel):
 class SnapshotList(RuntimeModel):
     items: list[SnapshotSummary]
     next_cursor: str | None = None
+    unavailable_count: int = Field(default=0, ge=0)
+    availability_note: str | None = None
 
 
 class RunCreate(RuntimeModel):
@@ -123,6 +125,8 @@ class RunView(RuntimeModel):
 class RunList(RuntimeModel):
     items: list[RunView]
     next_cursor: str | None = None
+    unavailable_count: int = Field(default=0, ge=0)
+    availability_note: str | None = None
 
 
 class DecisionRunCreate(RuntimeModel):

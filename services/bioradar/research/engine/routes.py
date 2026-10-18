@@ -1,6 +1,7 @@
 """Actual development engine endpoints; the frozen /api/v1 remains separate."""
 
-from typing import Annotated
+from datetime import UTC, datetime
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
@@ -31,6 +32,11 @@ from bioradar.research.engine.schemas import (
     SnapshotSummary,
 )
 from bioradar.research.engine.service import EngineService
+from bioradar.research.investigations.graph import (
+    GraphInvestigationCreate,
+    GraphInvestigationResult,
+    GraphPackageList,
+)
 from bioradar.research.investigations.models import (
     InvestigationCreate,
     InvestigationEntryCreate,
@@ -205,6 +211,57 @@ def create_engine_router(settings: Settings) -> APIRouter:
     ):
         code, payload = InvestigationService(service(request)).create(actor, body, idempotency_key)
         return JSONResponse(status_code=code, content=payload)
+
+    @router.get("/graph/packages", response_model=GraphPackageList)
+    def graph_packages(
+        request: Request,
+        source_id: Annotated[Literal["reviewed_graph", "primekg_graph"], Query()],
+        is_demo: bool = False,
+        cursor: Annotated[str | None, Query(max_length=6000)] = None,
+        cutoff: datetime | None = None,
+        limit: Annotated[int, Query(ge=1, le=20)] = 20,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        from bioradar.adapters.fabric_graph import graph_reader, list_graph_packages
+
+        if cutoff is None:
+            if cursor is not None:
+                raise DomainError("graph_catalog_cutoff_required", "继续读取须保留原列表截止时间", 422)
+            cutoff = datetime.now(UTC)
+        if cutoff.tzinfo is None or cutoff.utcoffset() is None or cutoff > datetime.now(UTC):
+            raise DomainError("graph_cutoff_invalid", "列表截止时间须为已有的含时区时间", 422)
+        instance = "fixture" if is_demo else "datafabric-test"
+        if instance not in actor.source_allowlist or source_id not in settings.engine_source_id_allowlist.get(
+            instance, []
+        ):
+            raise DomainError("source_not_authorized", "图来源不在当前本地许可范围", 403)
+        engine = service(request)
+        engine.authorize_history_source(source_id)
+        with graph_reader(settings) as reader:
+            return list_graph_packages(
+                reader, source_id=source_id, is_demo=is_demo, cutoff=cutoff, limit=limit, cursor=cursor
+            )
+
+    @router.post("/investigations/graph", response_model=GraphInvestigationResult, status_code=201)
+    def graph_investigation(
+        body: GraphInvestigationCreate,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        from bioradar.adapters.fabric_graph import graph_clinical_reader, graph_reader
+        from bioradar.research.investigations.graph import run_graph_investigation
+
+        engine = service(request)
+        with graph_reader(settings) as reader, graph_clinical_reader(settings, actor) as clinical:
+            return run_graph_investigation(
+                engine,
+                actor,
+                reader,
+                body,
+                execution_id=idempotency_key,
+                clinical_reader=clinical,
+            )
 
     @router.get("/investigations", response_model=InvestigationList)
     def investigations(

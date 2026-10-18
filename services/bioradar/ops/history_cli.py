@@ -16,7 +16,7 @@ from bioradar.api.config import Settings
 
 def main():
     parser = argparse.ArgumentParser(description="History research; no automatic write retries")
-    parser.add_argument("action", choices=["create", "score", "show", "sources", "export"])
+    parser.add_argument("action", choices=["create", "score", "show", "sources", "export", "graph"])
     parser.add_argument("--input", type=Path, help="HistoryStudyCreate or HistoryEvaluationCreate JSON")
     parser.add_argument("--study-id")
     parser.add_argument(
@@ -41,15 +41,20 @@ def main():
     ):
         parser.error("--study-id must be a saved UUID")
     body = None
-    if args.action in {"create", "score"}:
+    if args.action in {"create", "score", "graph"}:
         if args.input is None:
             parser.error("--input is required")
         if args.input.stat().st_size > 64_000:
             parser.error("request exceeds 64000 bytes")
         body = json.loads(args.input.read_text())
         from bioradar.research.history.models import HistoryEvaluationCreate, HistoryStudyCreate
+        from bioradar.research.investigations.graph import GraphInvestigationCreate
 
-        model = HistoryStudyCreate if args.action == "create" else HistoryEvaluationCreate
+        model = {
+            "create": HistoryStudyCreate,
+            "score": HistoryEvaluationCreate,
+            "graph": GraphInvestigationCreate,
+        }[args.action]
         body = model.model_validate(body).model_dump(mode="json")
     try:
         settings = Settings(_env_file=Path("ops/.env"))
@@ -83,7 +88,9 @@ def main():
     with os.fdopen(descriptor, "w") as stream:
         json.dump(receipt, stream, ensure_ascii=False, indent=2)
     path = "/api/engine/history/"
-    if args.action == "sources":
+    if args.action == "graph":
+        path = "/api/engine/investigations/graph"
+    elif args.action == "sources":
         path += "sources"
     elif args.action == "create":
         path += "studies"

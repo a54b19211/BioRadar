@@ -20,7 +20,7 @@ from sqlalchemy.orm import Mapped, Session, mapped_column
 from bioradar.api.errors import DomainError
 from bioradar.data.database import Base
 from bioradar.research.engine.auth import DevelopmentAccess, EngineActor
-from bioradar.research.engine.service import EngineService
+from bioradar.research.engine.service import SOURCE_LIST_NOTE, SOURCE_READ_UNAVAILABLE, EngineService
 from bioradar.research.investigations.models import (
     InvestigationCreate,
     InvestigationEntry,
@@ -239,7 +239,7 @@ class InvestigationService:
                 InvestigationRecord.workspace_id == actor.workspace_id
             )
             rows = list(session.scalars(self.engine._page(statement, InvestigationRecord, cursor, limit)))
-            items = []
+            items, unavailable_count = [], 0
             for row in rows[:limit]:
                 try:
                     view = self._view(*self._row(session, actor, row.id))
@@ -249,9 +249,16 @@ class InvestigationService:
                         )
                     )
                 except DomainError as exc:
-                    if exc.status_code != 404:
+                    if exc.code in SOURCE_READ_UNAVAILABLE:
+                        unavailable_count += 1
+                    elif exc.status_code != 404:
                         raise
-            return InvestigationList(items=items, next_cursor=self.engine._next_cursor(rows, limit))
+            return InvestigationList(
+                items=items,
+                next_cursor=self.engine._next_cursor(rows, limit),
+                unavailable_count=unavailable_count,
+                availability_note=SOURCE_LIST_NOTE if unavailable_count else None,
+            )
 
     def _material(
         self, session: Session, actor: EngineActor, request, sources

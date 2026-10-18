@@ -19,6 +19,7 @@ const authenticated = ref(false);
 const enabled = ref(true);
 const loading = ref(false);
 const error = ref("");
+const sourceAccessLimited = ref(false);
 const snapshots = ref<SnapshotSummary[]>([]);
 const runs = ref<RunView[]>([]);
 const selectedSnapshot = ref("");
@@ -128,12 +129,21 @@ async function refresh() {
     enabled.value = session.enabled;
     if (!session.authenticated) return;
     const [data, history, catalog] = await Promise.all([
-      engineRequest<{ items: SnapshotSummary[] }>("/snapshots"),
-      engineRequest<{ items: RunView[] }>("/runs"),
+      engineRequest<{ items: SnapshotSummary[]; unavailable_count?: number }>("/snapshots"),
+      engineRequest<{ items: RunView[]; unavailable_count?: number }>("/runs"),
       engineRequest<{ method_id: string; label: string }[]>("/methods"),
     ]);
     if (!current()) return;
     snapshots.value = data.items;
+    sourceAccessLimited.value = Boolean(data.unavailable_count || history.unavailable_count);
+    if (sourceAccessLimited.value && !data.items.some((item) => item.id === selectedSnapshot.value))
+      selectedSnapshot.value = "";
+    if (sourceAccessLimited.value && selectedRun.value && !history.items.some((item) => item.id === selectedRun.value?.id)) {
+      clearTimeout(timer);
+      activeRunId = "";
+      selectedRun.value = null;
+      selectedCandidate.value = null;
+    }
     runs.value = history.items;
     methodLabels.value = Object.fromEntries(
       catalog.map((m) => [m.method_id, m.label]),
@@ -289,6 +299,7 @@ onUnmounted(() => {
     </div>
   </div>
   <p v-if="error" class="error-panel" role="alert">{{ error }}</p>
+  <p v-if="sourceAccessLimited" class="notice" role="status">本页部分来源当前不可读取，相关资料和运行未显示；普通资料仍可使用，当前列表不是全部采用记录。</p>
   <p v-if="!enabled" class="notice">
     本地研究用户尚未配置，请由管理员完成启动配置。
   </p>
@@ -547,7 +558,7 @@ onUnmounted(() => {
             <span>{{ run.created_at.slice(0, 16).replace("T", " ") }}</span
             ><small>{{ stateLabels[run.state] ?? run.state }}</small>
           </button>
-          <p v-if="!runs.length" class="muted">暂无分析记录</p>
+          <p v-if="!runs.length" class="muted">{{ sourceAccessLimited ? "本页没有可显示的分析，部分来源暂不可读。" : "暂无分析记录" }}</p>
         </section>
       </aside>
     </div>

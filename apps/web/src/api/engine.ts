@@ -10,6 +10,9 @@ export type DecisionRunView = components["schemas"]["DecisionRunView"];
 export type DecisionRunCreate = components["schemas"]["DecisionRunCreate"];
 export type DecisionInput = DecisionRunCreate["input"];
 export type DecisionResult = NonNullable<DecisionRunView["result"]>;
+export type GraphPackageSummary = components["schemas"]["GraphPackageSummary"];
+export type GraphPackageList = components["schemas"]["GraphPackageList"];
+export type GraphInvestigationResult = components["schemas"]["GraphInvestigationResult"];
 export type InvestigationView = components["schemas"]["InvestigationView"];
 export type InvestigationSummary =
   components["schemas"]["InvestigationSummary"];

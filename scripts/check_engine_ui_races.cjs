@@ -19,6 +19,7 @@ const files = [
   "apps/web/src/components/engine/SnapshotComparison.vue",
   "apps/web/src/components/engine/InvestigationEntryForm.vue",
   "apps/web/src/components/engine/InvestigationRecord.vue",
+  "apps/web/src/components/engine/GraphInvestigationForm.vue",
 ];
 function digest(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -164,6 +165,72 @@ function entryForm(request, investigation, save) {
     unmount: () => unmounted.forEach((callback) => callback()),
   };
 }
+
+function graphForm(request, investigation) {
+  const props = Vue.reactive({ investigation, loading: false });
+  const emitted = [];
+  const context = {
+    exports: {}, console,
+    defineProps: () => props,
+    defineEmits: () => (...args) => emitted.push(args),
+    require(name) {
+      if (name === "vue") return { ...Vue, onMounted() {}, onUnmounted() {} };
+      if (name.endsWith("/api/engine")) return {
+        engineRequest: request, post: request, EngineError: class extends Error {},
+      };
+      return {};
+    },
+  };
+  vm.createContext(context);
+  vm.runInContext(
+    source(files[7]) +
+      "\nglobalThis.probe={result,selectedCandidate,packages,packageKey,appendCurrent,seedId,submit,running,error};",
+    context,
+  );
+  return { ...context.probe, props, emitted };
+}
+async function graphChecks() {
+  const writes = [];
+  const page = graphForm(async (_url, body) => {
+    writes.push(body);
+    return { completion_status: "bounded_context_saved", investigation: investigation(body.investigation_id, 8) };
+  }, investigation("A", 4));
+  page.packages.value = [{
+    source_id: "reviewed_graph", source_record_id: "package", version_id: "a".repeat(64),
+    is_demo: true, title: "SYNTHETIC", namespace: "synthetic", graph_kind: "reviewed",
+    scope_description: "SYNTHETIC", selection_truncated: false,
+  }];
+  page.packageKey.value = JSON.stringify(["package", "a".repeat(64)]);
+  await Vue.nextTick();
+  page.result.value = { completion_status: "awaiting_seed_selection",
+    investigation: investigation("A", 4), seed_resolutions: [] };
+  page.selectedCandidate.value = "synthetic|old";
+  page.props.investigation = investigation("B", 7);
+  await Vue.nextTick();
+  assert.equal(page.result.value, null);
+  assert.equal(page.selectedCandidate.value, "");
+  page.appendCurrent.value = true;
+  page.seedId.value = "synthetic|explicit";
+  await page.submit();
+  assert.equal(writes[0].investigation_id, "B");
+  assert.equal(writes[0].expected_revision, 7);
+
+  const delayed = defer();
+  const pending = graphForm(() => delayed.promise, investigation("A", 4));
+  pending.packages.value = page.packages.value;
+  pending.packageKey.value = page.packageKey.value;
+  pending.seedId.value = "synthetic|explicit";
+  pending.appendCurrent.value = true;
+  await Vue.nextTick();
+  const saving = pending.submit();
+  pending.props.investigation = investigation("C", 2);
+  await Vue.nextTick();
+  delayed.resolve({ completion_status: "bounded_context_saved", investigation: investigation("A", 5) });
+  await saving;
+  assert.equal(pending.emitted.filter((event) => event[0] === "saved").length, 0);
+  assert.equal(pending.result.value, null);
+}
+
 function readEntry(page, entry) {
   return page.readSupport(
     entry.payload.snapshot_id,
@@ -661,6 +728,7 @@ async function main() {
   await creating;
   assert.equal(detailContext.probe.investigationId.value, "");
   await investigationChecks();
+  await graphChecks();
 
   console.log(
     JSON.stringify(
@@ -686,6 +754,7 @@ async function main() {
             "passed",
           logout_and_revisit_discard_stale_print_success_and_failure: "passed",
           comparison_switch_and_unmount_discard_old_response: "passed",
+          graph_seed_pending_switch_and_late_save_are_bound_to_current_investigation: "passed",
         },
         source_sha256: Object.fromEntries(
           files.map((file) => [

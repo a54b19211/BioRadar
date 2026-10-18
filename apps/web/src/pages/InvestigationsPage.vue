@@ -11,6 +11,7 @@ import {
   ElTag,
 } from "element-plus";
 import EngineLogin from "../components/engine/EngineLogin.vue";
+import GraphInvestigationForm from "../components/engine/GraphInvestigationForm.vue";
 import InvestigationRecord from "../components/engine/InvestigationRecord.vue";
 import InvestigationEntryForm from "../components/engine/InvestigationEntryForm.vue";
 import {
@@ -33,6 +34,7 @@ const loading = ref(false);
 const busy = ref(false);
 const loggingOut = ref(false);
 const error = ref("");
+const sourceAccessLimited = ref(false);
 const message = ref("");
 const investigations = ref<InvestigationSummary[]>([]);
 const selected = ref<InvestigationView | null>(null);
@@ -40,6 +42,7 @@ const snapshots = ref<SnapshotSummary[]>([]);
 const sourceCursor = ref<string | null>(null);
 const historyCursor = ref<string | null>(null);
 const showCreate = ref(false);
+const showGraph = ref(false);
 const title = ref("");
 const question = ref("");
 const questionLines = ref("");
@@ -70,12 +73,17 @@ function fail(value: unknown) {
     ++refreshVersion;
     ++readVersion;
     authenticated.value = false;
+    showGraph.value = false;
     selected.value = null;
     investigations.value = [];
     snapshots.value = [];
     loading.value = false;
     busy.value = false;
 
+    closeSource();
+  } else if (value instanceof EngineError && value.status === 403) {
+    ++readVersion;
+    selected.value = null;
     closeSource();
   }
 }
@@ -108,13 +116,15 @@ async function refresh() {
     const [history, sources] = await Promise.all([
       engineRequest<{
         items: InvestigationSummary[];
+        unavailable_count?: number;
         next_cursor?: string | null;
       }>("/investigations"),
-      engineRequest<{ items: SnapshotSummary[]; next_cursor?: string | null }>(
+      engineRequest<{ items: SnapshotSummary[]; unavailable_count?: number; next_cursor?: string | null }>(
         "/snapshots?limit=100",
       ),
     ]);
     if (!valid()) return;
+    sourceAccessLimited.value = Boolean(history.unavailable_count || sources.unavailable_count);
     investigations.value = history.items;
     historyCursor.value = history.next_cursor ?? null;
     snapshots.value = sources.items;
@@ -201,18 +211,27 @@ async function createInvestigation() {
     if (current(generation)) busy.value = false;
   }
 }
+async function graphSaved(investigation: InvestigationView) {
+  if (disposed) return;
+  selected.value = investigation;
+  activeId = investigation.id;
+  message.value = "图谱背景材料与查证记录已保存，未自动生成研究人员判断。";
+  await openInvestigation(investigation.id);
+  if (!disposed) await refresh();
+}
 async function loadMoreSources() {
   if (!sourceCursor.value || busy.value || loading.value) return;
   const generation = epoch;
   loading.value = true;
   try {
     const page = await engineRequest<{
-      items: SnapshotSummary[];
+      items: SnapshotSummary[]; unavailable_count?: number;
       next_cursor?: string | null;
     }>("/snapshots?limit=100&cursor=" + encodeURIComponent(sourceCursor.value));
     if (!current(generation)) return;
     const known = new Set(snapshots.value.map((item) => item.id));
     snapshots.value.push(...page.items.filter((item) => !known.has(item.id)));
+    sourceAccessLimited.value ||= Boolean(page.unavailable_count);
     sourceCursor.value = page.next_cursor ?? null;
   } catch (value) {
     if (current(generation)) fail(value);
@@ -227,6 +246,7 @@ async function loadMoreInvestigations() {
   try {
     const page = await engineRequest<{
       items: InvestigationSummary[];
+        unavailable_count?: number;
       next_cursor?: string | null;
     }>("/investigations?cursor=" + encodeURIComponent(historyCursor.value));
     if (!current(generation)) return;
@@ -234,6 +254,7 @@ async function loadMoreInvestigations() {
     investigations.value.push(
       ...page.items.filter((item) => !known.has(item.id)),
     );
+    sourceAccessLimited.value ||= Boolean(page.unavailable_count);
     historyCursor.value = page.next_cursor ?? null;
   } catch (value) {
     if (current(generation)) fail(value);
@@ -455,6 +476,7 @@ onUnmounted(() => {
       </div>
     </div>
     <p v-if="error" class="error-panel no-print" role="alert">{{ error }}</p>
+    <p v-if="sourceAccessLimited" class="notice no-print" role="status">本页部分来源当前不可读取，相关调查或材料未显示；普通资料仍可使用，当前列表不是全部研究记录。</p>
     <p v-if="message" class="success-inline no-print" role="status">
       {{ message }}
     </p>
@@ -466,6 +488,9 @@ onUnmounted(() => {
       @authenticated="refresh"
     />
     <template v-if="authenticated">
+      <ElButton class="no-print" :disabled="busy || loading" @click="showGraph = !showGraph">从图谱继续调查</ElButton>
+      <GraphInvestigationForm v-if="showGraph" :investigation="selected" :loading="loading"
+        @saved="graphSaved" @busy="busy = $event" @unauthorized="fail" />
       <section
         v-if="showCreate"
         class="engine-panel investigation-form no-print"
@@ -511,6 +536,7 @@ onUnmounted(() => {
             v-for="item in investigations"
             :key="item.id"
             class="history-item"
+            :disabled="busy || loading"
             :class="{ active: item.id === selected?.id }"
             @click="openInvestigation(item.id)"
           >

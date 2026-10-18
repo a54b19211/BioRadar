@@ -115,6 +115,7 @@ class DataFabricResearchReader:
     def __init__(
         self, client: httpx.Client, *, source_instance: str,
         authorization_ref: str, allowed_source_sites: set[str],
+        provider: str | None = None,
     ):
         if not source_instance or not authorization_ref or SOURCE_SITE not in allowed_source_sites:
             raise DomainError("source_not_authorized", "本次调查没有 ClinicalTrials 来源许可", 403)
@@ -125,6 +126,7 @@ class DataFabricResearchReader:
         self.client = client
         self.source_instance = source_instance
         self.authorization_ref = authorization_ref
+        self.provider = provider or "data_fabric:" + source_instance
         self.deadline = time.monotonic() + 120
         self.total_bytes = 0
         self.calls = 0
@@ -208,7 +210,7 @@ class DataFabricResearchReader:
                 "source_url": document.get("source_url"), "title": document["title"],
             })
             ref = ProviderRef(
-                provider="data_fabric:" + self.source_instance, object_type="document",
+                provider=self.provider, object_type="document",
                 object_id=document["uuid"], adopted_version=version, version_source="export_hash",
                 content_hash=version, authorization_ref=self.authorization_ref,
             )

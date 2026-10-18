@@ -45,6 +45,11 @@ from bioradar.research.mining.models import (
 from bioradar.research.mining.prepare import snapshot_hash
 from bioradar.research.mining.registry import ENGINE_COMPUTE_VERSION, method_versions
 
+SOURCE_READ_UNAVAILABLE = frozenset(
+    {"history_source_revoked", "history_source_not_accessible", "history_permission_unavailable"}
+)
+SOURCE_LIST_NOTE = "本页部分来源当前不可读取，相关项目未返回；当前列表不是全部已采用资料。"
+
 RESULT_BUDGET_MESSAGE = "结果超过运行预算，请缩小采用范围或候选上限后新建分析"
 
 
@@ -60,8 +65,11 @@ class EngineService:
         # Permission results must never be promoted to a process-global cache.
         self._history_source_ids = None
         self.history_source_reader = None
+        self._history_permission_failure = None
 
     def authorize_history_source(self, source_id):
+        if self._history_permission_failure is not None:
+            raise DomainError(*self._history_permission_failure) from None
         if self._history_source_ids is None:
             from bioradar.adapters.fabric_history import current_history_sources
 
@@ -72,11 +80,12 @@ class EngineService:
                     else current_history_sources(self.settings)
                 )
             except DomainError as exc:
-                if exc.status_code == 403:
-                    raise
-                raise DomainError(
-                    "history_permission_unavailable", "来源当前许可暂不能核对，正文未返回", 503
-                ) from None
+                self._history_permission_failure = (
+                    (exc.code, exc.message, exc.status_code, exc.retryable)
+                    if exc.status_code == 403
+                    else ("history_permission_unavailable", "来源当前许可暂不能核对，正文未返回", 503, True)
+                )
+                raise DomainError(*self._history_permission_failure) from None
             self._history_source_ids = {
                 row["source_id"]
                 for row in catalog
@@ -130,7 +139,7 @@ class EngineService:
         for source_id in {
             record.source_id
             for record in snapshot.records
-            if record.record_ref.provider == "data_fabric_history"
+            if record.record_ref.provider in {"data_fabric_history", "data_fabric_graph_research"}
         }:
             self.authorize_history_source(source_id)
 
@@ -364,16 +373,21 @@ class EngineService:
                 EngineSnapshot.grant_ref == actor.grant_ref,
             )
             rows = list(session.scalars(self._page(statement, EngineSnapshot, cursor, limit)))
-            visible = []
+            visible, unavailable_count = [], 0
             for row in rows[:limit]:
                 try:
                     self._snapshot(session, actor, row.id)
                     visible.append(row)
                 except DomainError as exc:
-                    if exc.status_code != 404:
+                    if exc.code in SOURCE_READ_UNAVAILABLE:
+                        unavailable_count += 1
+                    elif exc.status_code != 404:
                         raise
             return SnapshotList(
-                items=[self._summary(row) for row in visible], next_cursor=self._next_cursor(rows, limit)
+                items=[self._summary(row) for row in visible],
+                next_cursor=self._next_cursor(rows, limit),
+                unavailable_count=unavailable_count,
+                availability_note=SOURCE_LIST_NOTE if unavailable_count else None,
             )
 
     def create_run(self, actor: EngineActor, body: RunCreate, key: str) -> tuple[int, dict]:
@@ -454,17 +468,21 @@ class EngineService:
                 )
             )
             rows = list(session.scalars(self._page(statement, EngineRun, cursor, limit)))
-            visible = []
+            visible, unavailable_count = [], 0
             for row in rows[:limit]:
                 try:
                     self._snapshot(session, actor, row.snapshot_id)
                     visible.append(row)
                 except DomainError as exc:
-                    if exc.status_code != 404:
+                    if exc.code in SOURCE_READ_UNAVAILABLE:
+                        unavailable_count += 1
+                    elif exc.status_code != 404:
                         raise
             return RunList(
                 items=[self._view(session, row, detail=False) for row in visible],
                 next_cursor=self._next_cursor(rows, limit),
+                unavailable_count=unavailable_count,
+                availability_note=SOURCE_LIST_NOTE if unavailable_count else None,
             )
 
     def retry_run(self, actor: EngineActor, identifier: str, action: RunAction, key: str) -> tuple[int, dict]:

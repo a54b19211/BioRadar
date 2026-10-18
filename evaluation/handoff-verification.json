@@ -1,4 +1,495 @@
 {
+  "graph_integration_20261018": {
+    "checked_at": "2026-10-18T03:26:03.684521+00:00",
+    "branch": "codex/historical-intelligence",
+    "reviewed_bases": {
+      "radar": "34b2256602fb19195dccf31ac729ba88e92a7e58",
+      "fabric": "0a4b9b8d311b065f71ebafef9c74dae1cb52ff77"
+    },
+    "scope": "Current published graph context, exact source evidence, bounded digging and received-history replay. Engineering acceptance, not a claim of strategic forecasting quality.",
+    "implementation": [
+      "Reuse Fabric history tables for immutable graph bundles and original legacy documents; one CHECK extension V018, no new graph database.",
+      "Fixed read-only CLI captures legacy HTTP data and indexed PrimeKG neighborhoods; explicit scope, batch continuation, evidence and review qualification.",
+      "Graph name candidates, bounded neighborhoods and exact evidence version reads; background and auto review never silently upgraded.",
+      "Radar questions and followups use existing investigation storage, graph-qualified relations use existing mining input and RQ runtime.",
+      "Current source permissions propagate from original sources into derived graph reads and saved investigations; unavailable graph sources do not block ordinary text lists.",
+      "Operational replay permits actually received PrimeKG background after first_seen, rejects earlier visibility and external historical proof; never runs current clinical search in replay."
+    ],
+    "checks": {
+      "radar_full_pytest": {
+        "passed": 308,
+        "skipped": 0,
+        "includes_real_postgresql": true
+      },
+      "radar_graph_subset": {
+        "passed": 23,
+        "included_in_full_suite": true
+      },
+      "radar_boot": {
+        "passed": 21,
+        "overlaps_full_suite": true
+      },
+      "radar_contract_lint_web_races": "passed",
+      "radar_final_web_check_after_css": "passed",
+      "fabric_full_default_suite": {
+        "passed": 259
+      },
+      "fabric_history_graph_subset": {
+        "passed": 48,
+        "includes_real_postgresql": 20,
+        "skipped": 0,
+        "overlaps_default_suite": true
+      },
+      "fabric_ruff_python310_format_diff": "passed",
+      "independent_radar_pg_review_subset": {
+        "passed": 4,
+        "skipped": 0,
+        "overlaps_radar_full_suite": true
+      },
+      "graph_http_pg_rq_e2e": {
+        "started_at": "2026-10-18T03:21:28.673205+00:00",
+        "status": "passed",
+        "checks": [
+          "outgoing_query_does_not_reverse_a_directed_edge",
+          "incoming_query_preserves_original_direction",
+          "same_name_is_not_automatically_merged",
+          "ambiguous_seed_requires_selection_before_digging",
+          "bound_graph_investigation_saved",
+          "actual_graph_question_and_document_read_receipts",
+          "repeated_graph_request_does_not_repeat_work",
+          "judgment_covers_actual_materials",
+          "new_graph_context_marks_old_judgment_for_review",
+          "new_graph_does_not_rewrite_or_invent_a_judgment",
+          "two_actual_graph_versions_compared",
+          "qualified_relations_project_to_existing_mining_input",
+          "published_graph_runs_existing_network_kernel_through_real_queue",
+          "network_candidate_is_a_hypothesis_not_a_confirmed_relation",
+          "current_graph_cannot_be_read_as_2018_knowledge",
+          "bound_edge_with_fabricated_quote_rejected",
+          "original_graph_version_unchanged",
+          "broad_graph_queries_record_actual_hits_or_empty_results",
+          "real_primekg_context_investigation_saved",
+          "real_neighbors_generate_explicit_questions",
+          "primekg_associations_not_claimed_as_bound_document_evidence",
+          "reciprocal_edges_not_duplicate_questions",
+          "automatic_graph_search_does_not_sign_a_professional_judgment",
+          "actual_clinical_queries_complete",
+          "actual_clinical_materials_adopted",
+          "graph_investigation_persists_after_request",
+          "received_primekg_background_can_be_replayed_after_receipt",
+          "replay_never_fetches_current_clinical_records_or_upgrades_background",
+          "primekg_unavailable_before_actual_receipt",
+          "primekg_not_an_external_historical_archive"
+        ],
+        "demo": {
+          "is_demo": true,
+          "investigation_id": "38d8f148-fabf-4a36-bc55-065f8a083fdb",
+          "source_record_id": "DEMO-HISTORY-d6ba2b1ef3bf-graph",
+          "graph_snapshot_id": "3500b8e8-19c3-480d-b7d7-fb49532761cf",
+          "network_run_id": "163b8768-34ba-400a-a742-3580c4123784",
+          "network_candidate_count": 1,
+          "first_version": "b5b8656be91dc0b6da1a74b22b567b1fd2d5d04ec82a98155e1a717412723e2d",
+          "second_version": "caebc742d8dd8015f2b121cf1ded21c0ad7cc0337b76679f42ce7577a381cebf",
+          "scope": "Synthetic reviewed graph and exact source quotations; not real professional validation"
+        },
+        "real": {
+          "is_demo": false,
+          "graph_version_id": "6aaf31a52fabbba5b44e0f24f3d0a040c5d776160e9e3a29bfaf65d004bdec49",
+          "source_record_id": "DEMO-HISTORY-d6ba2b1ef3bf-primekg",
+          "graph_snapshot_id": "52b51043-2e11-4aa1-a604-cb7369a01e7e",
+          "investigation_id": "e3529568-09f2-44fc-a90c-2604fa4b51e8",
+          "completion_status": "partial",
+          "followups": [
+            {
+              "edge_id": "7bbda8decc883f86326a26e7fb5c61f40b4bfa2b480d96e116b60a6978247c29",
+              "source": {
+                "namespace": "primekg.MONDO",
+                "id": "5061"
+              },
+              "target": {
+                "namespace": "primekg.NCBI",
+                "id": "1956"
+              },
+              "relation_type": "disease_protein",
+              "neighbor": {
+                "namespace": "primekg.NCBI",
+                "id": "1956"
+              },
+              "neighbor_name": "EGFR",
+              "provider_review_status": "background",
+              "binding_status": "background",
+              "question": "源图将“lung adenocarcinoma”通过“disease_protein”有向关联到“EGFR”。所引原文具体说了什么，适用条件和相反材料有哪些？图中关联、登记命中均不能直接证明疗效、机制或战略价值。",
+              "search_terms": [
+                "lung adenocarcinoma",
+                "EGFR"
+              ]
+            }
+          ],
+          "reads": [
+            {
+              "kind": "graph",
+              "status": "adopted",
+              "source_id": "primekg_graph",
+              "version_id": "6aaf31a52fabbba5b44e0f24f3d0a040c5d776160e9e3a29bfaf65d004bdec49",
+              "node_count": 2,
+              "physical_edge_count": 1,
+              "coverage": {
+                "scope": "selected_published_subgraph",
+                "truncated": true,
+                "selection_truncated": true,
+                "stop_reason": "source_selection_limit",
+                "returned_nodes": 2,
+                "returned_edges": 1,
+                "max_depth": 1
+              }
+            },
+            {
+              "kind": "clinicaltrials_title_query",
+              "edge_id": "7bbda8decc883f86326a26e7fb5c61f40b4bfa2b480d96e116b60a6978247c29",
+              "terms": [
+                "lung adenocarcinoma",
+                "EGFR"
+              ],
+              "scope": "title_literal_and_current_db",
+              "status": "read",
+              "returned": 3,
+              "has_more": true,
+              "adopted": 3,
+              "projections_unavailable": 0
+            }
+          ],
+          "qualification_gaps": [
+            "graph_context_is_not_a_new_independent_study_or_professional_assessment",
+            "no_automatic_support_oppose_or_human_judgment",
+            "weknora_and_professional_evaluation_not_connected",
+            "followup_order_is_source_review_binding_then_source_identity_not_importance",
+            "捕获时的PrimeKG背景；可回看本地first_seen后已收到的版本，不证明更早世界状态或专业证据",
+            "原捕获时间：2026-10-18T03:15:47.407122+00:00",
+            "范围仅为这个固定发布包；未自动合并身份，未证明关系因果或专业有效性",
+            "background_graph_is_received_context_not_external_past_proof_or_document_evidence",
+            "unconfirmed_or_background_graph_identities",
+            "relationships_without_source_document_binding",
+            "title_search_is_limited_current_registry_context_not_independent_evidence_or_negative_result"
+          ],
+          "received_replay": {
+            "investigation_id": "b9adddf6-8404-4b0a-ac42-149f6f08e966",
+            "cutoff": "2026-10-18T03:21:33.169274+00:00",
+            "completion_status": "partial",
+            "current_clinical_queries": 0
+          },
+          "broad_discovery": {
+            "investigation_id": "ad4f6eb8-8470-4692-8667-4ec3144da45a",
+            "completion_status": "partial",
+            "followups": [
+              {
+                "edge_id": "fd5fc8ca8809016d782b9674ff8d0748e63982ebe64edf77a87b2bac60d22929",
+                "source": {
+                  "namespace": "primekg.MONDO",
+                  "id": "21117"
+                },
+                "target": {
+                  "namespace": "primekg.NCBI",
+                  "id": "1956"
+                },
+                "relation_type": "disease_protein",
+                "neighbor": {
+                  "namespace": "primekg.MONDO",
+                  "id": "21117"
+                },
+                "neighbor_name": "lung neoplasm",
+                "provider_review_status": "background",
+                "binding_status": "background",
+                "question": "源图将“lung neoplasm”通过“disease_protein”有向关联到“EGFR”。所引原文具体说了什么，适用条件和相反材料有哪些？图中关联、登记命中均不能直接证明疗效、机制或战略价值。",
+                "search_terms": [
+                  "EGFR",
+                  "lung neoplasm"
+                ]
+              },
+              {
+                "edge_id": "7bbda8decc883f86326a26e7fb5c61f40b4bfa2b480d96e116b60a6978247c29",
+                "source": {
+                  "namespace": "primekg.MONDO",
+                  "id": "5061"
+                },
+                "target": {
+                  "namespace": "primekg.NCBI",
+                  "id": "1956"
+                },
+                "relation_type": "disease_protein",
+                "neighbor": {
+                  "namespace": "primekg.MONDO",
+                  "id": "5061"
+                },
+                "neighbor_name": "lung adenocarcinoma",
+                "provider_review_status": "background",
+                "binding_status": "background",
+                "question": "源图将“lung adenocarcinoma”通过“disease_protein”有向关联到“EGFR”。所引原文具体说了什么，适用条件和相反材料有哪些？图中关联、登记命中均不能直接证明疗效、机制或战略价值。",
+                "search_terms": [
+                  "EGFR",
+                  "lung adenocarcinoma"
+                ]
+              }
+            ],
+            "queries": [
+              {
+                "kind": "clinicaltrials_title_query",
+                "edge_id": "fd5fc8ca8809016d782b9674ff8d0748e63982ebe64edf77a87b2bac60d22929",
+                "terms": [
+                  "EGFR",
+                  "lung neoplasm"
+                ],
+                "scope": "title_literal_and_current_db",
+                "status": "empty",
+                "returned": 0,
+                "has_more": false,
+                "adopted": 0,
+                "projections_unavailable": 0
+              },
+              {
+                "kind": "clinicaltrials_title_query",
+                "edge_id": "7bbda8decc883f86326a26e7fb5c61f40b4bfa2b480d96e116b60a6978247c29",
+                "terms": [
+                  "EGFR",
+                  "lung adenocarcinoma"
+                ],
+                "scope": "title_literal_and_current_db",
+                "status": "read",
+                "returned": 3,
+                "has_more": true,
+                "adopted": 3,
+                "projections_unavailable": 0
+              }
+            ],
+            "adopted": 3,
+            "scope": "Unfocused EGFR questions; empty hits are not changed into evidence."
+          },
+          "scope": "Actual PrimeKG subset and live clinical lookup; no causal or historical claim"
+        },
+        "finished_at": "2026-10-18T03:21:33.276093+00:00"
+      },
+      "previous_history_http_pg_rq_regression": {
+        "status": "passed",
+        "checks": 42,
+        "demo_is_synthetic": true,
+        "public": [
+          {
+            "source": "clinicaltrials",
+            "run_id": "c352119f-a30c-4a26-bda5-9fd2983692b3",
+            "run_state": "completed",
+            "versions": 1,
+            "study_id": "582b7560-cba0-426f-8122-3a35a623bfa4",
+            "investigation_id": "de6ce872-55fc-49ed-96fc-c7a5c0e3f196",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 16592,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "upstream_exhausted",
+              "source_total": null,
+              "adopted_count": 1,
+              "new_version_count": 0,
+              "same_version_count": 1,
+              "upstream_pagination_exhausted": true
+            }
+          },
+          {
+            "source": "fda_crl",
+            "run_id": "93dd0c8d-dee7-40f5-84d2-5ceefd1b10c3",
+            "run_state": "partial",
+            "versions": 2,
+            "study_id": "9ed725c2-144d-4438-8039-5495f3361a65",
+            "investigation_id": "c458e773-94c4-4b34-aad4-15a53237a018",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 18967,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "record_budget",
+              "source_total": 458,
+              "adopted_count": 2,
+              "new_version_count": 0,
+              "same_version_count": 2,
+              "upstream_pagination_exhausted": false
+            }
+          },
+          {
+            "source": "europe_pmc",
+            "run_id": "c77294da-f8c5-40ed-b387-150c35e66a7c",
+            "run_state": "completed",
+            "versions": 1,
+            "study_id": "cff6406e-a7c6-4eaf-934e-d8c314653004",
+            "investigation_id": "2db34e3f-5634-4663-96ae-d9c577c36e4a",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 3644,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "upstream_exhausted",
+              "source_total": 1,
+              "adopted_count": 1,
+              "new_version_count": 0,
+              "same_version_count": 1,
+              "upstream_pagination_exhausted": true
+            }
+          }
+        ]
+      },
+      "real_legacy_bridge": {
+        "status": "passed",
+        "is_demo": false,
+        "source": "actual legacy ClinicalTrials document read over HTTP",
+        "document_uuid": "13ff4e69-87cd-5167-a376-c93297a75343",
+        "run_id": "f4d7df1e-7ef6-42f7-b9ba-4e2f40f9bf97",
+        "source_record_id": "legacy-graph:57e3ddc22f6766f005f341a195ba3d976367e077d9e2ddaf2bccbcd894956aeb",
+        "graph_version_id": "86f915e8d09877062be00826d7bf55a0c629481f11528c2b7c5e55501dc76340",
+        "nodes": 5,
+        "edges": 0,
+        "identity_statuses": [
+          "unresolved"
+        ],
+        "review_statuses": [
+          "auto_approved"
+        ],
+        "dependencies": [
+          "clinicaltrials",
+          "legacy_documents"
+        ],
+        "limitations": [
+          "No human-approved clinical entities or approved relations in this selected document.",
+          "Current HTTP observation, not historical graph proof."
+        ]
+      },
+      "browser": {
+        "status": "passed",
+        "checks": [
+          "create_graph_investigation_using_names_and_real_clinical_documents",
+          "open_actual_adopted_source",
+          "mobile_no_page_overflow",
+          "no_credential_in_browser_storage",
+          "saved_investigation_survives_reload"
+        ],
+        "page_errors": [],
+        "investigation_id": "3432b493-5dfb-4f17-a3b3-bd092a78adb7",
+        "scope": "Real Chromium, HTTP APIs, PostgreSQL, actual PrimeKG context and current clinical records."
+      },
+      "revocation_outage_and_browser": {
+        "status": "passed",
+        "checks": {
+          "graph_guided_clinical_investigation_revoked": 403,
+          "reviewed_graph_snapshot_revoked": 403,
+          "reviewed_graph_investigation_revoked": 403,
+          "derived_graph_catalog_revoked": 403,
+          "upstream_unavailable": 503,
+          "ordinary_text_investigation_independent_of_graph_history": 200,
+          "snapshots_list_survives_unavailable_graph_source": 200,
+          "runs_list_survives_unavailable_graph_source": 200,
+          "investigations_list_survives_unavailable_graph_source": 200,
+          "browser_ordinary_investigation_when_graph_unavailable": true,
+          "restored_original_result": true
+        },
+        "scope": "Only isolated Fabric API restarted; database and original services unchanged"
+      },
+      "ordinary_text_regression": {
+        "investigation_id": "d5dc2451-b468-4af1-bb46-9a2a440789fd",
+        "adopted_materials": 6,
+        "mode": "actual legacy HTTP reads and own PostgreSQL; independent of graph/history availability"
+      },
+      "normal_document_links": "passed"
+    },
+    "review": {
+      "requested_model": "gpt-6.1-sol",
+      "requested_reasoning_effort": "max",
+      "authors": {
+        "fabric": "engine_architecture",
+        "radar": "mining_methods",
+        "integration_docs": "root"
+      },
+      "non_author_approvals": {
+        "fabric": "mining_methods approved including mixed review qualification, exact locators, current capture and received-history semantics.",
+        "radar": "engine_architecture approved including current source permission, list isolation, cross-investigation form behavior and final mobile CSS.",
+        "root_e2e_docs": "engine_architecture approved graph E2E and five existing documents; mining_methods approved final 202 acceptance followed by actual worker completion."
+      },
+      "resolved_findings": [
+        "Separate auto/unverified mentions from confirmed dictionary identity; reject conflicting duplicate mention observations.",
+        "Use existing json_pointer facts and only emit paths present in actual raw content; retain incompatible old projections as unavailable entries.",
+        "Check source-instance grant on graph package list and prevent stale ambiguous selection from targeting a previous investigation.",
+        "Report unavailable clinical projection as partial; retain actual empty title queries.",
+        "Choose bound human-reviewed relations first, then stable neighbor identity; no hash-order scientific importance claim.",
+        "Isolate unavailable/revoked graph sources in list pages with visible omissions; retain strict detail access and do not swallow unrelated errors.",
+        "Allow actually received background replay without pretending external historical availability.",
+        "Graph checkbox labels wrap on mobile; no overflow hiding."
+      ],
+      "remaining_blocking_findings": []
+    },
+    "limitations": [
+      "Real source observation found zero human-approved relations; synthetic reviewed graph validates qualification and mining behavior only.",
+      "Actual PrimeKG test used 8 nodes and 10 physical edges with more upstream neighbors; not full graph or independent study coverage.",
+      "Focused clinical case adopted 3 current registry documents; one broad title query was empty. Retrieval completion does not establish mechanism, efficacy or valuable automatic discovery.",
+      "Current first_seen capture does not reconstruct the previous ten years. No genuine ten-year archive or external graph historical proof was supplied.",
+      "No connected WeKnora evidence service, mechanism assessment or formal report approval. Read-only current title query is not complete multi-source evidence search.",
+      "Existing WeKnora graph writer identity-prefix and tenant/knowledge-base scoping issues remain a separate migration; live writer/data were not changed.",
+      "Permissions remain development source-group scope; derived source dependencies are conservative, not production tenant-level access.",
+      "Services are tested in isolated host processes; ordinary Docker-to-host integration and institutional identity still require deployment work."
+    ],
+    "rollback": {
+      "code": "Revert reviewed branch commits without rewriting shared history.",
+      "before_old_code": "Stop graph publication; remove reviewed_graph, primekg_graph and legacy_documents from old service source allowlists.",
+      "data": "Preserve graph versions, originals and widened V018 CHECK. Do not downgrade/drop tables or narrow the CHECK around existing graph rows."
+    },
+    "runtime": {
+      "test_processes_stopped": [
+        "fabric-api",
+        "fabric-worker",
+        "radar-api",
+        "radar-worker"
+      ],
+      "test_containers_stopped": [
+        "bioradar-history-web",
+        "bioradar-history-postgres",
+        "bioradar-history-redis"
+      ],
+      "volumes_preserved": true,
+      "original_fabric_health": 200,
+      "primary_repositories": {
+        "radar": {
+          "head": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
+          "status": []
+        },
+        "fabric": {
+          "head": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
+          "status": [
+            "?? .env.bak",
+            "?? start_workers.sh",
+            "?? zk_env/"
+          ]
+        },
+        "weknora": {
+          "head": "e01ac7cf0e6d1a0128b2b82db6bcf82d79f1418f",
+          "status": [
+            " M .dockerignore",
+            " M docker-compose.yml",
+            " M docker/Dockerfile.app",
+            " M docker/Dockerfile.docreader",
+            "?? backup.sql",
+            "?? data/"
+          ]
+        }
+      },
+      "live_deployment_modified": false
+    }
+  },
   "latest_verification": {
     "checked_at": "2026-10-18T02:20:30.659592+00:00",
     "status": "verified_isolated_branches_not_merged_or_deployed",
