@@ -56,7 +56,7 @@ class EngineRoute(APIRoute):
             if request.method == "POST":
                 if self.path.startswith("/api/engine/decision-runs"):
                     max_bytes = self.decision_max_bytes
-                elif self.path.startswith("/api/engine/investigations"):
+                elif self.path.startswith(("/api/engine/investigations", "/api/engine/history")):
                     max_bytes = 64_000
             if max_bytes is not None:
                 try:

@@ -56,6 +56,36 @@ class EngineService:
     def __init__(self, database: Engine, settings: Settings):
         self.database = database
         self.settings = settings
+        # Service instances belong to one HTTP request or worker execution.
+        # Permission results must never be promoted to a process-global cache.
+        self._history_source_ids = None
+        self.history_source_reader = None
+
+    def authorize_history_source(self, source_id):
+        if self._history_source_ids is None:
+            from bioradar.adapters.fabric_history import current_history_sources
+
+            try:
+                catalog = (
+                    self.history_source_reader()
+                    if self.history_source_reader is not None
+                    else current_history_sources(self.settings)
+                )
+            except DomainError as exc:
+                if exc.status_code == 403:
+                    raise
+                raise DomainError(
+                    "history_permission_unavailable", "来源当前许可暂不能核对，正文未返回", 503
+                ) from None
+            self._history_source_ids = {
+                row["source_id"]
+                for row in catalog
+                if isinstance(row, dict)
+                and isinstance(row.get("source_id"), str)
+                and row.get("read_enabled") is True
+            }
+        if source_id not in self._history_source_ids:
+            raise DomainError("history_source_revoked", "来源当前未获准读取，旧正文未返回", 403)
 
     def decisions(self):
         from bioradar.research.engine.decision_service import DecisionRuntime
@@ -97,6 +127,12 @@ class EngineService:
                     check_refs(child)
 
         check_refs(snapshot.model_dump(mode="json"))
+        for source_id in {
+            record.source_id
+            for record in snapshot.records
+            if record.record_ref.provider == "data_fabric_history"
+        }:
+            self.authorize_history_source(source_id)
 
     def _snapshot(self, session: Session, actor: EngineActor, identifier: str) -> EngineSnapshot:
         row = session.scalar(
@@ -113,6 +149,8 @@ class EngineService:
             snapshot = NormalizedSnapshot.model_validate(row.payload)
             self._authorize_snapshot(actor, snapshot)
         except DomainError as exc:
+            if exc.code in {"history_source_revoked", "history_source_not_accessible"}:
+                raise
             if exc.status_code == 403:
                 raise DomainError("not_found", "未找到可访问的固定快照", 404) from None
             raise

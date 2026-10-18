@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     redis_url: SecretStr | None = None
     queue_prefix: str = "bioradar:dev"
     contract_dir: Path = Path("contracts")
+    data_fabric_url: str | None = None
+    data_fabric_history_read_token: SecretStr | None = None
 
     # A local development-user credential, never an upstream/service API key.
     engine_dev_credential: SecretStr | None = None
@@ -37,6 +39,30 @@ class Settings(BaseSettings):
     engine_max_decision_bytes: int = Field(default=2_000_000, ge=1024, le=16_000_000)
     engine_max_records: int = Field(default=5000, ge=1, le=20000)
     engine_retry_limit: int = Field(default=3, ge=1, le=5)
+
+    @field_validator("data_fabric_url")
+    @classmethod
+    def local_fabric(cls, value: str | None) -> str | None:
+        from urllib.parse import urlsplit
+
+        if value in (None, ""):
+            return None
+        parts = urlsplit(value)
+        if (
+            parts.scheme not in {"http", "https"}
+            or parts.hostname not in {"127.0.0.1", "localhost", "::1"}
+            or parts.username
+            or parts.query
+            or parts.fragment
+            or parts.path not in {"", "/"}
+        ):
+            raise ValueError("History reader requires a configured loopback base URL")
+        return value.rstrip("/")
+
+    @field_validator("data_fabric_history_read_token")
+    @classmethod
+    def empty_history_token(cls, value: SecretStr | None) -> SecretStr | None:
+        return value if value and value.get_secret_value() else None
 
     @field_validator("engine_dev_credential")
     @classmethod

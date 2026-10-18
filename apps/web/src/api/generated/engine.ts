@@ -265,6 +265,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/history/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sources */
+        get: operations["sources_api_engine_history_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/history/studies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Listing */
+        get: operations["listing_api_engine_history_studies_get"];
+        put?: never;
+        /** Create */
+        post: operations["create_api_engine_history_studies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/history/studies/{identifier}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Detail */
+        get: operations["detail_api_engine_history_studies__identifier__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/history/studies/{identifier}/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Evaluate */
+        post: operations["evaluate_api_engine_history_studies__identifier__evaluations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/history/studies/{identifier}/evaluations/{evaluation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation */
+        get: operations["evaluation_api_engine_history_studies__identifier__evaluations__evaluation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/history/studies/{identifier}/evidence/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evidence */
+        get: operations["evidence_api_engine_history_studies__identifier__evidence__version_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/history/studies/{identifier}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export */
+        get: operations["export_api_engine_history_studies__identifier__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -1216,6 +1336,389 @@ export interface components {
             /** Unknown Reason */
             unknown_reason?: string | null;
             basis: components["schemas"]["InputBasis"];
+        };
+        /** HistoricalEvent */
+        HistoricalEvent: {
+            /** Unit Id */
+            unit_id: string;
+            /**
+             * Unit Kind
+             * @enum {string}
+             */
+            unit_kind: "trial" | "program";
+            /**
+             * Event Type
+             * @enum {string}
+             */
+            event_type: "trial_stoppage" | "regulatory_approval" | "next_phase_disclosure";
+            /**
+             * Public Available At
+             * Format: date-time
+             */
+            public_available_at: string;
+            evidence_ref: components["schemas"]["ProviderRef"];
+            /** Event At */
+            event_at?: string | null;
+            /**
+             * Is Backfill
+             * @default false
+             */
+            is_backfill: boolean;
+            /** Event Observed */
+            event_observed?: boolean | null;
+            /** Observation Start */
+            observation_start?: string | null;
+            /** Observation End */
+            observation_end?: string | null;
+        };
+        /** HistoricalUnit */
+        HistoricalUnit: {
+            /** Unit Id */
+            unit_id: string;
+            /**
+             * Unit Kind
+             * @enum {string}
+             */
+            unit_kind: "trial" | "program";
+            /** Lineage Id */
+            lineage_id: string;
+            /**
+             * Phase
+             * @default unknown
+             */
+            phase: string;
+            /** Label */
+            label: string;
+            /** Indication */
+            indication?: string | null;
+            /** Jurisdiction */
+            jurisdiction?: string | null;
+            evidence_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Eligible
+             * @default true
+             */
+            eligible: boolean;
+            /**
+             * Reasons
+             * @default []
+             */
+            reasons: string[];
+        };
+        /** HistoryEvaluationCreate */
+        HistoryEvaluationCreate: {
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+        };
+        /**
+         * HistoryObservation
+         * @description One actually adopted source view, never a synthetic complete world.
+         */
+        HistoryObservation: {
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+            /** Source Id */
+            source_id: string;
+            /** Is Demo */
+            is_demo: boolean;
+            /** Snapshot Id */
+            snapshot_id: string | null;
+            /** Snapshot Hash */
+            snapshot_hash: string | null;
+            /**
+             * Units
+             * @default []
+             */
+            units: components["schemas"]["HistoricalUnit"][];
+            /**
+             * Events
+             * @default []
+             */
+            events: components["schemas"]["HistoricalEvent"][];
+            /**
+             * Coverage Complete
+             * @default false
+             */
+            coverage_complete: boolean;
+            /** Coverage End */
+            coverage_end?: string | null;
+            /** Scope Description */
+            scope_description: string;
+            /** Record Count */
+            record_count: number;
+            /**
+             * Gaps
+             * @default []
+             */
+            gaps: string[];
+        };
+        /** HistoryPrediction */
+        HistoryPrediction: {
+            unit: components["schemas"]["HistoricalUnit"];
+            /**
+             * Target
+             * @enum {string}
+             */
+            target: "trial_stoppage" | "regulatory_approval" | "next_phase_disclosure";
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+            /**
+             * Horizon End
+             * Format: date-time
+             */
+            horizon_end: string;
+            /** Probability */
+            probability?: number | null;
+            /**
+             * Baseline
+             * @enum {string}
+             */
+            baseline: "phase_historical_rate" | "pooled_historical_rate" | "unsupported";
+            /**
+             * Training Units
+             * @default 0
+             */
+            training_units: number;
+            /**
+             * Training Events
+             * @default 0
+             */
+            training_events: number;
+            /**
+             * Training Refs
+             * @description Reference preview; full training versions remain in frozen snapshots/evidence
+             * @default []
+             */
+            training_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Training Refs Truncated
+             * @default false
+             */
+            training_refs_truncated: boolean;
+            /**
+             * Reasons
+             * @default []
+             */
+            reasons: string[];
+        };
+        /** HistoryStudyCreate */
+        HistoryStudyCreate: {
+            /**
+             * Schema Version
+             * @default bioradar.history.request.v1
+             * @constant
+             */
+            schema_version: "bioradar.history.request.v1";
+            /** Title */
+            title: string;
+            /** Question */
+            question: string;
+            /** Source Id */
+            source_id: string;
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            /**
+             * Mode
+             * @default public_history_reconstruction
+             * @enum {string}
+             */
+            mode: "current" | "operational_replay" | "public_history_reconstruction";
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+            /**
+             * Target
+             * @enum {string}
+             */
+            target: "trial_stoppage" | "regulatory_approval" | "next_phase_disclosure";
+            /**
+             * Horizon Months
+             * @default 24
+             * @enum {integer}
+             */
+            horizon_months: 12 | 24;
+            /**
+             * Training Cutoffs
+             * @default []
+             */
+            training_cutoffs: string[];
+            /**
+             * Training Runs
+             * @default []
+             */
+            training_runs: components["schemas"]["HistoryTrainingRun"][];
+            /** Run Id */
+            run_id?: string | null;
+            /**
+             * Cohort Terms
+             * @default []
+             */
+            cohort_terms: string[];
+            /**
+             * Max Records
+             * @default 5000
+             */
+            max_records: number;
+            /**
+             * Max Bytes
+             * @default 8000000
+             */
+            max_bytes: number;
+            /**
+             * Max Seconds
+             * @default 90
+             */
+            max_seconds: number;
+            /**
+             * Review Budget
+             * @default 10
+             */
+            review_budget: number;
+            /**
+             * Followup Queries
+             * @default 2
+             */
+            followup_queries: number;
+            /**
+             * Minimum Training Units
+             * @default 3
+             */
+            minimum_training_units: number;
+        };
+        /** HistoryStudyView */
+        HistoryStudyView: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Source Id */
+            source_id: string;
+            /** Is Demo */
+            is_demo: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "collecting" | "predicted" | "partial" | "unsupported" | "failed";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Target
+             * @enum {string}
+             */
+            target: "trial_stoppage" | "regulatory_approval" | "next_phase_disclosure";
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+            /** Prediction Hash */
+            prediction_hash: string | null;
+            /** Investigation Id */
+            investigation_id: string | null;
+            request: components["schemas"]["HistoryStudyCreate"];
+            /**
+             * Compute Version
+             * @default bioradar-history-baseline-v0.2
+             */
+            compute_version: string;
+            /**
+             * Predictions
+             * @default []
+             */
+            predictions: components["schemas"]["HistoryPrediction"][];
+            cohort?: components["schemas"]["HistoryObservation"] | null;
+            /**
+             * Training
+             * @default []
+             */
+            training: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Sources
+             * @default []
+             */
+            sources: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Queries
+             * @default []
+             */
+            queries: {
+                [key: string]: unknown;
+            }[];
+            /** Mining */
+            mining?: {
+                [key: string]: unknown;
+            } | null;
+            /** Fact Summary */
+            fact_summary?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Next Questions
+             * @default []
+             */
+            next_questions: string[];
+            /**
+             * Limitations
+             * @default []
+             */
+            limitations: string[];
+            /**
+             * Evaluations
+             * @default []
+             */
+            evaluations: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Professional Status
+             * @default not_reviewed
+             * @constant
+             */
+            professional_status: "not_reviewed";
+            /**
+             * Model Regime
+             * @default deterministic_historical_reconstruction
+             * @constant
+             */
+            model_regime: "deterministic_historical_reconstruction";
+            /**
+             * Weknora Status
+             * @default not_connected
+             * @constant
+             */
+            weknora_status: "not_connected";
+        };
+        /** HistoryTrainingRun */
+        HistoryTrainingRun: {
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
+            /** Run Id */
+            run_id: string;
         };
         /** InputBasis */
         InputBasis: {
@@ -3372,6 +3875,257 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DecisionRunView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sources_api_engine_history_sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    listing_api_engine_history_studies_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_api_engine_history_studies_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryStudyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryStudyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    detail_api_engine_history_studies__identifier__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HistoryStudyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluate_api_engine_history_studies__identifier__evaluations_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryEvaluationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evaluation_api_engine_history_studies__identifier__evaluations__evaluation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+                evaluation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    evidence_api_engine_history_studies__identifier__evidence__version_id__get: {
+        parameters: {
+            query?: {
+                evaluation_id?: string | null;
+            };
+            header?: never;
+            path: {
+                identifier: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_api_engine_history_studies__identifier__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
                 };
             };
             /** @description Validation Error */

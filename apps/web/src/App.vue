@@ -1,5 +1,6 @@
 <script setup lang="ts">
 const navigation = [
+  {path: "/history", mark: "◴", title: "历史资料研究", subtitle: "固定预测与独立结局评价"},
   {
     path: "/radar",
     mark: "◎",

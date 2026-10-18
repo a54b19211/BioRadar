@@ -1184,6 +1184,444 @@
         }
       }
     },
+    "/api/engine/history/sources": {
+      "get": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Sources",
+        "operationId": "sources_api_engine_history_sources_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ]
+      }
+    },
+    "/api/engine/history/studies": {
+      "post": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Create",
+        "operationId": "create_api_engine_history_studies_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryStudyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryStudyView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Listing",
+        "operationId": "listing_api_engine_history_studies_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 30,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/history/studies/{identifier}": {
+      "get": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Detail",
+        "operationId": "detail_api_engine_history_studies__identifier__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryStudyView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/history/studies/{identifier}/evaluations": {
+      "post": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Evaluate",
+        "operationId": "evaluate_api_engine_history_studies__identifier__evaluations_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryEvaluationCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/history/studies/{identifier}/evaluations/{evaluation_id}": {
+      "get": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Evaluation",
+        "operationId": "evaluation_api_engine_history_studies__identifier__evaluations__evaluation_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "evaluation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/history/studies/{identifier}/evidence/{version_id}": {
+      "get": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Evidence",
+        "operationId": "evidence_api_engine_history_studies__identifier__evidence__version_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "evaluation_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Evaluation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/history/studies/{identifier}/export": {
+      "get": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Export",
+        "operationId": "export_api_engine_history_studies__identifier__export_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "summary": "Live",
@@ -3640,6 +4078,775 @@
           "basis"
         ],
         "title": "HardConstraint"
+      },
+      "HistoricalEvent": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "title": "Unit Id"
+          },
+          "unit_kind": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "program"
+            ],
+            "title": "Unit Kind"
+          },
+          "event_type": {
+            "type": "string",
+            "enum": [
+              "trial_stoppage",
+              "regulatory_approval",
+              "next_phase_disclosure"
+            ],
+            "title": "Event Type"
+          },
+          "public_available_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Public Available At"
+          },
+          "evidence_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "event_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event At"
+          },
+          "is_backfill": {
+            "type": "boolean",
+            "title": "Is Backfill",
+            "default": false
+          },
+          "event_observed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Observed"
+          },
+          "observation_start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation Start"
+          },
+          "observation_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Observation End"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit_id",
+          "unit_kind",
+          "event_type",
+          "public_available_at",
+          "evidence_ref"
+        ],
+        "title": "HistoricalEvent"
+      },
+      "HistoricalUnit": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "title": "Unit Id"
+          },
+          "unit_kind": {
+            "type": "string",
+            "enum": [
+              "trial",
+              "program"
+            ],
+            "title": "Unit Kind"
+          },
+          "lineage_id": {
+            "type": "string",
+            "title": "Lineage Id"
+          },
+          "phase": {
+            "type": "string",
+            "title": "Phase",
+            "default": "unknown"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "indication": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indication"
+          },
+          "jurisdiction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jurisdiction"
+          },
+          "evidence_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "eligible": {
+            "type": "boolean",
+            "title": "Eligible",
+            "default": true
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit_id",
+          "unit_kind",
+          "lineage_id",
+          "label",
+          "evidence_ref"
+        ],
+        "title": "HistoricalUnit"
+      },
+      "HistoryEvaluationCreate": {
+        "properties": {
+          "cutoff": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cutoff"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cutoff"
+        ],
+        "title": "HistoryEvaluationCreate"
+      },
+      "HistoryObservation": {
+        "properties": {
+          "cutoff": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cutoff"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "snapshot_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Id"
+          },
+          "snapshot_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Hash"
+          },
+          "units": {
+            "items": {
+              "$ref": "#/components/schemas/HistoricalUnit"
+            },
+            "type": "array",
+            "title": "Units",
+            "default": []
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/HistoricalEvent"
+            },
+            "type": "array",
+            "title": "Events",
+            "default": []
+          },
+          "coverage_complete": {
+            "type": "boolean",
+            "title": "Coverage Complete",
+            "default": false
+          },
+          "coverage_end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage End"
+          },
+          "scope_description": {
+            "type": "string",
+            "title": "Scope Description"
+          },
+          "record_count": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Record Count"
+          },
+          "gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Gaps",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cutoff",
+          "source_id",
+          "is_demo",
+          "snapshot_id",
+          "snapshot_hash",
+          "scope_description",
+          "record_count"
+        ],
+        "title": "HistoryObservation",
+        "description": "One actually adopted source view, never a synthetic complete world."
+      },
+      "HistoryPrediction": {
+        "properties": {
+          "unit": {
+            "$ref": "#/components/schemas/HistoricalUnit"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "trial_stoppage",
+              "regulatory_approval",
+              "next_phase_disclosure"
+            ],
+            "title": "Target"
+          },
+          "cutoff": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cutoff"
+          },
+          "horizon_end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Horizon End"
+          },
+          "probability": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability"
+          },
+          "baseline": {
+            "type": "string",
+            "enum": [
+              "phase_historical_rate",
+              "pooled_historical_rate",
+              "unsupported"
+            ],
+            "title": "Baseline"
+          },
+          "training_units": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Training Units",
+            "default": 0
+          },
+          "training_events": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Training Events",
+            "default": 0
+          },
+          "training_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Training Refs",
+            "description": "Reference preview; full training versions remain in frozen snapshots/evidence",
+            "default": []
+          },
+          "training_refs_truncated": {
+            "type": "boolean",
+            "title": "Training Refs Truncated",
+            "default": false
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasons",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit",
+          "target",
+          "cutoff",
+          "horizon_end",
+          "baseline"
+        ],
+        "title": "HistoryPrediction"
+      },
+      "HistoryStudyCreate": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.history.request.v1",
+            "title": "Schema Version",
+            "default": "bioradar.history.request.v1"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "source_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "current",
+              "operational_replay",
+              "public_history_reconstruction"
+            ],
+            "title": "Mode",
+            "default": "public_history_reconstruction"
+          },
+          "cutoff": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cutoff"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "trial_stoppage",
+              "regulatory_approval",
+              "next_phase_disclosure"
+            ],
+            "title": "Target"
+          },
+          "horizon_months": {
+            "type": "integer",
+            "enum": [
+              12,
+              24
+            ],
+            "title": "Horizon Months",
+            "default": 24
+          },
+          "training_cutoffs": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Training Cutoffs",
+            "default": []
+          },
+          "training_runs": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryTrainingRun"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Training Runs",
+            "default": []
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "cohort_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "title": "Cohort Terms",
+            "default": []
+          },
+          "max_records": {
+            "type": "integer",
+            "maximum": 20000.0,
+            "minimum": 1.0,
+            "title": "Max Records",
+            "default": 5000
+          },
+          "max_bytes": {
+            "type": "integer",
+            "maximum": 32000000.0,
+            "minimum": 1024.0,
+            "title": "Max Bytes",
+            "default": 8000000
+          },
+          "max_seconds": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 5.0,
+            "title": "Max Seconds",
+            "default": 90
+          },
+          "review_budget": {
+            "type": "integer",
+            "maximum": 1000.0,
+            "minimum": 1.0,
+            "title": "Review Budget",
+            "default": 10
+          },
+          "followup_queries": {
+            "type": "integer",
+            "maximum": 2.0,
+            "minimum": 0.0,
+            "title": "Followup Queries",
+            "default": 2
+          },
+          "minimum_training_units": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 2.0,
+            "title": "Minimum Training Units",
+            "default": 3
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title",
+          "question",
+          "source_id",
+          "cutoff",
+          "target"
+        ],
+        "title": "HistoryStudyCreate"
+      },
+      "HistoryStudyView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "collecting",
+              "predicted",
+              "partial",
+              "unsupported",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "target": {
+            "type": "string",
+            "enum": [
+              "trial_stoppage",
+              "regulatory_approval",
+              "next_phase_disclosure"
+            ],
+            "title": "Target"
+          },
+          "cutoff": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cutoff"
+          },
+          "prediction_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prediction Hash"
+          },
+          "investigation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Investigation Id"
+          },
+          "request": {
+            "$ref": "#/components/schemas/HistoryStudyCreate"
+          },
+          "compute_version": {
+            "type": "string",
+            "title": "Compute Version",
+            "default": "bioradar-history-baseline-v0.2"
+          },
+          "predictions": {
+            "items": {
+              "$ref": "#/components/schemas/HistoryPrediction"
+            },
+            "type": "array",
+            "title": "Predictions",
+            "default": []
+          },
+          "cohort": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HistoryObservation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "training": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Training",
+            "default": []
+          },
+          "sources": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Sources",
+            "default": []
+          },
+          "queries": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Queries",
+            "default": []
+          },
+          "mining": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mining"
+          },
+          "fact_summary": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fact Summary"
+          },
+          "next_questions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Next Questions",
+            "default": []
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations",
+            "default": []
+          },
+          "evaluations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Evaluations",
+            "default": []
+          },
+          "professional_status": {
+            "type": "string",
+            "const": "not_reviewed",
+            "title": "Professional Status",
+            "default": "not_reviewed"
+          },
+          "model_regime": {
+            "type": "string",
+            "const": "deterministic_historical_reconstruction",
+            "title": "Model Regime",
+            "default": "deterministic_historical_reconstruction"
+          },
+          "weknora_status": {
+            "type": "string",
+            "const": "not_connected",
+            "title": "Weknora Status",
+            "default": "not_connected"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "source_id",
+          "is_demo",
+          "state",
+          "created_at",
+          "target",
+          "cutoff",
+          "prediction_hash",
+          "investigation_id",
+          "request"
+        ],
+        "title": "HistoryStudyView"
+      },
+      "HistoryTrainingRun": {
+        "properties": {
+          "cutoff": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Cutoff"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Run Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "cutoff",
+          "run_id"
+        ],
+        "title": "HistoryTrainingRun"
       },
       "InputBasis": {
         "properties": {

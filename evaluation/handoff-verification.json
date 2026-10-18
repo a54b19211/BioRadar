@@ -1,4 +1,322 @@
 {
+  "latest_verification": {
+    "checked_at": "2026-10-18T02:20:30.659592+00:00",
+    "status": "verified_isolated_branches_not_merged_or_deployed",
+    "scope": "Public-source collection and investigation plus labelled historical reconstruction. Engineering validation, not real drug-prediction efficacy.",
+    "branch": "codex/historical-intelligence",
+    "repositories": {
+      "radar": {
+        "worktree": "/home/zk_test/zk_projects/.bioradar-history/radar",
+        "base": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
+        "migration": "0005_historical_research"
+      },
+      "fabric": {
+        "worktree": "/home/zk_test/zk_projects/.bioradar-history/fabric",
+        "base": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
+        "migration": "V017__history_records.sql"
+      }
+    },
+    "compute_version": "bioradar-history-baseline-v0.2",
+    "changes": [
+      "Fabric: source catalog, bounded public fetch using existing RQ, immutable originals and versions, explicit archive import and time-qualified reads.",
+      "Fabric: legacy failure reporting and preserve-old-before-update protections; not a complete migration of the old ingestion stack.",
+      "Radar: explicit historical cohort manifests, bounded followups over adopted source versions, factual source summaries and ordinary saved investigations.",
+      "Radar: disjoint known lineages, mature historical-rate baseline, independent appended evaluations, fixed prediction and readable originals/export.",
+      "Radar: API, CLI, history page and current source-permission checks covering historical and legacy snapshot/investigation reads."
+    ],
+    "checks": {
+      "radar_full_pytest": {
+        "passed": 284,
+        "skipped": 0,
+        "timing": "Before final one-case strict-permission correction; subsequent related tests listed separately."
+      },
+      "radar_final_history_tests": {
+        "passed": 20,
+        "skipped": 0,
+        "includes_real_postgresql": true,
+        "overlaps_full_suite": true
+      },
+      "fabric_full_default_suite": {
+        "passed": 247,
+        "timing": "Before final history time-ambiguity guard; unrelated legacy code unchanged afterward."
+      },
+      "fabric_final_history_tests": {
+        "unit_passed": 16,
+        "real_postgresql_passed": 12,
+        "skipped": 0,
+        "unit_overlaps_default_suite": true
+      },
+      "radar_contract_lint_web_build": "passed; web build repeated after final two-rule mobile CSS fix",
+      "fabric_python310_ruff_and_diff": "passed",
+      "real_radar_postgresql_rq_worker": "passed; probe 2d16016e-d763-4ea1-8bd9-55ed1c563b0e",
+      "cross_service_e2e": {
+        "started_at": "2026-10-18T02:13:36.470791+00:00",
+        "status": "passed",
+        "checks": [
+          "frozen_manifest_pagination_returns_nine_at_cutoff",
+          "future_program_version_excluded",
+          "reviewed_version_uses_its_own_history_proof",
+          "adopted_old_original_readable",
+          "study_completed_with_supported_baseline",
+          "only_four_new_at_risk_programs_predicted",
+          "two_of_four_mature_training_events_late_label_excluded",
+          "same_request_reuses_saved_prediction",
+          "same_key_changed_request_rejected",
+          "immature_positive_not_scored_selectively",
+          "explicit_positive_and_covered_negative_only",
+          "brier_one_quarter_coverage_one_half",
+          "later_disclosure_appends_new_evaluation",
+          "predictions_unchanged_after_evaluation",
+          "earlier_evaluation_preserved",
+          "saved_research_export_contains_actual_program",
+          "truncated_cohort_cannot_return_complete_prediction",
+          "caller_cannot_backdate_first_seen",
+          "clinicaltrials_actual_public_fetch_persisted",
+          "clinicaltrials_actual_adoption_investigation_saved",
+          "clinicaltrials_no_invented_historical_prediction",
+          "clinicaltrials_readable_source_facts_returned",
+          "clinicaltrials_export_contains_actual_source_and_version",
+          "clinicaltrials_saved_original_matches_adopted_content",
+          "clinicaltrials_operational_replay_cannot_backdate_current_body",
+          "clinicaltrials_public_history_reconstruction_cannot_backdate_current_body",
+          "fda_crl_actual_public_fetch_persisted",
+          "fda_crl_actual_adoption_investigation_saved",
+          "fda_crl_no_invented_historical_prediction",
+          "fda_crl_readable_source_facts_returned",
+          "fda_crl_export_contains_actual_source_and_version",
+          "fda_crl_saved_original_matches_adopted_content",
+          "fda_crl_operational_replay_cannot_backdate_current_body",
+          "fda_crl_public_history_reconstruction_cannot_backdate_current_body",
+          "europe_pmc_actual_public_fetch_persisted",
+          "europe_pmc_actual_adoption_investigation_saved",
+          "europe_pmc_no_invented_historical_prediction",
+          "europe_pmc_readable_source_facts_returned",
+          "europe_pmc_export_contains_actual_source_and_version",
+          "europe_pmc_saved_original_matches_adopted_content",
+          "europe_pmc_operational_replay_cannot_backdate_current_body",
+          "europe_pmc_public_history_reconstruction_cannot_backdate_current_body"
+        ],
+        "demo": {
+          "is_demo": true,
+          "study_id": "744585ae-3721-4c80-a153-5e3db60d45fa",
+          "investigation_id": "cdadaed9-f71c-4b00-b994-ea621e0d2cb4",
+          "prediction_hash": "a8252a260e30e21c684e539446b62966c118f637768837fec7323930cd00a8e9",
+          "metrics": {
+            "events": 1,
+            "unknown": 2,
+            "censored": 0,
+            "non_events": 1,
+            "brier_score": 0.25,
+            "calibration": [
+              {
+                "count": 2,
+                "lower": 0.4,
+                "upper": 0.6,
+                "mean_prediction": 0.5,
+                "observed_fraction": 0.5
+              }
+            ],
+            "limitations": [
+              "descriptive_historical_baseline_not_clinical_efficacy_or_investment_return",
+              "fixed_horizon_complete_case_scores_not_ipcw_or_competing_risk_model",
+              "calibration_on_small_groups_has_sampling_uncertainty",
+              "lineage_and_source_coverage_limit_generalization",
+              "evaluable_subset_only_selective_missingness_can_bias_scores",
+              "outcome_source_scope_incomplete_no_full_cohort_claim"
+            ],
+            "cohort_count": 9,
+            "lead_time_days": [
+              151.0
+            ],
+            "selected_count": 2,
+            "evaluable_count": 2,
+            "precision_lower": 0.5,
+            "precision_upper": 0.5,
+            "predicted_count": 4,
+            "recall_at_budget": null,
+            "selected_evaluable": 2,
+            "evaluation_coverage": 0.5,
+            "precision_at_budget": 0.5,
+            "false_positive_count": 1,
+            "missed_observed_events": 0
+          },
+          "evaluations": [
+            "33bab5be-8a99-4a59-9ac1-3ab57f0e4919",
+            "ec1e406a-1d7b-4f34-8545-2df302116318",
+            "df5cea29-eae3-4bad-a2be-a67757c85067"
+          ],
+          "scope": "合成历史队列，只验证跨服务行为与已知算术，不评价真实预测能力。"
+        },
+        "public": [
+          {
+            "source": "clinicaltrials",
+            "run_id": "a9d041f4-c2ab-4b1b-beb5-b34d3702531d",
+            "run_state": "completed",
+            "versions": 1,
+            "study_id": "09d5d2d6-1963-425a-912c-208b0e86d47c",
+            "investigation_id": "74e9b7ea-6258-48e5-abca-0083712e3712",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 16592,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "upstream_exhausted",
+              "source_total": null,
+              "adopted_count": 1,
+              "new_version_count": 0,
+              "same_version_count": 1,
+              "upstream_pagination_exhausted": true
+            }
+          },
+          {
+            "source": "fda_crl",
+            "run_id": "8210ccc5-852f-4b9a-a807-28ce09654766",
+            "run_state": "partial",
+            "versions": 2,
+            "study_id": "f37bc6ef-1b88-4c00-b479-5575efbbeb31",
+            "investigation_id": "88822fcb-5bcf-437a-a1ec-fbb77ccbd089",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 18967,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "record_budget",
+              "source_total": 458,
+              "adopted_count": 2,
+              "new_version_count": 0,
+              "same_version_count": 2,
+              "upstream_pagination_exhausted": false
+            }
+          },
+          {
+            "source": "europe_pmc",
+            "run_id": "28bcf103-6a7e-4d48-a53c-075da19f4daf",
+            "run_state": "completed",
+            "versions": 1,
+            "study_id": "ef9cb518-ac46-4e8f-a05d-a378992910af",
+            "investigation_id": "aeb67ecd-f3ce-4a56-ae54-59045e9239e9",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 3644,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "upstream_exhausted",
+              "source_total": 1,
+              "adopted_count": 1,
+              "new_version_count": 1,
+              "same_version_count": 0,
+              "upstream_pagination_exhausted": true
+            }
+          }
+        ],
+        "finished_at": "2026-10-18T02:13:42.023562+00:00"
+      },
+      "chromium": {
+        "status": "passed",
+        "checks": [
+          "session_login",
+          "create_study_through_browser",
+          "read_adopted_original",
+          "append_evaluation",
+          "download_saved_research",
+          "mobile_no_page_overflow",
+          "no_credential_in_browser_storage"
+        ],
+        "page_errors": [],
+        "scope": "real Chromium against isolated API, PostgreSQL and saved demonstration data"
+      },
+      "current_permission_across_entrypoints": {
+        "status": "passed",
+        "checks": {
+          "historical_detail_revoked": 403,
+          "historical_original_revoked": 403,
+          "historical_export_revoked": 403,
+          "legacy_snapshot_revoked": 403,
+          "legacy_investigation_revoked": 403,
+          "upstream_unavailable": 503,
+          "restored_original_result": true
+        },
+        "scope": "Only isolated Fabric API restarted; database and original services unchanged"
+      },
+      "normal_document_links": "passed"
+    },
+    "review": {
+      "requested_model": "gpt-6.1-sol",
+      "requested_reasoning_effort": "max",
+      "authors": {
+        "fabric": "engine_architecture",
+        "radar": "mining_methods",
+        "integration_and_docs": "root"
+      },
+      "non_author_approvals": {
+        "fabric": "mining_methods approved final temporal-ambiguity guard and PostgreSQL cases; root reviewed integration.",
+        "radar": "engine_architecture approved final central source permission, temporal/lineage handling and linear reference output; final mobile CSS separately approved.",
+        "integration_script": "Both authors cross-reviewed root historical E2E script."
+      },
+      "resolved_findings": [
+        "Independent manifests per historical cutoff; no future winner list reused as past cohort.",
+        "Terminal old units do not empty training data; known same trial lineage excluded.",
+        "Fixed page size under a bound cursor, source timestamp precision and no invented receipt time.",
+        "Repeated/missing upstream cursor is partial failure, not end of source.",
+        "Overlapping ambiguous archive revision dates are rejected instead of ranked by import order.",
+        "Source revocation applies through historical and older snapshot/investigation endpoints; unknown permission denies.",
+        "Shared full training evidence with bounded preview references; no quadratic prediction payload.",
+        "Real-source export includes adopted facts and versions; mobile long strings wrap."
+      ],
+      "remaining_blocking_findings": []
+    },
+    "documentation": [
+      "README.md",
+      "docs/开发说明.md",
+      "docs/开发分工.md",
+      "docs/接口说明.md",
+      "docs/资产盘点.md"
+    ],
+    "ownership": {
+      "李明洋": "integration, interfaces, sources and release lead",
+      "孙博文": "mining, investigation and historical computation",
+      "刘金彦": "web, export and independent evaluation tooling"
+    },
+    "limitations": [
+      "No actual ten-year archive supplied; public current receipts are not historical snapshots.",
+      "Synthetic .5 rate and .25 Brier validate arithmetic only; tied ranking is stable unit ID, not demonstrated discrimination.",
+      "Real public E2E adopted 1 ClinicalTrials record, 2 FDA letter records and 1 Europe PMC record; not full-corpus coverage.",
+      "Followups read Fabric-adopted versions; automated full-web research, WeKnora and professional evidence assessment are not connected.",
+      "Only current/development test configuration; new upstream link tested using host processes, not ordinary Docker-to-host loopback networking.",
+      "Old source inventory has not automatically become a versioned history archive; identity, label and permission coverage remain explicit."
+    ],
+    "rollback_and_runtime": {
+      "primary_radar_main_unchanged": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
+      "primary_fabric_dev_unchanged": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
+      "original_fabric_untracked_preserved": [
+        ".env.bak",
+        "start_workers.sh",
+        "zk_env/"
+      ],
+      "code_rollback": "Revert reviewed branch commits; do not downgrade/drop evidence tables to roll back code.",
+      "live_database_or_runtime_modified": false,
+      "test_processes_stopped": true,
+      "test_containers_stopped": [
+        "bioradar-history-web",
+        "bioradar-history-postgres",
+        "bioradar-history-redis"
+      ],
+      "volumes_preserved": true,
+      "existing_fabric_health": 200
+    }
+  },
   "application_version": "0.4.0",
   "checked_at": "2026-10-14T10:31:29.758008+00:00",
   "scope": "Local development handoff; engineering behavior, not professional intelligence quality.",

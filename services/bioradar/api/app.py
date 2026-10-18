@@ -11,6 +11,7 @@ from bioradar.api.errors import DomainError
 from bioradar.api.health import dependencies
 from bioradar.data.database import create_database
 from bioradar.research.engine.routes import create_engine_router
+from bioradar.research.history.routes import create_history_router
 from bioradar.research.pipeline import STAGES
 
 
@@ -26,6 +27,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title="BioRadar research engine", version=__version__, lifespan=lifespan)
     app.include_router(create_engine_router(settings))
+    app.include_router(create_history_router(settings))
 
     @app.middleware("http")
     async def request_identity(request: Request, call_next):

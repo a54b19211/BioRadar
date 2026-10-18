@@ -1,0 +1,15 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "cutoff": {
+      "format": "date-time",
+      "title": "Cutoff",
+      "type": "string"
+    }
+  },
+  "required": [
+    "cutoff"
+  ],
+  "title": "HistoryEvaluationCreate",
+  "type": "object"
+}

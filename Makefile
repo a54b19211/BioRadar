@@ -6,7 +6,7 @@ CASE ?= BOOT
 MODE ?= real
 MANIFEST ?=
 
-.PHONY: help init bootstrap dev stop status migrate test engine-integration contract-check engine-contract web-install web-check web-races decision-probes example smoke scenario snapshot-import evaluate lint
+.PHONY: help init bootstrap dev stop status migrate test history-test history-cli engine-integration contract-check engine-contract web-install web-check web-races decision-probes example smoke scenario snapshot-import evaluate lint
 help:
 	@echo 'make init && make dev       start isolated local framework'
 	@echo 'make bootstrap             install Python development dependencies with uv'
@@ -53,7 +53,7 @@ decision-probes:
 example:
 	$(UV) run --frozen python scripts/example.py
 lint:
-	$(UV) run --frozen ruff check services tests db/migrations scripts/init_dev.py scripts/task_entry.py scripts/export_engine_contract.py scripts/check_engine_runtime.py scripts/check_decision_runtime.py scripts/check_postgres_tests.py scripts/check_decision_semantics.py scripts/example.py
+	$(UV) run --frozen ruff check services tests db/migrations scripts/init_dev.py scripts/task_entry.py scripts/export_engine_contract.py scripts/check_engine_runtime.py scripts/check_decision_runtime.py scripts/check_postgres_tests.py scripts/check_decision_semantics.py scripts/example.py scripts/history_e2e.py
 smoke:
 	$(COMPOSE) exec -T api python -m bioradar.ops.probe
 scenario:
@@ -62,3 +62,8 @@ snapshot-import:
 	$(UV) run --frozen python scripts/task_entry.py snapshot-import --manifest '$(MANIFEST)'
 evaluate:
 	$(UV) run --frozen python scripts/task_entry.py evaluate --manifest '$(MANIFEST)'
+
+history-test:
+	$(UV) run --frozen python scripts/check_postgres_tests.py tests/test_history.py
+history-cli:
+	$(UV) run --frozen python -m bioradar.ops.history_cli --help

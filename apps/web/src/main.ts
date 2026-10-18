@@ -7,6 +7,7 @@ import WorkbenchPage from "./pages/WorkbenchPage.vue";
 import ConnectionsPage from "./pages/ConnectionsPage.vue";
 import RadarPage from "./pages/RadarPage.vue";
 import DecisionPage from "./pages/DecisionPage.vue";
+import HistoryPage from "./pages/HistoryPage.vue";
 import InvestigationsPage from "./pages/InvestigationsPage.vue";
 
 const router = createRouter({
@@ -15,6 +16,7 @@ const router = createRouter({
     { path: "/", redirect: "/radar" },
     { path: "/radar", component: RadarPage },
     { path: "/decisions", component: DecisionPage },
+    { path: "/history", component: HistoryPage },
     { path: "/topics", component: WorkbenchPage, props: { kind: "topics" } },
     {
       path: "/investigations",
