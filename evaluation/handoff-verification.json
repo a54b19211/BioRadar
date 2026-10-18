@@ -1899,8 +1899,20 @@
       "fabric_general_before_narrow_publication_fixes": {
         "passed": 265
       },
-      "required": "BOOT 21, contracts, lint, generated types, web build, 11 web race checks passed; actual infrastructure probe follows deployment",
-      "counts_note": "Overlapping test selections are not added into a total."
+      "required": "BOOT 21, contracts, lint, generated types, web build, 11 web race checks passed; actual primary PostgreSQL/RQ/worker probe passed.",
+      "counts_note": "Overlapping test selections are not added into a total.",
+      "fabric_cleaning_final": {
+        "passed": 57,
+        "postgres_used": true,
+        "independent_reprojection_and_graph_checks": 2
+      },
+      "fabric_input_diagnostics_final": {
+        "passed": 41,
+        "postgres_used": true,
+        "independent_new_boundary_checks": 5
+      },
+      "final_counter_panel": "Non-author approved; vue-tsc and production build passed after optional counts handling.",
+      "primary_infrastructure_probe": "9c1e716d-fcb8-4a9b-8b0b-52af214d9ca1"
     },
     "review": {
       "authors": [
@@ -1908,7 +1920,7 @@
         "mining_methods (Radar)"
       ],
       "cross_review": "both approved each other",
-      "independent": "continuous_runtime_review approved both and all 6 systemd units",
+      "independent": "continuous_runtime_review approved runtime, six units, source cleaning/graph offsets, input diagnostics and final count display; no remaining P0/P1 within the declared input contract.",
       "model": "gpt-6.1-sol",
       "resolved": [
         "concurrent inventory backfill must not overwrite newer update/delete",
@@ -1924,18 +1936,247 @@
       "hourly_investigations": 6,
       "nonurgent_cooldown_minutes": 60,
       "publication_min_free_gib": 15,
-      "initial_backfill": "1 record per publisher poll; tune from measured disk/latency, not a claim of complete inventory"
+      "initial_backfill": "Started at 1/30s for inspection, then configured at up to 5 per 10s with pending-work priority and 15GiB floor.",
+      "monitor_poll_seconds": 2,
+      "publisher_poll_seconds": 10,
+      "publisher_pending_batch_size": 20,
+      "publisher_inventory_batch_size": 5
     },
     "deployment": {
-      "state": "approved_pending_activation",
-      "web_15176": "remains stopped",
-      "runtime": "user systemd; linger enabled, original Compose PostgreSQL/Redis volumes"
+      "state": "running",
+      "observed_at": "2026-10-18T05:04:47.826232+00:00",
+      "code_branches": {
+        "radar": "main (fast-forward from existing codex/historical-intelligence)",
+        "fabric": "dev (fast-forward from existing codex/historical-intelligence)"
+      },
+      "code_commits": {
+        "radar_engine": "5ecc61c1cf2804785e5fc5e06bac0b5bd2cc560d",
+        "fabric": "7aa6b162a34421ea7ac327f13d488ae9cab403c0"
+      },
+      "runtime": "Six user systemd services enabled; Linger=yes; original Compose PostgreSQL/Redis volumes retained and restart enabled.",
+      "services": {
+        "datafabric-history": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "datafabric-history-worker": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "datafabric-publisher": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "bioradar-api": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "bioradar-worker": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "bioradar-monitor": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        }
+      },
+      "web_15176_closed": true,
+      "original_fabric_8100_status": 200,
+      "history_api": "127.0.0.1:18511",
+      "radar_api": "127.0.0.1:18100",
+      "original_source_database": "zk, port 54321",
+      "independent_history_database": "datafabric_history, existing Radar PostgreSQL port 15436",
+      "legacy_publication_counts": {
+        "blocked": 1,
+        "published": 562
+      },
+      "monitor_sources": [
+        {
+          "source_id": "clinicaltrials",
+          "is_demo": false,
+          "acked_after": 0,
+          "scan_max_seq": null,
+          "active_batch_id": null,
+          "state": "idle",
+          "last_poll_at": "2026-10-18T05:04:45.520268Z",
+          "last_success_at": "2026-10-18T05:04:45.424675Z",
+          "error_code": null,
+          "retained_records": 0
+        },
+        {
+          "source_id": "europe_pmc",
+          "is_demo": false,
+          "acked_after": 0,
+          "scan_max_seq": null,
+          "active_batch_id": null,
+          "state": "idle",
+          "last_poll_at": "2026-10-18T05:04:23.981567Z",
+          "last_success_at": "2026-10-18T05:04:23.885012Z",
+          "error_code": null,
+          "retained_records": 0
+        },
+        {
+          "source_id": "external_archive",
+          "is_demo": false,
+          "acked_after": 0,
+          "scan_max_seq": null,
+          "active_batch_id": null,
+          "state": "idle",
+          "last_poll_at": "2026-10-18T05:04:27.302204Z",
+          "last_success_at": "2026-10-18T05:04:27.206468Z",
+          "error_code": null,
+          "retained_records": 0
+        },
+        {
+          "source_id": "fda_crl",
+          "is_demo": false,
+          "acked_after": 0,
+          "scan_max_seq": null,
+          "active_batch_id": null,
+          "state": "idle",
+          "last_poll_at": "2026-10-18T05:04:30.569106Z",
+          "last_success_at": "2026-10-18T05:04:30.474411Z",
+          "error_code": null,
+          "retained_records": 0
+        },
+        {
+          "source_id": "legacy_documents",
+          "is_demo": false,
+          "acked_after": 645,
+          "scan_max_seq": null,
+          "active_batch_id": null,
+          "state": "idle",
+          "last_poll_at": "2026-10-18T05:04:35.052678Z",
+          "last_success_at": "2026-10-18T05:04:34.981619Z",
+          "error_code": null,
+          "retained_records": 40
+        },
+        {
+          "source_id": "primekg_graph",
+          "is_demo": false,
+          "acked_after": 0,
+          "scan_max_seq": null,
+          "active_batch_id": null,
+          "state": "idle",
+          "last_poll_at": "2026-10-18T05:04:38.455896Z",
+          "last_success_at": "2026-10-18T05:04:38.355059Z",
+          "error_code": null,
+          "retained_records": 0
+        },
+        {
+          "source_id": "reviewed_graph",
+          "is_demo": false,
+          "acked_after": 137,
+          "scan_max_seq": 146,
+          "active_batch_id": "fa7dd51e-2764-4b52-9b38-73d44af7b1bd",
+          "state": "queued",
+          "last_poll_at": "2026-10-18T05:04:42.152404Z",
+          "last_success_at": "2026-10-18T05:04:17.379197Z",
+          "error_code": null,
+          "retained_records": 45
+        }
+      ],
+      "real_automatic_investigations_observed": [
+        {
+          "id": "e6a79a4e-c5c9-469c-9ad5-3b3b83a14e2a",
+          "title": "负面词句取证线索",
+          "is_demo": false,
+          "status": "open",
+          "material_count": 2,
+          "judgment_count": 0
+        },
+        {
+          "id": "fcdcf4b2-d757-4d5d-a2e5-52d82a38f61c",
+          "title": "负面词句取证线索",
+          "is_demo": false,
+          "status": "open",
+          "material_count": 2,
+          "judgment_count": 0
+        },
+        {
+          "id": "19362323-7314-4069-802b-fa229e5087b5",
+          "title": "单条文本线索：指导 / 原则 / 导原 / m13a / 公告 / 药品",
+          "is_demo": false,
+          "status": "open",
+          "material_count": 2,
+          "judgment_count": 0
+        },
+        {
+          "id": "2b9d0b53-9a84-45a6-9523-a0027871ad1a",
+          "title": "单条文本线索：td / colspan / rowspan / 标示 / 化妆 / 妆品",
+          "is_demo": false,
+          "status": "closed",
+          "material_count": 2,
+          "judgment_count": 0
+        },
+        {
+          "id": "833e357b-ca91-4be0-981e-7fdd0ca5ada2",
+          "title": "文本短语线索：source site",
+          "is_demo": false,
+          "status": "closed",
+          "material_count": 2,
+          "judgment_count": 0
+        },
+        {
+          "id": "d1754865-0094-4787-b452-c95c6ae52a72",
+          "title": "文本短语线索：publish date",
+          "is_demo": false,
+          "status": "closed",
+          "material_count": 2,
+          "judgment_count": 0
+        }
+      ],
+      "no_automatic_professional_judgments": true,
+      "is_demo": false,
+      "normal_source_writes_captured_by_additive_triggers": true,
+      "old_inventory_backfill_complete": false,
+      "oversized_record": {
+        "id": 325,
+        "state": "blocked",
+        "error": {
+          "code": "publication_record_too_large",
+          "unit": "characters",
+          "field": "raw_content",
+          "limit": 1048576,
+          "message": "单条原件超过当前发表上限；待办及旧版保留，请先分块或使用原件存储扩展，不会截断为成功"
+        },
+        "attempts": 24,
+        "prepared_empty": true,
+        "retained_raw_characters": 9522185,
+        "retry_in_seconds": 3535.300328
+      },
+      "runtime_config_files": "private ~/.config/datafabric-publication/runtime.env and ~/.config/bioradar/runtime.env; permissions 600; credentials not stored in the repository"
     },
     "limitations": [
       "Engineering fixtures are synthetic and do not prove intelligence value.",
       "Real inventory is progressively adopted, not already fully mined.",
       "Current followups query published Fabric versions; complete WeKnora and specialist review remain pending.",
-      "No complete historical snapshot archive was supplied; no verified ten-year prediction claim."
-    ]
+      "No complete historical snapshot archive was supplied; no verified ten-year prediction claim.",
+      "One actual ~9.7MB original exceeds the current one-record import contract, is retained as blocked with an explicit character limit and one-hour retry; large-original storage/segmented reading remains to be extended. Other records continue."
+    ],
+    "real_data_corrections": {
+      "collector_metadata_and_html_markup": "Actual NMPA originals revealed frontmatter and table tags as false features; cleaned in projection v0.2.",
+      "source_records_reprojected": 103,
+      "original_raws_unchanged": 103,
+      "old_versions_verified_unchanged": 2,
+      "graph_quote_binding": "Exact unique location in the target clean text; original document and clinical field locators unchanged.",
+      "confirmed_false_positive_investigations_closed": 3,
+      "unstarted_markup_candidates_blocked": 4,
+      "isolation_scope": "Only confirmed HTML-tag candidates wholly supported by the fixed old versions, no investigation and no dig-start receipt; legitimate unchanged-text candidates retained.",
+      "audit": "Source manifest, fixed reimport receipts and exact before/after maintenance receipt retained privately on zktest.",
+      "partial_state_investigation": "No partial-state defect: a legitimate bounded result completed through the existing path after 69 seconds, consistent with the previous 7-source/10s round. Poll interval subsequently adjusted to 2s; computation semantics unchanged."
+    }
   }
 }

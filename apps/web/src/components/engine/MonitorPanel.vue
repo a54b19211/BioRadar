@@ -130,6 +130,13 @@ onUnmounted(() => { disposed = true; ++generation; clearTimeout(timer); });
           <article v-for="publisher in status.publication_sources" :key="publisher.source_id">
             <strong>{{ publisher.source_id }} · {{ stateLabels[publisher.publisher_state] ?? "状态待核对" }}</strong>
             <p class="muted">上次心跳：{{ time(publisher.last_heartbeat) }}</p>
+            <template v-if="publisher.counts && publisher.publisher_state !== 'unavailable'">
+            <p class="muted">已发布 {{ publisher.counts?.published ?? 0 }} 条；等待发布 {{ publisher.counts?.pending ?? 0 }} 条；正在处理 {{ publisher.counts?.processing ?? 0 }} 条。</p>
+            <p v-if="(publisher.counts?.blocked ?? 0) + (publisher.counts?.failed ?? 0)" class="notice">
+              {{ publisher.counts?.blocked ?? 0 }} 条需要上游处理，{{ publisher.counts?.failed ?? 0 }} 条等待重试。
+              这些资料未计入已发布数量，其余资料继续处理。
+            </p>
+            </template>
             <p v-if="publisher.disk_paused" class="notice">存储空间不足，发布已暂停；待处理资料仍保留。</p>
             <p v-if="publisher.error_code" class="error-panel">{{ publisher.error_code }}</p>
           </article>
