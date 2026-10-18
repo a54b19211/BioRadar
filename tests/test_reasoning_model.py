@@ -71,7 +71,15 @@ def test_complete_json_freezes_actual_wire_hash_usage_and_model_alias():
         assert body["chat_template_kwargs"] == {"enable_thinking": False}
         assert body["temperature"] == 0 and body["top_p"] == 1
         assert "top_k" not in body
-        assert body["max_tokens"] == 4096 and body["response_format"] == {"type": "json_object"}
+        assert body["max_tokens"] == 4096
+        assert body["response_format"] == {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "read_plan",
+                "schema": {"type": "object", "properties": {"answer": {"type": "string"}}},
+                "strict": True,
+            },
+        }
         return httpx.Response(200, json=completion())
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
@@ -103,6 +111,7 @@ def test_optional_stages_preserve_bounded_single_call_receipts(stage):
     assert result.receipt.stage == stage and result.receipt.status == "completed"
     assert result.receipt.request_sha256 == hashlib.sha256(requests[0].content).hexdigest()
     assert json.loads(requests[0].content)["max_tokens"] == 4096
+    assert json.loads(requests[0].content)["response_format"]["json_schema"]["name"] == stage
 
 
 def test_additional_unbounded_stage_is_rejected_before_dispatch():
@@ -134,6 +143,7 @@ def test_model_status_does_not_expose_endpoint_or_credentials():
 @pytest.mark.parametrize(
     ("code", "body", "expected"),
     [
+        (400, {"unsupported_schema": "DO-NOT-LEAK"}, "model_http_error"),
         (401, {"credential": "DO-NOT-LEAK"}, "model_access_denied"),
         (403, {"credential": "DO-NOT-LEAK"}, "model_access_denied"),
         (429, {"private": "DO-NOT-LEAK"}, "model_rate_limited"),
@@ -368,11 +378,14 @@ def test_legacy_parameter_defaults_cannot_inherit_current_thinking_configuration
     legacy = {
         key: value
         for key, value in original.items()
-        if key not in {"temperature", "top_p", "top_k", "static_options"}
+        if key not in {"temperature", "top_p", "top_k", "static_options", "output_format"}
     }
     legacy.update(max_calls=6, job_timeout_seconds=330)
     normalized = normalize_model_parameters(legacy)
-    assert json.dumps(normalized, sort_keys=True) == json.dumps(original, sort_keys=True)
+    assert json.dumps(normalized, sort_keys=True) == json.dumps(
+        {**original, "output_format": "json_object"}, sort_keys=True
+    )
+    assert normalized != original
     current = model_parameters(
         settings(
             semantic_llm_enable_thinking=True,
@@ -404,3 +417,33 @@ def test_legacy_parameter_defaults_cannot_inherit_current_thinking_configuration
 def test_model_sampling_and_increased_budgets_are_still_bounded(changes):
     with pytest.raises(ValidationError):
         settings(**changes)
+
+
+def test_json_schema_preserves_required_optional_and_defaults_without_fallback():
+    schema = {
+        "type": "object",
+        "properties": {
+            "answer": {"type": "string"},
+            "optional_count": {"anyOf": [{"type": "integer"}, {"type": "null"}], "default": None},
+        },
+        "required": ["answer"],
+        "additionalProperties": False,
+    }
+    original = copy.deepcopy(schema)
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert json.loads(request.content)["response_format"] == {
+            "type": "json_schema",
+            "json_schema": {"name": "read_plan", "schema": original, "strict": True},
+        }
+        return httpx.Response(200, json=completion())
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = invoke(client, response_schema=schema)
+    assert schema == original
+    assert len(requests) == 1
+    assert result.receipt.request_sha256 == hashlib.sha256(requests[0].content).hexdigest()
+    assert model_parameters(settings())["output_format"] == "json_schema"
+    assert normalize_model_parameters({})["output_format"] == "json_object"

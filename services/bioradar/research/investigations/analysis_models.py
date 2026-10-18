@@ -8,8 +8,8 @@ from pydantic import Field
 from bioradar.research.engine.schemas import RuntimeModel
 from bioradar.research.mining.models import ProviderRef
 
-ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.4.6"
-PROMPT_VERSION = "bioradar-investigation-reading-v0.4.6"
+ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.4.7"
+PROMPT_VERSION = "bioradar-investigation-reading-v0.4.7"
 Text = Annotated[str, Field(min_length=1, max_length=2000)]
 LocalId = Annotated[str, Field(min_length=1, max_length=80)]
 State = Literal["queued", "running", "completed", "needs_review", "blocked", "failed"]
@@ -199,6 +199,7 @@ class AnalysisResult(RuntimeModel):
         "bioradar-investigation-analysis-v0.4.4",
         "bioradar-investigation-analysis-v0.4.5",
         "bioradar-investigation-analysis-v0.4.6",
+        "bioradar-investigation-analysis-v0.4.7",
     ] = ANALYSIS_VERSION
     claims: list[VerifiedClaim]
     explanations: list[Explanation]

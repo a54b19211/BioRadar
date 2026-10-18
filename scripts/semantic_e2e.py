@@ -301,12 +301,14 @@ class SemanticExercise(TopicExercise):
             "bioradar-investigation-analysis-v0.4.4",
             "bioradar-investigation-analysis-v0.4.5",
             "bioradar-investigation-analysis-v0.4.6",
+            "bioradar-investigation-analysis-v0.4.7",
         }:
             allowed_stages.append([*normal_stages, "revise", "recheck"])
         if view["version"] in {
             "bioradar-investigation-analysis-v0.4.4",
             "bioradar-investigation-analysis-v0.4.5",
             "bioradar-investigation-analysis-v0.4.6",
+            "bioradar-investigation-analysis-v0.4.7",
         }:
             allowed_stages.extend(
                 [

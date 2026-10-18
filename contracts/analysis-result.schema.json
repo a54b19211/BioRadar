@@ -539,7 +539,7 @@
   "additionalProperties": false,
   "properties": {
     "version": {
-      "default": "bioradar-investigation-analysis-v0.4.6",
+      "default": "bioradar-investigation-analysis-v0.4.7",
       "enum": [
         "bioradar-investigation-analysis-v0.1",
         "bioradar-investigation-analysis-v0.2",
@@ -550,7 +550,8 @@
         "bioradar-investigation-analysis-v0.4.3",
         "bioradar-investigation-analysis-v0.4.4",
         "bioradar-investigation-analysis-v0.4.5",
-        "bioradar-investigation-analysis-v0.4.6"
+        "bioradar-investigation-analysis-v0.4.6",
+        "bioradar-investigation-analysis-v0.4.7"
       ],
       "title": "Version",
       "type": "string"

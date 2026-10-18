@@ -169,7 +169,12 @@ def validate_claims(claims, evidence):
 
 
 def validate_reading(value, evidence, search_scope):
-    result = ModelReading.model_validate(value)
+    try:
+        result = ModelReading.model_validate(value)
+    except ValidationError:
+        raise DomainError(
+            "analysis_reading_invalid", "模型首次解读输出不完整或格式无效，未补造内容", 422
+        ) from None
     validate_claims(result.claims, evidence)
     claim_ids = {c.id for c in result.claims}
     gap_ids = {g.id for g in result.gaps}

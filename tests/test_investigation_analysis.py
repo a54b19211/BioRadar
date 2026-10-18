@@ -1016,6 +1016,7 @@ def test_legacy_quote_only_analysis_remains_readable_in_export_shape(runtime, da
         )
         fixed["version"] = result["version"] = "bioradar-investigation-analysis-v0.2"
         fixed["prompt_version"] = "bioradar-investigation-reading-v0.2"
+        fixed["model_parameters"].pop("output_format")
         for item in progress["evidence"]:
             item.pop("passages", None)
             item.pop("selection_hash", None)
@@ -1492,6 +1493,77 @@ def test_parent_only_enters_comparison_and_failed_comparison_preserves_current_d
         assert canonical_hash(session.get(InvestigationAnalysisRecord, parent["id"]).result) == parent_hash
         assert session.scalar(select(func.count()).select_from(InvestigationAnalysisRecord)) == 2
     assert InvestigationService(make().engine).get(actor, view["id"]).judgment_count == 0
+
+
+def test_empty_model_reading_is_classified_and_preserved_without_fabricated_content(runtime, database):
+    make, actor, view, source, model, *_ = runtime
+
+    def empty_reading(payload, result):
+        if payload["task"] == "read_plan":
+            result.clear()
+
+    model.transform = empty_reading
+    created = start(runtime)
+    make().execute(created["id"], created["input_hash"])
+    result = make().get(actor, view["id"], created["id"])
+    assert result.state == "blocked" and result.error_code == "analysis_reading_invalid"
+    assert result.result is None and result.note_entry_id is None
+    assert len(model.requests) == 1 and result.calls[0]["status"] == "received"
+    assert result.calls[0]["receipt"]["finish_reason"] == "stop"
+    assert not any(path == "/api/history/records" for path, _ in source.calls)
+    with Session(database) as session:
+        call = session.get(InvestigationAnalysisRecord, created["id"]).progress["calls"][0]
+        assert call["output"] == {}
+        assert set(call["response_schema"]["required"]) == {
+            "claims",
+            "explanations",
+            "gaps",
+            "next_queries",
+            "conditional_answer",
+        }
+        wire = model.wires[0]["response_format"]
+        assert wire["type"] == "json_schema" and wire["json_schema"]["strict"] is True
+        assert wire["json_schema"]["schema"] == call["response_schema"]
+    make().execute(created["id"], created["input_hash"])
+    assert len(model.requests) == 1
+    assert InvestigationService(make().engine).get(actor, view["id"]).judgment_count == 0
+
+
+def test_legacy_output_format_cannot_resume_a_cached_response_under_structured_decoding(runtime, database):
+    make, actor, view, source, model, *_ = runtime
+    created = start(runtime)
+
+    def pause():
+        with Session(database) as session, session.begin():
+            session.add(
+                MonitorState(
+                    workspace_id=actor.workspace_id,
+                    paused=True,
+                    control_revision=1,
+                    source_progress={},
+                    next_source=0,
+                )
+            )
+
+    model.change = pause
+    make().execute(created["id"], created["input_hash"])
+    waiting = make().get(actor, view["id"], created["id"])
+    assert waiting.state == "queued" and waiting.calls[0]["status"] == "received"
+    receipt = copy.deepcopy(waiting.calls[0]["receipt"])
+    with Session(database) as session, session.begin():
+        row = session.get(InvestigationAnalysisRecord, created["id"])
+        fixed = copy.deepcopy(row.fixed_input)
+        assert fixed["model_parameters"].pop("output_format") == "json_schema"
+        row.fixed_input = fixed
+        session.get(MonitorState, actor.workspace_id).paused = False
+    make().execute(created["id"], created["input_hash"])
+    result = make().get(actor, view["id"], created["id"])
+    assert result.state == "blocked" and result.error_code == "analysis_model_changed"
+    assert result.calls[0]["receipt"] == receipt and result.note_entry_id is None
+    assert len(model.requests) == 1
+    assert not any(path == "/api/history/records" for path, _ in source.calls)
+    with Session(database) as session:
+        assert session.get(InvestigationAnalysisRecord, created["id"]).fixed_input == fixed
 
 
 def test_incomplete_model_review_is_classified_without_fabricating_coverage(runtime):

@@ -101,6 +101,7 @@ def model_parameters(settings: Settings) -> dict[str, Any]:
         "top_p": settings.semantic_llm_top_p,
         "top_k": settings.semantic_llm_top_k,
         "static_options": {"enable_thinking": settings.semantic_llm_enable_thinking},
+        "output_format": "json_schema",
     }
 
 
@@ -121,6 +122,7 @@ def normalize_model_parameters(parameters: dict[str, Any]) -> dict[str, Any]:
         temperature=parameters.get("temperature", 0.0),
         top_p=parameters.get("top_p", 1.0),
         top_k=parameters.get("top_k"),
+        output_format=parameters.get("output_format", "json_object"),
         static_options={
             "enable_thinking": parameters.get("static_options", {}).get("enable_thinking", False)
         },
@@ -227,7 +229,10 @@ def complete_json(
             "stream": False,
             "max_tokens": parameters["max_output_tokens"],
             "chat_template_kwargs": parameters["static_options"],
-            "response_format": {"type": "json_object"},
+            "response_format": {
+                "type": parameters["output_format"],
+                "json_schema": {"name": stage, "schema": response_schema, "strict": True},
+            },
             "messages": [
                 {
                     "role": "system",

@@ -3048,11 +3048,11 @@
     }
   },
   "semantic_investigation_20261018": {
-    "status": "code_reviewed_committed_candidate_actual_content_pending",
-    "checked_at": "2026-10-18T15:04:07.034821+00:00",
+    "status": "v047_structured_generation_candidate",
+    "checked_at": "2026-10-18T15:15:35.278566+00:00",
     "implementation": {
-      "analysis_version": "bioradar-investigation-analysis-v0.4.6",
-      "prompt_version": "bioradar-investigation-reading-v0.4.6",
+      "analysis_version": "bioradar-investigation-analysis-v0.4.7",
+      "prompt_version": "bioradar-investigation-reading-v0.4.7",
       "storage": "one investigation_analyses business table; existing PostgreSQL/RQ",
       "normal_model_calls": {
         "initial": 3,
@@ -3069,7 +3069,8 @@
       "input_separation": "No previous machine content in reading, synthesis, current-draft check or correction. After the current draft passes generic checking, one separate compare call may produce only AnalysisUpdate. It cannot alter the current draft. Comparison is not covered by the preceding draft check.",
       "review_findings": "section enum plus optional current claim ID; no arbitrary machine-authored JSON paths; old path and self-reported coverage fields remain readable without fabricating coverage.",
       "selected_citations": "Current check/revision receives the actual server-bound selected passages with claim ID and candidate relation; selection is not a guarantee of support. Full original context remains and all bytes count against the same input limit.",
-      "model_configuration": "One non-secret parameter function drives actual request, fixed input, reuse signature and recovery guard. Defaults retained; configuration changes cannot resume old work or silently reuse old drafts. Received receipts preserved before guards; hidden reasoning not persisted."
+      "model_configuration": "One non-secret parameter function drives actual request, fixed input, reuse signature and recovery guard. Defaults retained; configuration changes cannot resume old work or silently reuse old drafts. Received receipts preserved before guards; hidden reasoning not persisted.",
+      "structured_output": "The same stage JSON Schema is sent as strict provider response_format; no json_object fallback or removal of required fields. Format is part of fixed model parameters and recovery checks. Schema validity is not semantic acceptance."
     },
     "previous_primary_heads": {
       "radar": "c638e45e8cf8dd7d210ee2e416d589fec6f14653",
@@ -3081,8 +3082,8 @@
       "v04_affected": "131 passed, no skips; analysis, investigations, monitor, topics and model adapter",
       "v041_analysis": "29 passed, no skips",
       "independent_v041_branches": "2 passed on PostgreSQL; maintained may have no changes, revised requires changes",
-      "lint_contracts_ui_races": "passed; includes 9 delayed-response machine-analysis UI checks",
-      "web": "Final v0.4.6 contract-generated types, Vue checking and production build passed. UI behavior checks previously passed; final current-result browser check pending.",
+      "lint_contracts_ui_races": "Final v0.4.7 make lint, contract-check and all web-races passed; machine analysis has 9 delayed-response checks.",
+      "web": "v0.4.7 generated types, Vue checking and production build passed; final actual-result browser acceptance pending.",
       "postgres_rq_probe": {
         "state": "passed",
         "id": "c142a0d0-1a0c-4e6a-b909-b579b52261a4"
@@ -3097,7 +3098,9 @@
       "v044_final_analysis": "42 passed after final cached-version guard; independent reviewer ran original41 plus added1 successfully.",
       "v045_optional_finding_references": "Author and independent reviewer both passed 2 PostgreSQL boundary cases: absent issue refs may proceed to correction without invented references; supplied unknown refs still rejected.",
       "v046_analysis": "53 passed on isolated PostgreSQL, no skips; includes parameter-change recovery/reuse and selected-citation correspondence.",
-      "v046_adapter": "43 passed independently; defaults, bounds, requested sampling, legacy normalization and final-output-only handling."
+      "v046_adapter": "43 passed independently; defaults, bounds, requested sampling, legacy normalization and final-output-only handling.",
+      "v047_analysis": "55 passed on isolated PostgreSQL, no skips; independent reviewer ran the new two failure/recovery cases plus historical read compatibility (3 passed).",
+      "v047_adapter": "45 passed by author and independent reviewer; provider schema verified, original DTO schema sent without relaxation or fallback."
     },
     "actual_cases": {
       "trial": {
@@ -3148,10 +3151,15 @@
             "version": "v0.4.5",
             "analysis_id": "d4cd4669-3bda-4fb4-b72e-7f6fe6d3e5d7",
             "result": "Five actual calls reached needs_review without an engineering error. Current draft improved dates and enrollment but retained overstatement of mortality causation and inaccurate attribution to selected passages; independent content review failed. No historical comparison was executed; not accepted as reliable intelligence."
+          },
+          {
+            "version": "v0.4.6",
+            "analysis_id": "02d374fa-a60d-448b-a72d-f2b6bcd6f302",
+            "result": "One actual 200/stop response in 50.408s, 6455 input / 6461 output tokens, final JSON was {}. Rejected for missing required reading fields; no synthesis, citation review, repair or comparison occurred. Selected thinking profile not accepted from this failed run."
           }
         ],
-        "candidate_analysis_id": "02d374fa-a60d-448b-a72d-f2b6bcd6f302",
-        "review": "Actual v0.4.6 run in progress with bounded thinking/sampling configuration and selected-citation table; no content acceptance yet.",
+        "candidate_analysis_id": "7ffd7392-c684-477a-b2ba-1d31ed77ada6",
+        "review": "Actual v0.4.7 full chain running with strict native JSON Schema and the fixed selected profile; content not yet accepted.",
         "candidate_admission": "Actual rolling-hour occupancy 3, isolated manual quota 4 grants one slot; production remains 2. No reset or source re-fetch."
       },
       "who": {
@@ -3163,8 +3171,8 @@
       }
     },
     "review": {
-      "design_and_code": "Root and three GPT-6.1-Sol max agents agreed on v0.4.6. Independent research53 and adapter43 passed; both code owners cross-reviewed the other part. UI and six Markdown documents reviewed. Content acceptance remains separate.",
-      "final_content": "Awaiting v0.4.6 actual full chain; all preceding quality failures preserved.",
+      "design_and_code": "Three GPT-6.1-Sol max collaborators reviewed the design and cross-reviewed implementation; v0.4.7 independent adapter45 and targeted PostgreSQL3 passed, author analysis55 passed. Content approval remains separate.",
+      "final_content": "Pending actual v0.4.7; v0.4.6 empty result is a preserved failure, not a semantic test success.",
       "final_browser": "v0.4.2 real Chromium10 passed; v0.4.4 changed finding locations/comparison qualification and built successfully; final actual browser check pending."
     },
     "recovery": {
@@ -3222,7 +3230,8 @@
       "top_k": 20,
       "max_output_tokens": 12288,
       "timeout_seconds": 150,
-      "qualification": "Selected bounded evaluation configuration, not a claim of official medical optimum. Internal model alias has no verified immutable weight identity. No success inferred before actual content review."
+      "qualification": "Selected bounded evaluation configuration, not a claim of official medical optimum. Internal model alias has no verified immutable weight identity. No success inferred before actual content review.",
+      "output_format": "json_schema"
     }
   }
 }
