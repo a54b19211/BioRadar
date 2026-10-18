@@ -3048,8 +3048,8 @@
     }
   },
   "semantic_investigation_20261018": {
-    "status": "v047_structured_generation_candidate",
-    "checked_at": "2026-10-18T15:15:35.278566+00:00",
+    "status": "engineering_verified_content_rejected_not_deployed",
+    "checked_at": "2026-10-18T15:31:08.128216+00:00",
     "implementation": {
       "analysis_version": "bioradar-investigation-analysis-v0.4.7",
       "prompt_version": "bioradar-investigation-reading-v0.4.7",
@@ -3077,13 +3077,13 @@
       "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
     },
     "checks": {
-      "boot": "21 passed",
+      "boot": "Final v0.4.7 21 passed.",
       "backend_before_v04": "416 passed; historical pre-correction suite",
       "v04_affected": "131 passed, no skips; analysis, investigations, monitor, topics and model adapter",
       "v041_analysis": "29 passed, no skips",
       "independent_v041_branches": "2 passed on PostgreSQL; maintained may have no changes, revised requires changes",
       "lint_contracts_ui_races": "Final v0.4.7 make lint, contract-check and all web-races passed; machine analysis has 9 delayed-response checks.",
-      "web": "v0.4.7 generated types, Vue checking and production build passed; final actual-result browser acceptance pending.",
+      "web": "Final v0.4.7 contract-generated types, Vue check and production build passed.",
       "postgres_rq_probe": {
         "state": "passed",
         "id": "c142a0d0-1a0c-4e6a-b909-b579b52261a4"
@@ -3091,7 +3091,13 @@
       "note": "These are separate scopes and checkpoints, not additive test counts.",
       "v042_analysis": "31 passed on isolated PostgreSQL, no skips",
       "independent_v042_paths": "3 passed on PostgreSQL; only the exact known wrapper accepted, nonexistent and unknown-wrapper positions rejected",
-      "actual_browser": "10 passed; current semantic-browser-result.json and screenshots on zktest",
+      "actual_browser": {
+        "status": "passed",
+        "checks": 10,
+        "page_errors": [],
+        "analysis_id": "7ffd7392-c684-477a-b2ba-1d31ed77ada6",
+        "scope": "Real Chromium, authenticated API, exact current version, source read, export, delayed response, mobile and actual session expiry; not a content-quality approval."
+      },
       "v043_analysis": "32 passed on isolated PostgreSQL, no skips; independent reviewer also ran all 32 successfully",
       "v044_adapter": "32 passed independently; compare is one bounded stage, same model transport and fixed budgets",
       "v044_affected": "145 passed, no skips: analysis41 + investigations13 + monitor22 + topics37 + adapter32, all database cases connected to isolated PostgreSQL.",
@@ -3100,7 +3106,15 @@
       "v046_analysis": "53 passed on isolated PostgreSQL, no skips; includes parameter-change recovery/reuse and selected-citation correspondence.",
       "v046_adapter": "43 passed independently; defaults, bounds, requested sampling, legacy normalization and final-output-only handling.",
       "v047_analysis": "55 passed on isolated PostgreSQL, no skips; independent reviewer ran the new two failure/recovery cases plus historical read compatibility (3 passed).",
-      "v047_adapter": "45 passed by author and independent reviewer; provider schema verified, original DTO schema sent without relaxation or fallback."
+      "v047_adapter": "45 passed by author and independent reviewer; provider schema verified, original DTO schema sent without relaxation or fallback.",
+      "actual_request_transport": {
+        "all_five_request_sha256_match_receipts": true,
+        "largest_request_bytes": 47354,
+        "limit_bytes": 65536,
+        "strict_original_schema": true,
+        "independent_review": true,
+        "all_current_quote_spans_exact": true
+      }
     },
     "actual_cases": {
       "trial": {
@@ -3159,8 +3173,48 @@
           }
         ],
         "candidate_analysis_id": "7ffd7392-c684-477a-b2ba-1d31ed77ada6",
-        "review": "Actual v0.4.7 full chain running with strict native JSON Schema and the fixed selected profile; content not yet accepted.",
-        "candidate_admission": "Actual rolling-hour occupancy 3, isolated manual quota 4 grants one slot; production remains 2. No reset or source re-fetch."
+        "review": "Not accepted. Current Qwen invented 75 non-infused participants by subtracting incomparable registry/abstract counts, overstated source attribution and shifted clinical cutoff to publication time. Same-model review missed or endorsed these errors.",
+        "candidate_admission": "Actual rolling-hour occupancy 3, isolated manual quota 4 grants one slot; production remains 2. No reset or source re-fetch.",
+        "actual_stages": [
+          {
+            "stage": "read_plan",
+            "status": "received",
+            "finish_reason": "stop",
+            "elapsed_ms": 70809
+          },
+          {
+            "stage": "synthesize",
+            "status": "received",
+            "finish_reason": "stop",
+            "elapsed_ms": 48474
+          },
+          {
+            "stage": "check",
+            "status": "received",
+            "finish_reason": "stop",
+            "elapsed_ms": 64620
+          },
+          {
+            "stage": "revise",
+            "status": "received",
+            "finish_reason": "stop",
+            "elapsed_ms": 85682
+          },
+          {
+            "stage": "recheck",
+            "status": "received",
+            "finish_reason": "stop",
+            "elapsed_ms": 45171
+          }
+        ],
+        "terminal_state": "needs_review",
+        "error_code": null,
+        "comparison": "Not executed because current draft did not pass the persisted generic-review gate.",
+        "review_contract_limitation": "Raw recheck reported passed but populated findings with positive commentary; persisted validation treated nonempty findings conservatively as needs_review. This incidental rejection is not evidence that the system detected the unsupported 75-person claim. Ignoring findings would not repair the false content.",
+        "old_raw_records_unchanged": 12,
+        "total_tokens": 82888,
+        "monetary_cost": null,
+        "quota_restore": "Private isolated configuration restored to manual2/automatic6; all isolated processes stopped. Live limits and configuration never changed."
       },
       "who": {
         "investigation_id": "0eb6be51-becc-42d5-928e-bbeafcf4dcfb",
@@ -3172,8 +3226,17 @@
     },
     "review": {
       "design_and_code": "Three GPT-6.1-Sol max collaborators reviewed the design and cross-reviewed implementation; v0.4.7 independent adapter45 and targeted PostgreSQL3 passed, author analysis55 passed. Content approval remains separate.",
-      "final_content": "Pending actual v0.4.7; v0.4.6 empty result is a preserved failure, not a semantic test success.",
-      "final_browser": "v0.4.2 real Chromium10 passed; v0.4.4 changed finding locations/comparison qualification and built successfully; final actual browser check pending."
+      "final_content": "Root, research author, adapter author and independent reviewer agree: content failed. No further same-model attempts or case-specific numerical rules authorized in this iteration.",
+      "final_browser": "Independent reviewer confirmed exact v0.4.7 analysis ID, 10 real Chromium checks, zero page errors, current export identical to actual result, and mobile screenshot. README, asset list and this semantic audit distinguish engineering completion from rejected content.",
+      "freeze_decision": "All three GPT-6.1-Sol max collaborators agree to preserve this candidate and its failure evidence, with no semantic deployment and no additional same-model retries in this iteration.",
+      "independent_content_audit": {
+        "file": "semantic-case-v047-independent-review.json",
+        "sha256": "93d5a7d0b5f512df5a4a6b614eff076eee41e7cdf7fd0a044c37e1e5a7137837",
+        "engineering_approval": true,
+        "semantic_approval": false,
+        "deployment_approval": false
+      },
+      "author_architecture_audit": "semantic-case-v047-architecture-review.json"
     },
     "recovery": {
       "database_dump": "/home/zk_test/zk_projects/.bioradar-history/before-semantic-radar.dump",
@@ -3191,7 +3254,11 @@
     ],
     "evidence_directory": "/home/zk_test/zk_projects/.bioradar-history",
     "deployment": {
-      "status": "not_deployed"
+      "status": "not_deployed",
+      "reason": "Actual semantic content failed independent review; canonical main, live schema and live model configuration remain unchanged.",
+      "live_radar_head": "c638e45e8cf8dd7d210ee2e416d589fec6f14653",
+      "live_fabric_head": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6",
+      "existing_services": "Six pre-existing units remained active; port 15176 remains closed."
     },
     "model_probes": [
       {
@@ -3232,6 +3299,26 @@
       "timeout_seconds": 150,
       "qualification": "Selected bounded evaluation configuration, not a claim of official medical optimum. Internal model alias has no verified immutable weight identity. No success inferred before actual content review.",
       "output_format": "json_schema"
+    },
+    "provider_catalog": {
+      "http_status": 200,
+      "visible_models": [
+        "Qwen3.6-FP8"
+      ],
+      "max_model_len": 32768,
+      "scope": "Read-only current configured provider; no generation request, no inference about other providers.",
+      "existing_project_configuration_check": "Read-only Fabric env and WeKnora registered-model metadata checked. Both use the same Qwen3.6-FP8 chat endpoint; WeKnora also has embedding and rerank models, which are not generative substitutes. No secret columns queried or credentials copied. No claim about every external provider."
+    },
+    "next_dependency": "Evaluate a stronger available model or independent semantic-checking capability on preserved real inputs before enabling this feature. Access details requested; no alternate configured model is currently available.",
+    "cleanup": {
+      "status": "complete",
+      "report": "semantic-acceptance-cleanup.json",
+      "sha256": "79dee7d309aa1bfe36b11673972de90ee1504ea7aa2a18e8759ee2422becb035",
+      "isolated_processes_stopped": 5,
+      "test_containers_stopped": 3,
+      "test_volumes_and_evidence_preserved": true,
+      "production_six_units_active_same_pid_and_start": true,
+      "port_15176_closed": true
     }
   }
 }

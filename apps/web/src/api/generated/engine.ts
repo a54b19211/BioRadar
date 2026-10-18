@@ -899,10 +899,10 @@ export interface components {
         AnalysisResult: {
             /**
              * Version
-             * @default bioradar-investigation-analysis-v0.4.6
+             * @default bioradar-investigation-analysis-v0.4.7
              * @enum {string}
              */
-            version: "bioradar-investigation-analysis-v0.1" | "bioradar-investigation-analysis-v0.2" | "bioradar-investigation-analysis-v0.3" | "bioradar-investigation-analysis-v0.4" | "bioradar-investigation-analysis-v0.4.1" | "bioradar-investigation-analysis-v0.4.2" | "bioradar-investigation-analysis-v0.4.3" | "bioradar-investigation-analysis-v0.4.4" | "bioradar-investigation-analysis-v0.4.5" | "bioradar-investigation-analysis-v0.4.6";
+            version: "bioradar-investigation-analysis-v0.1" | "bioradar-investigation-analysis-v0.2" | "bioradar-investigation-analysis-v0.3" | "bioradar-investigation-analysis-v0.4" | "bioradar-investigation-analysis-v0.4.1" | "bioradar-investigation-analysis-v0.4.2" | "bioradar-investigation-analysis-v0.4.3" | "bioradar-investigation-analysis-v0.4.4" | "bioradar-investigation-analysis-v0.4.5" | "bioradar-investigation-analysis-v0.4.6" | "bioradar-investigation-analysis-v0.4.7";
             /** Claims */
             claims: components["schemas"]["VerifiedClaim"][];
             /** Explanations */
