@@ -25,13 +25,14 @@ pytestmark = pytest.mark.ENGINE
 
 
 def settings(**changes):
-    return Settings(
-        semantic_llm_enabled=True,
-        semantic_llm_base_url="http://model.test/v1",
-        semantic_llm_api_key="SYNTHETIC-SERVICE-SECRET",
-        semantic_llm_model="synthetic-model",
-        **changes,
-    )
+    values = {
+        "semantic_llm_enabled": True,
+        "semantic_llm_base_url": "http://model.test/v1",
+        "semantic_llm_api_key": "SYNTHETIC-SERVICE-SECRET",
+        "semantic_llm_model": "synthetic-model",
+    }
+    values.update(changes)
+    return Settings(**values)
 
 
 def completion(content='{"answer":"SYNTHETIC"}', **changes):
@@ -447,3 +448,127 @@ def test_json_schema_preserves_required_optional_and_defaults_without_fallback()
     assert result.receipt.request_sha256 == hashlib.sha256(requests[0].content).hexdigest()
     assert model_parameters(settings())["output_format"] == "json_schema"
     assert normalize_model_parameters({})["output_format"] == "json_object"
+
+
+def test_existing_vllm_core_shape_is_identical_without_provider_or_effort_keys():
+    expected = {
+        "model": "synthetic-model",
+        "model_revision": None,
+        "max_output_tokens": 4096,
+        "max_input_bytes": 65_536,
+        "timeout_seconds": 45,
+        "endpoint_sha256": hashlib.sha256(json.dumps("http://model.test/v1").encode()).hexdigest(),
+        "temperature": 0.0,
+        "top_p": 1.0,
+        "top_k": None,
+        "static_options": {"enable_thinking": False},
+        "output_format": "json_schema",
+    }
+    assert model_parameters(settings()) == expected
+    assert model_parameters(settings(semantic_llm_reasoning_effort="max")) == expected
+    assert normalize_model_parameters(expected) == expected
+    assert normalize_model_parameters({**expected, "provider": "vllm", "reasoning_effort": "max"}) == expected
+
+
+@pytest.mark.parametrize("effort", ["high", "max"])
+def test_deepseek_thinking_uses_explicit_json_profile_and_only_effective_parameters(effort):
+    configured = settings(
+        semantic_llm_provider="deepseek",
+        semantic_llm_model="deepseek-flash",
+        semantic_llm_enable_thinking=True,
+        semantic_llm_reasoning_effort=effort,
+        semantic_llm_temperature=0.6,
+        semantic_llm_top_p=0.95,
+        semantic_llm_top_k=20,
+        semantic_llm_max_output_tokens=12_288,
+        semantic_llm_timeout_seconds=150,
+    )
+    frozen = model_parameters(configured)
+    assert frozen["provider"] == "deepseek" and frozen["reasoning_effort"] == effort
+    assert frozen["temperature"] is None and frozen["top_k"] is None
+    assert frozen["output_format"] == "json_object"
+    assert normalize_model_parameters(frozen) == frozen
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        body = json.loads(request.content)
+        assert set(body) == {
+            "model",
+            "max_tokens",
+            "stream",
+            "response_format",
+            "messages",
+            "thinking",
+            "reasoning_effort",
+            "top_p",
+        }
+        assert body["model"] == "deepseek-flash" and body["max_tokens"] == 12_288
+        assert body["thinking"] == {"type": "enabled"}
+        assert body["reasoning_effort"] == effort and body["top_p"] == 0.95
+        assert body["response_format"] == {"type": "json_object"}
+        assert body["messages"][0]["content"].startswith("SYNTHETIC analysis instructions.")
+        assert "JSON Schema" in body["messages"][0]["content"]
+        response = completion(model="deepseek-flash")
+        response["choices"][0]["message"]["reasoning_content"] = "DO-NOT-RETAIN-PRIVATE-REASONING"
+        return httpx.Response(200, json=response)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        result = invoke(client, settings=configured)
+    assert len(requests) == 1
+    assert result.receipt.request_sha256 == hashlib.sha256(requests[0].content).hexdigest()
+    assert result.receipt.provider_model == "deepseek-flash"
+    assert "DO-NOT-RETAIN-PRIVATE-REASONING" not in result.model_dump_json()
+
+
+def test_deepseek_disabled_thinking_cannot_be_reenabled_by_effort_or_ignored_top_p():
+    configured = settings(
+        semantic_llm_provider="deepseek",
+        semantic_llm_model="deepseek-flash",
+        semantic_llm_enable_thinking=False,
+        semantic_llm_reasoning_effort="max",
+        semantic_llm_temperature=0.4,
+        semantic_llm_top_p=0.5,
+    )
+    frozen = model_parameters(configured)
+    assert frozen["reasoning_effort"] is None and frozen["top_p"] is None
+    assert frozen["temperature"] == 0.4
+
+    def handler(request):
+        body = json.loads(request.content)
+        assert body["thinking"] == {"type": "disabled"}
+        assert body["temperature"] == 0.4
+        assert all(key not in body for key in ("reasoning_effort", "top_p", "top_k", "chat_template_kwargs"))
+        return httpx.Response(200, json=completion(model="deepseek-flash"))
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        assert invoke(client, settings=configured).receipt.status == "completed"
+
+
+def test_unknown_frozen_provider_is_preserved_to_prevent_a_vllm_match():
+    legacy = model_parameters(settings())
+    unknown = normalize_model_parameters({**legacy, "provider": "unknown-service"})
+    assert unknown["provider"] == "unknown-service"
+    assert unknown != legacy
+    deepseek = model_parameters(settings(semantic_llm_provider="deepseek", semantic_llm_enable_thinking=True))
+    missing_effort = {key: value for key, value in deepseek.items() if key != "reasoning_effort"}
+    assert normalize_model_parameters(missing_effort)["reasoning_effort"] is None
+    assert normalize_model_parameters(missing_effort) != deepseek
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"semantic_llm_provider": "auto-detect"},
+        {"semantic_llm_reasoning_effort": "ultra"},
+        {
+            "semantic_llm_provider": "deepseek",
+            "semantic_llm_model": "deepseek-flash",
+            "semantic_llm_enable_thinking": True,
+            "semantic_llm_top_p": 0.5,
+        },
+    ],
+)
+def test_provider_and_flash_sampling_configuration_reject_ambiguous_values(changes):
+    with pytest.raises(ValidationError):
+        settings(**changes)

@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -52,6 +52,8 @@ class Settings(BaseSettings):
 
     # Server-only model access. These credentials never enter a browser request.
     semantic_llm_enabled: bool = False
+    semantic_llm_provider: Literal["vllm", "deepseek"] = "vllm"
+    semantic_llm_reasoning_effort: Literal["high", "max"] = "high"
     semantic_llm_base_url: str | None = None
     semantic_llm_api_key: SecretStr | None = None
     semantic_llm_model: str | None = Field(default=None, max_length=200)
@@ -66,6 +68,17 @@ class Settings(BaseSettings):
     analysis_search_source_ids: list[str] = Field(default_factory=list, max_length=8)
     analysis_manual_per_hour: int = Field(default=2, ge=0, le=100)
     analysis_auto_enabled: bool = False
+
+    @model_validator(mode="after")
+    def flash_thinking_sampling(self):
+        if (
+            self.semantic_llm_provider == "deepseek"
+            and self.semantic_llm_model == "deepseek-flash"
+            and self.semantic_llm_enable_thinking
+            and self.semantic_llm_top_p < 0.95
+        ):
+            raise ValueError("DeepSeek Flash thinking requires top_p between 0.95 and 1")
+        return self
 
     @field_validator("semantic_llm_base_url")
     @classmethod

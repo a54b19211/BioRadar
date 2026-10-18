@@ -88,7 +88,7 @@ class ModelCallError(DomainError):
 
 def model_parameters(settings: Settings) -> dict[str, Any]:
     """The non-secret configuration used both on the wire and in frozen analysis inputs."""
-    return {
+    parameters = {
         "model": settings.semantic_llm_model,
         "model_revision": settings.semantic_llm_model_revision,
         "max_output_tokens": settings.semantic_llm_max_output_tokens,
@@ -103,6 +103,18 @@ def model_parameters(settings: Settings) -> dict[str, Any]:
         "static_options": {"enable_thinking": settings.semantic_llm_enable_thinking},
         "output_format": "json_schema",
     }
+
+    if settings.semantic_llm_provider == "deepseek":
+        thinking = settings.semantic_llm_enable_thinking
+        parameters.update(
+            provider="deepseek",
+            reasoning_effort=settings.semantic_llm_reasoning_effort if thinking else None,
+            temperature=None if thinking else settings.semantic_llm_temperature,
+            top_p=settings.semantic_llm_top_p if thinking else None,
+            top_k=None,
+            output_format="json_object",
+        )
+    return parameters
 
 
 def normalize_model_parameters(parameters: dict[str, Any]) -> dict[str, Any]:
@@ -127,6 +139,10 @@ def normalize_model_parameters(parameters: dict[str, Any]) -> dict[str, Any]:
             "enable_thinking": parameters.get("static_options", {}).get("enable_thinking", False)
         },
     )
+    provider = parameters.get("provider", "vllm")
+    # Preserve the original vllm core shape and hashes; missing provider means that old profile.
+    if provider != "vllm":
+        core.update(provider=provider, reasoning_effort=parameters.get("reasoning_effort"))
     return core
 
 
@@ -224,15 +240,8 @@ def complete_json(
     try:
         body = {
             "model": parameters["model"],
-            "temperature": parameters["temperature"],
-            "top_p": parameters["top_p"],
             "stream": False,
             "max_tokens": parameters["max_output_tokens"],
-            "chat_template_kwargs": parameters["static_options"],
-            "response_format": {
-                "type": parameters["output_format"],
-                "json_schema": {"name": stage, "schema": response_schema, "strict": True},
-            },
             "messages": [
                 {
                     "role": "system",
@@ -246,8 +255,22 @@ def complete_json(
                 },
             ],
         }
-        if parameters["top_k"] is not None:
-            body["top_k"] = parameters["top_k"]
+        if parameters.get("provider", "vllm") == "deepseek":
+            body["thinking"] = {
+                "type": "enabled" if parameters["static_options"]["enable_thinking"] else "disabled"
+            }
+            body["response_format"] = {"type": parameters["output_format"]}
+            if parameters["reasoning_effort"] is not None:
+                body["reasoning_effort"] = parameters["reasoning_effort"]
+        else:
+            body["chat_template_kwargs"] = parameters["static_options"]
+            body["response_format"] = {
+                "type": parameters["output_format"],
+                "json_schema": {"name": stage, "schema": response_schema, "strict": True},
+            }
+        for key in ("temperature", "top_p", "top_k"):
+            if parameters[key] is not None:
+                body[key] = parameters[key]
         encoded = json.dumps(
             body, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
         ).encode()

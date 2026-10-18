@@ -3320,5 +3320,47 @@
       "production_six_units_active_same_pid_and_start": true,
       "port_15176_closed": true
     }
+  },
+  "semantic_deepseek_20261019": {
+    "status": "provider_adaptation_in_progress_not_deployed",
+    "started_at": "2026-10-18T16:25:25.252878+00:00",
+    "authorization": "User provided DeepSeek service and model for the pending real semantic validation; credential stored outside repository in private server configuration.",
+    "requested_model": "deepseek-flash",
+    "catalog_check": {
+      "http_status": 200,
+      "display_name": "DeepSeek-V4.1-Flash",
+      "generation_calls": 0,
+      "report": "semantic-deepseek-catalog.json"
+    },
+    "official_documentation": [
+      "https://api-docs.deepseek.com/api/create-chat-completion/",
+      "https://api-docs.deepseek.com/guides/json_mode/",
+      "https://api-docs.deepseek.com/guides/thinking_mode/"
+    ],
+    "scope": "Existing adapter only; no new SDK or platform. Preserve research prompts, schemas, actual evidence and all previous failures.",
+    "structured_output": "Explicit DeepSeek Chat json_object profile, with original schema in prompt and strict local DTO validation. Not native response JSON Schema and not automatic fallback.",
+    "comparison_qualification": "Transport format and supported sampling parameters also differ; results compare the configured service combinations, not a controlled single-variable proof of model superiority.",
+    "candidate_branch": "codex/historical-intelligence",
+    "prior_candidate_head": "ebe69268df55cb50d6fde2e924a7774c26aeee41",
+    "canonical_heads": {
+      "radar": "c638e45e8cf8dd7d210ee2e416d589fec6f14653",
+      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
+    },
+    "live_configuration_changed": false,
+    "actual_content_approval": "pending",
+    "checks": {
+      "adapter": "53 passed by author and independent reviewer",
+      "research": "57 passed on real PostgreSQL; new provider-boundary 2 independently passed",
+      "required_checks": "make BOOT, web-check, lint, contract-check and web-races all passed",
+      "credential_scan": "provided credential absent from candidate tracked/unignored files"
+    },
+    "review": {
+      "code_approved": true,
+      "independent_audit": "semantic-deepseek-adapter-independent-review.json",
+      "audit_sha256": "5525cb9128f419a2391be2b72fda50950332adb42f4bdc257524aca0df8f782b",
+      "content": "pending actual run",
+      "deployment": "pending content acceptance"
+    },
+    "heldout_basis": "semantic-heldout-review-basis-before-deepseek.json; written before any new model output, never included in model input"
   }
 }

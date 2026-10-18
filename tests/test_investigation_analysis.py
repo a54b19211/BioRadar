@@ -1832,3 +1832,104 @@ def test_selected_citation_table_uses_revised_current_passages_not_initial_links
     assert result.initial_draft.claims[0].evidence_links[0].evidence_key != revised["evidence_key"]
     for wire in model.wires:
         assert wire["max_tokens"] == 4096 and wire["temperature"] == 0
+
+
+def test_explicit_provider_switch_creates_a_new_frozen_basis_and_keeps_old_results(runtime, database):
+    make, actor, view, _, model, settings, _ = runtime
+    parent = start(runtime)
+    make().execute(parent["id"], parent["input_hash"])
+    old = make().get(actor, view["id"], parent["id"]).model_dump(mode="json")
+    with Session(database) as session:
+        old_fixed = copy.deepcopy(session.get(InvestigationAnalysisRecord, parent["id"]).fixed_input)
+    assert "provider" not in old_fixed["model_parameters"]
+    assert "reasoning_effort" not in old_fixed["model_parameters"]
+    inquiry = InvestigationService(make().engine)
+    code, reused = make().start(
+        actor,
+        view["id"],
+        AnalysisCreate(
+            expected_revision=inquiry.get(actor, view["id"]).revision,
+            parent_analysis_id=parent["id"],
+        ),
+        "same-original-provider-basis",
+    )
+    assert code == 200 and reused["id"] == parent["id"] and len(model.requests) == 3
+    settings.semantic_llm_provider = "deepseek"
+    settings.semantic_llm_enable_thinking = True
+    settings.semantic_llm_reasoning_effort = "max"
+    inquiry = InvestigationService(make().engine)
+    latest = inquiry.get(actor, view["id"])
+    code, created = make().start(
+        actor,
+        view["id"],
+        AnalysisCreate(expected_revision=latest.revision, parent_analysis_id=parent["id"]),
+        "explicit-provider-change",
+    )
+    assert code == 202 and created["id"] != parent["id"]
+    assert created["input_hash"] != parent["input_hash"]
+    make().execute(created["id"], created["input_hash"])
+    result = make().get(actor, view["id"], created["id"])
+    assert result.state == "completed", result.error_code
+    assert [p["task"] for p in model.requests[3:]] == ["read_plan", "synthesize", "check", "compare"]
+    for wire in model.wires[3:]:
+        assert wire["response_format"] == {"type": "json_object"}
+        assert wire["thinking"] == {"type": "enabled"} and wire["reasoning_effort"] == "max"
+        assert "temperature" not in wire and "top_k" not in wire
+        assert "chat_template_kwargs" not in wire
+    with Session(database) as session:
+        old_row = session.get(InvestigationAnalysisRecord, parent["id"])
+        fixed = session.get(InvestigationAnalysisRecord, created["id"]).fixed_input
+        assert old_row.fixed_input == old_fixed
+        assert fixed["basis_signature"] != old_fixed["basis_signature"]
+        assert fixed["version"] == old_fixed["version"]
+        assert fixed["prompt_version"] == old_fixed["prompt_version"]
+        assert fixed["model_parameters"]["provider"] == "deepseek"
+        assert fixed["model_parameters"]["output_format"] == "json_object"
+        assert fixed["model_parameters"]["reasoning_effort"] == "max"
+    latest = inquiry.get(actor, view["id"])
+    code, duplicate = make().start(
+        actor,
+        view["id"],
+        AnalysisCreate(expected_revision=latest.revision, parent_analysis_id=created["id"]),
+        "same-explicit-provider-basis",
+    )
+    assert code == 200 and duplicate["id"] == created["id"] and len(model.requests) == 7
+    assert make().get(actor, view["id"], parent["id"]).model_dump(mode="json") == old
+    assert inquiry.get(actor, view["id"]).judgment_count == 0
+
+
+def test_explicit_provider_switch_cannot_resume_cached_response_from_the_old_provider(runtime, database):
+    make, actor, view, source, model, settings, _ = runtime
+    created = start(runtime)
+
+    def pause():
+        with Session(database) as session, session.begin():
+            session.add(
+                MonitorState(
+                    workspace_id=actor.workspace_id,
+                    paused=True,
+                    control_revision=1,
+                    source_progress={},
+                    next_source=0,
+                )
+            )
+
+    model.change = pause
+    make().execute(created["id"], created["input_hash"])
+    waiting = make().get(actor, view["id"], created["id"])
+    assert waiting.state == "queued" and waiting.calls[0]["status"] == "received"
+    receipt = copy.deepcopy(waiting.calls[0]["receipt"])
+    with Session(database) as session, session.begin():
+        fixed = copy.deepcopy(session.get(InvestigationAnalysisRecord, created["id"]).fixed_input)
+        session.get(MonitorState, actor.workspace_id).paused = False
+    settings.semantic_llm_provider = "deepseek"
+    settings.semantic_llm_enable_thinking = True
+    settings.semantic_llm_reasoning_effort = "high"
+    make().execute(created["id"], created["input_hash"])
+    result = make().get(actor, view["id"], created["id"])
+    assert result.state == "blocked" and result.error_code == "analysis_model_changed"
+    assert result.calls[0]["receipt"] == receipt and result.note_entry_id is None
+    assert len(model.requests) == 1
+    assert not any(path == "/api/history/records" for path, _ in source.calls)
+    with Session(database) as session:
+        assert session.get(InvestigationAnalysisRecord, created["id"]).fixed_input == fixed
