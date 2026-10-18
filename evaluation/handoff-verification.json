@@ -491,326 +491,24 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-18T02:20:30.659592+00:00",
-    "status": "verified_isolated_branches_not_merged_or_deployed",
-    "scope": "Public-source collection and investigation plus labelled historical reconstruction. Engineering validation, not real drug-prediction efficacy.",
-    "branch": "codex/historical-intelligence",
-    "repositories": {
-      "radar": {
-        "worktree": "/home/zk_test/zk_projects/.bioradar-history/radar",
-        "base": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
-        "migration": "0005_historical_research"
-      },
-      "fabric": {
-        "worktree": "/home/zk_test/zk_projects/.bioradar-history/fabric",
-        "base": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
-        "migration": "V017__history_records.sql"
-      }
+    "checked_at": "2026-10-18T06:48:03.684101+00:00",
+    "status": "running_on_zktest",
+    "details": "long_term_topics_20261018",
+    "application_version": "0.5.0",
+    "topic_compute_version": "bioradar-topic-series-v0.3",
+    "code_commits": {
+      "radar": "70db52e569e267c7cd6b95d78fc311b11b91a145",
+      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
     },
-    "compute_version": "bioradar-history-baseline-v0.2",
-    "changes": [
-      "Fabric: source catalog, bounded public fetch using existing RQ, immutable originals and versions, explicit archive import and time-qualified reads.",
-      "Fabric: legacy failure reporting and preserve-old-before-update protections; not a complete migration of the old ingestion stack.",
-      "Radar: explicit historical cohort manifests, bounded followups over adopted source versions, factual source summaries and ordinary saved investigations.",
-      "Radar: disjoint known lineages, mature historical-rate baseline, independent appended evaluations, fixed prediction and readable originals/export.",
-      "Radar: API, CLI, history page and current source-permission checks covering historical and legacy snapshot/investigation reads."
-    ],
-    "checks": {
-      "radar_full_pytest": {
-        "passed": 284,
-        "skipped": 0,
-        "timing": "Before final one-case strict-permission correction; subsequent related tests listed separately."
-      },
-      "radar_final_history_tests": {
-        "passed": 20,
-        "skipped": 0,
-        "includes_real_postgresql": true,
-        "overlaps_full_suite": true
-      },
-      "fabric_full_default_suite": {
-        "passed": 247,
-        "timing": "Before final history time-ambiguity guard; unrelated legacy code unchanged afterward."
-      },
-      "fabric_final_history_tests": {
-        "unit_passed": 16,
-        "real_postgresql_passed": 12,
-        "skipped": 0,
-        "unit_overlaps_default_suite": true
-      },
-      "radar_contract_lint_web_build": "passed; web build repeated after final two-rule mobile CSS fix",
-      "fabric_python310_ruff_and_diff": "passed",
-      "real_radar_postgresql_rq_worker": "passed; probe 2d16016e-d763-4ea1-8bd9-55ed1c563b0e",
-      "cross_service_e2e": {
-        "started_at": "2026-10-18T02:13:36.470791+00:00",
-        "status": "passed",
-        "checks": [
-          "frozen_manifest_pagination_returns_nine_at_cutoff",
-          "future_program_version_excluded",
-          "reviewed_version_uses_its_own_history_proof",
-          "adopted_old_original_readable",
-          "study_completed_with_supported_baseline",
-          "only_four_new_at_risk_programs_predicted",
-          "two_of_four_mature_training_events_late_label_excluded",
-          "same_request_reuses_saved_prediction",
-          "same_key_changed_request_rejected",
-          "immature_positive_not_scored_selectively",
-          "explicit_positive_and_covered_negative_only",
-          "brier_one_quarter_coverage_one_half",
-          "later_disclosure_appends_new_evaluation",
-          "predictions_unchanged_after_evaluation",
-          "earlier_evaluation_preserved",
-          "saved_research_export_contains_actual_program",
-          "truncated_cohort_cannot_return_complete_prediction",
-          "caller_cannot_backdate_first_seen",
-          "clinicaltrials_actual_public_fetch_persisted",
-          "clinicaltrials_actual_adoption_investigation_saved",
-          "clinicaltrials_no_invented_historical_prediction",
-          "clinicaltrials_readable_source_facts_returned",
-          "clinicaltrials_export_contains_actual_source_and_version",
-          "clinicaltrials_saved_original_matches_adopted_content",
-          "clinicaltrials_operational_replay_cannot_backdate_current_body",
-          "clinicaltrials_public_history_reconstruction_cannot_backdate_current_body",
-          "fda_crl_actual_public_fetch_persisted",
-          "fda_crl_actual_adoption_investigation_saved",
-          "fda_crl_no_invented_historical_prediction",
-          "fda_crl_readable_source_facts_returned",
-          "fda_crl_export_contains_actual_source_and_version",
-          "fda_crl_saved_original_matches_adopted_content",
-          "fda_crl_operational_replay_cannot_backdate_current_body",
-          "fda_crl_public_history_reconstruction_cannot_backdate_current_body",
-          "europe_pmc_actual_public_fetch_persisted",
-          "europe_pmc_actual_adoption_investigation_saved",
-          "europe_pmc_no_invented_historical_prediction",
-          "europe_pmc_readable_source_facts_returned",
-          "europe_pmc_export_contains_actual_source_and_version",
-          "europe_pmc_saved_original_matches_adopted_content",
-          "europe_pmc_operational_replay_cannot_backdate_current_body",
-          "europe_pmc_public_history_reconstruction_cannot_backdate_current_body"
-        ],
-        "demo": {
-          "is_demo": true,
-          "study_id": "744585ae-3721-4c80-a153-5e3db60d45fa",
-          "investigation_id": "cdadaed9-f71c-4b00-b994-ea621e0d2cb4",
-          "prediction_hash": "a8252a260e30e21c684e539446b62966c118f637768837fec7323930cd00a8e9",
-          "metrics": {
-            "events": 1,
-            "unknown": 2,
-            "censored": 0,
-            "non_events": 1,
-            "brier_score": 0.25,
-            "calibration": [
-              {
-                "count": 2,
-                "lower": 0.4,
-                "upper": 0.6,
-                "mean_prediction": 0.5,
-                "observed_fraction": 0.5
-              }
-            ],
-            "limitations": [
-              "descriptive_historical_baseline_not_clinical_efficacy_or_investment_return",
-              "fixed_horizon_complete_case_scores_not_ipcw_or_competing_risk_model",
-              "calibration_on_small_groups_has_sampling_uncertainty",
-              "lineage_and_source_coverage_limit_generalization",
-              "evaluable_subset_only_selective_missingness_can_bias_scores",
-              "outcome_source_scope_incomplete_no_full_cohort_claim"
-            ],
-            "cohort_count": 9,
-            "lead_time_days": [
-              151.0
-            ],
-            "selected_count": 2,
-            "evaluable_count": 2,
-            "precision_lower": 0.5,
-            "precision_upper": 0.5,
-            "predicted_count": 4,
-            "recall_at_budget": null,
-            "selected_evaluable": 2,
-            "evaluation_coverage": 0.5,
-            "precision_at_budget": 0.5,
-            "false_positive_count": 1,
-            "missed_observed_events": 0
-          },
-          "evaluations": [
-            "33bab5be-8a99-4a59-9ac1-3ab57f0e4919",
-            "ec1e406a-1d7b-4f34-8545-2df302116318",
-            "df5cea29-eae3-4bad-a2be-a67757c85067"
-          ],
-          "scope": "合成历史队列，只验证跨服务行为与已知算术，不评价真实预测能力。"
-        },
-        "public": [
-          {
-            "source": "clinicaltrials",
-            "run_id": "a9d041f4-c2ab-4b1b-beb5-b34d3702531d",
-            "run_state": "completed",
-            "versions": 1,
-            "study_id": "09d5d2d6-1963-425a-912c-208b0e86d47c",
-            "investigation_id": "74e9b7ea-6258-48e5-abca-0083712e3712",
-            "state": "unsupported",
-            "coverage": {
-              "mode": "bounded_public_query",
-              "bytes": 16592,
-              "complete": false,
-              "requests": 1,
-              "limitations": [
-                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
-              ],
-              "stop_reason": "upstream_exhausted",
-              "source_total": null,
-              "adopted_count": 1,
-              "new_version_count": 0,
-              "same_version_count": 1,
-              "upstream_pagination_exhausted": true
-            }
-          },
-          {
-            "source": "fda_crl",
-            "run_id": "8210ccc5-852f-4b9a-a807-28ce09654766",
-            "run_state": "partial",
-            "versions": 2,
-            "study_id": "f37bc6ef-1b88-4c00-b479-5575efbbeb31",
-            "investigation_id": "88822fcb-5bcf-437a-a1ec-fbb77ccbd089",
-            "state": "unsupported",
-            "coverage": {
-              "mode": "bounded_public_query",
-              "bytes": 18967,
-              "complete": false,
-              "requests": 1,
-              "limitations": [
-                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
-              ],
-              "stop_reason": "record_budget",
-              "source_total": 458,
-              "adopted_count": 2,
-              "new_version_count": 0,
-              "same_version_count": 2,
-              "upstream_pagination_exhausted": false
-            }
-          },
-          {
-            "source": "europe_pmc",
-            "run_id": "28bcf103-6a7e-4d48-a53c-075da19f4daf",
-            "run_state": "completed",
-            "versions": 1,
-            "study_id": "ef9cb518-ac46-4e8f-a05d-a378992910af",
-            "investigation_id": "aeb67ecd-f3ce-4a56-ae54-59045e9239e9",
-            "state": "unsupported",
-            "coverage": {
-              "mode": "bounded_public_query",
-              "bytes": 3644,
-              "complete": false,
-              "requests": 1,
-              "limitations": [
-                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
-              ],
-              "stop_reason": "upstream_exhausted",
-              "source_total": 1,
-              "adopted_count": 1,
-              "new_version_count": 1,
-              "same_version_count": 0,
-              "upstream_pagination_exhausted": true
-            }
-          }
-        ],
-        "finished_at": "2026-10-18T02:13:42.023562+00:00"
-      },
-      "chromium": {
-        "status": "passed",
-        "checks": [
-          "session_login",
-          "create_study_through_browser",
-          "read_adopted_original",
-          "append_evaluation",
-          "download_saved_research",
-          "mobile_no_page_overflow",
-          "no_credential_in_browser_storage"
-        ],
-        "page_errors": [],
-        "scope": "real Chromium against isolated API, PostgreSQL and saved demonstration data"
-      },
-      "current_permission_across_entrypoints": {
-        "status": "passed",
-        "checks": {
-          "historical_detail_revoked": 403,
-          "historical_original_revoked": 403,
-          "historical_export_revoked": 403,
-          "legacy_snapshot_revoked": 403,
-          "legacy_investigation_revoked": 403,
-          "upstream_unavailable": 503,
-          "restored_original_result": true
-        },
-        "scope": "Only isolated Fabric API restarted; database and original services unchanged"
-      },
-      "normal_document_links": "passed"
+    "source_roots": {
+      "radar": "/home/zk_test/zk_projects/BioRadar",
+      "fabric": "/home/zk_test/zk_projects/ZK_Data-Fabric-test"
     },
-    "review": {
-      "requested_model": "gpt-6.1-sol",
-      "requested_reasoning_effort": "max",
-      "authors": {
-        "fabric": "engine_architecture",
-        "radar": "mining_methods",
-        "integration_and_docs": "root"
-      },
-      "non_author_approvals": {
-        "fabric": "mining_methods approved final temporal-ambiguity guard and PostgreSQL cases; root reviewed integration.",
-        "radar": "engine_architecture approved final central source permission, temporal/lineage handling and linear reference output; final mobile CSS separately approved.",
-        "integration_script": "Both authors cross-reviewed root historical E2E script."
-      },
-      "resolved_findings": [
-        "Independent manifests per historical cutoff; no future winner list reused as past cohort.",
-        "Terminal old units do not empty training data; known same trial lineage excluded.",
-        "Fixed page size under a bound cursor, source timestamp precision and no invented receipt time.",
-        "Repeated/missing upstream cursor is partial failure, not end of source.",
-        "Overlapping ambiguous archive revision dates are rejected instead of ranked by import order.",
-        "Source revocation applies through historical and older snapshot/investigation endpoints; unknown permission denies.",
-        "Shared full training evidence with bounded preview references; no quadratic prediction payload.",
-        "Real-source export includes adopted facts and versions; mobile long strings wrap."
-      ],
-      "remaining_blocking_findings": []
-    },
-    "documentation": [
-      "README.md",
-      "docs/开发说明.md",
-      "docs/开发分工.md",
-      "docs/接口说明.md",
-      "docs/资产盘点.md"
-    ],
-    "ownership": {
-      "李明洋": "integration, interfaces, sources and release lead",
-      "孙博文": "mining, investigation and historical computation",
-      "刘金彦": "web, export and independent evaluation tooling"
-    },
-    "limitations": [
-      "No actual ten-year archive supplied; public current receipts are not historical snapshots.",
-      "Synthetic .5 rate and .25 Brier validate arithmetic only; tied ranking is stable unit ID, not demonstrated discrimination.",
-      "Real public E2E adopted 1 ClinicalTrials record, 2 FDA letter records and 1 Europe PMC record; not full-corpus coverage.",
-      "Followups read Fabric-adopted versions; automated full-web research, WeKnora and professional evidence assessment are not connected.",
-      "Only current/development test configuration; new upstream link tested using host processes, not ordinary Docker-to-host loopback networking.",
-      "Old source inventory has not automatically become a versioned history archive; identity, label and permission coverage remain explicit."
-    ],
-    "rollback_and_runtime": {
-      "primary_radar_main_unchanged": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
-      "primary_fabric_dev_unchanged": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
-      "original_fabric_untracked_preserved": [
-        ".env.bak",
-        "start_workers.sh",
-        "zk_env/"
-      ],
-      "code_rollback": "Revert reviewed branch commits; do not downgrade/drop evidence tables to roll back code.",
-      "live_database_or_runtime_modified": false,
-      "test_processes_stopped": true,
-      "test_containers_stopped": [
-        "bioradar-history-web",
-        "bioradar-history-postgres",
-        "bioradar-history-redis"
-      ],
-      "volumes_preserved": true,
-      "existing_fabric_health": 200
-    }
+    "scope": "Continuous scoped observations, fair bounded investigations, real WHO round-trip and separate labelled domain acceptance. Not a certification of professional intelligence quality or Palantir equivalence."
   },
-  "application_version": "0.4.0",
-  "checked_at": "2026-10-14T10:31:29.758008+00:00",
-  "scope": "Local development handoff; engineering behavior, not professional intelligence quality.",
+  "application_version": "0.5.0",
+  "checked_at": "2026-10-18T06:48:03.684101+00:00",
+  "scope": "Cumulative engineering handoff archive. Current state is latest_verification; earlier checks remain historical and must not be summed.",
   "added": [
     "Compare two successfully adopted material packages",
     "Save investigation questions, materials, notes and progress",
@@ -2180,7 +1878,7 @@
     }
   },
   "long_term_topics_20261018": {
-    "status": "reviewed_pending_activation",
+    "status": "running",
     "implementation": "Persistent scoped topics -> independent source seeding/catchup -> qualified slow-series/event observations -> existing automatic investigation, fixed originals and historical scope export",
     "previous_primary_heads": {
       "radar": "a5c57514929354151efc524f16cfe1f5c39be29c",
@@ -2518,6 +2216,835 @@
         "e21aedc5-445d-4d5f-be7d-fde920af695a"
       ],
       "finished_at": "2026-10-18T06:45:56.187936+00:00"
+    },
+    "deployment": {
+      "state": "running",
+      "observed_at": "2026-10-18T06:48:03.684101+00:00",
+      "code_commits": {
+        "radar": "70db52e569e267c7cd6b95d78fc311b11b91a145",
+        "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
+      },
+      "services": {
+        "datafabric-history": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "datafabric-history-worker": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "datafabric-publisher": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "bioradar-api": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "bioradar-worker": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        },
+        "bioradar-monitor": {
+          "NRestarts": "0",
+          "ActiveState": "active",
+          "SubState": "running",
+          "UnitFileState": "enabled"
+        }
+      },
+      "web_15176_closed": true,
+      "original_fabric_8100_status": 200,
+      "topics": [
+        {
+          "id": "20651ae9-9caf-49bf-bb08-6f960f083bf0",
+          "is_demo": false,
+          "scope_revision": 1,
+          "observation_count": 6,
+          "paused": false,
+          "state": "seeding",
+          "last_checked_at": "2026-10-18T06:47:55.938925Z",
+          "domain": "pipeline",
+          "title": "临床登记：状态与里程碑",
+          "source_progress": [
+            {
+              "source_id": "legacy_documents",
+              "after": 0,
+              "seed_complete": false,
+              "last_success_at": "2026-10-18T06:47:37.713606Z",
+              "error_code": null
+            },
+            {
+              "source_id": "clinicaltrials",
+              "after": 6,
+              "seed_complete": true,
+              "last_success_at": "2026-10-18T06:47:55.938925Z",
+              "error_code": null
+            }
+          ],
+          "evaluations": [
+            {
+              "id": "4057200b-d7eb-477f-b7cc-b9af6050569b",
+              "compute_version": "bioradar-topic-series-v0.3",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围共有6条当前有效记录；本次有限计算6条，形成1项待核变化。",
+              "as_of": "2026-10-18T06:47:37.713606Z"
+            },
+            {
+              "id": "683fd670-cc85-471c-a039-cdd3a7445dc9",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围内有0条当前有效记录、0项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:28:11.618890Z"
+            },
+            {
+              "id": "933cd3df-00db-4965-9664-9f9f0dbc54e9",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围内有0条当前有效记录、0项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:27:54.642397Z"
+            }
+          ],
+          "saved_automatic_investigations": []
+        },
+        {
+          "id": "44496f63-c725-4c50-8ed9-67b2a775cbc1",
+          "is_demo": false,
+          "scope_revision": 1,
+          "observation_count": 0,
+          "paused": false,
+          "state": "current",
+          "last_checked_at": "2026-10-18T06:48:00.281060Z",
+          "domain": "business",
+          "title": "商业与资源：等待原始指标",
+          "source_progress": [
+            {
+              "source_id": "external_archive",
+              "after": 0,
+              "seed_complete": true,
+              "last_success_at": "2026-10-18T06:48:00.281060Z",
+              "error_code": null
+            }
+          ],
+          "evaluations": [
+            {
+              "id": "36bd4e47-5ba5-4cc8-a7d0-4b91382e383f",
+              "compute_version": "bioradar-topic-series-v0.3",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围共有0条当前有效记录；本次有限计算0条，形成0项待核变化。",
+              "as_of": "2026-10-18T06:47:24.039149Z"
+            },
+            {
+              "id": "05fd901c-ee1e-4f5c-a001-0962b5aed12f",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围内有0条当前有效记录、0项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:27:59.149703Z"
+            }
+          ],
+          "saved_automatic_investigations": []
+        },
+        {
+          "id": "84ce944d-c419-4105-82e7-dd0e042336bf",
+          "is_demo": false,
+          "scope_revision": 1,
+          "observation_count": 9,
+          "paused": false,
+          "state": "current",
+          "last_checked_at": "2026-10-18T06:47:46.517996Z",
+          "domain": "public_health",
+          "title": "WHO 公共卫生通报与后续变化",
+          "source_progress": [
+            {
+              "source_id": "who_don",
+              "after": 9,
+              "seed_complete": true,
+              "last_success_at": "2026-10-18T06:47:46.517996Z",
+              "error_code": null
+            },
+            {
+              "source_id": "external_archive",
+              "after": 0,
+              "seed_complete": true,
+              "last_success_at": "2026-10-18T06:47:29.151158Z",
+              "error_code": null
+            }
+          ],
+          "evaluations": [
+            {
+              "id": "8ac13dd4-5929-49dd-b087-932fb43212f5",
+              "compute_version": "bioradar-topic-series-v0.3",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围共有9条当前有效记录；本次有限计算4条，形成0项待核变化。",
+              "as_of": "2026-10-18T06:47:29.151158Z"
+            },
+            {
+              "id": "1737fb34-a2e6-4be4-833c-b9f221507b5f",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围内有4条当前有效记录、0项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:28:19.499383Z"
+            },
+            {
+              "id": "7560cedc-0d23-4a28-aaa3-0c24ad5655db",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "saved",
+              "investigation_id": "41033d4b-bd22-4413-9adf-596e4542333a",
+              "summary": "已采用范围内有9条当前有效记录、9项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:28:03.093062Z"
+            }
+          ],
+          "saved_automatic_investigations": [
+            {
+              "evaluation_id": "7560cedc-0d23-4a28-aaa3-0c24ad5655db",
+              "investigation_id": "41033d4b-bd22-4413-9adf-596e4542333a",
+              "judgment_count": 0,
+              "entry_count": 6,
+              "program_provenance": true
+            }
+          ]
+        },
+        {
+          "id": "c0cf2b3f-2f92-4175-b06d-5be1701087dc",
+          "is_demo": false,
+          "scope_revision": 1,
+          "observation_count": 195,
+          "paused": false,
+          "state": "current",
+          "last_checked_at": "2026-10-18T06:47:50.840626Z",
+          "domain": "research",
+          "title": "BCMA 与骨髓瘤：科研进展和证据修订",
+          "source_progress": [
+            {
+              "source_id": "europe_pmc",
+              "after": 704,
+              "seed_complete": true,
+              "last_success_at": "2026-10-18T06:47:50.840626Z",
+              "error_code": null
+            }
+          ],
+          "evaluations": [
+            {
+              "id": "a6fca319-a4f3-4657-b737-e2c4f378464b",
+              "compute_version": "bioradar-topic-series-v0.3",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围共有195条当前有效记录；本次有限计算0条，形成0项待核变化。累计采用记录中有195条缺少可用于分期的日期，不据此填成零增长。",
+              "as_of": "2026-10-18T06:47:33.537569Z"
+            },
+            {
+              "id": "90615984-7328-4793-9ab0-95416a441f3c",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围内有0条当前有效记录、0项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:32:37.064190Z"
+            },
+            {
+              "id": "42eaa40a-0d70-43a8-8ca2-5f4f2b812254",
+              "compute_version": "bioradar-topic-series-v0.2",
+              "automation_status": "not_needed",
+              "investigation_id": null,
+              "summary": "已采用范围内有0条当前有效记录、0项待核变化；缺少资料的领域保持未知。",
+              "as_of": "2026-10-18T06:32:18.042578Z"
+            }
+          ],
+          "saved_automatic_investigations": []
+        }
+      ],
+      "public_refresh": {
+        "who_don": {
+          "schema_version": "datafabric.source.health.v1",
+          "source_id": "who_don",
+          "observed_at": "2026-10-18T06:48:03.465572+00:00",
+          "collection": {
+            "state": "unknown",
+            "last_check_at": null,
+            "last_recorded_success_at": null,
+            "last_recorded_failure_at": null,
+            "scope": "recorded_crawl_task_not_whole_source",
+            "coverage": "unknown",
+            "latest_log_id": null,
+            "counts": {
+              "total_count": null,
+              "passed_count": null,
+              "failed_count": null
+            }
+          },
+          "publication": {
+            "last_heartbeat": "2026-10-18T06:48:01.454782+00:00",
+            "state": "running",
+            "pending_counts": null,
+            "counts_scope": "not_applicable"
+          },
+          "seed": [],
+          "watches": [
+            {
+              "watch_id": "who-recent",
+              "state": "idle",
+              "scope": "*",
+              "fixed_scope_query": "*",
+              "window_started_at": "2026-09-18T06:27:33.015712+00:00",
+              "window_ended_at": "2026-10-18T06:27:33.015712+00:00",
+              "cadence_seconds": 3600,
+              "last_check_at": "2026-10-18T06:27:53.539147+00:00",
+              "last_success_at": "2026-10-18T06:28:03.768621+00:00",
+              "last_failure_at": null,
+              "last_page_at": "2026-10-18T06:28:03.768621+00:00",
+              "active_run_id": null,
+              "next_check_at": "2026-10-18T07:28:03.768621+00:00",
+              "cycle_started_at": "2026-10-18T06:27:33.015712+00:00",
+              "cycle_pages": 2,
+              "last_coverage": {
+                "mode": "bounded_public_query",
+                "bytes": 88804,
+                "complete": false,
+                "requests": 1,
+                "limitations": [
+                  "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+                ],
+                "stop_reason": "upstream_exhausted",
+                "source_total": null,
+                "adopted_count": 4,
+                "new_version_count": 4,
+                "same_version_count": 0,
+                "upstream_pagination_exhausted": true
+              },
+              "error": null,
+              "stale": false
+            }
+          ],
+          "limitations": [
+            "CrawlLog仅说明所记录任务；缺日志不补零，成功不证明全站完整",
+            "发表器心跳/采用日志不是原站最后检查；库存EOF仅固定旧库存范围",
+            "WHO是选择性公告，Europe PMC是显式查询；均不证明领域无事件"
+          ]
+        },
+        "europe_pmc": {
+          "schema_version": "datafabric.source.health.v1",
+          "source_id": "europe_pmc",
+          "observed_at": "2026-10-18T06:48:03.470713+00:00",
+          "collection": {
+            "state": "unknown",
+            "last_check_at": null,
+            "last_recorded_success_at": null,
+            "last_recorded_failure_at": null,
+            "scope": "recorded_crawl_task_not_whole_source",
+            "coverage": "unknown",
+            "latest_log_id": null,
+            "counts": {
+              "total_count": null,
+              "passed_count": null,
+              "failed_count": null
+            }
+          },
+          "publication": {
+            "last_heartbeat": "2026-10-18T06:48:01.454782+00:00",
+            "state": "running",
+            "pending_counts": null,
+            "counts_scope": "not_applicable"
+          },
+          "seed": [],
+          "watches": [
+            {
+              "watch_id": "epmc-bcma-updates",
+              "state": "idle",
+              "scope": "BCMA AND myeloma",
+              "fixed_scope_query": "(BCMA AND myeloma) AND UPDATE_DATE:[2026-09-18 TO 2026-10-18]",
+              "window_started_at": "2026-09-18T06:27:33.120211+00:00",
+              "window_ended_at": "2026-10-18T06:27:33.120211+00:00",
+              "cadence_seconds": 3600,
+              "last_check_at": "2026-10-18T06:32:17.651967+00:00",
+              "last_success_at": "2026-10-18T06:32:27.783460+00:00",
+              "last_failure_at": null,
+              "last_page_at": "2026-10-18T06:32:27.783460+00:00",
+              "active_run_id": null,
+              "next_check_at": "2026-10-18T07:32:27.783460+00:00",
+              "cycle_started_at": "2026-10-18T06:27:33.120211+00:00",
+              "cycle_pages": 15,
+              "last_coverage": {
+                "mode": "bounded_public_query",
+                "bytes": 19655,
+                "complete": false,
+                "requests": 1,
+                "limitations": [
+                  "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+                ],
+                "stop_reason": "upstream_exhausted",
+                "source_total": 704,
+                "adopted_count": 4,
+                "new_version_count": 4,
+                "same_version_count": 0,
+                "upstream_pagination_exhausted": true
+              },
+              "error": null,
+              "stale": false
+            }
+          ],
+          "limitations": [
+            "CrawlLog仅说明所记录任务；缺日志不补零，成功不证明全站完整",
+            "发表器心跳/采用日志不是原站最后检查；库存EOF仅固定旧库存范围",
+            "WHO是选择性公告，Europe PMC是显式查询；均不证明领域无事件"
+          ]
+        }
+      },
+      "source_inventory_seed": {
+        "cde": [
+          {
+            "max_id": 1021536,
+            "last_id": 1018181,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ],
+        "cde_xxgk": [
+          {
+            "max_id": 1021536,
+            "last_id": 1018431,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ],
+        "chictr": [
+          {
+            "max_id": 1021536,
+            "last_id": 5286,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ],
+        "clinicaltrials": [
+          {
+            "max_id": 1021536,
+            "last_id": 128439,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ],
+        "fda_api_drug_label": [
+          {
+            "max_id": 1021536,
+            "last_id": 741583,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ],
+        "fda_api_enforcement": [
+          {
+            "max_id": 1021536,
+            "last_id": 1000497,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ],
+        "nmpa": [
+          {
+            "max_id": 1021536,
+            "last_id": 3444,
+            "complete": false,
+            "last_error": null,
+            "scope": "initial_authorized_inventory_not_complete_source"
+          }
+        ]
+      },
+      "limits": {
+        "page_records": 50,
+        "window_records": 2000,
+        "pending_runs": 2,
+        "investigations_per_batch": 2,
+        "investigations_per_hour": 6,
+        "cooldown_minutes": 60,
+        "followup_queries_per_lead": 2,
+        "records_per_followup": 3,
+        "poll_seconds": 2
+      },
+      "publication_sources": [
+        {
+          "source_id": "legacy_documents",
+          "publisher_state": "running",
+          "last_heartbeat": "2026-10-18T06:48:01.454782Z",
+          "counts": {
+            "blocked": 2,
+            "published": 3611
+          },
+          "disk_paused": false,
+          "error_code": null
+        },
+        {
+          "source_id": "reviewed_graph",
+          "publisher_state": "running",
+          "last_heartbeat": "2026-10-18T06:48:01.454782Z",
+          "counts": {
+            "published": 846,
+            "pending": 1
+          },
+          "disk_paused": false,
+          "error_code": null
+        }
+      ],
+      "source_index": "idx_documents_publication_site_id created concurrently and validity checked by migration CLI",
+      "runtime_probe": "48532739-4df3-4489-a827-00f11b492564",
+      "fixture_grants_unchanged": true,
+      "real_who_round_trip": {
+        "topic_id": "84ce944d-c419-4105-82e7-dd0e042336bf",
+        "evaluation_id": "7560cedc-0d23-4a28-aaa3-0c24ad5655db",
+        "investigation_id": "41033d4b-bd22-4413-9adf-596e4542333a",
+        "automation_status": "saved",
+        "source_id": "who_don",
+        "source_record_id": "e09a12f1-3ba4-4021-aa21-94e0ce0f1e8b",
+        "version_id": "13d7f693867540174d37eb3fb78d9742f17da61addd597e3b833b328d7c478c7",
+        "original_sha256_matches": true,
+        "is_demo": false,
+        "judgment_count": 0,
+        "entry_count": 6
+      },
+      "acceptance_runtime_stopped": {
+        "six_processes": true,
+        "postgres_18436": true,
+        "redis_16479": true,
+        "browser_18512": true,
+        "volumes_preserved": true
+      }
+    }
+  },
+  "historical_research_20261018": {
+    "checked_at": "2026-10-18T02:20:30.659592+00:00",
+    "status": "verified_isolated_branches_not_merged_or_deployed",
+    "scope": "Public-source collection and investigation plus labelled historical reconstruction. Engineering validation, not real drug-prediction efficacy.",
+    "branch": "codex/historical-intelligence",
+    "repositories": {
+      "radar": {
+        "worktree": "/home/zk_test/zk_projects/.bioradar-history/radar",
+        "base": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
+        "migration": "0005_historical_research"
+      },
+      "fabric": {
+        "worktree": "/home/zk_test/zk_projects/.bioradar-history/fabric",
+        "base": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
+        "migration": "V017__history_records.sql"
+      }
+    },
+    "compute_version": "bioradar-history-baseline-v0.2",
+    "changes": [
+      "Fabric: source catalog, bounded public fetch using existing RQ, immutable originals and versions, explicit archive import and time-qualified reads.",
+      "Fabric: legacy failure reporting and preserve-old-before-update protections; not a complete migration of the old ingestion stack.",
+      "Radar: explicit historical cohort manifests, bounded followups over adopted source versions, factual source summaries and ordinary saved investigations.",
+      "Radar: disjoint known lineages, mature historical-rate baseline, independent appended evaluations, fixed prediction and readable originals/export.",
+      "Radar: API, CLI, history page and current source-permission checks covering historical and legacy snapshot/investigation reads."
+    ],
+    "checks": {
+      "radar_full_pytest": {
+        "passed": 284,
+        "skipped": 0,
+        "timing": "Before final one-case strict-permission correction; subsequent related tests listed separately."
+      },
+      "radar_final_history_tests": {
+        "passed": 20,
+        "skipped": 0,
+        "includes_real_postgresql": true,
+        "overlaps_full_suite": true
+      },
+      "fabric_full_default_suite": {
+        "passed": 247,
+        "timing": "Before final history time-ambiguity guard; unrelated legacy code unchanged afterward."
+      },
+      "fabric_final_history_tests": {
+        "unit_passed": 16,
+        "real_postgresql_passed": 12,
+        "skipped": 0,
+        "unit_overlaps_default_suite": true
+      },
+      "radar_contract_lint_web_build": "passed; web build repeated after final two-rule mobile CSS fix",
+      "fabric_python310_ruff_and_diff": "passed",
+      "real_radar_postgresql_rq_worker": "passed; probe 2d16016e-d763-4ea1-8bd9-55ed1c563b0e",
+      "cross_service_e2e": {
+        "started_at": "2026-10-18T02:13:36.470791+00:00",
+        "status": "passed",
+        "checks": [
+          "frozen_manifest_pagination_returns_nine_at_cutoff",
+          "future_program_version_excluded",
+          "reviewed_version_uses_its_own_history_proof",
+          "adopted_old_original_readable",
+          "study_completed_with_supported_baseline",
+          "only_four_new_at_risk_programs_predicted",
+          "two_of_four_mature_training_events_late_label_excluded",
+          "same_request_reuses_saved_prediction",
+          "same_key_changed_request_rejected",
+          "immature_positive_not_scored_selectively",
+          "explicit_positive_and_covered_negative_only",
+          "brier_one_quarter_coverage_one_half",
+          "later_disclosure_appends_new_evaluation",
+          "predictions_unchanged_after_evaluation",
+          "earlier_evaluation_preserved",
+          "saved_research_export_contains_actual_program",
+          "truncated_cohort_cannot_return_complete_prediction",
+          "caller_cannot_backdate_first_seen",
+          "clinicaltrials_actual_public_fetch_persisted",
+          "clinicaltrials_actual_adoption_investigation_saved",
+          "clinicaltrials_no_invented_historical_prediction",
+          "clinicaltrials_readable_source_facts_returned",
+          "clinicaltrials_export_contains_actual_source_and_version",
+          "clinicaltrials_saved_original_matches_adopted_content",
+          "clinicaltrials_operational_replay_cannot_backdate_current_body",
+          "clinicaltrials_public_history_reconstruction_cannot_backdate_current_body",
+          "fda_crl_actual_public_fetch_persisted",
+          "fda_crl_actual_adoption_investigation_saved",
+          "fda_crl_no_invented_historical_prediction",
+          "fda_crl_readable_source_facts_returned",
+          "fda_crl_export_contains_actual_source_and_version",
+          "fda_crl_saved_original_matches_adopted_content",
+          "fda_crl_operational_replay_cannot_backdate_current_body",
+          "fda_crl_public_history_reconstruction_cannot_backdate_current_body",
+          "europe_pmc_actual_public_fetch_persisted",
+          "europe_pmc_actual_adoption_investigation_saved",
+          "europe_pmc_no_invented_historical_prediction",
+          "europe_pmc_readable_source_facts_returned",
+          "europe_pmc_export_contains_actual_source_and_version",
+          "europe_pmc_saved_original_matches_adopted_content",
+          "europe_pmc_operational_replay_cannot_backdate_current_body",
+          "europe_pmc_public_history_reconstruction_cannot_backdate_current_body"
+        ],
+        "demo": {
+          "is_demo": true,
+          "study_id": "744585ae-3721-4c80-a153-5e3db60d45fa",
+          "investigation_id": "cdadaed9-f71c-4b00-b994-ea621e0d2cb4",
+          "prediction_hash": "a8252a260e30e21c684e539446b62966c118f637768837fec7323930cd00a8e9",
+          "metrics": {
+            "events": 1,
+            "unknown": 2,
+            "censored": 0,
+            "non_events": 1,
+            "brier_score": 0.25,
+            "calibration": [
+              {
+                "count": 2,
+                "lower": 0.4,
+                "upper": 0.6,
+                "mean_prediction": 0.5,
+                "observed_fraction": 0.5
+              }
+            ],
+            "limitations": [
+              "descriptive_historical_baseline_not_clinical_efficacy_or_investment_return",
+              "fixed_horizon_complete_case_scores_not_ipcw_or_competing_risk_model",
+              "calibration_on_small_groups_has_sampling_uncertainty",
+              "lineage_and_source_coverage_limit_generalization",
+              "evaluable_subset_only_selective_missingness_can_bias_scores",
+              "outcome_source_scope_incomplete_no_full_cohort_claim"
+            ],
+            "cohort_count": 9,
+            "lead_time_days": [
+              151.0
+            ],
+            "selected_count": 2,
+            "evaluable_count": 2,
+            "precision_lower": 0.5,
+            "precision_upper": 0.5,
+            "predicted_count": 4,
+            "recall_at_budget": null,
+            "selected_evaluable": 2,
+            "evaluation_coverage": 0.5,
+            "precision_at_budget": 0.5,
+            "false_positive_count": 1,
+            "missed_observed_events": 0
+          },
+          "evaluations": [
+            "33bab5be-8a99-4a59-9ac1-3ab57f0e4919",
+            "ec1e406a-1d7b-4f34-8545-2df302116318",
+            "df5cea29-eae3-4bad-a2be-a67757c85067"
+          ],
+          "scope": "合成历史队列，只验证跨服务行为与已知算术，不评价真实预测能力。"
+        },
+        "public": [
+          {
+            "source": "clinicaltrials",
+            "run_id": "a9d041f4-c2ab-4b1b-beb5-b34d3702531d",
+            "run_state": "completed",
+            "versions": 1,
+            "study_id": "09d5d2d6-1963-425a-912c-208b0e86d47c",
+            "investigation_id": "74e9b7ea-6258-48e5-abca-0083712e3712",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 16592,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "upstream_exhausted",
+              "source_total": null,
+              "adopted_count": 1,
+              "new_version_count": 0,
+              "same_version_count": 1,
+              "upstream_pagination_exhausted": true
+            }
+          },
+          {
+            "source": "fda_crl",
+            "run_id": "8210ccc5-852f-4b9a-a807-28ce09654766",
+            "run_state": "partial",
+            "versions": 2,
+            "study_id": "f37bc6ef-1b88-4c00-b479-5575efbbeb31",
+            "investigation_id": "88822fcb-5bcf-437a-a1ec-fbb77ccbd089",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 18967,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "record_budget",
+              "source_total": 458,
+              "adopted_count": 2,
+              "new_version_count": 0,
+              "same_version_count": 2,
+              "upstream_pagination_exhausted": false
+            }
+          },
+          {
+            "source": "europe_pmc",
+            "run_id": "28bcf103-6a7e-4d48-a53c-075da19f4daf",
+            "run_state": "completed",
+            "versions": 1,
+            "study_id": "ef9cb518-ac46-4e8f-a05d-a378992910af",
+            "investigation_id": "aeb67ecd-f3ce-4a56-ae54-59045e9239e9",
+            "state": "unsupported",
+            "coverage": {
+              "mode": "bounded_public_query",
+              "bytes": 3644,
+              "complete": false,
+              "requests": 1,
+              "limitations": [
+                "有界公开检索不是完整历史队列；不据此训练成功项目筛选后的伪队列"
+              ],
+              "stop_reason": "upstream_exhausted",
+              "source_total": 1,
+              "adopted_count": 1,
+              "new_version_count": 1,
+              "same_version_count": 0,
+              "upstream_pagination_exhausted": true
+            }
+          }
+        ],
+        "finished_at": "2026-10-18T02:13:42.023562+00:00"
+      },
+      "chromium": {
+        "status": "passed",
+        "checks": [
+          "session_login",
+          "create_study_through_browser",
+          "read_adopted_original",
+          "append_evaluation",
+          "download_saved_research",
+          "mobile_no_page_overflow",
+          "no_credential_in_browser_storage"
+        ],
+        "page_errors": [],
+        "scope": "real Chromium against isolated API, PostgreSQL and saved demonstration data"
+      },
+      "current_permission_across_entrypoints": {
+        "status": "passed",
+        "checks": {
+          "historical_detail_revoked": 403,
+          "historical_original_revoked": 403,
+          "historical_export_revoked": 403,
+          "legacy_snapshot_revoked": 403,
+          "legacy_investigation_revoked": 403,
+          "upstream_unavailable": 503,
+          "restored_original_result": true
+        },
+        "scope": "Only isolated Fabric API restarted; database and original services unchanged"
+      },
+      "normal_document_links": "passed"
+    },
+    "review": {
+      "requested_model": "gpt-6.1-sol",
+      "requested_reasoning_effort": "max",
+      "authors": {
+        "fabric": "engine_architecture",
+        "radar": "mining_methods",
+        "integration_and_docs": "root"
+      },
+      "non_author_approvals": {
+        "fabric": "mining_methods approved final temporal-ambiguity guard and PostgreSQL cases; root reviewed integration.",
+        "radar": "engine_architecture approved final central source permission, temporal/lineage handling and linear reference output; final mobile CSS separately approved.",
+        "integration_script": "Both authors cross-reviewed root historical E2E script."
+      },
+      "resolved_findings": [
+        "Independent manifests per historical cutoff; no future winner list reused as past cohort.",
+        "Terminal old units do not empty training data; known same trial lineage excluded.",
+        "Fixed page size under a bound cursor, source timestamp precision and no invented receipt time.",
+        "Repeated/missing upstream cursor is partial failure, not end of source.",
+        "Overlapping ambiguous archive revision dates are rejected instead of ranked by import order.",
+        "Source revocation applies through historical and older snapshot/investigation endpoints; unknown permission denies.",
+        "Shared full training evidence with bounded preview references; no quadratic prediction payload.",
+        "Real-source export includes adopted facts and versions; mobile long strings wrap."
+      ],
+      "remaining_blocking_findings": []
+    },
+    "documentation": [
+      "README.md",
+      "docs/开发说明.md",
+      "docs/开发分工.md",
+      "docs/接口说明.md",
+      "docs/资产盘点.md"
+    ],
+    "ownership": {
+      "李明洋": "integration, interfaces, sources and release lead",
+      "孙博文": "mining, investigation and historical computation",
+      "刘金彦": "web, export and independent evaluation tooling"
+    },
+    "limitations": [
+      "No actual ten-year archive supplied; public current receipts are not historical snapshots.",
+      "Synthetic .5 rate and .25 Brier validate arithmetic only; tied ranking is stable unit ID, not demonstrated discrimination.",
+      "Real public E2E adopted 1 ClinicalTrials record, 2 FDA letter records and 1 Europe PMC record; not full-corpus coverage.",
+      "Followups read Fabric-adopted versions; automated full-web research, WeKnora and professional evidence assessment are not connected.",
+      "Only current/development test configuration; new upstream link tested using host processes, not ordinary Docker-to-host loopback networking.",
+      "Old source inventory has not automatically become a versioned history archive; identity, label and permission coverage remain explicit."
+    ],
+    "rollback_and_runtime": {
+      "primary_radar_main_unchanged": "3e54fc831377be42a5ae50f0ef089ad7529fe5d9",
+      "primary_fabric_dev_unchanged": "9ce1abe7892e76ee9aad4338d529efe6d662d7cf",
+      "original_fabric_untracked_preserved": [
+        ".env.bak",
+        "start_workers.sh",
+        "zk_env/"
+      ],
+      "code_rollback": "Revert reviewed branch commits; do not downgrade/drop evidence tables to roll back code.",
+      "live_database_or_runtime_modified": false,
+      "test_processes_stopped": true,
+      "test_containers_stopped": [
+        "bioradar-history-web",
+        "bioradar-history-postgres",
+        "bioradar-history-redis"
+      ],
+      "volumes_preserved": true,
+      "existing_fabric_health": 200
     }
   }
 }
