@@ -300,6 +300,85 @@ def create_engine_router(settings: Settings) -> APIRouter:
         )
         return JSONResponse(status_code=code, content=payload)
 
+    # Ordinary semantic investigations use the same local access boundary and RQ queue.
+    from bioradar.research.history.service import history_reader
+    from bioradar.research.investigations.analysis_models import (
+        AnalysisCreate,
+        AnalysisEvidenceRead,
+        AnalysisList,
+        AnalysisView,
+    )
+    from bioradar.research.investigations.analysis_service import AnalysisService
+
+    @contextmanager
+    def analysis_runtime(request):
+        engine = service(request)
+        if settings.data_fabric_url and settings.data_fabric_history_read_token:
+            with history_reader(settings) as reader:
+                yield AnalysisService(engine, reader)
+        else:
+            yield AnalysisService(engine)
+
+    @router.get("/investigations/{investigation_id}/analyses", response_model=AnalysisList)
+    def analysis_list(
+        investigation_id: str,
+        request: Request,
+        cursor: Annotated[str | None, Query(max_length=36)] = None,
+        limit: Annotated[int, Query(ge=1, le=50)] = 20,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with analysis_runtime(request) as analyses:
+            return analyses.list(actor, investigation_id, cursor=cursor, limit=limit)
+
+    @router.post("/investigations/{investigation_id}/analyses", response_model=AnalysisView, status_code=202)
+    def analysis_create(
+        investigation_id: str,
+        body: AnalysisCreate,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with analysis_runtime(request) as analyses:
+            code, payload = analyses.start(actor, investigation_id, body, idempotency_key)
+            return JSONResponse(status_code=code, content=payload)
+
+    @router.get("/investigations/{investigation_id}/analyses/{analysis_id}", response_model=AnalysisView)
+    def analysis_get(
+        investigation_id: str,
+        analysis_id: str,
+        request: Request,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with analysis_runtime(request) as analyses:
+            return analyses.get(actor, investigation_id, analysis_id)
+
+    @router.get(
+        "/investigations/{investigation_id}/analyses/{analysis_id}/evidence/{evidence_key}",
+        response_model=AnalysisEvidenceRead,
+    )
+    def analysis_evidence(
+        investigation_id: str,
+        analysis_id: str,
+        evidence_key: str,
+        request: Request,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with analysis_runtime(request) as analyses:
+            return analyses.evidence(actor, investigation_id, analysis_id, evidence_key)
+
+    @router.get("/investigations/{investigation_id}/analyses/{analysis_id}/export")
+    def analysis_export(
+        investigation_id: str,
+        analysis_id: str,
+        request: Request,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with analysis_runtime(request) as analyses:
+            return {
+                "analysis": analyses.get(actor, investigation_id, analysis_id).model_dump(mode="json"),
+                "warning": "有出处的机器分析草稿，不是专业审核或人工批准。",
+            }
+
     @router.post("/runs", response_model=RunView, status_code=202)
     def accept_run(
         body: RunCreate,

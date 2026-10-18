@@ -13,6 +13,7 @@ import {
 import EngineLogin from "../components/engine/EngineLogin.vue";
 import GraphInvestigationForm from "../components/engine/GraphInvestigationForm.vue";
 import InvestigationRecord from "../components/engine/InvestigationRecord.vue";
+import MachineAnalysisPanel from "../components/engine/MachineAnalysisPanel.vue";
 import InvestigationEntryForm from "../components/engine/InvestigationEntryForm.vue";
 import {
   engineRequest,
@@ -572,7 +573,12 @@ onUnmounted(() => {
             @status="changeStatus"
             @question="changeQuestion"
             @read-source="readSupport"
-          />
+          >
+            <template #machine-analysis>
+              <MachineAnalysisPanel :investigation="selected" :busy="busy" :loading="loading"
+                @changed="openInvestigation(selected.id)" @unauthorized="fail" />
+            </template>
+          </InvestigationRecord>
           <InvestigationEntryForm
             :key="selected.id + ':' + selected.revision"
             :investigation="selected"

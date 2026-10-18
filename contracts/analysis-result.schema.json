@@ -1,0 +1,613 @@
+{
+  "$defs": {
+    "AnalysisUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "stance": {
+          "enum": [
+            "initial",
+            "maintained",
+            "revised",
+            "unable_to_compare"
+          ],
+          "title": "Stance",
+          "type": "string"
+        },
+        "changed_claims": {
+          "items": {
+            "$ref": "#/$defs/ClaimUpdate"
+          },
+          "maxItems": 8,
+          "title": "Changed Claims",
+          "type": "array"
+        },
+        "reasons": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Reasons",
+          "type": "array"
+        },
+        "decisive_evidence_keys": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Decisive Evidence Keys",
+          "type": "array"
+        }
+      },
+      "required": [
+        "stance",
+        "changed_claims",
+        "reasons",
+        "decisive_evidence_keys"
+      ],
+      "title": "AnalysisUpdate",
+      "type": "object"
+    },
+    "ClaimReview": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "verdict": {
+          "enum": [
+            "grounded",
+            "overstated",
+            "unsupported",
+            "uncertain"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "issue": {
+          "maxLength": 2000,
+          "title": "Issue",
+          "type": "string"
+        },
+        "evidence_keys": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Evidence Keys",
+          "type": "array"
+        }
+      },
+      "required": [
+        "claim_id",
+        "verdict",
+        "issue",
+        "evidence_keys"
+      ],
+      "title": "ClaimReview",
+      "type": "object"
+    },
+    "ClaimUpdate": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "previous_claim_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Previous Claim Id"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "evidence_keys": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Evidence Keys",
+          "type": "array"
+        }
+      },
+      "required": [
+        "claim_id",
+        "previous_claim_id",
+        "reason",
+        "evidence_keys"
+      ],
+      "title": "ClaimUpdate",
+      "type": "object"
+    },
+    "ConditionalAnswer": {
+      "additionalProperties": false,
+      "properties": {
+        "answer": {
+          "maxLength": 4000,
+          "minLength": 1,
+          "title": "Answer",
+          "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "unknowns": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 12,
+          "title": "Unknowns",
+          "type": "array"
+        }
+      },
+      "required": [
+        "answer",
+        "conditions",
+        "unknowns"
+      ],
+      "title": "ConditionalAnswer",
+      "type": "object"
+    },
+    "DraftFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "anyOf": [
+            {
+              "maxLength": 200,
+              "minLength": 2,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "section": {
+          "anyOf": [
+            {
+              "enum": [
+                "claims",
+                "explanations",
+                "gaps",
+                "conditional_answer",
+                "update"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section"
+        },
+        "claim_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Id"
+        },
+        "issue": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Issue",
+          "type": "string"
+        },
+        "evidence_keys": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Evidence Keys",
+          "type": "array"
+        }
+      },
+      "required": [
+        "issue",
+        "evidence_keys"
+      ],
+      "title": "DraftFinding",
+      "type": "object"
+    },
+    "EvidenceGap": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "question": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Question",
+          "type": "string"
+        },
+        "why_it_matters": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Why It Matters",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "question",
+        "why_it_matters"
+      ],
+      "title": "EvidenceGap",
+      "type": "object"
+    },
+    "Explanation": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "for_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "For Claim Ids",
+          "type": "array"
+        },
+        "against_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Against Claim Ids",
+          "type": "array"
+        },
+        "discriminating_evidence_needed": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Discriminating Evidence Needed",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "for_claim_ids",
+        "against_claim_ids",
+        "discriminating_evidence_needed"
+      ],
+      "title": "Explanation",
+      "type": "object"
+    },
+    "GenericReview": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "passed",
+            "needs_review"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "claims": {
+          "items": {
+            "$ref": "#/$defs/ClaimReview"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Claims",
+          "type": "array"
+        },
+        "overall_limitations": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Overall Limitations",
+          "type": "array"
+        },
+        "findings": {
+          "items": {
+            "$ref": "#/$defs/DraftFinding"
+          },
+          "maxItems": 8,
+          "title": "Findings",
+          "type": "array"
+        },
+        "checked_sections": {
+          "items": {
+            "enum": [
+              "claims",
+              "explanations",
+              "gaps",
+              "conditional_answer",
+              "update"
+            ],
+            "type": "string"
+          },
+          "maxItems": 5,
+          "title": "Checked Sections",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status",
+        "claims",
+        "overall_limitations"
+      ],
+      "title": "GenericReview",
+      "type": "object"
+    },
+    "VerifiedClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "text": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "source_statement",
+            "inference"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "scope": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Scope",
+          "type": "string"
+        },
+        "conditions": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "status": {
+          "enum": [
+            "supported",
+            "contradicted",
+            "mixed",
+            "insufficient"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "evidence_links": {
+          "items": {
+            "$ref": "#/$defs/VerifiedEvidenceLink"
+          },
+          "maxItems": 2,
+          "title": "Evidence Links",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "text",
+        "kind",
+        "scope",
+        "conditions",
+        "status",
+        "evidence_links"
+      ],
+      "title": "VerifiedClaim",
+      "type": "object"
+    },
+    "VerifiedEvidenceLink": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_key": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Evidence Key",
+          "type": "string"
+        },
+        "quote": {
+          "maxLength": 600,
+          "minLength": 1,
+          "title": "Quote",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "supports",
+            "refutes",
+            "limits",
+            "context"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "integer"
+        },
+        "end": {
+          "title": "End",
+          "type": "integer"
+        },
+        "passage_id": {
+          "anyOf": [
+            {
+              "maxLength": 80,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Passage Id"
+        }
+      },
+      "required": [
+        "evidence_key",
+        "quote",
+        "role",
+        "reason",
+        "start",
+        "end"
+      ],
+      "title": "VerifiedEvidenceLink",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "default": "bioradar-investigation-analysis-v0.4.6",
+      "enum": [
+        "bioradar-investigation-analysis-v0.1",
+        "bioradar-investigation-analysis-v0.2",
+        "bioradar-investigation-analysis-v0.3",
+        "bioradar-investigation-analysis-v0.4",
+        "bioradar-investigation-analysis-v0.4.1",
+        "bioradar-investigation-analysis-v0.4.2",
+        "bioradar-investigation-analysis-v0.4.3",
+        "bioradar-investigation-analysis-v0.4.4",
+        "bioradar-investigation-analysis-v0.4.5",
+        "bioradar-investigation-analysis-v0.4.6"
+      ],
+      "title": "Version",
+      "type": "string"
+    },
+    "claims": {
+      "items": {
+        "$ref": "#/$defs/VerifiedClaim"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "explanations": {
+      "items": {
+        "$ref": "#/$defs/Explanation"
+      },
+      "title": "Explanations",
+      "type": "array"
+    },
+    "gaps": {
+      "items": {
+        "$ref": "#/$defs/EvidenceGap"
+      },
+      "title": "Gaps",
+      "type": "array"
+    },
+    "conditional_answer": {
+      "$ref": "#/$defs/ConditionalAnswer"
+    },
+    "update": {
+      "$ref": "#/$defs/AnalysisUpdate"
+    },
+    "review": {
+      "$ref": "#/$defs/GenericReview"
+    },
+    "professional_status": {
+      "const": "not_reviewed",
+      "default": "not_reviewed",
+      "title": "Professional Status",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "claims",
+    "explanations",
+    "gaps",
+    "conditional_answer",
+    "update",
+    "review",
+    "limitations"
+  ],
+  "title": "AnalysisResult",
+  "type": "object"
+}

@@ -1155,6 +1155,33 @@ class TopicService:
                 },
                 tag,
             )
+        from bioradar.research.investigations.analysis_models import AnalysisCreate
+        from bioradar.research.investigations.analysis_service import AnalysisService, semantic_enabled
+
+        if semantic_enabled(self.engine.settings):
+            intent = state.get("analysis_intent")
+            if intent is None:
+                intent = {
+                    "key": "topic-analysis:" + evaluation.id,
+                    "body": AnalysisCreate(expected_revision=view.revision).model_dump(mode="json"),
+                }
+                state["analysis_intent"] = intent
+                self._save_followup(evaluation_id, state)
+            _, analysis = AnalysisService(self.engine, self.reader).start(
+                self.actor,
+                view.id,
+                AnalysisCreate.model_validate(intent["body"]),
+                intent["key"],
+                origin={
+                    "source": "topic",
+                    "topic_id": evaluation.topic_id,
+                    "evaluation_id": evaluation_id,
+                    "reservation_key": "monitor-dig:" + canonical_hash([lead_key, evaluation_id]),
+                },
+            )
+            state.update(status="saved", analysis_id=analysis["id"])
+            self._save_followup(evaluation_id, state)
+            return
         # Scope terms are declared by the researcher; otherwise derive an exact literal from a fixed original.
         terms = evaluation.definition.terms_all + evaluation.definition.terms_any
         plan = state.get("query_plan")

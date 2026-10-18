@@ -105,12 +105,14 @@ class InvestigationAutomation(RuntimeModel):
 
 
 class InvestigationNote(RuntimeModel):
+    machine_analysis_id: str | None = None
     automation: InvestigationAutomation | None = None
     kind: Literal["note"] = "note"
     text: str
 
 
 class InvestigationMaterial(RuntimeModel):
+    machine_analysis_id: str | None = None
     automation: InvestigationAutomation | None = None
     kind: Literal["material"] = "material"
     text: str

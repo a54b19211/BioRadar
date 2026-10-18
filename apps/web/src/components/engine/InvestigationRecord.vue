@@ -188,6 +188,7 @@ function basisEntries(ids: string[]) {
         >
       </article>
     </section>
+    <slot name="machine-analysis" />
     <section class="engine-panel">
       <h2>当前研究人员判断</h2>
       <p v-if="investigation.needs_review" class="notice">

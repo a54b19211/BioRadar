@@ -783,6 +783,338 @@
         }
       }
     },
+    "/api/engine/investigations/{investigation_id}/analyses": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Analysis List",
+        "operationId": "analysis_list_api_engine_investigations__investigation_id__analyses_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 36
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisList"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Analysis Create",
+        "operationId": "analysis_create_api_engine_investigations__investigation_id__analyses_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnalysisCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/{investigation_id}/analyses/{analysis_id}": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Analysis Get",
+        "operationId": "analysis_get_api_engine_investigations__investigation_id__analyses__analysis_id__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/{investigation_id}/analyses/{analysis_id}/evidence/{evidence_key}": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Analysis Evidence",
+        "operationId": "analysis_evidence_api_engine_investigations__investigation_id__analyses__analysis_id__evidence__evidence_key__get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          },
+          {
+            "name": "evidence_key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Evidence Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisEvidenceRead"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/{investigation_id}/analyses/{analysis_id}/export": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Analysis Export",
+        "operationId": "analysis_export_api_engine_investigations__investigation_id__analyses__analysis_id__export_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "investigation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Investigation Id"
+            }
+          },
+          {
+            "name": "analysis_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Analysis Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/engine/runs": {
       "post": {
         "tags": [
@@ -2686,6 +3018,879 @@
   },
   "components": {
     "schemas": {
+      "AnalysisCreate": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "retry_of_analysis_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retry Of Analysis Id"
+          },
+          "parent_analysis_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 36,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Analysis Id"
+          },
+          "material_entry_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Material Entry Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision"
+        ],
+        "title": "AnalysisCreate"
+      },
+      "AnalysisEvidence": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "material_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Material Entry Id"
+          },
+          "text_basis": {
+            "type": "string",
+            "enum": [
+              "snapshot_normalized",
+              "source_clean_text",
+              "source_raw_content"
+            ],
+            "title": "Text Basis",
+            "default": "snapshot_normalized"
+          },
+          "history_binding": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History Binding"
+          },
+          "facts": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Facts"
+          },
+          "field_locators": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Field Locators"
+          },
+          "snapshot_id": {
+            "type": "string",
+            "title": "Snapshot Id"
+          },
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "text_sha256": {
+            "type": "string",
+            "title": "Text Sha256"
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisPassage"
+            },
+            "type": "array",
+            "title": "Passages"
+          },
+          "selection_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selection Hash"
+          },
+          "publication_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publication Time"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "record_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Record Flags"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "key",
+          "material_entry_id",
+          "snapshot_id",
+          "record_ref",
+          "source_id",
+          "title",
+          "text",
+          "start",
+          "end",
+          "text_sha256"
+        ],
+        "title": "AnalysisEvidence"
+      },
+      "AnalysisEvidenceRead": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/AnalysisEvidence"
+          },
+          "normalized_text": {
+            "type": "string",
+            "title": "Normalized Text"
+          },
+          "source_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Url"
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning",
+            "default": "固定来源文本；机器证据关系仍须人工核对。"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "evidence",
+          "normalized_text",
+          "source_url"
+        ],
+        "title": "AnalysisEvidenceRead"
+      },
+      "AnalysisList": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "configured": {
+            "type": "boolean",
+            "title": "Configured"
+          },
+          "unavailable_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable Reason"
+          },
+          "limits": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Limits"
+          },
+          "retrieval_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Retrieval Sources"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisSummary"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "unavailable_count": {
+            "type": "integer",
+            "title": "Unavailable Count",
+            "default": 0
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled",
+          "configured",
+          "unavailable_reason",
+          "limits",
+          "retrieval_sources",
+          "items"
+        ],
+        "title": "AnalysisList"
+      },
+      "AnalysisPassage": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "start": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "End"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "start",
+          "end"
+        ],
+        "title": "AnalysisPassage"
+      },
+      "AnalysisQueryReceipt": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlannedQuery"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "prepared",
+              "read",
+              "empty",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "scope": {
+            "type": "string",
+            "title": "Scope",
+            "default": "fabric_current_adopted_versions_not_the_web"
+          },
+          "returned": {
+            "type": "integer",
+            "title": "Returned",
+            "default": 0
+          },
+          "new_versions": {
+            "type": "integer",
+            "title": "New Versions",
+            "default": 0
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "default": false
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Evidence Keys"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "index",
+          "plan",
+          "status"
+        ],
+        "title": "AnalysisQueryReceipt"
+      },
+      "AnalysisResult": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "enum": [
+              "bioradar-investigation-analysis-v0.1",
+              "bioradar-investigation-analysis-v0.2",
+              "bioradar-investigation-analysis-v0.3",
+              "bioradar-investigation-analysis-v0.4",
+              "bioradar-investigation-analysis-v0.4.1",
+              "bioradar-investigation-analysis-v0.4.2",
+              "bioradar-investigation-analysis-v0.4.3",
+              "bioradar-investigation-analysis-v0.4.4",
+              "bioradar-investigation-analysis-v0.4.5",
+              "bioradar-investigation-analysis-v0.4.6"
+            ],
+            "title": "Version",
+            "default": "bioradar-investigation-analysis-v0.4.6"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/VerifiedClaim"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "explanations": {
+            "items": {
+              "$ref": "#/components/schemas/Explanation"
+            },
+            "type": "array",
+            "title": "Explanations"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceGap"
+            },
+            "type": "array",
+            "title": "Gaps"
+          },
+          "conditional_answer": {
+            "$ref": "#/components/schemas/ConditionalAnswer"
+          },
+          "update": {
+            "$ref": "#/components/schemas/AnalysisUpdate"
+          },
+          "review": {
+            "$ref": "#/components/schemas/GenericReview"
+          },
+          "professional_status": {
+            "type": "string",
+            "const": "not_reviewed",
+            "title": "Professional Status",
+            "default": "not_reviewed"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claims",
+          "explanations",
+          "gaps",
+          "conditional_answer",
+          "update",
+          "review",
+          "limitations"
+        ],
+        "title": "AnalysisResult"
+      },
+      "AnalysisSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "investigation_id": {
+            "type": "string",
+            "title": "Investigation Id"
+          },
+          "parent_analysis_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Analysis Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "needs_review",
+              "blocked",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "monitor",
+              "topic",
+              "material_update"
+            ],
+            "title": "Trigger"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "based_on_revision": {
+            "type": "integer",
+            "title": "Based On Revision"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "title": "Evidence Count"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "result_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Summary"
+          },
+          "professional_status": {
+            "type": "string",
+            "const": "not_reviewed",
+            "title": "Professional Status",
+            "default": "not_reviewed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "investigation_id",
+          "parent_analysis_id",
+          "state",
+          "trigger",
+          "created_at",
+          "completed_at",
+          "question",
+          "based_on_revision",
+          "version",
+          "evidence_count",
+          "error_code",
+          "result_summary"
+        ],
+        "title": "AnalysisSummary"
+      },
+      "AnalysisUpdate": {
+        "properties": {
+          "stance": {
+            "type": "string",
+            "enum": [
+              "initial",
+              "maintained",
+              "revised",
+              "unable_to_compare"
+            ],
+            "title": "Stance"
+          },
+          "changed_claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimUpdate"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Changed Claims"
+          },
+          "reasons": {
+            "items": {
+              "type": "string",
+              "maxLength": 2000,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Reasons"
+          },
+          "decisive_evidence_keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Decisive Evidence Keys"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "stance",
+          "changed_claims",
+          "reasons",
+          "decisive_evidence_keys"
+        ],
+        "title": "AnalysisUpdate"
+      },
+      "AnalysisView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "investigation_id": {
+            "type": "string",
+            "title": "Investigation Id"
+          },
+          "parent_analysis_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Analysis Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "needs_review",
+              "blocked",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "monitor",
+              "topic",
+              "material_update"
+            ],
+            "title": "Trigger"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "completed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed At"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "based_on_revision": {
+            "type": "integer",
+            "title": "Based On Revision"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "evidence_count": {
+            "type": "integer",
+            "title": "Evidence Count"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "result_summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Summary"
+          },
+          "professional_status": {
+            "type": "string",
+            "const": "not_reviewed",
+            "title": "Professional Status",
+            "default": "not_reviewed"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo"
+          },
+          "input_hash": {
+            "type": "string",
+            "title": "Input Hash"
+          },
+          "prompt_version": {
+            "type": "string",
+            "title": "Prompt Version"
+          },
+          "search_scope": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Search Scope"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisEvidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "queries": {
+            "items": {
+              "$ref": "#/components/schemas/AnalysisQueryReceipt"
+            },
+            "type": "array",
+            "title": "Queries"
+          },
+          "calls": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Calls"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "initial_draft": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          },
+          "note_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note Entry Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "investigation_id",
+          "parent_analysis_id",
+          "state",
+          "trigger",
+          "created_at",
+          "completed_at",
+          "question",
+          "based_on_revision",
+          "version",
+          "evidence_count",
+          "error_code",
+          "result_summary",
+          "is_demo",
+          "input_hash",
+          "prompt_version",
+          "search_scope",
+          "evidence",
+          "queries",
+          "calls",
+          "result",
+          "limitations",
+          "note_entry_id"
+        ],
+        "title": "AnalysisView"
+      },
       "Assessment": {
         "properties": {
           "assessment_ref": {
@@ -3050,6 +4255,136 @@
           "provenance"
         ],
         "title": "ClaimDependency"
+      },
+      "ClaimReview": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Claim Id"
+          },
+          "verdict": {
+            "type": "string",
+            "enum": [
+              "grounded",
+              "overstated",
+              "unsupported",
+              "uncertain"
+            ],
+            "title": "Verdict"
+          },
+          "issue": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Issue"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence Keys"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claim_id",
+          "verdict",
+          "issue",
+          "evidence_keys"
+        ],
+        "title": "ClaimReview"
+      },
+      "ClaimUpdate": {
+        "properties": {
+          "claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Claim Id"
+          },
+          "previous_claim_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Claim Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence Keys"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "claim_id",
+          "previous_claim_id",
+          "reason",
+          "evidence_keys"
+        ],
+        "title": "ClaimUpdate"
+      },
+      "ConditionalAnswer": {
+        "properties": {
+          "answer": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Answer"
+          },
+          "conditions": {
+            "items": {
+              "type": "string",
+              "maxLength": 2000,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Conditions"
+          },
+          "unknowns": {
+            "items": {
+              "type": "string",
+              "maxLength": 2000,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "Unknowns"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "answer",
+          "conditions",
+          "unknowns"
+        ],
+        "title": "ConditionalAnswer"
       },
       "ConstraintCheck": {
         "properties": {
@@ -4165,6 +5500,77 @@
         ],
         "title": "DeclaredStatement"
       },
+      "DraftFinding": {
+        "properties": {
+          "path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Path"
+          },
+          "section": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claims",
+                  "explanations",
+                  "gaps",
+                  "conditional_answer",
+                  "update"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Section"
+          },
+          "claim_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Id"
+          },
+          "issue": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Issue"
+          },
+          "evidence_keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Evidence Keys"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "issue",
+          "evidence_keys"
+        ],
+        "title": "DraftFinding"
+      },
       "Embedding": {
         "properties": {
           "provider": {
@@ -4745,6 +6151,36 @@
         ],
         "title": "Event"
       },
+      "EvidenceGap": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "question": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "why_it_matters": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Why It Matters"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "question",
+          "why_it_matters"
+        ],
+        "title": "EvidenceGap"
+      },
       "EvidenceSupport": {
         "properties": {
           "record_ref": {
@@ -4860,6 +6296,58 @@
         ],
         "title": "ExcludedRecord"
       },
+      "Explanation": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "for_claim_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "For Claim Ids"
+          },
+          "against_claim_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Against Claim Ids"
+          },
+          "discriminating_evidence_needed": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Discriminating Evidence Needed"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "for_claim_ids",
+          "against_claim_ids",
+          "discriminating_evidence_needed"
+        ],
+        "title": "Explanation"
+      },
       "FeedbackCreate": {
         "properties": {
           "candidate_key": {
@@ -4950,6 +6438,68 @@
           "created_at"
         ],
         "title": "FeedbackView"
+      },
+      "GenericReview": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "needs_review"
+            ],
+            "title": "Status"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ClaimReview"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Claims"
+          },
+          "overall_limitations": {
+            "items": {
+              "type": "string",
+              "maxLength": 2000,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Overall Limitations"
+          },
+          "findings": {
+            "items": {
+              "$ref": "#/components/schemas/DraftFinding"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Findings"
+          },
+          "checked_sections": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "claims",
+                "explanations",
+                "gaps",
+                "conditional_answer",
+                "update"
+              ]
+            },
+            "type": "array",
+            "maxItems": 5,
+            "title": "Checked Sections"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "claims",
+          "overall_limitations"
+        ],
+        "title": "GenericReview"
       },
       "GraphEvidence": {
         "properties": {
@@ -7213,6 +8763,17 @@
       },
       "InvestigationMaterial": {
         "properties": {
+          "machine_analysis_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Analysis Id"
+          },
           "automation": {
             "anyOf": [
               {
@@ -7331,6 +8892,17 @@
       },
       "InvestigationNote": {
         "properties": {
+          "machine_analysis_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Machine Analysis Id"
+          },
           "automation": {
             "anyOf": [
               {
@@ -9571,6 +11143,74 @@
           "reason"
         ],
         "title": "ParetoComparison"
+      },
+      "PlannedQuery": {
+        "properties": {
+          "gap_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Gap Id"
+          },
+          "target_claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Target Claim Id"
+          },
+          "source_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "terms": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 2
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Terms"
+          },
+          "anchoring_evidence_keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Anchoring Evidence Keys"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "expected_discrimination": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Expected Discrimination"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "gap_id",
+          "target_claim_id",
+          "source_id",
+          "terms",
+          "anchoring_evidence_keys",
+          "reason",
+          "expected_discrimination"
+        ],
+        "title": "PlannedQuery"
       },
       "ProjectTimeline": {
         "properties": {
@@ -12409,6 +14049,140 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VerifiedClaim": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Id"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Text"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "source_statement",
+              "inference"
+            ],
+            "title": "Kind"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Scope"
+          },
+          "conditions": {
+            "items": {
+              "type": "string",
+              "maxLength": 2000,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Conditions"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "supported",
+              "contradicted",
+              "mixed",
+              "insufficient"
+            ],
+            "title": "Status"
+          },
+          "evidence_links": {
+            "items": {
+              "$ref": "#/components/schemas/VerifiedEvidenceLink"
+            },
+            "type": "array",
+            "maxItems": 2,
+            "title": "Evidence Links"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "id",
+          "text",
+          "kind",
+          "scope",
+          "conditions",
+          "status",
+          "evidence_links"
+        ],
+        "title": "VerifiedClaim"
+      },
+      "VerifiedEvidenceLink": {
+        "properties": {
+          "evidence_key": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Evidence Key"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 600,
+            "minLength": 1,
+            "title": "Quote"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "supports",
+              "refutes",
+              "limits",
+              "context"
+            ],
+            "title": "Role"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "start": {
+            "type": "integer",
+            "title": "Start"
+          },
+          "end": {
+            "type": "integer",
+            "title": "End"
+          },
+          "passage_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passage Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "evidence_key",
+          "quote",
+          "role",
+          "reason",
+          "start",
+          "end"
+        ],
+        "title": "VerifiedEvidenceLink"
       },
       "bioradar__research__decision__models__InvestigationQuestion": {
         "properties": {

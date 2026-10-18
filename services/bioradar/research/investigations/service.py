@@ -125,6 +125,19 @@ class InvestigationService:
             topics = TopicService(self.engine)
             for topic_id, evaluation_id in topic_bases:
                 topics._evaluation_row(session, actor, topic_id, evaluation_id)
+        analysis_ids = {
+            entry.payload.get("machine_analysis_id")
+            for entry in entries
+            if entry.payload.get("machine_analysis_id")
+        }
+        if analysis_ids:
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            analyses = AnalysisService(self.engine)
+            for analysis_id in analysis_ids:
+                analysis = analyses._row(session, actor, analysis_id)
+                if analysis.investigation_id != row.id:
+                    raise DomainError("analysis_reference_invalid", "机器笔记不属于本调查", 502)
         bindings = []
         if row.origin is not None:
             bindings.append(row.origin)
@@ -321,13 +334,23 @@ class InvestigationService:
         key: str,
         *,
         automation: InvestigationAutomation | None = None,
+        machine_analysis_id: str | None = None,
     ):
         request = body.root
         self._actor(actor)
-        if automation is not None and request.kind not in {"material", "note"}:
+        if (automation is not None or machine_analysis_id is not None) and request.kind not in {
+            "material",
+            "note",
+        }:
             raise DomainError("automation_judgment_forbidden", "后台仅可整理材料和笔记，不能签研究判断", 422)
         with Session(self.engine.database) as session:
             self._row(session, actor, identifier)
+            if machine_analysis_id is not None:
+                from bioradar.research.investigations.analysis_service import AnalysisService
+
+                analysis = AnalysisService(self.engine)._row(session, actor, machine_analysis_id)
+                if analysis.investigation_id != identifier:
+                    raise DomainError("analysis_reference_invalid", "机器分析与调查不一致", 422)
             if automation is not None and automation.source == "topic":
                 from bioradar.topics.service import TopicService
 
@@ -381,6 +404,8 @@ class InvestigationService:
                         for question in row.questions
                     ]
                     row.status = request.status
+                if machine_analysis_id is not None:
+                    payload["machine_analysis_id"] = machine_analysis_id
                 if automation is not None:
                     payload["automation"] = automation.model_dump(mode="json", exclude_none=True)
                 row.revision += 1
@@ -397,18 +422,25 @@ class InvestigationService:
                 session.flush()
                 return self._response(row, [*entries, entry])
 
+            idempotent_body = body
+            if automation is not None or machine_analysis_id is not None:
+                idempotent_body = {"request": body.model_dump(mode="json")}
+                if automation is not None:
+                    idempotent_body["automation"] = automation.model_dump(mode="json", exclude_none=True)
+                if machine_analysis_id is not None:
+                    idempotent_body["machine_analysis_id"] = machine_analysis_id
             code, payload = self.engine._idempotent(
-                session,
-                actor,
-                "investigation.append:" + identifier,
-                key,
-                {
-                    "request": body.model_dump(mode="json"),
-                    "automation": automation.model_dump(mode="json", exclude_none=True),
-                }
-                if automation
-                else body,
-                mutate,
+                session, actor, "investigation.append:" + identifier, key, idempotent_body, mutate
             )
             self._row(session, actor, identifier)
-            return code, payload
+        if request.kind == "material" and machine_analysis_id is None and automation is None:
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            if self.engine.settings.semantic_llm_enabled:
+                try:
+                    AnalysisService(self.engine).request_material_update(identifier)
+                except DomainError:
+                    # The material is already committed. A bounded recovery sweep also checks
+                    # external revisions, so an unavailable model never undoes the saved source.
+                    pass
+        return code, payload

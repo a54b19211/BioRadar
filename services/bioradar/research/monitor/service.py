@@ -1294,6 +1294,36 @@ class MonitorService:
                 quote=support.quote[:4000] if support.quote else None,
                 tag="support:" + canonical_hash(support.record_ref),
             )
+        from bioradar.research.investigations.analysis_models import AnalysisCreate
+        from bioradar.research.investigations.analysis_service import AnalysisService, semantic_enabled
+
+        if semantic_enabled(self.settings):
+            with Session(self.engine.database) as session:
+                latest = copy.deepcopy(session.get(MonitorLead, lead_id).payload)
+            intent = latest.get("analysis_intent")
+            if intent is None:
+                intent = {
+                    "key": "monitor-analysis:" + canonical_hash([lead_key, batch_id]),
+                    "body": AnalysisCreate(expected_revision=view.revision).model_dump(mode="json"),
+                }
+                latest["analysis_intent"] = intent
+                self._save_lead(lead_id, payload=latest)
+            _, analysis = AnalysisService(self.engine, self.reader).start(
+                self.actor,
+                investigation_id,
+                AnalysisCreate.model_validate(intent["body"]),
+                intent["key"],
+                origin={
+                    "source": "monitor",
+                    "batch_id": batch_id,
+                    "lead_key": lead_key,
+                    "run_id": run_id,
+                    "reservation_key": "monitor-dig:" + canonical_hash([lead_key, batch_id]),
+                },
+            )
+            latest["analysis_id"] = analysis["id"]
+            self._save_lead(lead_id, payload=latest, state="investigated")
+            return investigation_id
         for index, plan in enumerate(p["plan"][:2]):
             with Session(self.engine.database) as session:
                 latest = copy.deepcopy(session.get(MonitorLead, lead_id).payload)

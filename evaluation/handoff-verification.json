@@ -3046,5 +3046,183 @@
       "volumes_preserved": true,
       "existing_fabric_health": 200
     }
+  },
+  "semantic_investigation_20261018": {
+    "status": "code_reviewed_committed_candidate_actual_content_pending",
+    "checked_at": "2026-10-18T15:04:07.034821+00:00",
+    "implementation": {
+      "analysis_version": "bioradar-investigation-analysis-v0.4.6",
+      "prompt_version": "bioradar-investigation-reading-v0.4.6",
+      "storage": "one investigation_analyses business table; existing PostgreSQL/RQ",
+      "normal_model_calls": {
+        "initial": 3,
+        "with_parent": 4
+      },
+      "maximum_model_calls": {
+        "initial": 5,
+        "with_parent": 6
+      },
+      "correction": "one explicit whole-draft review, at most one correction and recheck",
+      "references": "server-owned fixed source passages; original exact quote and position",
+      "history": "new material creates child; old analyses and failures stay immutable",
+      "human_judgment": "never written by machine",
+      "input_separation": "No previous machine content in reading, synthesis, current-draft check or correction. After the current draft passes generic checking, one separate compare call may produce only AnalysisUpdate. It cannot alter the current draft. Comparison is not covered by the preceding draft check.",
+      "review_findings": "section enum plus optional current claim ID; no arbitrary machine-authored JSON paths; old path and self-reported coverage fields remain readable without fabricating coverage.",
+      "selected_citations": "Current check/revision receives the actual server-bound selected passages with claim ID and candidate relation; selection is not a guarantee of support. Full original context remains and all bytes count against the same input limit.",
+      "model_configuration": "One non-secret parameter function drives actual request, fixed input, reuse signature and recovery guard. Defaults retained; configuration changes cannot resume old work or silently reuse old drafts. Received receipts preserved before guards; hidden reasoning not persisted."
+    },
+    "previous_primary_heads": {
+      "radar": "c638e45e8cf8dd7d210ee2e416d589fec6f14653",
+      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
+    },
+    "checks": {
+      "boot": "21 passed",
+      "backend_before_v04": "416 passed; historical pre-correction suite",
+      "v04_affected": "131 passed, no skips; analysis, investigations, monitor, topics and model adapter",
+      "v041_analysis": "29 passed, no skips",
+      "independent_v041_branches": "2 passed on PostgreSQL; maintained may have no changes, revised requires changes",
+      "lint_contracts_ui_races": "passed; includes 9 delayed-response machine-analysis UI checks",
+      "web": "Final v0.4.6 contract-generated types, Vue checking and production build passed. UI behavior checks previously passed; final current-result browser check pending.",
+      "postgres_rq_probe": {
+        "state": "passed",
+        "id": "c142a0d0-1a0c-4e6a-b909-b579b52261a4"
+      },
+      "note": "These are separate scopes and checkpoints, not additive test counts.",
+      "v042_analysis": "31 passed on isolated PostgreSQL, no skips",
+      "independent_v042_paths": "3 passed on PostgreSQL; only the exact known wrapper accepted, nonexistent and unknown-wrapper positions rejected",
+      "actual_browser": "10 passed; current semantic-browser-result.json and screenshots on zktest",
+      "v043_analysis": "32 passed on isolated PostgreSQL, no skips; independent reviewer also ran all 32 successfully",
+      "v044_adapter": "32 passed independently; compare is one bounded stage, same model transport and fixed budgets",
+      "v044_affected": "145 passed, no skips: analysis41 + investigations13 + monitor22 + topics37 + adapter32, all database cases connected to isolated PostgreSQL.",
+      "v044_final_analysis": "42 passed after final cached-version guard; independent reviewer ran original41 plus added1 successfully.",
+      "v045_optional_finding_references": "Author and independent reviewer both passed 2 PostgreSQL boundary cases: absent issue refs may proceed to correction without invented references; supplied unknown refs still rejected.",
+      "v046_analysis": "53 passed on isolated PostgreSQL, no skips; includes parameter-change recovery/reuse and selected-citation correspondence.",
+      "v046_adapter": "43 passed independently; defaults, bounds, requested sampling, legacy normalization and final-output-only handling."
+    },
+    "actual_cases": {
+      "trial": {
+        "investigation_id": "d8e3226f-a840-4667-85ec-fff2ca05fbc4",
+        "public_sources": [
+          "https://clinicaltrials.gov/api/v2/studies/NCT03758417",
+          "https://europepmc.org/article/MED/36269898"
+        ],
+        "model": "Qwen3.6-FP8; configured alias, immutable weight revision unavailable",
+        "old_attempts": [
+          {
+            "versions": [
+              "v0.1",
+              "v0.2"
+            ],
+            "result": "blocked because generated quotation did not match original; failures preserved"
+          },
+          {
+            "version": "v0.3",
+            "result": "source-to-model-to-UI and automatic paper update worked; content review found stale gaps and unsupported interpretations; not a semantic acceptance"
+          },
+          {
+            "version": "v0.4",
+            "analysis_id": "6faa12ce-dfcd-439f-8726-c8e7168efb49",
+            "result": "two actual model responses, then structural rejection of maintained result with empty changed_claims; preserved"
+          },
+          {
+            "version": "v0.4.1",
+            "analysis_id": "23e63ba3-9281-4758-9a6b-86fc4d5ae125",
+            "result": "three actual model responses; review located issues under the actual draft_to_check wrapper, but validator required draft-relative paths and rejected it. Original responses preserved. v0.4.2 normalizes only that known prefix and retains actual path/source checks."
+          },
+          {
+            "version": "v0.4.2",
+            "analysis_id": "c079ce46-0856-4d83-b55c-cfadb1edaf36",
+            "result": "Five real successful model responses and retained first draft. Technical flow passed; final content did not pass independent review (PFS comparison, event timing and inaccurate quotation reasons). Kept as a visible needs_review machine draft."
+          },
+          {
+            "version": "v0.4.3",
+            "analysis_id": "46940cf5-fab0-4b58-a935-407a21920d4e",
+            "result": "Five actual model responses; PFS statement repaired, but recheck omitted coverage metadata and invented a JSON path. Content still confused parent statements with revised current draft. Failure preserved, not reclassified as success."
+          },
+          {
+            "version": "v0.4.4",
+            "analysis_id": "122b3760-cc25-4730-82ee-c8ef1f718e9f",
+            "result": "Three actual model responses. Check correctly identified ACTUAL enrollment misreading, but issue items omitted optional-in-meaning source keys and were rejected before correction. Original failure preserved. v0.4.5 treats omitted issue references as genuinely absent, never borrowed from claim references; actual claim citation requirements unchanged."
+          },
+          {
+            "version": "v0.4.5",
+            "analysis_id": "d4cd4669-3bda-4fb4-b72e-7f6fe6d3e5d7",
+            "result": "Five actual calls reached needs_review without an engineering error. Current draft improved dates and enrollment but retained overstatement of mortality causation and inaccurate attribution to selected passages; independent content review failed. No historical comparison was executed; not accepted as reliable intelligence."
+          }
+        ],
+        "candidate_analysis_id": "02d374fa-a60d-448b-a72d-f2b6bcd6f302",
+        "review": "Actual v0.4.6 run in progress with bounded thinking/sampling configuration and selected-citation table; no content acceptance yet.",
+        "candidate_admission": "Actual rolling-hour occupancy 3, isolated manual quota 4 grants one slot; production remains 2. No reset or source re-fetch."
+      },
+      "who": {
+        "investigation_id": "0eb6be51-becc-42d5-928e-bbeafcf4dcfb",
+        "analysis_id": "784d04db-186f-4281-8949-f771ef46cbb0",
+        "result": "real public fetch, adoption, background topic, automatic investigation, three actual model calls; needs_review",
+        "admission": "isolated automatic quota explicitly raised to 8 for test while existing work consumed slots; production remains 6; no counters reset",
+        "semantic_limits": "initial content and same-model review both had errors; this verifies continuous engineering chain, not final expert quality"
+      }
+    },
+    "review": {
+      "design_and_code": "Root and three GPT-6.1-Sol max agents agreed on v0.4.6. Independent research53 and adapter43 passed; both code owners cross-reviewed the other part. UI and six Markdown documents reviewed. Content acceptance remains separate.",
+      "final_content": "Awaiting v0.4.6 actual full chain; all preceding quality failures preserved.",
+      "final_browser": "v0.4.2 real Chromium10 passed; v0.4.4 changed finding locations/comparison qualification and built successfully; final actual browser check pending."
+    },
+    "recovery": {
+      "database_dump": "/home/zk_test/zk_projects/.bioradar-history/before-semantic-radar.dump",
+      "dump_validation": "597271161 bytes; pg_restore list read successfully (105 entries)",
+      "private_runtime_backup": "/home/zk_test/zk_projects/.bioradar-history/pre-semantic-runtime.json",
+      "immediate_action": "disable semantic and automatic analysis flags while retaining current readers, ACL checks and analysis table",
+      "code_rollback": "old c638 readers do not recognize machine notes and lack new ACL behavior; add and test compatibility before any code rollback; no blind reset or database downgrade"
+    },
+    "limitations": [
+      "Generic review uses the same configured model; professional status stays not_reviewed.",
+      "Bounded search reads adopted Fabric versions, not the entire Internet.",
+      "Current public data does not prove historical availability for ten-year backtesting.",
+      "Shared professional review and WeKnora integrations are not claimed complete.",
+      "No Palantir equivalence or professional decision accuracy certification."
+    ],
+    "evidence_directory": "/home/zk_test/zk_projects/.bioradar-history",
+    "deployment": {
+      "status": "not_deployed"
+    },
+    "model_probes": [
+      {
+        "report": "semantic-thinking-probe-result.json",
+        "actual_call": true,
+        "thinking": true,
+        "max_output_tokens": 12288,
+        "timeout_seconds": 150,
+        "elapsed_ms": 76180,
+        "usage": {
+          "prompt_tokens": 9213,
+          "completion_tokens": 10119,
+          "total_tokens": 19332
+        },
+        "result": "Valid JSON, but unsupported PFS comparison and cohort proportion remained. No thinking/budget change adopted."
+      },
+      {
+        "report": "semantic-fresh-probe-result.json",
+        "actual_call": true,
+        "thinking": false,
+        "max_output_tokens": 4096,
+        "timeout_seconds": 45,
+        "elapsed_ms": 17623,
+        "usage": {
+          "prompt_tokens": 6534,
+          "completion_tokens": 2341,
+          "total_tokens": 8875
+        },
+        "result": "Evidence-only draft removed previous PFS comparison and cohort ratio, improved quote selection; completeness and timing overstatements remained. This was an initial draft, not a full accepted chain."
+      }
+    ],
+    "candidate_model_profile": {
+      "enable_thinking": true,
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "max_output_tokens": 12288,
+      "timeout_seconds": 150,
+      "qualification": "Selected bounded evaluation configuration, not a claim of official medical optimum. Internal model alias has no verified immutable weight identity. No success inferred before actual content review."
+    }
   }
 }

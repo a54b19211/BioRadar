@@ -351,3 +351,58 @@ def search_records(reader, *, source_id, is_demo, term):
     coverage["followup_limit"] = 3
     coverage["has_more"] = bool(page.get("next_cursor"))
     return {**page, "source_id": source_id, "is_demo": is_demo, "coverage": coverage}
+
+
+def search_analysis_records(reader, *, source_id, is_demo, terms, cutoff, limit=3):
+    """One source's adopted versions; the research service supplies its authorized source scope."""
+    from bioradar.api.errors import DomainError
+
+    if (
+        not isinstance(source_id, str)
+        or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", source_id)
+        or type(is_demo) is not bool
+        or type(limit) is not int
+        or not 1 <= limit <= 6
+        or not isinstance(terms, (list, tuple))
+        or not 1 <= len(terms) <= 3
+        or any(not isinstance(term, str) or not 2 <= len(term.strip()) <= 120 for term in terms)
+        or not isinstance(cutoff, datetime)
+        or cutoff.tzinfo is None
+        or cutoff.utcoffset() is None
+    ):
+        raise DomainError("invalid_analysis_query", "请提供受限来源、明确检索词和时点", 422)
+    terms = sorted(set(term.strip() for term in terms))
+    params = [
+        ("source_id", source_id),
+        ("is_demo", str(is_demo).lower()),
+        ("mode", "current"),
+        ("cutoff", cutoff.isoformat()),
+        ("limit", limit),
+        *(("terms", term) for term in terms),
+    ]
+    page = reader._get("/api/history/records", params)
+    if (
+        not isinstance(page, dict)
+        or page.get("schema_version") != "datafabric.history.collection.v1"
+        or not isinstance(page.get("items"), list)
+        or len(page["items"]) > limit
+        or not isinstance(page.get("coverage"), dict)
+        or page.get("next_cursor") is not None
+        and not isinstance(page["next_cursor"], str)
+    ):
+        raise history_error()
+    identities = set()
+    for record in page["items"]:
+        validate_record(record, source_id, is_demo, "current", cutoff)
+        identity = (record["source_record_id"], record["version_id"])
+        if identity in identities:
+            raise history_error()
+        identities.add(identity)
+    coverage = {
+        **page["coverage"],
+        "complete": False,
+        "followup_limit": limit,
+        "has_more": bool(page.get("next_cursor")),
+        "search_scope": "adopted_title_or_clean_text_literal_and_not_the_web",
+    }
+    return {**page, "source_id": source_id, "is_demo": is_demo, "coverage": coverage}

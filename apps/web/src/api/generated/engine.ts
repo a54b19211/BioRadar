@@ -178,6 +178,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/investigations/{investigation_id}/analyses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Analysis List */
+        get: operations["analysis_list_api_engine_investigations__investigation_id__analyses_get"];
+        put?: never;
+        /** Analysis Create */
+        post: operations["analysis_create_api_engine_investigations__investigation_id__analyses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/investigations/{investigation_id}/analyses/{analysis_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Analysis Get */
+        get: operations["analysis_get_api_engine_investigations__investigation_id__analyses__analysis_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/investigations/{investigation_id}/analyses/{analysis_id}/evidence/{evidence_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Analysis Evidence */
+        get: operations["analysis_evidence_api_engine_investigations__investigation_id__analyses__analysis_id__evidence__evidence_key__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/investigations/{investigation_id}/analyses/{analysis_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Analysis Export */
+        get: operations["analysis_export_api_engine_investigations__investigation_id__analyses__analysis_id__export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/runs": {
         parameters: {
             query?: never;
@@ -680,6 +749,302 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnalysisCreate */
+        AnalysisCreate: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Retry Of Analysis Id */
+            retry_of_analysis_id?: string | null;
+            /** Parent Analysis Id */
+            parent_analysis_id?: string | null;
+            /** Material Entry Ids */
+            material_entry_ids?: string[];
+        };
+        /** AnalysisEvidence */
+        AnalysisEvidence: {
+            /** Key */
+            key: string;
+            /** Material Entry Id */
+            material_entry_id: string | null;
+            /**
+             * Text Basis
+             * @default snapshot_normalized
+             * @enum {string}
+             */
+            text_basis: "snapshot_normalized" | "source_clean_text" | "source_raw_content";
+            /** History Binding */
+            history_binding?: {
+                [key: string]: unknown;
+            } | null;
+            /** Facts */
+            facts?: {
+                [key: string]: unknown;
+            };
+            /** Field Locators */
+            field_locators?: {
+                [key: string]: unknown;
+            };
+            /** Snapshot Id */
+            snapshot_id: string;
+            record_ref: components["schemas"]["ProviderRef"];
+            /** Source Id */
+            source_id: string;
+            /** Title */
+            title: string;
+            /** Text */
+            text: string;
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Text Sha256 */
+            text_sha256: string;
+            /** Passages */
+            passages?: components["schemas"]["AnalysisPassage"][];
+            /** Selection Hash */
+            selection_hash?: string | null;
+            /** Publication Time */
+            publication_time?: string | null;
+            /** Source Url */
+            source_url?: string | null;
+            /** Record Flags */
+            record_flags?: string[];
+            /** Limitations */
+            limitations?: string[];
+        };
+        /** AnalysisEvidenceRead */
+        AnalysisEvidenceRead: {
+            evidence: components["schemas"]["AnalysisEvidence"];
+            /** Normalized Text */
+            normalized_text: string;
+            /** Source Url */
+            source_url: string | null;
+            /**
+             * Warning
+             * @default 固定来源文本；机器证据关系仍须人工核对。
+             */
+            warning: string;
+        };
+        /** AnalysisList */
+        AnalysisList: {
+            /** Enabled */
+            enabled: boolean;
+            /** Configured */
+            configured: boolean;
+            /** Unavailable Reason */
+            unavailable_reason: string | null;
+            /** Limits */
+            limits: {
+                [key: string]: number;
+            };
+            /** Retrieval Sources */
+            retrieval_sources: string[];
+            /** Items */
+            items: components["schemas"]["AnalysisSummary"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /**
+             * Unavailable Count
+             * @default 0
+             */
+            unavailable_count: number;
+        };
+        /** AnalysisPassage */
+        AnalysisPassage: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+        };
+        /** AnalysisQueryReceipt */
+        AnalysisQueryReceipt: {
+            /** Index */
+            index: number;
+            plan: components["schemas"]["PlannedQuery"];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "prepared" | "read" | "empty" | "failed";
+            /**
+             * Scope
+             * @default fabric_current_adopted_versions_not_the_web
+             */
+            scope: string;
+            /**
+             * Returned
+             * @default 0
+             */
+            returned: number;
+            /**
+             * New Versions
+             * @default 0
+             */
+            new_versions: number;
+            /**
+             * Has More
+             * @default false
+             */
+            has_more: boolean;
+            /** Error Code */
+            error_code?: string | null;
+            /** Evidence Keys */
+            evidence_keys?: string[];
+        };
+        /** AnalysisResult */
+        AnalysisResult: {
+            /**
+             * Version
+             * @default bioradar-investigation-analysis-v0.4.6
+             * @enum {string}
+             */
+            version: "bioradar-investigation-analysis-v0.1" | "bioradar-investigation-analysis-v0.2" | "bioradar-investigation-analysis-v0.3" | "bioradar-investigation-analysis-v0.4" | "bioradar-investigation-analysis-v0.4.1" | "bioradar-investigation-analysis-v0.4.2" | "bioradar-investigation-analysis-v0.4.3" | "bioradar-investigation-analysis-v0.4.4" | "bioradar-investigation-analysis-v0.4.5" | "bioradar-investigation-analysis-v0.4.6";
+            /** Claims */
+            claims: components["schemas"]["VerifiedClaim"][];
+            /** Explanations */
+            explanations: components["schemas"]["Explanation"][];
+            /** Gaps */
+            gaps: components["schemas"]["EvidenceGap"][];
+            conditional_answer: components["schemas"]["ConditionalAnswer"];
+            update: components["schemas"]["AnalysisUpdate"];
+            review: components["schemas"]["GenericReview"];
+            /**
+             * Professional Status
+             * @default not_reviewed
+             * @constant
+             */
+            professional_status: "not_reviewed";
+            /** Limitations */
+            limitations: string[];
+        };
+        /** AnalysisSummary */
+        AnalysisSummary: {
+            /** Id */
+            id: string;
+            /** Investigation Id */
+            investigation_id: string;
+            /** Parent Analysis Id */
+            parent_analysis_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "completed" | "needs_review" | "blocked" | "failed";
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "manual" | "monitor" | "topic" | "material_update";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Question */
+            question: string;
+            /** Based On Revision */
+            based_on_revision: number;
+            /** Version */
+            version: string;
+            /** Evidence Count */
+            evidence_count: number;
+            /** Error Code */
+            error_code: string | null;
+            /** Result Summary */
+            result_summary: string | null;
+            /**
+             * Professional Status
+             * @default not_reviewed
+             * @constant
+             */
+            professional_status: "not_reviewed";
+        };
+        /** AnalysisUpdate */
+        AnalysisUpdate: {
+            /**
+             * Stance
+             * @enum {string}
+             */
+            stance: "initial" | "maintained" | "revised" | "unable_to_compare";
+            /** Changed Claims */
+            changed_claims: components["schemas"]["ClaimUpdate"][];
+            /** Reasons */
+            reasons: string[];
+            /** Decisive Evidence Keys */
+            decisive_evidence_keys: string[];
+        };
+        /** AnalysisView */
+        AnalysisView: {
+            /** Id */
+            id: string;
+            /** Investigation Id */
+            investigation_id: string;
+            /** Parent Analysis Id */
+            parent_analysis_id: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "completed" | "needs_review" | "blocked" | "failed";
+            /**
+             * Trigger
+             * @enum {string}
+             */
+            trigger: "manual" | "monitor" | "topic" | "material_update";
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Completed At */
+            completed_at: string | null;
+            /** Question */
+            question: string;
+            /** Based On Revision */
+            based_on_revision: number;
+            /** Version */
+            version: string;
+            /** Evidence Count */
+            evidence_count: number;
+            /** Error Code */
+            error_code: string | null;
+            /** Result Summary */
+            result_summary: string | null;
+            /**
+             * Professional Status
+             * @default not_reviewed
+             * @constant
+             */
+            professional_status: "not_reviewed";
+            /** Is Demo */
+            is_demo: boolean;
+            /** Input Hash */
+            input_hash: string;
+            /** Prompt Version */
+            prompt_version: string;
+            /** Search Scope */
+            search_scope: string[];
+            /** Evidence */
+            evidence: components["schemas"]["AnalysisEvidence"][];
+            /** Queries */
+            queries: components["schemas"]["AnalysisQueryReceipt"][];
+            /** Calls */
+            calls: {
+                [key: string]: unknown;
+            }[];
+            result: components["schemas"]["AnalysisResult"] | null;
+            initial_draft?: components["schemas"]["AnalysisResult"] | null;
+            /** Limitations */
+            limitations: string[];
+            /** Note Entry Id */
+            note_entry_id: string | null;
+        };
         /** Assessment */
         Assessment: {
             assessment_ref: components["schemas"]["ProviderRef"];
@@ -824,6 +1189,40 @@ export interface components {
              */
             evidence_refs: components["schemas"]["ProviderRef"][];
             provenance: components["schemas"]["SectionProvenance"];
+        };
+        /** ClaimReview */
+        ClaimReview: {
+            /** Claim Id */
+            claim_id: string;
+            /**
+             * Verdict
+             * @enum {string}
+             */
+            verdict: "grounded" | "overstated" | "unsupported" | "uncertain";
+            /** Issue */
+            issue: string;
+            /** Evidence Keys */
+            evidence_keys: string[];
+        };
+        /** ClaimUpdate */
+        ClaimUpdate: {
+            /** Claim Id */
+            claim_id: string;
+            /** Previous Claim Id */
+            previous_claim_id: string | null;
+            /** Reason */
+            reason: string;
+            /** Evidence Keys */
+            evidence_keys: string[];
+        };
+        /** ConditionalAnswer */
+        ConditionalAnswer: {
+            /** Answer */
+            answer: string;
+            /** Conditions */
+            conditions: string[];
+            /** Unknowns */
+            unknowns: string[];
         };
         /** ConstraintCheck */
         ConstraintCheck: {
@@ -1257,6 +1656,19 @@ export interface components {
             text: string;
             basis: components["schemas"]["InputBasis"];
         };
+        /** DraftFinding */
+        DraftFinding: {
+            /** Path */
+            path?: string | null;
+            /** Section */
+            section?: ("claims" | "explanations" | "gaps" | "conditional_answer" | "update") | null;
+            /** Claim Id */
+            claim_id?: string | null;
+            /** Issue */
+            issue: string;
+            /** Evidence Keys */
+            evidence_keys: string[];
+        };
         /** Embedding */
         Embedding: {
             /** Provider */
@@ -1466,6 +1878,15 @@ export interface components {
             source_status: "supported" | "unverified";
             provenance: components["schemas"]["SectionProvenance"];
         };
+        /** EvidenceGap */
+        EvidenceGap: {
+            /** Id */
+            id: string;
+            /** Question */
+            question: string;
+            /** Why It Matters */
+            why_it_matters: string;
+        };
         /** EvidenceSupport */
         EvidenceSupport: {
             record_ref: components["schemas"]["ProviderRef"];
@@ -1499,6 +1920,19 @@ export interface components {
             record_ref: components["schemas"]["ProviderRef"];
             /** Reason */
             reason: string;
+        };
+        /** Explanation */
+        Explanation: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /** For Claim Ids */
+            for_claim_ids: string[];
+            /** Against Claim Ids */
+            against_claim_ids: string[];
+            /** Discriminating Evidence Needed */
+            discriminating_evidence_needed: string;
         };
         /** FeedbackCreate */
         FeedbackCreate: {
@@ -1535,6 +1969,22 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /** GenericReview */
+        GenericReview: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "passed" | "needs_review";
+            /** Claims */
+            claims: components["schemas"]["ClaimReview"][];
+            /** Overall Limitations */
+            overall_limitations: string[];
+            /** Findings */
+            findings?: components["schemas"]["DraftFinding"][];
+            /** Checked Sections */
+            checked_sections?: ("claims" | "explanations" | "gaps" | "conditional_answer" | "update")[];
         };
         /** GraphEvidence */
         GraphEvidence: {
@@ -2460,6 +2910,8 @@ export interface components {
         };
         /** InvestigationMaterial */
         InvestigationMaterial: {
+            /** Machine Analysis Id */
+            machine_analysis_id?: string | null;
             automation?: components["schemas"]["InvestigationAutomation"] | null;
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -2503,6 +2955,8 @@ export interface components {
         };
         /** InvestigationNote */
         InvestigationNote: {
+            /** Machine Analysis Id */
+            machine_analysis_id?: string | null;
             automation?: components["schemas"]["InvestigationAutomation"] | null;
             /**
              * @description discriminator enum property added by openapi-typescript
@@ -3409,6 +3863,23 @@ export interface components {
             metric_ids: string[];
             /** Reason */
             reason: string;
+        };
+        /** PlannedQuery */
+        PlannedQuery: {
+            /** Gap Id */
+            gap_id: string;
+            /** Target Claim Id */
+            target_claim_id: string;
+            /** Source Id */
+            source_id: string;
+            /** Terms */
+            terms: string[];
+            /** Anchoring Evidence Keys */
+            anchoring_evidence_keys: string[];
+            /** Reason */
+            reason: string;
+            /** Expected Discrimination */
+            expected_discrimination: string;
         };
         /** ProjectTimeline */
         ProjectTimeline: {
@@ -4469,6 +4940,49 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VerifiedClaim */
+        VerifiedClaim: {
+            /** Id */
+            id: string;
+            /** Text */
+            text: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "source_statement" | "inference";
+            /** Scope */
+            scope: string;
+            /** Conditions */
+            conditions: string[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "supported" | "contradicted" | "mixed" | "insufficient";
+            /** Evidence Links */
+            evidence_links: components["schemas"]["VerifiedEvidenceLink"][];
+        };
+        /** VerifiedEvidenceLink */
+        VerifiedEvidenceLink: {
+            /** Evidence Key */
+            evidence_key: string;
+            /** Quote */
+            quote: string;
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "supports" | "refutes" | "limits" | "context";
+            /** Reason */
+            reason: string;
+            /** Start */
+            start: number;
+            /** End */
+            end: number;
+            /** Passage Id */
+            passage_id?: string | null;
+        };
         /** InvestigationQuestion */
         bioradar__research__decision__models__InvestigationQuestion: {
             /** Question Id */
@@ -4931,6 +5445,174 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvestigationView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analysis_list_api_engine_investigations__investigation_id__analyses_get: {
+        parameters: {
+            query?: {
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                investigation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisList"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analysis_create_api_engine_investigations__investigation_id__analyses_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                investigation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnalysisCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analysis_get_api_engine_investigations__investigation_id__analyses__analysis_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investigation_id: string;
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analysis_evidence_api_engine_investigations__investigation_id__analyses__analysis_id__evidence__evidence_key__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investigation_id: string;
+                analysis_id: string;
+                evidence_key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisEvidenceRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analysis_export_api_engine_investigations__investigation_id__analyses__analysis_id__export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                investigation_id: string;
+                analysis_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

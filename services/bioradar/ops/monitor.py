@@ -92,6 +92,9 @@ def main():
                         result = MonitorService(engine, reader).tick()
                         # Topics seed independently; a global monitor ACK cannot skip their history.
                         TopicService(engine, reader).tick()
+                        from bioradar.research.investigations.analysis_service import AnalysisService
+
+                        AnalysisService(engine, reader).recover(limit=4)
                         logger.info(
                             "Monitor tick state=%s code=%s", result["state"], result.get("error_code", "none")
                         )

@@ -1,0 +1,51 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "expected_revision": {
+      "minimum": 1,
+      "title": "Expected Revision",
+      "type": "integer"
+    },
+    "retry_of_analysis_id": {
+      "anyOf": [
+        {
+          "maxLength": 36,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Retry Of Analysis Id"
+    },
+    "parent_analysis_id": {
+      "anyOf": [
+        {
+          "maxLength": 36,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Parent Analysis Id"
+    },
+    "material_entry_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 10,
+      "title": "Material Entry Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "expected_revision"
+  ],
+  "title": "AnalysisCreate",
+  "type": "object"
+}
