@@ -3667,5 +3667,50 @@
       "changed_files_credential_scan": "no_matches",
       "new_markdown_files": 0
     }
+  },
+  "fabric_handoff_documentation_20261019": {
+    "checked_at": "2026-10-19T20:14:20.279962+08:00",
+    "scope": "documentation_only; reconcile existing Radar docs with committed Fabric handoff and actual implementation",
+    "radar_base_commit": "f3641b498d16c9497705e2e3f6aa9b2b06c8e151",
+    "fabric_business_commit": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6",
+    "fabric_report_commit": "f493b05a5bcac631bb88c5b357d63846a9beb6c4",
+    "fabric_report": "/home/zk_test/zk_projects/ZK_Data-Fabric-test/task_doc/数据采集与图谱修改报告.md",
+    "updated_documents": [
+      "README.md",
+      "docs/资产盘点.md",
+      "docs/开发说明.md",
+      "docs/开发分工.md",
+      "docs/接口说明.md"
+    ],
+    "source_runtime_observation_time": "2026-10-19T11:38:00+08:00; existing report snapshot, not a new runtime verification",
+    "changes": [
+      "Replace pending-branch wording with merged main/dev state.",
+      "Separate source save, immutable version publication and Radar adoption.",
+      "Separate reader implementation, source permissions and actual watches.",
+      "State missing graph review/merge provenance, CLI repeated-quote limitation and valid-time gaps.",
+      "Separate review qualification change from source permission revocation.",
+      "Assign non-overlapping follow-up work using existing monitor, topic-health and investigation mechanisms.",
+      "Clarify old 8100 commands versus current 18511 history/8100 research runtime and optional trigger shutdown."
+    ],
+    "checks": {
+      "git_diff_check": "passed",
+      "local_document_links": "passed including canonical sibling Fabric report",
+      "credential_scan": "no matches in changed Markdown",
+      "new_markdown_files": 0
+    },
+    "review": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "status": "approved",
+      "reviewers": [
+        "fabric_docs_check",
+        "radar_docs_check"
+      ],
+      "findings": "No remaining blocking documentation findings. Exact monitor path clarified; source state, graph limits, existing UI reuse and ownership cross-checked against code and fixed report snapshots."
+    },
+    "no_business_code_changes": true,
+    "no_migrations_or_service_restarts": true,
+    "no_generation_or_database_mutation_tests": true,
+    "prior_execution_audits_preserved": true
   }
 }
