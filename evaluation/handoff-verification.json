@@ -491,19 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-18T17:22:03.649539+00:00",
-    "status": "running_on_zktest_as_review_required_machine_drafts",
-    "details": "semantic_deepseek_20261019",
+    "checked_at": "2026-10-29T16:55:39.398522+00:00",
+    "status": "engineering_verified_and_deployed; followup_report_requires_review",
+    "details": "research_integration_20261030",
     "application_version": "0.5.0",
-    "runtime_code_commits": {
-      "radar": "a6b1e7fcafaa19d87ac8de048c1636bb898d58f7",
-      "fabric": "4e7fb67ab0c1bf54acec9869fa3d502018f1f6d6"
-    },
     "source_roots": {
-      "radar": "/home/zk_test/zk_projects/BioRadar",
-      "fabric": "/home/zk_test/zk_projects/ZK_Data-Fabric-test"
+      "radar": "/home/zk_test/zk_projects/BioRadar"
     },
-    "scope": "Real clinical content accepted in a finite case; held-out automatic update works but retains semantic errors and needs_review. Continuous machine drafts enabled; no automatic professional approval."
+    "scope": "Shared research runtime and original/version lifecycle verified; first bounded report accepted, final followup draft rejected by quality checks and preserved. Formal professional approval remains separate."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -631,10 +626,10 @@
   "documentation": {
     "normal_markdown": [
       "README.md",
-      "docs/DEVELOPMENT.md",
-      "docs/OWNERSHIP.md",
-      "docs/INTERFACES.md",
-      "docs/ASSETS.md"
+      "docs/开发说明.md",
+      "docs/开发分工.md",
+      "docs/接口说明.md",
+      "docs/资产盘点.md"
     ],
     "coding_instructions": "AGENTS.md",
     "previous_active_markdown_count": 42,
@@ -646,10 +641,10 @@
     "compute_versions_changed": false
   },
   "not_completed": [
-    "Automatic WeKnora investigation retrieval",
-    "Mechanism evidence evaluation and constrained generation verification integration",
-    "Continuous all-source updates and full-corpus value validation",
-    "Organization identity, formal business publication and public deployment"
+    "Reliable final-generation quality across diverse questions: preserve known semantic/citation false positives and false negatives.",
+    "Real WeKnora hit binding to a fixed Fabric original for a useful investigation case.",
+    "Full-corpus and long historical validation, wider original/full-text data coverage and complete project lineage.",
+    "Organization identity, formal professional publication and public deployment."
   ],
   "data_scope": "Synthetic teaching materials are clearly labelled; the real-data check reused one previously adopted ClinicalTrials summary without fetching upstream or evaluating clinical/strategic value.",
   "follow_up_reviews": [
@@ -3712,5 +3707,678 @@
     "no_migrations_or_service_restarts": true,
     "no_generation_or_database_mutation_tests": true,
     "prior_execution_audits_preserved": true
+  },
+  "research_integration_20261030": {
+    "checked_at": "2026-10-29T16:55:39.398522+00:00",
+    "status": "engineering_verified_and_deployed; followup_report_requires_review",
+    "source_root": "/home/zk_test/zk_projects/BioRadar",
+    "branch": "main",
+    "change_base": "23233e5e2cfa8948e1e114799e0a301db493319d",
+    "scope": "Question-driven investigation and the shared runtime used by automatic investigations; actual Fabric originals, MechEvidence and BioCheck, bounded queries, budgets, versioned reports, explicit follow-up/retry, and backlog recovery.",
+    "checks": {
+      "postgres_full_regression": {
+        "passed": 569,
+        "log": "/tmp/bioradar-release-tests-20261030.log"
+      },
+      "later_repair_retry_resume_regressions": {
+        "passed": 4,
+        "independently_repeated": true,
+        "note": "Includes cases already in full run plus None-parent and 7-call resume boundaries added afterward; do not add counts as distinct tests."
+      },
+      "monitor_topics_regressions": {
+        "passed": 60,
+        "included_in_full": true
+      },
+      "boot": {
+        "passed": 21
+      },
+      "contract_check": "passed",
+      "lint": "passed",
+      "frontend_generation_typecheck_build": "passed",
+      "research_ui": {
+        "passed": 12
+      },
+      "analysis_ui_races": {
+        "passed": 12
+      },
+      "desktop_mobile_report_browser": "passed",
+      "browser": {
+        "entry": {
+          "textareas": 1,
+          "width": 1440,
+          "documentWidth": 1440
+        },
+        "desktop": {
+          "width": 1440,
+          "documentWidth": 1425
+        },
+        "mobile": {
+          "width": 390,
+          "documentWidth": 390
+        },
+        "report_analysis_id": "9d5e6475-2f79-417f-a9c1-8d23d8a5203f",
+        "saved_report_visible": true,
+        "report_mobile": {
+          "width": 390,
+          "documentWidth": 390
+        },
+        "runtime_errors": [],
+        "status": "passed"
+      }
+    },
+    "reviews": {
+      "model": "gpt-6.1-sol",
+      "reasoning_effort": "max",
+      "agents": [
+        "radar_runtime_design",
+        "radar_upstream_design",
+        "radar_product_design"
+      ],
+      "design": "Discussed before implementation; runtime, upstream adapters and product responsibilities separated.",
+      "code": "Non-author reviews completed across runtime, adapters, UI, budget/retry and topic recovery; final report content reviewed independently."
+    },
+    "resolved_findings": [
+      "Automatically adopted fixed originals are inherited by follow-up; report notes are never evidence.",
+      "Literal AND queries permit one bounded, persisted reduction of terms on an empty response.",
+      "Provider code is loaded when used and pinned in memory for that method; unused provider changes do not abort research.",
+      "Repeated derived mechanism context is compacted before all later stages.",
+      "Actual model requests and both shared methods use one cumulative ledger and deadline.",
+      "Final report generation, verification, optional repair and recheck use the shared BioCheck method.",
+      "A prior generic draft revision no longer disables final report repair.",
+      "Resume counts completed BioCheck stages once; optional repair does not exceed the actual call budget.",
+      "Explicit retry accepts needs_review, preserves original question/parent including None, and keeps old results.",
+      "UI preserves drafts while polling, separates final report quality from earlier structured checks, and exports the saved version.",
+      "Topic recovery reads narrow candidate rows and loads each scope once, preserving old pending items and authorization."
+    ],
+    "real_runs": [
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result.json",
+        "status": "failed",
+        "engineering_status": null,
+        "error": "AssertionError",
+        "message": "analysis_reached_a_report",
+        "analyses": [
+          {
+            "analysis_id": "6d3bf365-74f9-454c-bfc6-e6fc15a99c66",
+            "state": "blocked",
+            "stage": "digging",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 2,
+            "model_calls": 2,
+            "usage": {
+              "calls": 2,
+              "total_tokens": 19780,
+              "known_total_tokens": 19780,
+              "prompt_tokens": 9425,
+              "completion_tokens": 10355,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 19780,
+              "queries": 5,
+              "elapsed_seconds": 66.994409,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": null,
+            "report_sha256": null,
+            "professional_status": "not_reviewed"
+          }
+        ]
+      },
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result2.json",
+        "status": "failed",
+        "engineering_status": null,
+        "error": "AssertionError",
+        "message": "analysis_reached_a_report",
+        "analyses": [
+          {
+            "analysis_id": "86008e1c-09fe-4d9b-a12c-adfbbffd4eb4",
+            "state": "blocked",
+            "stage": "biocheck_plan",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 2,
+            "model_calls": 7,
+            "usage": {
+              "calls": 7,
+              "total_tokens": 112091,
+              "known_total_tokens": 112091,
+              "prompt_tokens": 57241,
+              "completion_tokens": 54850,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 112091,
+              "queries": 5,
+              "elapsed_seconds": 320.990254,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": null,
+            "report_sha256": null,
+            "professional_status": "not_reviewed"
+          }
+        ]
+      },
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result3.json",
+        "status": "failed",
+        "engineering_status": null,
+        "error": "AssertionError",
+        "message": "analysis_reached_a_report",
+        "analyses": [
+          {
+            "analysis_id": "54606790-e129-4c87-b60c-d414f0312268",
+            "state": "blocked",
+            "stage": "synthesize",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 3,
+            "model_calls": 6,
+            "usage": {
+              "calls": 5,
+              "total_tokens": 63246,
+              "known_total_tokens": 63246,
+              "prompt_tokens": 31410,
+              "completion_tokens": 31836,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 63246,
+              "queries": 5,
+              "elapsed_seconds": 178.530351,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": null,
+            "report_sha256": null,
+            "professional_status": "not_reviewed"
+          }
+        ]
+      },
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result4.json",
+        "status": "failed",
+        "engineering_status": null,
+        "error": "AssertionError",
+        "message": "analysis_reached_a_report",
+        "analyses": [
+          {
+            "analysis_id": "59083287-66da-4b98-beca-b6c60bdfc9da",
+            "state": "completed",
+            "stage": "completed",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 2,
+            "model_calls": 11,
+            "usage": {
+              "calls": 11,
+              "total_tokens": 199808,
+              "known_total_tokens": 199808,
+              "prompt_tokens": 117125,
+              "completion_tokens": 82683,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 199808,
+              "queries": 5,
+              "elapsed_seconds": 432.600779,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": "PASS",
+            "report_sha256": "e1d0953b77829507fadc9ac5f8e09ac2957bf5d83effcd02278c6592114dc5ce",
+            "professional_status": "not_reviewed"
+          },
+          {
+            "analysis_id": "6bfb00d8-d797-455b-8d4e-f4a60173ecd8",
+            "state": "blocked",
+            "stage": "initial_retrieval",
+            "question": "这些材料是否足以证明 Elranatamab 已在一线治疗中优于现有方案？请核对研究人群、对照、研究阶段和结果是否已经公布，不要把预计完成日期当成疗效结论。",
+            "parent_analysis_id": "59083287-66da-4b98-beca-b6c60bdfc9da",
+            "evidence_count": 0,
+            "model_calls": 1,
+            "usage": {
+              "calls": 1,
+              "total_tokens": 2131,
+              "known_total_tokens": 2131,
+              "prompt_tokens": 1188,
+              "completion_tokens": 943,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 2131,
+              "queries": 3,
+              "elapsed_seconds": 11.562765,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": null,
+            "report_sha256": null,
+            "professional_status": "not_reviewed"
+          }
+        ]
+      },
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result5.json",
+        "status": "completed_with_review",
+        "engineering_status": "passed",
+        "error": null,
+        "message": null,
+        "analyses": [
+          {
+            "analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+            "state": "completed",
+            "stage": "completed",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 5,
+            "model_calls": 11,
+            "usage": {
+              "calls": 11,
+              "total_tokens": 267094,
+              "known_total_tokens": 267094,
+              "prompt_tokens": 165280,
+              "completion_tokens": 101814,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 267094,
+              "queries": 6,
+              "elapsed_seconds": 542.396233,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": "PASS",
+            "report_sha256": "6149b8e893205e0619088284a38e4d2acf21598e5fadbca02cabd1ac3a88a1a0",
+            "professional_status": "not_reviewed"
+          },
+          {
+            "analysis_id": "b8642341-473c-4971-8a34-39de5deebac0",
+            "state": "needs_review",
+            "stage": "needs_review",
+            "question": "这些材料是否足以证明 Elranatamab 已在一线治疗中优于现有方案？请核对研究人群、对照、研究阶段和结果是否已经公布，不要把预计完成日期当成疗效结论。",
+            "parent_analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+            "evidence_count": 5,
+            "model_calls": 8,
+            "usage": {
+              "calls": 8,
+              "total_tokens": 185187,
+              "known_total_tokens": 185187,
+              "prompt_tokens": 100910,
+              "completion_tokens": 84277,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 185187,
+              "queries": 4,
+              "elapsed_seconds": 442.153965,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": "FAIL",
+            "report_sha256": "7fdb2a694910ca6e7096353738bb78e9b3d639016b96c8cc2e437e6091623655",
+            "professional_status": "not_reviewed"
+          }
+        ]
+      },
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result6.json",
+        "status": "failed",
+        "engineering_status": null,
+        "error": "AssertionError",
+        "message": "analysis_reached_a_report",
+        "analyses": [
+          {
+            "analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+            "state": "completed",
+            "stage": "completed",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 5,
+            "model_calls": 11,
+            "usage": {
+              "calls": 11,
+              "total_tokens": 267094,
+              "known_total_tokens": 267094,
+              "prompt_tokens": 165280,
+              "completion_tokens": 101814,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 267094,
+              "queries": 6,
+              "elapsed_seconds": 542.396233,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": "PASS",
+            "report_sha256": "6149b8e893205e0619088284a38e4d2acf21598e5fadbca02cabd1ac3a88a1a0",
+            "professional_status": "not_reviewed"
+          },
+          {
+            "analysis_id": "b7527cc1-174c-4ad9-9cd3-4d2a78e8c940",
+            "state": "blocked",
+            "stage": "read_plan",
+            "question": "这些材料是否足以证明 Elranatamab 已在一线治疗中优于现有方案？请核对研究人群、对照、研究阶段和结果是否已经公布，不要把预计完成日期当成疗效结论。",
+            "parent_analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+            "evidence_count": 5,
+            "model_calls": 1,
+            "usage": {
+              "calls": 1,
+              "total_tokens": 15080,
+              "known_total_tokens": 15080,
+              "prompt_tokens": 11027,
+              "completion_tokens": 4053,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 15080,
+              "queries": 0,
+              "elapsed_seconds": 23.817784,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": null,
+            "report_sha256": null,
+            "professional_status": "not_reviewed"
+          }
+        ]
+      },
+      {
+        "artifact": "/tmp/bioradar-research-20261029/result7.json",
+        "status": "completed_with_review",
+        "engineering_status": "passed",
+        "error": null,
+        "message": null,
+        "analyses": [
+          {
+            "analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+            "state": "completed",
+            "stage": "completed",
+            "question": "Elranatamab 治疗复发/难治性多发性骨髓瘤，作用机制和疗效的现有证据分别到哪一步？请比较临床登记与公开论文，说明哪些材料支持判断，哪些仍不足以支持管线布局决策。",
+            "parent_analysis_id": null,
+            "evidence_count": 5,
+            "model_calls": 11,
+            "usage": {
+              "calls": 11,
+              "total_tokens": 267094,
+              "known_total_tokens": 267094,
+              "prompt_tokens": 165280,
+              "completion_tokens": 101814,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 267094,
+              "queries": 6,
+              "elapsed_seconds": 542.396233,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": "PASS",
+            "report_sha256": "6149b8e893205e0619088284a38e4d2acf21598e5fadbca02cabd1ac3a88a1a0",
+            "professional_status": "not_reviewed"
+          },
+          {
+            "analysis_id": "9d5e6475-2f79-417f-a9c1-8d23d8a5203f",
+            "state": "needs_review",
+            "stage": "needs_review",
+            "question": "这些材料是否足以证明 Elranatamab 已在一线治疗中优于现有方案？请核对研究人群、对照、研究阶段和结果是否已经公布，不要把预计完成日期当成疗效结论。",
+            "parent_analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+            "evidence_count": 5,
+            "model_calls": 9,
+            "usage": {
+              "calls": 9,
+              "total_tokens": 204065,
+              "known_total_tokens": 204065,
+              "prompt_tokens": 114905,
+              "completion_tokens": 89160,
+              "unknown_usage_calls": 0,
+              "estimated_tokens": 0,
+              "budgeted_tokens": 204065,
+              "queries": 4,
+              "elapsed_seconds": 466.865741,
+              "monetary_cost": null,
+              "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。"
+            },
+            "report_status": "FAIL",
+            "report_sha256": "3307d50f9f460b48fe5370ce5e2b3cb0b189ddc70d1bc42693734dbc85aaa582",
+            "professional_status": "not_reviewed"
+          }
+        ]
+      }
+    ],
+    "quality_regressions_preserved": [
+      {
+        "analysis_id": "59083287-66da-4b98-beca-b6c60bdfc9da",
+        "case": "BioCheck marked U1/claims[0] supported by qef6ac51e879c:S1 [0,1200), but BCMA-CD3 support is S2 [1200,2157), beginning at 1844. Raw verifier output chose S1; original text/map and Radar mapping match.",
+        "outcome": "Record-level fact is correct; fine-grained semantic support is wrong. Original machine PASS remains, independent finding retained."
+      },
+      {
+        "analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+        "case": "Draft upgraded CADTH conditional reimbursement recommendation to actual reimbursement and generalized a missing excerpt field to the whole article.",
+        "outcome": "Actual BioCheck review identified both; repair corrected both; final PASS and independent bounded content review passed."
+      },
+      {
+        "analysis_id": "b8642341-473c-4971-8a34-39de5deebac0",
+        "case": "Draft says infection observation is before treatment; original says first 24 months of treatment. Missing citations also flagged. NUM flag on August/at least four is a verifier false alarm.",
+        "outcome": "Actual FAIL/needs_review retained. Runtime incorrectly disabled final repair after generic revision; fixed with separate bounded repair and regression tests."
+      },
+      {
+        "analysis_id": "b7527cc1-174c-4ad9-9cd3-4d2a78e8c940",
+        "case": "Completed HTTP 200, finish_reason stop, 15080-token response failed strict JSON parsing at read_plan.",
+        "outcome": "No final report or BioCheck call; failure retained. Raw malformed content was not persisted, so exact syntax defect is unknown. Next attempt is an explicit retry, not an unknown-request resend."
+      },
+      {
+        "analysis_id": "9d5e6475-2f79-417f-a9c1-8d23d8a5203f",
+        "case": "BioCheck revise replaced valid original IDs with unknown [E1], [E4], [E5] in U1/U4. Original revise response already contains these references; Radar neither relabeled them nor guessed original mappings.",
+        "outcome": "Final recheck correctly retains FAIL/needs_review. Main population, line-count, phase and date statements agree with the adopted originals; prior before-treatment wording is gone. Shared quality project must fix generation/repair behavior."
+      }
+    ],
+    "monitor_recovery": {
+      "diagnosis": "Repeated scope JSON in 2753 deferred candidate rows caused PostgreSQL statement timeout (57014), preventing later polling while processes stayed alive.",
+      "production_evaluations": 9349,
+      "deferred_candidates": 2753,
+      "old_estimated_wire_bytes": 715009160,
+      "new_measured_candidate_plus_scope_bytes": 727731,
+      "narrow_query_seconds": 0.0155,
+      "actual_rival_check_seconds": 1.3251,
+      "database_migration": false,
+      "pending_items_deleted": false,
+      "permissions_and_old_candidate_order_preserved": true,
+      "production_restart": "verified: all source polling refreshed and legacy_documents advanced 188807 -> 188857; queued graph/WHO work retained"
+    },
+    "remaining_limits": [
+      "This actual question uses two registry excerpts and three Review/HTA abstracts, not original trial result full texts or direct mechanism experiments.",
+      "Follow-up searches may return the same originals or no new items; retained has_more and search scope do not imply complete coverage.",
+      "WeKnora was called using the actual configured instance; this case did not produce an exactly bound additional original.",
+      "Graph integration is retained from existing code but was not required by this question.",
+      "Machine PASS and independent bounded review do not confer professional human approval; exact semantic support can still be misjudged."
+    ],
+    "pending": [],
+    "usage_accounting": "The passed first analysis is referenced again in retry artifacts without execution. Deduplicate analysis_id and call_id; repeated references are not additional model cost.",
+    "unique_attempts": {
+      "count": 9,
+      "known_tokens": 1068482,
+      "model_call_records": 56
+    },
+    "final_case": {
+      "first_analysis_id": "e3cb0238-0581-4ff3-a44c-4d24e7263786",
+      "first_report": "PASS; independently checked within two registry excerpts and three secondary-source abstracts",
+      "followup_analysis_id": "9d5e6475-2f79-417f-a9c1-8d23d8a5203f",
+      "followup_report": "FAIL / needs_review",
+      "engineering_status": "passed",
+      "actual_shared_steps": [
+        "biocheck_plan",
+        "biocheck_write",
+        "biocheck_check",
+        "biocheck_revise",
+        "biocheck_recheck"
+      ],
+      "followup_model_calls": 9,
+      "followup_known_tokens": 204065,
+      "old_pass_and_both_failed_attempts_unchanged": true,
+      "comparison_scope": "A structured comparison was executed and retained; final prose did not fully state the version change. Do not claim complete change narration in the exported report."
+    },
+    "deployment": {
+      "verified_at": "2026-10-29T16:53:51.948449+00:00",
+      "services": {
+        "bioradar-api": "active",
+        "bioradar-worker": "active",
+        "bioradar-monitor": "active"
+      },
+      "environment_backup": "/home/zk_test/.config/bioradar/runtime-before-research-20261030.env",
+      "updated_keys": [
+        "BIORADAR_BIOCHECK_PROJECT_DIR",
+        "BIORADAR_MECH_EVIDENCE_PROJECT_DIR",
+        "BIORADAR_WEKNORA_URL",
+        "BIORADAR_WEKNORA_API_KEY",
+        "BIORADAR_WEKNORA_KNOWLEDGE_BASE_IDS",
+        "BIORADAR_SEMANTIC_LLM_MAX_INPUT_BYTES",
+        "BIORADAR_ANALYSIS_MAX_TOKENS",
+        "BIORADAR_ANALYSIS_MANUAL_PER_HOUR"
+      ],
+      "manual_limit_reason": "The tested 8/hour limit permits first question, follow-up and explicit retry for the student team; previous unset 2/hour default blocked the third action. Per-analysis budget remains unchanged.",
+      "infrastructure_probe": "PASS infrastructure probe 5b84cad5-7562-44b3-850a-cf0455b500e6; no intelligence capability evaluated",
+      "providers": {
+        "biocheck": {
+          "provider": "biocheck",
+          "configured": true,
+          "available": true,
+          "status": "ready",
+          "version": "2d2925ef93298ec51685bb2a27a37a5763459e619c7b779e14efe9f135947bbf",
+          "error_code": null,
+          "qualification": "方法源码可读取；不表示本轮已执行或核验通过。"
+        },
+        "mech_evidence": {
+          "provider": "mech_evidence",
+          "configured": true,
+          "available": true,
+          "status": "ready",
+          "version": "f13717d0fdb1df1cb023db42790a6dc4ccbc84dd084f3318116d5685adff9f43",
+          "error_code": null,
+          "qualification": "方法源码可读取；本轮是否适用、是否执行及评价结果另见实际回执。"
+        },
+        "weknora": {
+          "provider": "weknora",
+          "configured": true,
+          "available": true,
+          "status": "ready",
+          "version": "697d49491714f99c8232bba462b3725bea0705f5ae8948e4190b1155e6746cea",
+          "error_code": null,
+          "qualification": "配置就绪不证明调用成功；搜索含向量与重排，服务未返回的用量保持未知。"
+        }
+      },
+      "limits": {
+        "max_calls": 16,
+        "max_tokens": 524288,
+        "max_seconds": 1800,
+        "max_queries": 6,
+        "manual_analyses_per_hour": 8,
+        "evidence_versions": 10,
+        "evidence_characters": 40000,
+        "records_per_query": 3
+      },
+      "source_cursors_before": [
+        {
+          "source_id": "clinicaltrials",
+          "acked_after": 6,
+          "last_poll_at": "2026-10-23T16:01:21.681240Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "europe_pmc",
+          "acked_after": 1444,
+          "last_poll_at": "2026-10-23T16:01:27.907906Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "external_archive",
+          "acked_after": 0,
+          "last_poll_at": "2026-10-23T16:01:34.009330Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "fda_crl",
+          "acked_after": 0,
+          "last_poll_at": "2026-10-23T16:01:40.230720Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "legacy_documents",
+          "acked_after": 188807,
+          "last_poll_at": "2026-10-23T16:01:52.343642Z",
+          "state": "queued"
+        },
+        {
+          "source_id": "primekg_graph",
+          "acked_after": 0,
+          "last_poll_at": "2026-10-23T16:01:02.428939Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "reviewed_graph",
+          "acked_after": 2438,
+          "last_poll_at": "2026-10-23T16:01:08.468335Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "who_don",
+          "acked_after": 30,
+          "last_poll_at": "2026-10-23T16:01:14.685830Z",
+          "state": "idle"
+        }
+      ],
+      "source_cursors_after": [
+        {
+          "source_id": "clinicaltrials",
+          "acked_after": 6,
+          "last_poll_at": "2026-10-29T16:53:33.530211Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "europe_pmc",
+          "acked_after": 1444,
+          "last_poll_at": "2026-10-29T16:53:39.535694Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "external_archive",
+          "acked_after": 0,
+          "last_poll_at": "2026-10-29T16:53:45.433680Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "fda_crl",
+          "acked_after": 0,
+          "last_poll_at": "2026-10-29T16:53:51.234890Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "legacy_documents",
+          "acked_after": 188857,
+          "last_poll_at": "2026-10-29T16:53:07.826930Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "primekg_graph",
+          "acked_after": 0,
+          "last_poll_at": "2026-10-29T16:53:13.912647Z",
+          "state": "idle"
+        },
+        {
+          "source_id": "reviewed_graph",
+          "acked_after": 2438,
+          "last_poll_at": "2026-10-29T16:53:20.293857Z",
+          "state": "queued"
+        },
+        {
+          "source_id": "who_don",
+          "acked_after": 30,
+          "last_poll_at": "2026-10-29T16:53:26.694606Z",
+          "state": "queued"
+        }
+      ],
+      "upstream_repositories_changed": false,
+      "database_migration": false
+    },
+    "temporary_services_stopped": [
+      "api",
+      "worker",
+      "preview"
+    ]
   }
 }

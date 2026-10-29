@@ -1,20 +1,21 @@
 <script setup lang="ts">
-import { nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   ElButton,
-  ElCheckbox,
   ElDrawer,
-  ElInput,
-  ElOption,
-  ElSelect,
-  ElTag,
 } from "element-plus";
 import EngineLogin from "../components/engine/EngineLogin.vue";
 import GraphInvestigationForm from "../components/engine/GraphInvestigationForm.vue";
 import InvestigationRecord from "../components/engine/InvestigationRecord.vue";
 import MachineAnalysisPanel from "../components/engine/MachineAnalysisPanel.vue";
 import InvestigationEntryForm from "../components/engine/InvestigationEntryForm.vue";
+import ResearchQuestionForm from "../components/engine/ResearchQuestionForm.vue";
+import type {
+  ResearchAskReceipt,
+  ResearchAnalysisView,
+  ResearchQuestionSubmission,
+} from "../api/research";
 import {
   engineRequest,
   EngineError,
@@ -25,10 +26,15 @@ import {
   type SnapshotSummary,
   type NormalizedSnapshot,
   type EvidenceSupport,
+  type GraphInvestigationResult,
 } from "../api/engine";
 
 const route = useRoute();
 const router = useRouter();
+const reportOnly = computed(() => route.path === "/deliverables");
+const preferredAnalysisId = computed(() =>
+  typeof route.query.analysis === "string" ? route.query.analysis : undefined,
+);
 const authenticated = ref(false);
 const enabled = ref(true);
 const loading = ref(false);
@@ -42,12 +48,11 @@ const selected = ref<InvestigationView | null>(null);
 const snapshots = ref<SnapshotSummary[]>([]);
 const sourceCursor = ref<string | null>(null);
 const historyCursor = ref<string | null>(null);
-const showCreate = ref(false);
+const showCreate = ref(true);
 const showGraph = ref(false);
-const title = ref("");
-const question = ref("");
-const questionLines = ref("");
-const demo = ref(false);
+const graphQuestion = ref("");
+const graphForNew = ref(false);
+const graphTarget = computed(() => (graphForNew.value ? null : selected.value));
 const sourceOpen = ref(false);
 const sourceRecord = ref<NormalizedSnapshot["records"][number] | null>(null);
 const sourceError = ref("");
@@ -57,6 +62,9 @@ let refreshVersion = 0;
 let readVersion = 0;
 let sourceVersion = 0;
 let activeId = "";
+let askIntent: { body: string; key: string } | null = null;
+let graphAnalysisIntent: { id: string; revision: number; key: string } | null =
+  null;
 const statusLabels = {
   open: "继续跟进",
   paused: "暂停跟进",
@@ -120,12 +128,16 @@ async function refresh() {
         unavailable_count?: number;
         next_cursor?: string | null;
       }>("/investigations"),
-      engineRequest<{ items: SnapshotSummary[]; unavailable_count?: number; next_cursor?: string | null }>(
-        "/snapshots?limit=100",
-      ),
+      engineRequest<{
+        items: SnapshotSummary[];
+        unavailable_count?: number;
+        next_cursor?: string | null;
+      }>("/snapshots?limit=100"),
     ]);
     if (!valid()) return;
-    sourceAccessLimited.value = Boolean(history.unavailable_count || sources.unavailable_count);
+    sourceAccessLimited.value = Boolean(
+      history.unavailable_count || sources.unavailable_count,
+    );
     investigations.value = history.items;
     historyCursor.value = history.next_cursor ?? null;
     snapshots.value = sources.items;
@@ -153,7 +165,10 @@ async function openInvestigation(id: string) {
     selected.value = null;
   }
   if (route.query.id !== id)
-    void router.replace({ path: "/investigations", query: { id } });
+    void router.replace({
+      path: reportOnly.value ? "/deliverables" : "/investigations",
+      query: { id },
+    });
   try {
     const detail = await engineRequest<InvestigationView>(
       "/investigations/" + encodeURIComponent(id),
@@ -176,49 +191,122 @@ async function openInvestigation(id: string) {
     }
   }
 }
-async function createInvestigation() {
-  if (
-    busy.value ||
-    loading.value ||
-    !title.value.trim() ||
-    !question.value.trim()
-  )
-    return;
+function selectAnalysis(id: string) {
+  if (!selected.value || route.query.analysis === id) return;
+  void router.replace({
+    path: reportOnly.value ? "/deliverables" : "/investigations",
+    query: { id: selected.value.id, analysis: id },
+  });
+}
+async function createInvestigation(submission: ResearchQuestionSubmission) {
+  if (busy.value || loading.value || !submission.question.trim()) return;
   const generation = epoch;
+  const body = JSON.stringify({
+    title: submission.question.slice(0, 160),
+    question: submission.question,
+    is_demo: false,
+    source_ids: submission.source_ids,
+    ...(submission.budget ? { budget: submission.budget } : {}),
+  });
+  if (!askIntent || askIntent.body !== body)
+    askIntent = { body, key: crypto.randomUUID() };
   busy.value = true;
   error.value = "";
+  message.value = "";
   try {
-    const created = await post<InvestigationView>("/investigations", {
-      title: title.value.trim(),
-      question: question.value.trim(),
-      questions: questionLines.value
-        .split("\n")
-        .map((item) => item.trim())
-        .filter(Boolean),
-      origin: null,
-      is_demo: demo.value,
-    });
+    const receipt = await engineRequest<ResearchAskReceipt>(
+      "/investigations/ask",
+      {
+        method: "POST",
+        body: askIntent.body,
+        headers: { "Idempotency-Key": askIntent.key },
+      },
+    );
     if (!current(generation)) return;
+    askIntent = null;
     showCreate.value = false;
-    title.value = "";
-    question.value = "";
-    questionLines.value = "";
-    demo.value = false;
-    await openInvestigation(created.id);
-    if (current(generation)) await refresh();
+    await openInvestigation(receipt.investigation_id);
+    if (!current(generation)) return;
+    selectAnalysis(receipt.analysis_id);
+    await refresh();
+    if (current(generation))
+      message.value = "问题已保存，后台已受理研究。可在下方查看实际进度。";
+  } catch (value) {
+    if (!current(generation)) return;
+    const retainedId =
+      value instanceof EngineError ? value.details?.investigation_id : null;
+    if (typeof retainedId === "string") {
+      showCreate.value = false;
+      await openInvestigation(retainedId);
+      if (!current(generation)) return;
+      await refresh();
+      if (!current(generation)) return;
+      message.value = "调查已保留，可在这项记录中继续处理。";
+    }
+    fail(value);
+  } finally {
+    if (current(generation)) busy.value = false;
+  }
+}
+function openGraph(question = selected.value?.question || "", forNew = false) {
+  graphQuestion.value = question;
+  graphForNew.value = forNew;
+  showGraph.value = true;
+}
+async function graphSaved(
+  investigation: InvestigationView,
+  result: GraphInvestigationResult,
+) {
+  if (disposed) return;
+  const generation = epoch;
+  selected.value = investigation;
+  activeId = investigation.id;
+  await openInvestigation(investigation.id);
+  if (!current(generation)) return;
+  await refresh();
+  if (!current(generation)) return;
+  if (result.completion_status === "awaiting_seed_selection") {
+    message.value = "调查已保存，请在图谱候选中明确选择对象后继续。";
+    return;
+  }
+  const view = selected.value;
+  if (!view || view.id !== investigation.id || view.status !== "open") return;
+  if (
+    !graphAnalysisIntent ||
+    graphAnalysisIntent.id !== view.id ||
+    graphAnalysisIntent.revision !== view.revision
+  ) {
+    graphAnalysisIntent = {
+      id: view.id,
+      revision: view.revision,
+      key: crypto.randomUUID(),
+    };
+  }
+  busy.value = true;
+  try {
+    const analysis = await engineRequest<ResearchAnalysisView>(
+      "/investigations/" + encodeURIComponent(view.id) + "/analyses",
+      {
+        method: "POST",
+        headers: { "Idempotency-Key": graphAnalysisIntent.key },
+        body: JSON.stringify({
+          expected_revision: view.revision,
+          question: graphQuestion.value || view.question,
+          auto_retrieve: true,
+        }),
+      },
+    );
+    if (!current(generation) || selected.value?.id !== view.id) return;
+    graphAnalysisIntent = null;
+    selectAnalysis(analysis.id);
+    showGraph.value = false;
+    message.value = "图谱背景和查证记录已保存，研究已在同一调查中开始。";
+    await openInvestigation(view.id);
   } catch (value) {
     if (current(generation)) fail(value);
   } finally {
     if (current(generation)) busy.value = false;
   }
-}
-async function graphSaved(investigation: InvestigationView) {
-  if (disposed) return;
-  selected.value = investigation;
-  activeId = investigation.id;
-  message.value = "图谱背景材料与查证记录已保存，未自动生成研究人员判断。";
-  await openInvestigation(investigation.id);
-  if (!disposed) await refresh();
 }
 async function loadMoreSources() {
   if (!sourceCursor.value || busy.value || loading.value) return;
@@ -226,7 +314,8 @@ async function loadMoreSources() {
   loading.value = true;
   try {
     const page = await engineRequest<{
-      items: SnapshotSummary[]; unavailable_count?: number;
+      items: SnapshotSummary[];
+      unavailable_count?: number;
       next_cursor?: string | null;
     }>("/snapshots?limit=100&cursor=" + encodeURIComponent(sourceCursor.value));
     if (!current(generation)) return;
@@ -247,7 +336,7 @@ async function loadMoreInvestigations() {
   try {
     const page = await engineRequest<{
       items: InvestigationSummary[];
-        unavailable_count?: number;
+      unavailable_count?: number;
       next_cursor?: string | null;
     }>("/investigations?cursor=" + encodeURIComponent(historyCursor.value));
     if (!current(generation)) return;
@@ -421,10 +510,10 @@ async function logout() {
   activeId = "";
   closeSource();
 
-  title.value = "";
-  question.value = "";
-  questionLines.value = "";
-  showCreate.value = false;
+  askIntent = null;
+  graphAnalysisIntent = null;
+  graphQuestion.value = "";
+  showCreate.value = true;
   try {
     await engineRequest("/session", { method: "DELETE" });
   } catch (value) {
@@ -458,9 +547,13 @@ onUnmounted(() => {
     <div class="page-heading no-print">
       <div>
         <p class="eyebrow">INVESTIGATION RECORDS</p>
-        <h1>把线索接着查下去</h1>
+        <h1>{{ reportOnly ? "研究报告" : "从一个问题开始调查" }}</h1>
         <p class="description">
-          保存问题、支持与反面材料，留下研究人员的判断及变化。
+          {{
+            reportOnly
+              ? "阅读保存的报告、核验结果和原文依据，按版本追溯变化。"
+              : "提出问题，选择来源，查看实际研究进度与证据，再继续追问。"
+          }}
         </p>
       </div>
       <div class="heading-actions">
@@ -468,7 +561,7 @@ onUnmounted(() => {
           >刷新</ElButton
         >
         <ElButton
-          v-if="authenticated"
+          v-if="authenticated && !reportOnly"
           :disabled="loading || busy"
           @click="showCreate = !showCreate"
           >直接提出问题</ElButton
@@ -477,7 +570,9 @@ onUnmounted(() => {
       </div>
     </div>
     <p v-if="error" class="error-panel no-print" role="alert">{{ error }}</p>
-    <p v-if="sourceAccessLimited" class="notice no-print" role="status">本页部分来源当前不可读取，相关调查或材料未显示；普通资料仍可使用，当前列表不是全部研究记录。</p>
+    <p v-if="sourceAccessLimited" class="notice no-print" role="status">
+      本页部分来源当前不可读取，相关调查或材料未显示；普通资料仍可使用，当前列表不是全部研究记录。
+    </p>
     <p v-if="message" class="success-inline no-print" role="status">
       {{ message }}
     </p>
@@ -489,50 +584,38 @@ onUnmounted(() => {
       @authenticated="refresh"
     />
     <template v-if="authenticated">
-      <ElButton class="no-print" :disabled="busy || loading" @click="showGraph = !showGraph">从图谱继续调查</ElButton>
-      <GraphInvestigationForm v-if="showGraph" :investigation="selected" :loading="loading"
-        @saved="graphSaved" @busy="busy = $event" @unauthorized="fail" />
       <section
-        v-if="showCreate"
+        v-if="!reportOnly && showCreate"
         class="engine-panel investigation-form no-print"
       >
-        <h2>从一个问题开始</h2>
-        <label for="new-investigation-title">调查标题</label
-        ><ElInput
-          id="new-investigation-title"
-          v-model="title"
-          maxlength="200"
+        <ResearchQuestionForm
+          :disabled="busy || loading"
+          :submitting="busy"
+          allow-graph
+          @submit="createInvestigation"
+          @graph="openGraph($event, true)"
+          @unauthorized="fail"
         />
-        <label for="new-investigation-question">研究问题与范围</label
-        ><ElInput
-          id="new-investigation-question"
-          v-model="question"
-          type="textarea"
-          :rows="3"
-          maxlength="2000"
-          placeholder="要查什么技术、疾病、人群或具体条件？"
-        />
-        <label for="new-investigation-questions"
-          >接着要核对什么（每行一项，可暂空）</label
-        ><ElInput
-          id="new-investigation-questions"
-          v-model="questionLines"
-          type="textarea"
-          :rows="3"
-          maxlength="8000"
-        />
-        <ElCheckbox v-model="demo">这是教学演示，不作真实情报</ElCheckbox>
-        <ElButton
-          type="primary"
-          :loading="busy"
-          :disabled="loading || !title.trim() || !question.trim()"
-          @click="createInvestigation"
-          >保存调查</ElButton
-        >
       </section>
+      <ElButton
+        v-if="!reportOnly && selected"
+        class="no-print"
+        :disabled="busy || loading"
+        @click="openGraph()"
+        >用图谱补充当前调查</ElButton
+      >
+      <GraphInvestigationForm
+        v-if="!reportOnly && showGraph"
+        :investigation="graphTarget"
+        :initial-question="graphQuestion"
+        :loading="loading"
+        @saved="graphSaved"
+        @busy="busy = $event"
+        @unauthorized="fail"
+      />
       <div class="investigation-layout">
         <aside class="engine-panel investigation-list no-print">
-          <h2>已保存调查</h2>
+          <h2>{{ reportOnly ? "按调查查看报告" : "已保存调查" }}</h2>
           <button
             v-for="item in investigations"
             :key="item.id"
@@ -565,7 +648,24 @@ onUnmounted(() => {
           >
         </aside>
         <div v-if="selected" class="investigation-detail">
+          <template v-if="reportOnly">
+            <section class="engine-panel">
+              <h2 class="investigation-title">{{ selected.title }}</h2>
+              <p v-if="selected.title.trim() !== selected.question.trim()" class="investigation-question">{{ selected.question }}</p>
+            </section>
+            <MachineAnalysisPanel
+              :investigation="selected"
+              :busy="busy"
+              :loading="loading"
+              read-only
+              :preferred-analysis-id="preferredAnalysisId"
+              @selected="selectAnalysis"
+              @changed="openInvestigation(selected.id)"
+              @unauthorized="fail"
+            />
+          </template>
           <InvestigationRecord
+            v-else
             :investigation="selected"
             :busy="busy"
             :loading="loading"
@@ -575,11 +675,19 @@ onUnmounted(() => {
             @read-source="readSupport"
           >
             <template #machine-analysis>
-              <MachineAnalysisPanel :investigation="selected" :busy="busy" :loading="loading"
-                @changed="openInvestigation(selected.id)" @unauthorized="fail" />
+              <MachineAnalysisPanel
+                :investigation="selected"
+                :busy="busy"
+                :loading="loading"
+                :preferred-analysis-id="preferredAnalysisId"
+                @selected="selectAnalysis"
+                @changed="openInvestigation(selected.id)"
+                @unauthorized="fail"
+              />
             </template>
           </InvestigationRecord>
           <InvestigationEntryForm
+            v-if="!reportOnly"
             :key="selected.id + ':' + selected.revision"
             :investigation="selected"
             :snapshots="snapshots"
@@ -592,9 +700,21 @@ onUnmounted(() => {
           />
         </div>
         <div v-else class="engine-empty no-print">
-          <h3>{{ loading ? "正在读取调查记录" : "从一个具体问题开始" }}</h3>
+          <h3>
+            {{
+              loading
+                ? "正在读取调查记录"
+                : reportOnly
+                  ? "选择一项调查阅读报告"
+                  : "从一个具体问题开始"
+            }}
+          </h3>
           <p>
-            选择已保存调查，或从雷达候选保存一项新调查。缺证据时会保留未知。
+            {{
+              reportOnly
+                ? "报告与调查共用同一份保存记录，选择左侧调查后可查看各版结果。"
+                : "在上方提出问题，或选择已保存调查继续研究。"
+            }}
           </p>
         </div>
       </div>

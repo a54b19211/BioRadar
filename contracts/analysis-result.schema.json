@@ -341,6 +341,18 @@
     "GenericReview": {
       "additionalProperties": false,
       "properties": {
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
         "status": {
           "enum": [
             "passed",
@@ -354,7 +366,7 @@
             "$ref": "#/$defs/ClaimReview"
           },
           "maxItems": 8,
-          "minItems": 1,
+          "minItems": 0,
           "title": "Claims",
           "type": "array"
         },
@@ -539,7 +551,7 @@
   "additionalProperties": false,
   "properties": {
     "version": {
-      "default": "bioradar-investigation-analysis-v0.4.7",
+      "default": "bioradar-investigation-analysis-v0.5",
       "enum": [
         "bioradar-investigation-analysis-v0.1",
         "bioradar-investigation-analysis-v0.2",
@@ -551,7 +563,8 @@
         "bioradar-investigation-analysis-v0.4.4",
         "bioradar-investigation-analysis-v0.4.5",
         "bioradar-investigation-analysis-v0.4.6",
-        "bioradar-investigation-analysis-v0.4.7"
+        "bioradar-investigation-analysis-v0.4.7",
+        "bioradar-investigation-analysis-v0.5"
       ],
       "title": "Version",
       "type": "string"
@@ -591,6 +604,32 @@
       "default": "not_reviewed",
       "title": "Professional Status",
       "type": "string"
+    },
+    "report": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Report"
+    },
+    "mechanism_evaluation": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mechanism Evaluation"
     },
     "limitations": {
       "items": {

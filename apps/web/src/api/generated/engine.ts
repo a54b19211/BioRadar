@@ -144,6 +144,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/investigations/research-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Research Options */
+        get: operations["research_options_api_engine_investigations_research_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/investigations/{investigation_id}": {
         parameters: {
             query?: never;
@@ -172,6 +189,23 @@ export interface paths {
         put?: never;
         /** Append Investigation */
         post: operations["append_investigation_api_engine_investigations__investigation_id__entries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/investigations/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Research Ask */
+        post: operations["research_ask_api_engine_investigations_ask_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -749,10 +783,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AnalysisBudget */
+        AnalysisBudget: {
+            /** Max Calls */
+            max_calls?: number | null;
+            /** Max Tokens */
+            max_tokens?: number | null;
+            /** Max Seconds */
+            max_seconds?: number | null;
+            /** Max Queries */
+            max_queries?: number | null;
+        };
         /** AnalysisCreate */
         AnalysisCreate: {
             /** Expected Revision */
             expected_revision: number;
+            /** Question */
+            question?: string | null;
+            /**
+             * Auto Retrieve
+             * @default false
+             */
+            auto_retrieve: boolean;
+            /** Source Ids */
+            source_ids?: string[];
+            /** Initial Queries */
+            initial_queries?: components["schemas"]["InitialQuery"][];
+            budget?: components["schemas"]["AnalysisBudget"] | null;
             /** Retry Of Analysis Id */
             retry_of_analysis_id?: string | null;
             /** Parent Analysis Id */
@@ -864,12 +921,29 @@ export interface components {
         AnalysisQueryReceipt: {
             /** Index */
             index: number;
-            plan: components["schemas"]["PlannedQuery"];
+            /**
+             * Phase
+             * @default followup
+             * @enum {string}
+             */
+            phase: "initial" | "followup";
+            /**
+             * Provider
+             * @default fabric
+             * @enum {string}
+             */
+            provider: "fabric" | "weknora";
+            /** Plan */
+            plan: components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"];
+            /** Relaxed From */
+            relaxed_from?: components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"] | null;
+            /** Relaxation Reason */
+            relaxation_reason?: string | null;
             /**
              * Status
              * @enum {string}
              */
-            status: "prepared" | "read" | "empty" | "failed";
+            status: "prepared" | "sent" | "read" | "empty" | "failed" | "unavailable" | "unconfirmed";
             /**
              * Scope
              * @default fabric_current_adopted_versions_not_the_web
@@ -894,15 +968,23 @@ export interface components {
             error_code?: string | null;
             /** Evidence Keys */
             evidence_keys?: string[];
+            /** Candidates */
+            candidates?: {
+                [key: string]: unknown;
+            }[];
+            /** Usage */
+            usage?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** AnalysisResult */
         AnalysisResult: {
             /**
              * Version
-             * @default bioradar-investigation-analysis-v0.4.7
+             * @default bioradar-investigation-analysis-v0.5
              * @enum {string}
              */
-            version: "bioradar-investigation-analysis-v0.1" | "bioradar-investigation-analysis-v0.2" | "bioradar-investigation-analysis-v0.3" | "bioradar-investigation-analysis-v0.4" | "bioradar-investigation-analysis-v0.4.1" | "bioradar-investigation-analysis-v0.4.2" | "bioradar-investigation-analysis-v0.4.3" | "bioradar-investigation-analysis-v0.4.4" | "bioradar-investigation-analysis-v0.4.5" | "bioradar-investigation-analysis-v0.4.6" | "bioradar-investigation-analysis-v0.4.7";
+            version: "bioradar-investigation-analysis-v0.1" | "bioradar-investigation-analysis-v0.2" | "bioradar-investigation-analysis-v0.3" | "bioradar-investigation-analysis-v0.4" | "bioradar-investigation-analysis-v0.4.1" | "bioradar-investigation-analysis-v0.4.2" | "bioradar-investigation-analysis-v0.4.3" | "bioradar-investigation-analysis-v0.4.4" | "bioradar-investigation-analysis-v0.4.5" | "bioradar-investigation-analysis-v0.4.6" | "bioradar-investigation-analysis-v0.4.7" | "bioradar-investigation-analysis-v0.5";
             /** Claims */
             claims: components["schemas"]["VerifiedClaim"][];
             /** Explanations */
@@ -918,6 +1000,14 @@ export interface components {
              * @constant
              */
             professional_status: "not_reviewed";
+            /** Report */
+            report?: {
+                [key: string]: unknown;
+            } | null;
+            /** Mechanism Evaluation */
+            mechanism_evaluation?: {
+                [key: string]: unknown;
+            } | null;
             /** Limitations */
             limitations: string[];
         };
@@ -1044,6 +1134,18 @@ export interface components {
             limitations: string[];
             /** Note Entry Id */
             note_entry_id: string | null;
+            /** Progress */
+            progress?: {
+                [key: string]: unknown;
+            };
+            /** Budget */
+            budget?: {
+                [key: string]: unknown;
+            };
+            /** Providers */
+            providers?: {
+                [key: string]: unknown;
+            };
         };
         /** Assessment */
         Assessment: {
@@ -1972,6 +2074,8 @@ export interface components {
         };
         /** GenericReview */
         GenericReview: {
+            /** Provider */
+            provider?: string | null;
             /**
              * Status
              * @enum {string}
@@ -2745,6 +2849,18 @@ export interface components {
             cutoff: string;
             /** Run Id */
             run_id: string;
+        };
+        /** InitialQuery */
+        InitialQuery: {
+            /** Source Id */
+            source_id: string;
+            /** Terms */
+            terms: string[];
+            /**
+             * Reason
+             * @default 研究问题的初始查找
+             */
+            reason: string;
         };
         /** InputBasis */
         InputBasis: {
@@ -3939,6 +4055,23 @@ export interface components {
             key: string;
             /** Value */
             value?: string | number | boolean | null;
+        };
+        /** QuestionAsk */
+        QuestionAsk: {
+            /** Question */
+            question: string;
+            /** Title */
+            title?: string | null;
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            /** Source Ids */
+            source_ids?: string[];
+            /** Initial Queries */
+            initial_queries?: components["schemas"]["InitialQuery"][];
+            budget?: components["schemas"]["AnalysisBudget"] | null;
         };
         /** RecordIdentity */
         RecordIdentity: {
@@ -5390,6 +5523,37 @@ export interface operations {
             };
         };
     };
+    research_options_api_engine_investigations_research_options_get: {
+        parameters: {
+            query?: {
+                is_demo?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     investigation_api_engine_investigations__investigation_id__get: {
         parameters: {
             query?: never;
@@ -5445,6 +5609,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InvestigationView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    research_ask_api_engine_investigations_ask_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QuestionAsk"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */
@@ -5596,7 +5795,9 @@ export interface operations {
     };
     analysis_export_api_engine_investigations__investigation_id__analyses__analysis_id__export_get: {
         parameters: {
-            query?: never;
+            query?: {
+                format?: "json" | "markdown";
+            };
             header?: never;
             path: {
                 investigation_id: string;

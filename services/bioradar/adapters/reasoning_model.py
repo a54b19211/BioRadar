@@ -5,15 +5,15 @@ import json
 import math
 import time
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 import httpx
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from bioradar.api.config import Settings
 from bioradar.api.errors import DomainError
 
-ModelStage = Literal["read_plan", "synthesize", "check", "revise", "recheck", "compare"]
+ModelStage = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")]
 MAX_RESPONSE_BYTES = 524_288
 
 
@@ -22,7 +22,9 @@ class ModelLimits(BaseModel):
     normal_calls: Literal[3] = 3
     max_comparison_calls: Literal[1] = 1
     max_revision_calls: Literal[2] = 2
-    max_calls: Literal[6] = 6
+    max_calls: int = 6
+    max_total_tokens: int = 262144
+    max_seconds: int = 1800
     max_input_bytes: int
     max_output_tokens: int
     timeout_seconds: int
@@ -156,6 +158,9 @@ def model_status(settings: Settings) -> ModelStatus:
         model=parameters["model"],
         model_revision=parameters["model_revision"],
         limits=ModelLimits(
+            max_calls=settings.analysis_max_calls,
+            max_total_tokens=settings.analysis_max_tokens,
+            max_seconds=settings.analysis_max_seconds,
             max_input_bytes=parameters["max_input_bytes"],
             max_output_tokens=parameters["max_output_tokens"],
             timeout_seconds=parameters["timeout_seconds"],
@@ -201,6 +206,47 @@ def _usage(value) -> ModelUsage:
     return ModelUsage(**counts)
 
 
+def encode_request(settings: Settings, *, stage, system_prompt, payload, response_schema) -> bytes:
+    """Encode the same wire request for sending, byte limits and conservative reservations."""
+    parameters = model_parameters(settings)
+    body = {
+        "model": parameters["model"],
+        "stream": False,
+        "max_tokens": parameters["max_output_tokens"],
+        "messages": [
+            {
+                "role": "system",
+                "content": system_prompt
+                + "\\n只返回符合以下JSON Schema的一个对象，不返回隐藏思维链。\\n"
+                + json.dumps(response_schema, ensure_ascii=False, sort_keys=True, allow_nan=False),
+            },
+            {
+                "role": "user",
+                "content": json.dumps(payload, ensure_ascii=False, sort_keys=True, allow_nan=False),
+            },
+        ],
+    }
+    if parameters.get("provider", "vllm") == "deepseek":
+        body["thinking"] = {
+            "type": "enabled" if parameters["static_options"]["enable_thinking"] else "disabled"
+        }
+        body["response_format"] = {"type": parameters["output_format"]}
+        if parameters["reasoning_effort"] is not None:
+            body["reasoning_effort"] = parameters["reasoning_effort"]
+    else:
+        body["chat_template_kwargs"] = parameters["static_options"]
+        body["response_format"] = {
+            "type": parameters["output_format"],
+            "json_schema": {"name": stage, "schema": response_schema, "strict": True},
+        }
+    for key in ("temperature", "top_p", "top_k"):
+        if parameters[key] is not None:
+            body[key] = parameters[key]
+    return json.dumps(
+        body, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+    ).encode()
+
+
 def complete_json(
     settings: Settings,
     *,
@@ -238,42 +284,13 @@ def complete_json(
     if not configured.enabled or not configured.configured:
         fail("model_not_configured", "语义模型未启用或配置不完整", state="not_sent")
     try:
-        body = {
-            "model": parameters["model"],
-            "stream": False,
-            "max_tokens": parameters["max_output_tokens"],
-            "messages": [
-                {
-                    "role": "system",
-                    "content": system_prompt
-                    + "\\n只返回符合以下JSON Schema的一个对象，不返回隐藏思维链。\\n"
-                    + json.dumps(response_schema, ensure_ascii=False, sort_keys=True, allow_nan=False),
-                },
-                {
-                    "role": "user",
-                    "content": json.dumps(payload, ensure_ascii=False, sort_keys=True, allow_nan=False),
-                },
-            ],
-        }
-        if parameters.get("provider", "vllm") == "deepseek":
-            body["thinking"] = {
-                "type": "enabled" if parameters["static_options"]["enable_thinking"] else "disabled"
-            }
-            body["response_format"] = {"type": parameters["output_format"]}
-            if parameters["reasoning_effort"] is not None:
-                body["reasoning_effort"] = parameters["reasoning_effort"]
-        else:
-            body["chat_template_kwargs"] = parameters["static_options"]
-            body["response_format"] = {
-                "type": parameters["output_format"],
-                "json_schema": {"name": stage, "schema": response_schema, "strict": True},
-            }
-        for key in ("temperature", "top_p", "top_k"):
-            if parameters[key] is not None:
-                body[key] = parameters[key]
-        encoded = json.dumps(
-            body, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-        ).encode()
+        encoded = encode_request(
+            settings,
+            stage=stage,
+            system_prompt=system_prompt,
+            payload=payload,
+            response_schema=response_schema,
+        )
     except (ValueError, TypeError, RecursionError):
         fail("model_input_invalid", "模型输入不是受支持的有限JSON对象", state="not_sent", status=422)
     if len(encoded) > parameters["max_input_bytes"]:
@@ -281,7 +298,7 @@ def complete_json(
     receipt.request_sha256 = hashlib.sha256(encoded).hexdigest()
     owned = client is None
     session = client or httpx.Client(trust_env=False, follow_redirects=False)
-    timeout = httpx.Timeout(parameters["timeout_seconds"], connect=5)
+    timeout = httpx.Timeout(parameters["timeout_seconds"], connect=min(5, parameters["timeout_seconds"]))
     try:
         try:
             # Full URL comes exclusively from validated server configuration, never a model/tool result.

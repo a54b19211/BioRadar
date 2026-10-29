@@ -49,13 +49,14 @@ web-races:
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_engine_ui_races.cjs
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_topic_ui_races.cjs
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_analysis_ui_races.cjs
+	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_research_ui.cjs
 decision-probes:
 	$(UV) run --frozen python scripts/check_decision_semantics.py
 	docker run --rm --network none --user $$(id -u):$$(id -g) -v "$$(pwd):/app:ro" -w /app node:22-bookworm-slim node /app/scripts/check_decision_ui_races.cjs
 example:
 	$(UV) run --frozen python scripts/example.py
 lint:
-	$(UV) run --frozen ruff check services tests db/migrations scripts/init_dev.py scripts/task_entry.py scripts/export_engine_contract.py scripts/check_engine_runtime.py scripts/check_decision_runtime.py scripts/check_postgres_tests.py scripts/check_decision_semantics.py scripts/example.py scripts/history_e2e.py scripts/graph_e2e.py scripts/monitor_e2e.py scripts/topic_e2e.py scripts/topic_sources_e2e.py scripts/semantic_e2e.py
+	$(UV) run --frozen ruff check services tests db/migrations scripts/init_dev.py scripts/task_entry.py scripts/export_engine_contract.py scripts/check_engine_runtime.py scripts/check_decision_runtime.py scripts/check_postgres_tests.py scripts/check_decision_semantics.py scripts/example.py scripts/history_e2e.py scripts/graph_e2e.py scripts/monitor_e2e.py scripts/topic_e2e.py scripts/topic_sources_e2e.py scripts/semantic_e2e.py scripts/research_e2e.py
 smoke:
 	$(COMPOSE) exec -T api python -m bioradar.ops.probe
 scenario:

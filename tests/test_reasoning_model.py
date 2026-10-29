@@ -12,6 +12,7 @@ from bioradar.adapters.fabric_monitor import search_analysis_records
 from bioradar.adapters.reasoning_model import (
     ModelCallError,
     complete_json,
+    encode_request,
     model_parameters,
     model_status,
     normalize_model_parameters,
@@ -98,7 +99,10 @@ def test_complete_json_freezes_actual_wire_hash_usage_and_model_alias():
     assert result.receipt.completed_at >= result.receipt.started_at
 
 
-@pytest.mark.parametrize("stage", ["revise", "recheck", "compare"])
+@pytest.mark.parametrize(
+    "stage",
+    ["revise", "recheck", "compare", "question_plan", "biocheck_check", "biocheck_recheck", "mech_assess"],
+)
 def test_optional_stages_preserve_bounded_single_call_receipts(stage):
     requests = []
 
@@ -115,7 +119,7 @@ def test_optional_stages_preserve_bounded_single_call_receipts(stage):
     assert json.loads(requests[0].content)["response_format"]["json_schema"]["name"] == stage
 
 
-def test_additional_unbounded_stage_is_rejected_before_dispatch():
+def test_invalid_stage_identifier_is_rejected_before_dispatch():
     requests = []
 
     def handler(request):
@@ -124,7 +128,7 @@ def test_additional_unbounded_stage_is_rejected_before_dispatch():
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(ValidationError):
-            invoke(client, stage="retry_forever")
+            invoke(client, stage="../invalid stage")
     assert requests == []
 
 
@@ -134,7 +138,9 @@ def test_model_status_does_not_expose_endpoint_or_credentials():
     assert status.limits.normal_calls == 3
     assert status.limits.max_comparison_calls == 1
     assert status.limits.max_revision_calls == 2
-    assert status.limits.max_calls == 6
+    assert status.limits.max_calls == 16
+    assert status.limits.max_total_tokens == 262144
+    assert status.limits.max_seconds == 1800
     assert status.model_revision is None
     serialized = status.model_dump_json()
     assert "model.test" not in serialized and "SYNTHETIC-SERVICE-SECRET" not in serialized
@@ -577,3 +583,66 @@ def test_unknown_frozen_provider_is_preserved_to_prevent_a_vllm_match():
 def test_provider_and_flash_sampling_configuration_reject_ambiguous_values(changes):
     with pytest.raises(ValidationError):
         settings(**changes)
+
+
+def test_model_status_reports_the_configured_whole_research_budget():
+    status = model_status(settings(analysis_max_calls=9, analysis_max_tokens=48000, analysis_max_seconds=600))
+    assert status.limits.max_calls == 9
+    assert status.limits.max_total_tokens == 48000
+    assert status.limits.max_seconds == 600
+
+
+def test_short_research_remainder_also_limits_connection_time():
+    timeouts = []
+
+    def handler(request):
+        timeouts.append(request.extensions["timeout"])
+        return httpx.Response(200, json=completion())
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        invoke(client, settings=settings().model_copy(update={"semantic_llm_timeout_seconds": 1}))
+    assert timeouts[0]["connect"] == 1
+    assert timeouts[0]["read"] == 1
+
+
+@pytest.mark.parametrize("provider", ["vllm", "deepseek"])
+def test_shared_encoder_matches_wire_and_byte_limit_for_dense_escaped_json(provider):
+    payload = {"question": "SYNTHETIC", "evidence": [{"text": '"quoted"\\path\n汉' * 300}]}
+    prompt, schema, stage = "SYNTHETIC input instructions", {"type": "object"}, "biocheck_check"
+    configured = settings(semantic_llm_provider=provider)
+    expected = encode_request(
+        configured, stage=stage, system_prompt=prompt, payload=payload, response_schema=schema
+    )
+    approximate = (
+        len(json.dumps([prompt, payload, schema], ensure_ascii=False, separators=(",", ":")).encode()) + 1024
+    )
+    assert len(expected) > approximate
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert request.content == expected
+        return httpx.Response(200, json=completion())
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        response = invoke(
+            client,
+            settings=configured,
+            stage=stage,
+            system_prompt=prompt,
+            payload=payload,
+            response_schema=schema,
+        )
+        assert response.receipt.request_sha256 == hashlib.sha256(expected).hexdigest()
+        too_small = configured.model_copy(update={"semantic_llm_max_input_bytes": len(expected) - 1})
+        with pytest.raises(ModelCallError) as failure:
+            invoke(
+                client,
+                settings=too_small,
+                stage=stage,
+                system_prompt=prompt,
+                payload=payload,
+                response_schema=schema,
+            )
+    assert len(requests) == 1
+    assert failure.value.code == "model_input_budget" and failure.value.receipt.status == "not_sent"

@@ -7,7 +7,7 @@ PROVIDERS = (
         "owner": "徐子雯",
         "capabilities": ["data.batch"],
         "state": "not_connected",
-        "note": "支持命令行有界追查与原文采用；正式 data.batch 持续同步尚未接通。",
+        "note": "读取已发布原文版本、增量变化和调查查询结果。",
     },
     {
         "id": "identity",
@@ -31,7 +31,7 @@ PROVIDERS = (
         "owner": "汪鑫怡",
         "capabilities": ["mechanism.evaluate"],
         "state": "not_connected",
-        "note": "等待方法源码与可调用样例；雷达不重复实现评价模型。",
+        "note": "使用 MechEvidence 评价证据关系、适用范围和机制链。",
     },
     {
         "id": "generation",
@@ -39,7 +39,7 @@ PROVIDERS = (
         "owner": "潘倩",
         "capabilities": ["answer.compose", "answer.check", "answer.revise"],
         "state": "not_connected",
-        "note": "已核验规则型原型；局部字段匹配不能作为医学事实与发布核验通过。",
+        "note": "使用 BioCheck 编写、核查和修订最终报告，模型请求由雷达统一执行。",
     },
     {
         "id": "cpubrain",
@@ -50,3 +50,36 @@ PROVIDERS = (
         "note": "对话入口共用雷达 API，实际科研执行保留在 CPUBrain。",
     },
 )
+
+
+def provider_statuses(settings):
+    """Describe configuration here; per-investigation receipts show actual use."""
+    from bioradar.adapters.biocheck import provider_status as biocheck_status
+    from bioradar.adapters.weknora import provider_status as weknora_status
+
+    providers = [dict(provider) for provider in PROVIDERS]
+    by_id = {provider["id"]: provider for provider in providers}
+    fabric_configured = bool(settings.data_fabric_url and settings.data_fabric_history_read_token)
+    if fabric_configured:
+        by_id["data_fabric"].update(
+            state="configured", note="已配置版本读取和增量入口；本次读取情况见调查过程及后台状态。"
+        )
+        by_id["identity"].update(
+            state="configured", note="通过 Fabric 读取对象与图谱资料；具体关系及原文绑定以调查结果为准。"
+        )
+    for identifier, status in (
+        ("knowledge", weknora_status(settings)),
+        ("generation", biocheck_status(settings)),
+    ):
+        by_id[identifier].update(
+            state="configured" if status.get("available") else "not_connected",
+            configuration=status,
+        )
+    from bioradar.adapters.mech_evidence import provider_status as mechanism_status
+
+    status = mechanism_status(settings)
+    by_id["mechanism"].update(
+        state="configured" if status.get("available") else "not_connected",
+        configuration=status,
+    )
+    return providers

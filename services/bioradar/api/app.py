@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from bioradar import __version__
-from bioradar.adapters.registry import PROVIDERS
+from bioradar.adapters.registry import provider_statuses
 from bioradar.api.config import Settings
 from bioradar.api.errors import DomainError
 from bioradar.api.health import dependencies
@@ -85,14 +85,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "autonomous_investigation": configured,
             "monitor_configuration": "configured_not_observed" if configured else "not_configured",
             "monitor_status_url": "/api/engine/monitor/status",
-            "bounded_investigation": "data_fabric_cli",
+            "bounded_investigation": "question_to_report",
+            "research_options_url": "/api/engine/investigations/research-options",
             "dependencies": await dependencies(settings, request.app.state.database),
-            "providers": PROVIDERS,
+            "providers": provider_statuses(settings),
             "research_stages": [{"key": s.key, "label": s.label} for s in STAGES],
         }
 
-    # The local research preview above has its own explicit access and contract.
-    # The complete V1 investigation/delivery application is not implemented here.
+    # The implemented research APIs use /api/engine; the V1 design contract remains separate.
     @app.api_route(
         "/api/v1/{path:path}", methods=["GET", "POST", "PATCH", "PUT", "DELETE"], include_in_schema=False
     )

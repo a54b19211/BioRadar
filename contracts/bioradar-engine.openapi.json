@@ -662,6 +662,55 @@
         }
       }
     },
+    "/api/engine/investigations/research-options": {
+      "get": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Research Options",
+        "operationId": "research_options_api_engine_investigations_research_options_get",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "is_demo",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Is Demo"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/engine/investigations/{investigation_id}": {
       "get": {
         "tags": [
@@ -767,6 +816,66 @@
                 "schema": {
                   "$ref": "#/components/schemas/InvestigationView"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/engine/investigations/ask": {
+      "post": {
+        "tags": [
+          "Development research engine"
+        ],
+        "summary": "Research Ask",
+        "operationId": "research_ask_api_engine_investigations_ask_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QuestionAsk"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -1090,6 +1199,20 @@
             "schema": {
               "type": "string",
               "title": "Analysis Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "json",
+                "markdown"
+              ],
+              "type": "string",
+              "default": "json",
+              "title": "Format"
             }
           }
         ],
@@ -3018,12 +3141,115 @@
   },
   "components": {
     "schemas": {
+      "AnalysisBudget": {
+        "properties": {
+          "max_calls": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Calls"
+          },
+          "max_tokens": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 10000000.0,
+                "minimum": 128.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tokens"
+          },
+          "max_seconds": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 86400.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Seconds"
+          },
+          "max_queries": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 32.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Queries"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AnalysisBudget"
+      },
       "AnalysisCreate": {
         "properties": {
           "expected_revision": {
             "type": "integer",
             "minimum": 1.0,
             "title": "Expected Revision"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "auto_retrieve": {
+            "type": "boolean",
+            "title": "Auto Retrieve",
+            "default": false
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Source Ids"
+          },
+          "initial_queries": {
+            "items": {
+              "$ref": "#/components/schemas/InitialQuery"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Initial Queries"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisBudget"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "retry_of_analysis_id": {
             "anyOf": [
@@ -3365,16 +3591,72 @@
             "type": "integer",
             "title": "Index"
           },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "initial",
+              "followup"
+            ],
+            "title": "Phase",
+            "default": "followup"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "fabric",
+              "weknora"
+            ],
+            "title": "Provider",
+            "default": "fabric"
+          },
           "plan": {
-            "$ref": "#/components/schemas/PlannedQuery"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlannedQuery"
+              },
+              {
+                "$ref": "#/components/schemas/InitialQuery"
+              }
+            ],
+            "title": "Plan"
+          },
+          "relaxed_from": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlannedQuery"
+              },
+              {
+                "$ref": "#/components/schemas/InitialQuery"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relaxed From"
+          },
+          "relaxation_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relaxation Reason"
           },
           "status": {
             "type": "string",
             "enum": [
               "prepared",
+              "sent",
               "read",
               "empty",
-              "failed"
+              "failed",
+              "unavailable",
+              "unconfirmed"
             ],
             "title": "Status"
           },
@@ -3415,6 +3697,26 @@
             },
             "type": "array",
             "title": "Evidence Keys"
+          },
+          "candidates": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Candidates"
+          },
+          "usage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usage"
           }
         },
         "additionalProperties": false,
@@ -3441,10 +3743,11 @@
               "bioradar-investigation-analysis-v0.4.4",
               "bioradar-investigation-analysis-v0.4.5",
               "bioradar-investigation-analysis-v0.4.6",
-              "bioradar-investigation-analysis-v0.4.7"
+              "bioradar-investigation-analysis-v0.4.7",
+              "bioradar-investigation-analysis-v0.5"
             ],
             "title": "Version",
-            "default": "bioradar-investigation-analysis-v0.4.7"
+            "default": "bioradar-investigation-analysis-v0.5"
           },
           "claims": {
             "items": {
@@ -3481,6 +3784,30 @@
             "const": "not_reviewed",
             "title": "Professional Status",
             "default": "not_reviewed"
+          },
+          "report": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report"
+          },
+          "mechanism_evaluation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mechanism Evaluation"
           },
           "limitations": {
             "items": {
@@ -3861,6 +4188,21 @@
               }
             ],
             "title": "Note Entry Id"
+          },
+          "progress": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Progress"
+          },
+          "budget": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Budget"
+          },
+          "providers": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Providers"
           }
         },
         "additionalProperties": false,
@@ -6442,6 +6784,17 @@
       },
       "GenericReview": {
         "properties": {
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
           "status": {
             "type": "string",
             "enum": [
@@ -6456,7 +6809,7 @@
             },
             "type": "array",
             "maxItems": 8,
-            "minItems": 1,
+            "minItems": 0,
             "title": "Claims"
           },
           "overall_limitations": {
@@ -8281,6 +8634,41 @@
           "run_id"
         ],
         "title": "HistoryTrainingRun"
+      },
+      "InitialQuery": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "terms": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 2
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Terms"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason",
+            "default": "研究问题的初始查找"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "terms"
+        ],
+        "title": "InitialQuery"
       },
       "InputBasis": {
         "properties": {
@@ -11377,6 +11765,66 @@
           "key"
         ],
         "title": "Qualifier"
+      },
+      "QuestionAsk": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "is_demo": {
+            "type": "boolean",
+            "title": "Is Demo",
+            "default": false
+          },
+          "source_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Source Ids"
+          },
+          "initial_queries": {
+            "items": {
+              "$ref": "#/components/schemas/InitialQuery"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Initial Queries"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisBudget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "QuestionAsk"
       },
       "RecordIdentity": {
         "properties": {

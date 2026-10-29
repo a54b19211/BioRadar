@@ -1321,3 +1321,72 @@ def test_full_ledger_summary_and_same_input_compute_upgrade(runtime, monkeypatch
     assert new.id != old.id and new.compute_version == "bioradar-topic-series-v0.3"
     assert new.observation_revision == old.observation_revision
     assert make().evaluation(make().actor, identifier, old.id).model_dump() == old.model_dump()
+
+
+def test_rival_scan_reads_large_scope_once_and_reaches_authorized_old_pending_after_a_page(runtime):
+    from bioradar.research.mining.models import canonical_hash
+    from bioradar.research.monitor.service import MonitorService
+    from sqlalchemy import event
+
+    make, _, _ = runtime
+    topic_id, scope_id, valid_id = fairness_topic(runtime, suffix="large-deferred-history")
+    engine = make().engine.database
+    old = NOW - timedelta(days=730)
+    with Session(engine) as session, session.begin():
+        scope = session.get(TopicScopeRecord, scope_id)
+        progress = copy.deepcopy(scope.progress)
+        progress["SYNTHETIC large history"] = "x" * 300000
+        scope.progress = progress
+        valid = session.get(TopicEvaluationRecord, valid_id)
+        valid.created_at = old + timedelta(minutes=64)
+        for index in range(64):
+            identifier = f"00000000-0000-4000-8000-{index:012d}"
+            result = copy.deepcopy(valid.result)
+            result["id"] = identifier
+            result["dependency_source_ids"] = ["SYNTHETIC-revoked-source"]
+            session.add(
+                TopicEvaluationRecord(
+                    id=identifier,
+                    scope_id=scope_id,
+                    observation_revision=valid.observation_revision,
+                    evaluation_key=canonical_hash(["SYNTHETIC deferred history", index]),
+                    result=result,
+                    followup={"status": "deferred"},
+                    created_at=old + timedelta(minutes=index),
+                )
+            )
+    candidate_reads, scope_reads = [], []
+
+    def capture(connection, cursor, statement, parameters, context, executemany):
+        if "FROM topic_evaluations JOIN topic_scopes" in statement:
+            candidate_reads.append(
+                (statement.split("FROM", 1)[0], context.execution_options.get("yield_per"))
+            )
+        elif "FROM topic_scopes" in statement and "topic_scopes.id =" in statement:
+            scope_reads.append(statement)
+
+    current = make()
+    monitor = MonitorService(current.engine, current.reader)
+    event.listen(engine, "after_cursor_execute", capture)
+    try:
+        with Session(engine) as session:
+            assert monitor._has_runnable_rival(session, "monitor", datetime.now(UTC))
+    finally:
+        event.remove(engine, "after_cursor_execute", capture)
+    assert len(candidate_reads) == 1 and candidate_reads[0][1] == 32
+    assert "topic_scopes.progress" not in candidate_reads[0][0]
+    assert "topic_scopes.definition" not in candidate_reads[0][0]
+    assert len(scope_reads) == 1
+    with Session(engine) as session:
+        assert (
+            session.scalar(
+                select(func.count())
+                .select_from(TopicEvaluationRecord)
+                .where(
+                    TopicEvaluationRecord.scope_id == scope_id,
+                    TopicEvaluationRecord.followup["status"].astext == "deferred",
+                )
+            )
+            == 65
+        )
+    assert current.get(current.actor, topic_id).id == topic_id

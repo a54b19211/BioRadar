@@ -1,10 +1,156 @@
 {
+  "$defs": {
+    "AnalysisBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "max_calls": {
+          "anyOf": [
+            {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Calls"
+        },
+        "max_tokens": {
+          "anyOf": [
+            {
+              "maximum": 10000000,
+              "minimum": 128,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tokens"
+        },
+        "max_seconds": {
+          "anyOf": [
+            {
+              "maximum": 86400,
+              "minimum": 5,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Seconds"
+        },
+        "max_queries": {
+          "anyOf": [
+            {
+              "maximum": 32,
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Queries"
+        }
+      },
+      "title": "AnalysisBudget",
+      "type": "object"
+    },
+    "InitialQuery": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "terms": {
+          "items": {
+            "maxLength": 120,
+            "minLength": 2,
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "title": "Terms",
+          "type": "array"
+        },
+        "reason": {
+          "default": "研究问题的初始查找",
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "terms"
+      ],
+      "title": "InitialQuery",
+      "type": "object"
+    }
+  },
   "additionalProperties": false,
   "properties": {
     "expected_revision": {
       "minimum": 1,
       "title": "Expected Revision",
       "type": "integer"
+    },
+    "question": {
+      "anyOf": [
+        {
+          "maxLength": 4000,
+          "minLength": 1,
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Question"
+    },
+    "auto_retrieve": {
+      "default": false,
+      "title": "Auto Retrieve",
+      "type": "boolean"
+    },
+    "source_ids": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8,
+      "title": "Source Ids",
+      "type": "array"
+    },
+    "initial_queries": {
+      "items": {
+        "$ref": "#/$defs/InitialQuery"
+      },
+      "maxItems": 6,
+      "title": "Initial Queries",
+      "type": "array"
+    },
+    "budget": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AnalysisBudget"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "retry_of_analysis_id": {
       "anyOf": [

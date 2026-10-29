@@ -8,15 +8,47 @@ from pydantic import Field
 from bioradar.research.engine.schemas import RuntimeModel
 from bioradar.research.mining.models import ProviderRef
 
-ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.4.7"
-PROMPT_VERSION = "bioradar-investigation-reading-v0.4.7"
+ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.5"
+PROMPT_VERSION = "bioradar-investigation-reading-v0.5"
 Text = Annotated[str, Field(min_length=1, max_length=2000)]
 LocalId = Annotated[str, Field(min_length=1, max_length=80)]
 State = Literal["queued", "running", "completed", "needs_review", "blocked", "failed"]
 
 
+class AnalysisBudget(RuntimeModel):
+    max_calls: int | None = Field(default=None, ge=1, le=100)
+    max_tokens: int | None = Field(default=None, ge=128, le=10_000_000)
+    max_seconds: int | None = Field(default=None, ge=5, le=86400)
+    max_queries: int | None = Field(default=None, ge=0, le=32)
+
+
+class InitialQuery(RuntimeModel):
+    source_id: str = Field(min_length=1, max_length=200)
+    terms: list[Annotated[str, Field(min_length=2, max_length=120)]] = Field(min_length=1, max_length=3)
+    reason: Text = "研究问题的初始查找"
+
+
+class QuestionPlan(RuntimeModel):
+    queries: list[InitialQuery] = Field(max_length=6)
+    limitations: list[Text] = Field(default_factory=list, max_length=8)
+
+
+class QuestionAsk(RuntimeModel):
+    question: str = Field(min_length=1, max_length=4000)
+    title: str | None = Field(default=None, min_length=1, max_length=200)
+    is_demo: bool = False
+    source_ids: list[str] = Field(default_factory=list, max_length=8)
+    initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
+    budget: AnalysisBudget | None = None
+
+
 class AnalysisCreate(RuntimeModel):
     expected_revision: int = Field(ge=1)
+    question: str | None = Field(default=None, min_length=1, max_length=4000)
+    auto_retrieve: bool = False
+    source_ids: list[str] = Field(default_factory=list, max_length=8)
+    initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
+    budget: AnalysisBudget | None = None
     retry_of_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     parent_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     material_entry_ids: list[str] = Field(default_factory=list, max_length=10)
@@ -70,6 +102,7 @@ class ConditionalAnswer(RuntimeModel):
 
 
 class ModelReading(RuntimeModel):
+    mechanism_candidate: Text | None = None
     claims: list[ModelClaim] = Field(min_length=1, max_length=6)
     explanations: list[Explanation] = Field(max_length=2)
     gaps: list[EvidenceGap] = Field(max_length=4)
@@ -120,15 +153,16 @@ class DraftFinding(RuntimeModel):
 
 
 class GenericReview(RuntimeModel):
+    provider: str | None = None
     status: Literal["passed", "needs_review"]
-    claims: list[ClaimReview] = Field(min_length=1, max_length=8)
+    claims: list[ClaimReview] = Field(min_length=0, max_length=8)
     overall_limitations: list[Text] = Field(max_length=8)
     findings: list[DraftFinding] = Field(default_factory=list, max_length=8)
     checked_sections: list[ReviewSection] = Field(default_factory=list, max_length=5)
 
 
 class ModelFinding(RuntimeModel):
-    section: Literal["claims", "explanations", "gaps", "conditional_answer"]
+    section: Literal["claims", "explanations", "gaps", "conditional_answer", "update"]
     claim_id: LocalId | None = None
     issue: Text
     evidence_keys: list[LocalId] = Field(default_factory=list, max_length=8)
@@ -200,6 +234,7 @@ class AnalysisResult(RuntimeModel):
         "bioradar-investigation-analysis-v0.4.5",
         "bioradar-investigation-analysis-v0.4.6",
         "bioradar-investigation-analysis-v0.4.7",
+        "bioradar-investigation-analysis-v0.5",
     ] = ANALYSIS_VERSION
     claims: list[VerifiedClaim]
     explanations: list[Explanation]
@@ -208,19 +243,27 @@ class AnalysisResult(RuntimeModel):
     update: AnalysisUpdate
     review: GenericReview
     professional_status: Literal["not_reviewed"] = "not_reviewed"
+    report: dict | None = None
+    mechanism_evaluation: dict | None = None
     limitations: list[str]
 
 
 class AnalysisQueryReceipt(RuntimeModel):
     index: int
-    plan: PlannedQuery
-    status: Literal["prepared", "read", "empty", "failed"]
+    phase: Literal["initial", "followup"] = "followup"
+    provider: Literal["fabric", "weknora"] = "fabric"
+    plan: PlannedQuery | InitialQuery
+    relaxed_from: PlannedQuery | InitialQuery | None = None
+    relaxation_reason: Text | None = None
+    status: Literal["prepared", "sent", "read", "empty", "failed", "unavailable", "unconfirmed"]
     scope: str = "fabric_current_adopted_versions_not_the_web"
     returned: int = 0
     new_versions: int = 0
     has_more: bool = False
     error_code: str | None = None
     evidence_keys: list[str] = Field(default_factory=list)
+    candidates: list[dict] = Field(default_factory=list)
+    usage: dict | None = None
 
 
 class AnalysisSummary(RuntimeModel):
@@ -252,6 +295,9 @@ class AnalysisView(AnalysisSummary):
     initial_draft: AnalysisResult | None = None
     limitations: list[str]
     note_entry_id: str | None
+    progress: dict = Field(default_factory=dict)
+    budget: dict = Field(default_factory=dict)
+    providers: dict = Field(default_factory=dict)
 
 
 class AnalysisList(RuntimeModel):

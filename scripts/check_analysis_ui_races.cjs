@@ -22,10 +22,10 @@ function listing(items, next_cursor = null) {
 }
 function panel(request) {
   class TestError extends Error { constructor(status) { super("Synthetic denial"); this.status = status; } }
-  const callbacks = [], events = [], downloads = [];
+  const callbacks = [], events = [], downloads = [], scheduled = [];
   const props = { investigation: { id: "I", revision: 3, status: "open" }, busy: false, loading: false };
   const context = {
-    exports: {}, console, Blob, setTimeout: () => 1, clearTimeout() {},
+    exports: {}, console, Blob, setTimeout: callback => { scheduled.push(callback); return scheduled.length; }, clearTimeout() {},
     crypto: { randomUUID: () => "synthetic-key" },
     URL: { createObjectURL: () => { downloads.push("created"); return "blob:synthetic"; }, revokeObjectURL() {} },
     document: { createElement: () => ({ click: () => downloads.push("clicked") }) },
@@ -37,8 +37,8 @@ function panel(request) {
     },
   };
   vm.createContext(context);
-  vm.runInContext(compiled + "\nglobalThis.probe={refresh,openAnalysis,loadMore,startAnalysis,readSource,closeSource,exportAnalysis,clearPrivate,fail,list,selected,source,sourceOpen,error,writing,loading};", context);
-  return { ...context.probe, props, events, downloads, errorFor: status => new TestError(status),
+  vm.runInContext(compiled + "\nglobalThis.probe={refresh,openAnalysis,loadMore,startAnalysis,readSource,closeSource,exportAnalysis,printAnalysis,clearPrivate,fail,list,selected,source,sourceOpen,error,writing,loading};", context);
+  return { ...context.probe, props, events, downloads, scheduled, errorFor: status => new TestError(status),
     unmount: () => callbacks.forEach(fn => fn()) };
 }
 async function main() {
@@ -91,6 +91,17 @@ async function main() {
   await history.openAnalysis("old", true); await history.refresh();
   assert.equal(history.selected.value.id, "old"); history.unmount();
 
+  let outsideState = "running";
+  const outside = panel(url => Promise.resolve(url.endsWith("/analyses")
+    ? listing([summary("latest")]) : summary("outside", outsideState)));
+  outside.list.value = listing([summary("latest")]);
+  await outside.openAnalysis("outside", true); await outside.refresh();
+  assert.equal(outside.selected.value.id, "outside");
+  assert.ok(outside.scheduled.length > 0);
+  outsideState = "completed"; await outside.refresh();
+  assert.equal(outside.events.filter(event => event[0] === "changed").length, 1);
+  outside.unmount();
+
   const writing = deferred();
   const gone = panel(() => writing.promise);
   gone.list.value = listing([]);
@@ -105,6 +116,24 @@ async function main() {
   const exportRead = leaving.exportAnalysis(); leaving.unmount();
   download.resolve({ text: "Synthetic old analysis" }); await exportRead;
   assert.equal(leaving.downloads.length, 0);
+
+  const lateExportError = deferred();
+  const protectedExport = panel(() => lateExportError.promise);
+  protectedExport.selected.value = summary("A");
+  const oldExport = protectedExport.exportAnalysis();
+  protectedExport.selected.value = summary("B");
+  lateExportError.reject(protectedExport.errorFor(403)); await oldExport;
+  assert.equal(protectedExport.selected.value.id, "B");
+  assert.equal(protectedExport.events.length, 0); protectedExport.unmount();
+
+  const latePrintError = deferred();
+  const protectedPrint = panel(() => latePrintError.promise);
+  protectedPrint.selected.value = summary("A");
+  const oldPrint = protectedPrint.printAnalysis();
+  protectedPrint.selected.value = summary("B");
+  latePrintError.reject(protectedPrint.errorFor(403)); await oldPrint;
+  assert.equal(protectedPrint.selected.value.id, "B");
+  assert.equal(protectedPrint.events.length, 0); protectedPrint.unmount();
 
   const writes = [];
   const retries = panel((url, options) => {
@@ -123,6 +152,9 @@ async function main() {
     "old_pagination_cannot_overwrite_refreshed_list", "refresh_preserves_chosen_history",
     "late_create_after_unmount_cannot_repopulate", "late_export_after_unmount_cannot_download",
     "lost_create_response_reuses_original_idempotency_key",
+    "late_export_denial_cannot_clear_another_selected_analysis",
+    "late_print_denial_cannot_clear_another_selected_analysis",
+    "running_analysis_outside_first_list_page_keeps_polling_and_notifies_completion",
   ] }));
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

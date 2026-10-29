@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     data_fabric_research_url: str | None = None
     data_fabric_history_read_token: SecretStr | None = None
 
+    biocheck_project_dir: Path | None = None
+    mech_evidence_project_dir: Path | None = None
+    weknora_url: str | None = None
+    weknora_api_key: SecretStr | None = None
+    weknora_knowledge_base_ids: list[str] = Field(default_factory=list, max_length=8)
+
     # A local development-user credential, never an upstream/service API key.
     engine_dev_credential: SecretStr | None = None
     engine_workspace_id: str = "development"
@@ -68,6 +74,10 @@ class Settings(BaseSettings):
     analysis_search_source_ids: list[str] = Field(default_factory=list, max_length=8)
     analysis_manual_per_hour: int = Field(default=2, ge=0, le=100)
     analysis_auto_enabled: bool = False
+    analysis_max_calls: int = Field(default=16, ge=1, le=16)
+    analysis_max_tokens: int = Field(default=262144, ge=1, le=10_000_000)
+    analysis_max_seconds: int = Field(default=1800, ge=1, le=1800)
+    analysis_max_queries: int = Field(default=6, ge=0, le=6)
 
     @model_validator(mode="after")
     def flash_thinking_sampling(self):
@@ -128,10 +138,13 @@ class Settings(BaseSettings):
         if value in (None, ""):
             return None
         parts = urlsplit(value)
+        parts.port
         if (
             parts.scheme not in {"http", "https"}
             or parts.hostname not in {"127.0.0.1", "localhost", "::1"}
-            or parts.username
+            or parts.username is not None
+            or parts.password is not None
+            or any(ord(char) <= 32 for char in value)
             or parts.query
             or parts.fragment
             or parts.path not in {"", "/"}
@@ -139,10 +152,48 @@ class Settings(BaseSettings):
             raise ValueError("History reader requires a configured loopback base URL")
         return value.rstrip("/")
 
-    @field_validator("data_fabric_history_read_token")
+    @field_validator("weknora_url")
+    @classmethod
+    def configured_knowledge_endpoint(cls, value: str | None) -> str | None:
+        from urllib.parse import urlsplit
+
+        if value in (None, ""):
+            return None
+        parts = urlsplit(value)
+        parts.port
+        if (
+            parts.scheme not in {"http", "https"}
+            or not parts.hostname
+            or parts.username is not None
+            or parts.password is not None
+            or parts.query
+            or parts.fragment
+            or parts.path not in {"", "/"}
+            or any(ord(char) <= 32 for char in value)
+        ):
+            raise ValueError("Use an explicit server-configured WeKnora root URL without credentials")
+        return value.rstrip("/")
+
+    @field_validator("data_fabric_history_read_token", "weknora_api_key")
     @classmethod
     def empty_history_token(cls, value: SecretStr | None) -> SecretStr | None:
         return value if value and value.get_secret_value() else None
+
+    @field_validator("biocheck_project_dir", "mech_evidence_project_dir")
+    @classmethod
+    def installed_provider_directory(cls, value: Path | None) -> Path | None:
+        if value is not None and (not value.is_absolute() or ".." in value.parts):
+            raise ValueError("Shared provider source requires an absolute server-configured directory")
+        return value
+
+    @field_validator("weknora_knowledge_base_ids")
+    @classmethod
+    def configured_knowledge_bases(cls, value: list[str]) -> list[str]:
+        import re
+
+        if any(not re.fullmatch(r"[A-Za-z0-9_-]{1,200}", item) for item in value):
+            raise ValueError("WeKnora retrieval requires explicit knowledge base identifiers")
+        return sorted(set(value))
 
     @field_validator("engine_dev_credential")
     @classmethod

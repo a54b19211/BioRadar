@@ -57,6 +57,32 @@ class Model:
             change()
         if self.timeout:
             raise httpx.ReadTimeout("SYNTHETIC SECRET MUST NOT LEAK", request=request)
+        if payload["task"] in {"question_plan", "shared_verify"}:
+            result = (
+                {
+                    "queries": [
+                        {
+                            "source_id": payload["search_scope"][0],
+                            "terms": ["SYNTHETIC"],
+                            "reason": "SYNTHETIC question lookup",
+                        }
+                    ],
+                    "limitations": [],
+                }
+                if payload["task"] == "question_plan"
+                else {"status": "PASS"}
+            )
+            if self.transform:
+                self.transform(payload, result)
+            return httpx.Response(
+                200,
+                json={
+                    "id": "synthetic-completion",
+                    "model": "synthetic-model",
+                    "choices": [{"message": {"content": json.dumps(result)}, "finish_reason": "stop"}],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150},
+                },
+            )
         items = payload["evidence"]
         first = items[0]
         link = {
@@ -371,7 +397,7 @@ def test_manual_external_material_automatically_queues_child_and_own_material_do
     updated = make().get(actor, view["id"], child_id)
     assert updated.state == "completed" and updated.result.update.stance == "maintained"
     assert make().get(actor, view["id"], accepted["id"]).model_dump(mode="json") == old
-    assert len(model.requests) == 7
+    assert len(model.requests) == 8
     assert InvestigationService(make().engine).get(actor, view["id"]).judgment_count == 0
 
 
@@ -775,7 +801,7 @@ def test_worker_reader_budget_includes_model_wait_and_old_unstarted_candidate(ru
         fixed = copy.deepcopy(row.fixed_input)
         del fixed["model_parameters"]["job_timeout_seconds"]
         row.fixed_input = fixed
-        assert execution_seconds(fixed) == 285
+        assert execution_seconds(fixed) == 780
     settings.data_fabric_url = "http://127.0.0.1"
     settings.data_fabric_history_read_token = SecretStr("SYNTHETIC-TOKEN")
     original_client = httpx.Client
@@ -1275,14 +1301,20 @@ def test_same_basis_old_version_runs_new_analysis_with_only_unverified_parent_cl
     if stance == "maintained":
         assert updated.state == "completed", updated.error_code
         assert updated.result.update.changed_claims == [] and updated.result.update.reasons
-        assert [p["task"] for p in model.requests[3:]] == ["read_plan", "synthesize", "check", "compare"]
+        assert [p["task"] for p in model.requests[3:]] == [
+            "read_plan",
+            "synthesize",
+            "check",
+            "compare",
+            "final_check",
+        ]
     else:
         assert updated.state == "needs_review" and updated.error_code == "analysis_update_invalid"
         assert updated.result.claims and updated.result.update.stance == "unable_to_compare"
         assert [p["task"] for p in model.requests[3:]] == ["read_plan", "synthesize", "check", "compare"]
     for payload in model.requests[3:]:
         assert "previous_analysis" not in payload and "reading" not in payload
-        if payload["task"] != "compare":
+        if payload["task"] not in {"compare", "final_check"}:
             assert "comparison_target" not in payload
             continue
         parent = payload["comparison_target"]
@@ -1362,7 +1394,7 @@ def test_parent_only_enters_comparison_and_failed_comparison_preserves_current_d
     current_hashes = []
 
     def response(payload, result):
-        if payload["task"] != "compare":
+        if payload["task"] not in {"compare", "final_check"}:
             assert "comparison_target" not in payload
             assert "OLD UNVERIFIED" not in json.dumps(payload)
         if payload["task"] in {"check", "recheck"}:
@@ -1460,9 +1492,14 @@ def test_parent_only_enters_comparison_and_failed_comparison_preserves_current_d
     expected_tasks = ["read_plan", "synthesize", "check", "revise", "recheck"]
     if outcome not in {"remaining_issue", "sent_crash"}:
         expected_tasks.append("compare")
+    if outcome in {"passed", "commit_unknown", "pause"}:
+        expected_tasks.append("final_check")
     assert tasks == expected_tasks
     assert result.result.claims and result.initial_draft is not None
-    assert result.result.review.checked_sections == []
+    if outcome in {"passed", "commit_unknown", "pause"}:
+        assert "update" in result.result.review.checked_sections
+    else:
+        assert result.result.review.checked_sections == []
     if outcome in {"passed", "commit_unknown", "pause"}:
         assert result.state == "completed" and result.result.update.stance == "maintained"
         assert result.error_code is None and len(current_hashes) == 1
@@ -1482,14 +1519,18 @@ def test_parent_only_enters_comparison_and_failed_comparison_preserves_current_d
             assert result.error_code == "analysis_update_invalid"
         else:
             assert result.error_code is None and result.result.review.findings
-    assert all("OLD UNVERIFIED" not in json.dumps(p) for p in model.requests[3:] if p["task"] != "compare")
+    assert all(
+        "OLD UNVERIFIED" not in json.dumps(p)
+        for p in model.requests[3:]
+        if p["task"] not in {"compare", "final_check"}
+    )
     before = len(model.requests)
     make().execute(created["id"], created["input_hash"])
     assert len(model.requests) == before
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, created["id"])
-        assert row.fixed_input["model_parameters"]["max_calls"] == 6
-        assert row.fixed_input["model_parameters"]["job_timeout_seconds"] == 330
+        assert row.fixed_input["model_parameters"]["max_calls"] == 16
+        assert row.fixed_input["model_parameters"]["job_timeout_seconds"] == 1860
         assert canonical_hash(session.get(InvestigationAnalysisRecord, parent["id"]).result) == parent_hash
         assert session.scalar(select(func.count()).select_from(InvestigationAnalysisRecord)) == 2
     assert InvestigationService(make().engine).get(actor, view["id"]).judgment_count == 0
@@ -1734,7 +1775,13 @@ def test_model_parameter_change_creates_new_basis_and_same_parameters_reuse_it(r
     make().execute(created["id"], created["input_hash"])
     result = make().get(actor, view["id"], created["id"])
     assert result.state == "completed", result.error_code
-    assert [p["task"] for p in model.requests[3:]] == ["read_plan", "synthesize", "check", "compare"]
+    assert [p["task"] for p in model.requests[3:]] == [
+        "read_plan",
+        "synthesize",
+        "check",
+        "compare",
+        "final_check",
+    ]
     for wire in model.wires[3:]:
         assert wire["chat_template_kwargs"]["enable_thinking"] is True
         assert wire["temperature"] == 0.6 and wire["top_p"] == 0.95 and wire["top_k"] == 20
@@ -1743,7 +1790,7 @@ def test_model_parameter_change_creates_new_basis_and_same_parameters_reuse_it(r
         old_row = session.get(InvestigationAnalysisRecord, parent["id"])
         new_row = session.get(InvestigationAnalysisRecord, created["id"])
         assert old_row.fixed_input["basis_signature"] != new_row.fixed_input["basis_signature"]
-        assert new_row.fixed_input["model_parameters"]["job_timeout_seconds"] == 960
+        assert new_row.fixed_input["model_parameters"]["job_timeout_seconds"] == 1860
         assert "model" not in new_row.fixed_input["model_parameters"]
         assert "model_revision" not in new_row.fixed_input["model_parameters"]
     latest = inquiry.get(actor, view["id"])
@@ -1753,7 +1800,7 @@ def test_model_parameter_change_creates_new_basis_and_same_parameters_reuse_it(r
         AnalysisCreate(expected_revision=latest.revision, parent_analysis_id=created["id"]),
         "same-model-parameters-new-click",
     )
-    assert code == 200 and duplicate["id"] == created["id"] and len(model.requests) == 7
+    assert code == 200 and duplicate["id"] == created["id"] and len(model.requests) == 8
     assert make().get(actor, view["id"], parent["id"]).model_dump(mode="json") == old
 
 
@@ -1870,7 +1917,13 @@ def test_explicit_provider_switch_creates_a_new_frozen_basis_and_keeps_old_resul
     make().execute(created["id"], created["input_hash"])
     result = make().get(actor, view["id"], created["id"])
     assert result.state == "completed", result.error_code
-    assert [p["task"] for p in model.requests[3:]] == ["read_plan", "synthesize", "check", "compare"]
+    assert [p["task"] for p in model.requests[3:]] == [
+        "read_plan",
+        "synthesize",
+        "check",
+        "compare",
+        "final_check",
+    ]
     for wire in model.wires[3:]:
         assert wire["response_format"] == {"type": "json_object"}
         assert wire["thinking"] == {"type": "enabled"} and wire["reasoning_effort"] == "max"
@@ -1893,7 +1946,7 @@ def test_explicit_provider_switch_creates_a_new_frozen_basis_and_keeps_old_resul
         AnalysisCreate(expected_revision=latest.revision, parent_analysis_id=created["id"]),
         "same-explicit-provider-basis",
     )
-    assert code == 200 and duplicate["id"] == created["id"] and len(model.requests) == 7
+    assert code == 200 and duplicate["id"] == created["id"] and len(model.requests) == 8
     assert make().get(actor, view["id"], parent["id"]).model_dump(mode="json") == old
     assert inquiry.get(actor, view["id"]).judgment_count == 0
 

@@ -45,7 +45,7 @@ from bioradar.research.investigations.models import (
     InvestigationView,
 )
 from bioradar.research.investigations.service import InvestigationService
-from bioradar.research.mining.models import NormalizedSnapshot
+from bioradar.research.mining.models import NormalizedSnapshot, canonical_hash
 from bioradar.research.mining.registry import methods_metadata
 from bioradar.research.monitor.models import MonitorBatchList, MonitorControl, MonitorLeadList, MonitorStatus
 from bioradar.research.monitor.service import MonitorService
@@ -277,6 +277,15 @@ def create_engine_router(settings: Settings) -> APIRouter:
     ):
         return InvestigationService(service(request)).list(actor, cursor, limit)
 
+    @router.get("/investigations/research-options")
+    def research_options(
+        request: Request,
+        is_demo: bool = False,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        with analysis_runtime(request) as analyses:
+            return analyses.options(actor, is_demo=is_demo)
+
     @router.get("/investigations/{investigation_id}", response_model=InvestigationView)
     def investigation(
         investigation_id: str,
@@ -307,6 +316,7 @@ def create_engine_router(settings: Settings) -> APIRouter:
         AnalysisEvidenceRead,
         AnalysisList,
         AnalysisView,
+        QuestionAsk,
     )
     from bioradar.research.investigations.analysis_service import AnalysisService
 
@@ -318,6 +328,60 @@ def create_engine_router(settings: Settings) -> APIRouter:
                 yield AnalysisService(engine, reader)
         else:
             yield AnalysisService(engine)
+
+    @router.post("/investigations/ask", status_code=202)
+    def research_ask(
+        body: QuestionAsk,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        identifier = None
+        try:
+            with analysis_runtime(request) as analyses:
+                _, investigation = InvestigationService(analyses.engine).create(
+                    actor,
+                    InvestigationCreate(
+                        title=body.title or body.question[:200], question=body.question, is_demo=body.is_demo
+                    ),
+                    "ask-investigation:" + canonical_hash(idempotency_key),
+                )
+                identifier = investigation["id"]
+                code, analysis = analyses.start(
+                    actor,
+                    identifier,
+                    AnalysisCreate(
+                        expected_revision=investigation["revision"],
+                        question=body.question,
+                        auto_retrieve=True,
+                        source_ids=body.source_ids,
+                        initial_queries=body.initial_queries,
+                        budget=body.budget,
+                    ),
+                    "ask-analysis:" + canonical_hash(idempotency_key),
+                )
+                current = analyses.get(actor, identifier, analysis["id"])
+        except DomainError as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={
+                    "error": {
+                        "code": exc.code,
+                        "message": exc.message,
+                        "retryable": exc.retryable,
+                        "details": {"investigation_id": identifier, "analysis_id": None},
+                    },
+                    "request_id": request.state.request_id,
+                },
+            )
+        return JSONResponse(
+            status_code=code,
+            content={
+                "investigation_id": identifier,
+                "analysis_id": current.id,
+                "analysis": current.model_dump(mode="json"),
+            },
+        )
 
     @router.get("/investigations/{investigation_id}/analyses", response_model=AnalysisList)
     def analysis_list(
@@ -371,12 +435,27 @@ def create_engine_router(settings: Settings) -> APIRouter:
         investigation_id: str,
         analysis_id: str,
         request: Request,
+        format: Literal["json", "markdown"] = "json",
         actor: EngineActor = Depends(access.require_actor),
     ):
         with analysis_runtime(request) as analyses:
+            analysis = analyses.get(actor, investigation_id, analysis_id)
+            if format == "markdown":
+                if analysis.result is None:
+                    raise DomainError("analysis_report_unavailable", "本轮尚无可导出的分析稿", 409)
+                from bioradar.research.investigations.analysis import render_report
+
+                content = (analysis.result.report or {}).get("final_text") or render_report(
+                    analysis.result.model_dump(mode="json"), analysis.question
+                )
+                return Response(
+                    content=content,
+                    media_type="text/markdown; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="analysis-{analysis_id}.md"'},
+                )
             return {
-                "analysis": analyses.get(actor, investigation_id, analysis_id).model_dump(mode="json"),
-                "warning": "有出处的机器分析草稿，不是专业审核或人工批准。",
+                "analysis": analysis.model_dump(mode="json"),
+                "warning": "有出处的机器分析，专业方法评价或模型核验不等于人工批准。",
             }
 
     @router.post("/runs", response_model=RunView, status_code=202)

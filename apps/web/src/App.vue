@@ -1,6 +1,17 @@
 <script setup lang="ts">
 const navigation = [
-  {path: "/history", mark: "◴", title: "历史资料研究", subtitle: "固定预测与独立结局评价"},
+  {
+    path: "/investigations",
+    mark: "⌕",
+    title: "提问与调查",
+    subtitle: "从问题到证据与报告",
+  },
+  {
+    path: "/history",
+    mark: "◴",
+    title: "历史资料研究",
+    subtitle: "固定预测与独立结局评价",
+  },
   {
     path: "/radar",
     mark: "◎",
@@ -20,12 +31,6 @@ const navigation = [
     subtitle: "长期跟踪与判断积累",
   },
   {
-    path: "/investigations",
-    mark: "⌕",
-    title: "调查任务",
-    subtitle: "从问题到证据与判断",
-  },
-  {
     path: "/deliverables",
     mark: "▧",
     title: "情报成果",
@@ -37,7 +42,7 @@ const navigation = [
 <template>
   <div class="app-shell">
     <aside class="sidebar">
-      <RouterLink to="/radar" class="brand"
+      <RouterLink to="/investigations" class="brand"
         ><span class="brand-mark">B</span
         ><span>BioRadar<small>生物医药情报</small></span></RouterLink
       >
@@ -61,7 +66,7 @@ const navigation = [
         >
         <div class="workspace">
           <span class="avatar">研</span
-          ><span>研究工作空间<small>研究基础 · v0.4</small></span>
+          ><span>研究工作空间<small>问题 · 证据 · 报告</small></span>
         </div>
       </div>
     </aside>

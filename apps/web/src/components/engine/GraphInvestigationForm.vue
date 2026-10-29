@@ -11,9 +11,9 @@ import {
   type InvestigationView,
 } from "../../api/engine";
 
-const props = defineProps<{ investigation: InvestigationView | null; loading: boolean }>();
+const props = defineProps<{ investigation: InvestigationView | null; loading: boolean; initialQuestion?: string }>();
 const emit = defineEmits<{
-  saved: [investigation: InvestigationView];
+  saved: [investigation: InvestigationView, result: GraphInvestigationResult];
   busy: [value: boolean];
   unauthorized: [error: unknown];
 }>();
@@ -27,12 +27,12 @@ const asOf = ref<string | null>(null);
 const fetching = ref(false);
 const running = ref(false);
 const error = ref("");
-const seedName = ref("EGFR");
+const seedName = ref("");
 const seedId = ref("");
 const selectedCandidate = ref("");
-const topic = ref("EGFR");
-const question = ref("EGFR关联疾病有哪些可核对的登记资料，原图和原文还有什么缺口？");
-const appendCurrent = ref(false);
+const topic = ref("");
+const question = ref(props.initialQuestion ?? props.investigation?.question ?? "");
+const appendCurrent = ref(Boolean(props.investigation));
 const searchClinical = ref(true);
 const result = ref<GraphInvestigationResult | null>(null);
 let generation = 0;
@@ -99,7 +99,7 @@ async function submit() {
     ? result.value.investigation : null;
   const target = pending || (appendCurrent.value ? props.investigation : null);
   const body = {
-    title: "图谱引导调查：" + seedName.value.trim(),
+    title: "图谱引导调查：" + (seedName.value.trim() || identity).slice(0, 120),
     question: question.value.trim(),
     source_id: graph.source_id,
     source_record_id: graph.source_record_id,
@@ -115,7 +115,7 @@ async function submit() {
     const saved = await post<GraphInvestigationResult>("/investigations/graph", body);
     if (!current(version)) return;
     result.value = saved;
-    emit("saved", saved.investigation);
+    emit("saved", saved.investigation, saved);
   } catch (value) {
     if (!current(version)) return;
     error.value = explain(value) + " 本次没有自动重发。";
@@ -159,6 +159,7 @@ watch([seedName, packageKey], () => {
   selectedCandidate.value = "";
   result.value = null;
 });
+watch(() => props.initialQuestion, (value) => { if (value != null && !running.value) question.value = value; });
 onMounted(() => void loadPackages());
 onUnmounted(() => { disposed = true; ++generation; });
 const reviewLabels: Record<string, string> = { approved: "来源人工审核", auto_approved: "来源自动审核", pending: "待审核", unreviewed: "未审核", background: "背景资料" };
@@ -175,7 +176,7 @@ const statusLabels: Record<GraphInvestigationResult["completion_status"], string
 <template>
   <section class="engine-panel graph-form no-print">
     <h2>从图谱继续调查</h2>
-    <p class="muted">从真实关系提出待查问题，回读原件并保存背景材料。图中关联不自动代表因果或疗效，程序不生成研究人员判断。</p>
+    <p class="muted">从真实关系提出待查问题，回读原件并保存背景材料。本轮材料会保存到同一调查，再继续研究和报告。</p>
     <div class="graph-fields">
       <label>图谱来源
         <ElSelect v-model="source" :disabled="disabled">
@@ -244,7 +245,7 @@ const statusLabels: Record<GraphInvestigationResult["completion_status"], string
       <p class="muted">图谱资料、原文入口、查证范围与未知已保存在调查材料和笔记中，可继续人工核对或打印。</p>
     </template>
     <ElButton type="primary" :loading="running" :disabled="disabled || !selectedPackage || !question.trim()"
-      @click="submit">{{ result?.completion_status === 'awaiting_seed_selection' ? "按所选身份继续这项调查" : "查证并保存调查" }}</ElButton>
+      @click="submit">{{ result?.completion_status === 'awaiting_seed_selection' ? "按所选身份继续这项调查" : "按图谱取证并开始研究" }}</ElButton>
   </section>
 </template>
 

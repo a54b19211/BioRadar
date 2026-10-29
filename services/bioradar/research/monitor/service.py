@@ -1060,8 +1060,6 @@ class MonitorService:
                     TopicEvaluationRecord.id,
                     TopicScopeRecord.id.label("scope_id"),
                     TopicScopeRecord.topic_id,
-                    TopicScopeRecord.progress,
-                    TopicScopeRecord.definition,
                     TopicEvaluationRecord.followup["investigation_id"].astext.label("investigation_id"),
                 )
                 .join(TopicScopeRecord)
@@ -1072,15 +1070,22 @@ class MonitorService:
                     TopicEvaluationRecord.followup["status"].astext == "deferred",
                 )
                 .order_by(TopicEvaluationRecord.created_at, TopicEvaluationRecord.id)
+                .execution_options(yield_per=32)
             )
             topics = TopicService(self.engine)
+            scopes = {}
             for item in candidates:
                 lead_key = canonical_hash(["topic", item.scope_id])
                 if not needs_slot(lead_key, item.id):
                     continue
+                # A scope's progress may be large. Keep it once per scan rather
+                # than returning the same JSON for every historical evaluation.
+                if item.scope_id not in scopes:
+                    scopes[item.scope_id] = session.get(TopicScopeRecord, item.scope_id)
+                scope = scopes[item.scope_id]
                 if all(
-                    item.progress.get(source, {}).get("error_code")
-                    for source in item.definition["source_ids"]
+                    scope.progress.get(source, {}).get("error_code")
+                    for source in scope.definition["source_ids"]
                 ):
                     continue
                 try:

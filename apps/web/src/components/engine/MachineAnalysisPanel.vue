@@ -1,15 +1,31 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, watch } from "vue";
+import { computed, nextTick, onUnmounted, ref, watch } from "vue";
 import { ElButton, ElDrawer, ElTag } from "element-plus";
 import { engineRequest, EngineError, type InvestigationView } from "../../api/engine";
 import type { components } from "../../api/generated/engine";
+import type {
+  ResearchAnalysisView, ResearchAnalysisList, ResearchOptions,
+  ResearchQuestionSubmission,
+} from "../../api/research";
 import MachineAnalysisResult from "./MachineAnalysisResult.vue";
+import ResearchQuestionForm from "./ResearchQuestionForm.vue";
+import ResearchProgress from "./ResearchProgress.vue";
 
-type AnalysisView = components["schemas"]["AnalysisView"];
-type AnalysisList = components["schemas"]["AnalysisList"];
+type AnalysisView = ResearchAnalysisView;
+type AnalysisList = ResearchAnalysisList;
 type EvidenceRead = components["schemas"]["AnalysisEvidenceRead"];
-const props = defineProps<{ investigation: InvestigationView; busy: boolean; loading: boolean }>();
-const emit = defineEmits<{ changed: []; unauthorized: [error: unknown] }>();
+const props = defineProps<{
+  investigation: InvestigationView;
+  busy: boolean;
+  loading: boolean;
+  readOnly?: boolean;
+  preferredAnalysisId?: string;
+}>();
+const emit = defineEmits<{
+  changed: [];
+  unauthorized: [error: unknown];
+  selected: [id: string];
+}>();
 const list = ref<AnalysisList | null>(null);
 const selected = ref<AnalysisView | null>(null);
 const source = ref<EvidenceRead | null>(null);
@@ -18,7 +34,9 @@ const sourceError = ref("");
 const loading = ref(false);
 const writing = ref(false);
 const exporting = ref(false);
+const printing = ref(false);
 const error = ref("");
+const followUpVersion = ref(0);
 let disposed = false;
 let epoch = 0;
 let listVersion = 0;
@@ -30,34 +48,67 @@ let followLatest = true;
 let writeIntent: { body: string; key: string } | null = null;
 
 const stateLabels: Record<string, string> = {
-  queued: "等待执行", running: "正在解读与补查", completed: "分析已完成",
-  needs_review: "分析有待核问题", blocked: "已停止，需处理原因", failed: "本次未完成",
+  queued: "等待执行", running: "正在调查", completed: "研究已完成",
+  needs_review: "研究结果待核", blocked: "需处理后继续", failed: "本次未完成",
 };
+function analysisTime(value: string) {
+  return new Date(value).toLocaleString("zh-CN", { hour12: false });
+}
 const sourceLabels: Record<string, string> = {
   clinicaltrials: "ClinicalTrials 临床登记", europe_pmc: "Europe PMC 文献",
-  legacy_documents: "Fabric 已采用库存", fda_crl: "FDA 审评信函",
+  legacy_documents: "Fabric 已采用资料", fda_crl: "FDA 审评信函",
   who_don: "WHO 通报", external_archive: "已导入原始档案",
 };
 const queryLabels: Record<string, string> = {
-  prepared: "尚待读取", read: "已读取", empty: "本次未查到", failed: "读取失败",
+  prepared: "准备读取", running: "正在读取", read: "已读取",
+  empty: "本次未查到", failed: "读取失败",
+  sent: "正在检索", unavailable: "来源暂不可用", unconfirmed: "请求结果尚未确认",
 };
+function queryState(query: AnalysisView["queries"][number]) {
+  if (query.provider === "weknora" && ["read", "empty"].includes(query.status)) {
+    return query.candidates?.length ? "候选检索完成" : "本次未检索到候选";
+  }
+  return queryLabels[query.status] || query.status;
+}
+const candidateLabels: Record<string, string> = {
+  bound: "已绑定原件", unbound: "尚未绑定原件", not_authorized: "不在本轮来源范围",
+  not_found: "未找到已发布原件", failed: "原件绑定未完成",
+};
+function stopReason(code?: string | null) {
+  if (code === "analysis_provider_changed") return "本轮使用的方法版本发生变化，进度已保留；核对版本后可开始新的尝试。";
+  if (code === "analysis_manual_budget") return "本小时研究额度已用尽，可待额度恢复后继续。";
+  if (code?.includes("budget")) return "本轮预算不足，进度已保留；调整研究范围或预算后可开始新的尝试。";
+  if (code?.includes("unconfirmed")) return "已有请求的结果尚未确认，请先核对调用回执，再决定是否继续。";
+  if (code === "analysis_no_material") return "本轮未取得相关原文，可修改检索词或补充来源后继续。";
+  if (code === "analysis_no_retrieval_scope" || code?.includes("source") || code?.includes("unavailable") || code === "history_not_connected") {
+    return "资料来源暂不可读取，请核对来源服务与许可，恢复后继续这项调查。";
+  }
+  return "本轮尚未完成，请查看执行记录中的具体原因，处理后继续这项调查。";
+}
 const unavailableLabels: Record<string, string> = {
-  disabled: "语义分析尚未启用。", not_configured: "尚未配置可调用模型。",
-  semantic_model_disabled: "语义分析尚未启用。",
+  disabled: "研究模型尚未启用。", not_configured: "尚未配置可调用模型。",
+  semantic_model_disabled: "研究模型尚未启用。",
   semantic_model_not_configured: "尚未配置可调用模型。",
 };
 const canStart = computed(() =>
-  list.value?.enabled && list.value.configured && props.investigation.status === "open"
-  && !props.busy && !props.loading && !writing.value
-  && !list.value.items.some((item) => ["queued", "running"].includes(item.state)),
+  !props.readOnly && list.value?.enabled && list.value.configured &&
+  props.investigation.status === "open" && !props.busy && !props.loading && !writing.value &&
+  !list.value.items.some((item) => ["queued", "running"].includes(item.state)),
 );
+const researchOptions = computed<ResearchOptions | null>(() => list.value ? {
+  enabled: list.value.enabled,
+  configured: list.value.configured,
+  unavailable_reason: list.value.unavailable_reason,
+  retrieval_sources: list.value.retrieval_sources ?? [],
+  limits: list.value.limits ?? {},
+  providers: list.value.providers,
+} : null);
 const safeSourceUrl = computed(() => {
   try {
     const url = new URL(source.value?.source_url || "");
     return ["http:", "https:"].includes(url.protocol) ? url.href : null;
   } catch { return null; }
 });
-
 function current(generation: number, id: string) {
   return !disposed && epoch === generation && props.investigation.id === id;
 }
@@ -70,10 +121,11 @@ function clearPrivate() {
   stopPolling();
   list.value = null; selected.value = null; source.value = null; sourceOpen.value = false;
   sourceError.value = ""; loading.value = false; writing.value = false; exporting.value = false;
-  writeIntent = null; activeAnalysisId = ""; followLatest = true;
+  printing.value = false; writeIntent = null; activeAnalysisId = ""; followLatest = true;
+  ++followUpVersion.value;
 }
 function fail(value: unknown) {
-  const message = value instanceof Error ? value.message : "机器分析暂时无法读取。";
+  const message = value instanceof Error ? value.message : "研究记录暂时无法读取。";
   if (value instanceof EngineError && [401, 403].includes(value.status)) {
     clearPrivate();
     emit("unauthorized", value);
@@ -82,7 +134,7 @@ function fail(value: unknown) {
 }
 function schedulePoll() {
   stopPolling();
-  if (list.value?.items.some((item) => ["queued", "running"].includes(item.state))) {
+  if (list.value?.items.some((item) => ["queued", "running"].includes(item.state)) || (selected.value && ["queued", "running"].includes(selected.value.state))) {
     timer = setTimeout(() => { void refresh(); }, 3000);
   }
 }
@@ -95,6 +147,7 @@ async function openAnalysis(id: string, userSelected = false) {
     const view = await engineRequest<AnalysisView>(endpoint(investigationId) + "/" + encodeURIComponent(id));
     if (!current(generation, investigationId) || version !== detailVersion || activeAnalysisId !== id) return;
     selected.value = view;
+    if (userSelected) emit("selected", id);
   } catch (value) {
     if (current(generation, investigationId) && version === detailVersion) fail(value);
   }
@@ -106,18 +159,24 @@ async function refresh(preferId?: string) {
     const items = await engineRequest<AnalysisList>(endpoint(id));
     if (!current(generation, id) || version !== listVersion) return;
     const running = new Set(list.value?.items.filter((item) => ["queued", "running"].includes(item.state)).map((item) => item.id) || []);
+    const requested = !activeAnalysisId ? props.preferredAnalysisId : undefined;
     const keepId = items.items.length
-      ? preferId || (followLatest ? items.items[0]?.id : activeAnalysisId) || items.items[0]?.id
+      ? preferId || requested || (followLatest ? items.items[0]?.id : activeAnalysisId) || items.items[0]?.id
       : undefined;
+    if (requested && requested !== items.items[0]?.id) followLatest = false;
     list.value = items;
     if (!items.items.length) {
       ++detailVersion; activeAnalysisId = ""; selected.value = null; closeSource();
     }
     error.value = "";
     if (keepId) {
+      const previousSelected = selected.value;
       await openAnalysis(keepId);
       if (!current(generation, id) || version !== listVersion) return;
-      if (items.items.some((item) => running.has(item.id) && !["queued", "running"].includes(item.state))) emit("changed");
+      const selectedFinished = previousSelected?.id === selected.value?.id
+        && previousSelected && ["queued", "running"].includes(previousSelected.state)
+        && selected.value && !["queued", "running"].includes(selected.value.state);
+      if (selectedFinished || items.items.some((item) => running.has(item.id) && !["queued", "running"].includes(item.state))) emit("changed");
     }
     schedulePoll();
   } catch (value) {
@@ -140,16 +199,21 @@ async function loadMore() {
   } catch (value) { if (current(generation, id) && version === listVersion) fail(value); }
   finally { if (current(generation, id) && version === listVersion) loading.value = false; }
 }
-async function startAnalysis(retryId?: string) {
+async function startAnalysis(retryId?: string, submission?: ResearchQuestionSubmission) {
   if (!canStart.value) return;
   const generation = epoch, id = props.investigation.id;
-  const parent = list.value?.items.find((item) => item.result_summary
-    && ["completed", "needs_review"].includes(item.state));
+  const chosen = selected.value?.result ? selected.value : null;
+  const parent = chosen || list.value?.items.find((item) => item.result_summary && ["completed", "needs_review"].includes(item.state));
+  const requestedBudget = submission ? submission.budget : selected.value?.budget?.limits;
   const body = JSON.stringify({
     expected_revision: props.investigation.revision,
-    parent_analysis_id: parent?.id ?? null,
+    question: submission?.question ?? selected.value?.question ?? props.investigation.question,
+    source_ids: submission?.source_ids ?? selected.value?.search_scope ?? [],
+    ...(requestedBudget ? { budget: requestedBudget } : {}),
+    parent_analysis_id: (retryId ? selected.value?.parent_analysis_id : parent?.id) ?? null,
     material_entry_ids: [],
     retry_of_analysis_id: retryId ?? null,
+    auto_retrieve: true,
   });
   if (!writeIntent || writeIntent.body !== body) writeIntent = { body, key: crypto.randomUUID() };
   writing.value = true; error.value = ""; stopPolling();
@@ -161,10 +225,16 @@ async function startAnalysis(retryId?: string) {
     if (!current(generation, id)) return;
     writeIntent = null;
     followLatest = true;
+    ++followUpVersion.value;
+    emit("selected", result.id);
     await refresh(result.id);
     if (current(generation, id)) emit("changed");
-  } catch (value) { if (current(generation, id)) fail(value); }
-  finally { if (current(generation, id)) writing.value = false; }
+  } catch (value) {
+    if (current(generation, id)) {
+      fail(value);
+      schedulePoll();
+    }
+  } finally { if (current(generation, id)) writing.value = false; }
 }
 function closeSource() {
   ++sourceVersion; sourceOpen.value = false; source.value = null; sourceError.value = "";
@@ -175,9 +245,7 @@ async function readSource(key: string) {
   const generation = epoch, id = props.investigation.id, version = ++sourceVersion;
   source.value = null; sourceError.value = ""; sourceOpen.value = true;
   try {
-    const result = await engineRequest<EvidenceRead>(
-      endpoint(id) + "/" + encodeURIComponent(view.id) + "/evidence/" + encodeURIComponent(key),
-    );
+    const result = await engineRequest<EvidenceRead>(endpoint(id) + "/" + encodeURIComponent(view.id) + "/evidence/" + encodeURIComponent(key));
     if (!current(generation, id) || version !== sourceVersion || selected.value?.id !== view.id) return;
     source.value = result;
   } catch (value) {
@@ -187,112 +255,155 @@ async function readSource(key: string) {
     }
   }
 }
-async function exportAnalysis() {
+async function exportAnalysis(format: "json" | "markdown" = "json") {
   const view = selected.value;
   if (!view || exporting.value) return;
   const generation = epoch, id = props.investigation.id;
   exporting.value = true;
   try {
-    const result = await engineRequest<Record<string, unknown>>(endpoint(id) + "/" + encodeURIComponent(view.id) + "/export");
+    const suffix = format === "markdown" ? "?format=markdown" : "";
+    const result = await engineRequest<Record<string, unknown> | string>(
+      endpoint(id) + "/" + encodeURIComponent(view.id) + "/export" + suffix, {},
+      format === "markdown" ? "text" : "json",
+    );
     if (!current(generation, id) || selected.value?.id !== view.id) return;
-    const url = URL.createObjectURL(new Blob([JSON.stringify(result, null, 2)], { type: "application/json" }));
-    const link = document.createElement("a"); link.href = url; link.download = "机器分析-" + view.id + ".json";
+    const content = format === "markdown" ? String(result) : JSON.stringify(result, null, 2);
+    const url = URL.createObjectURL(new Blob([content], { type: format === "markdown" ? "text/markdown;charset=utf-8" : "application/json" }));
+    const link = document.createElement("a");
+    link.href = url; link.download = "研究报告-" + view.id + (format === "markdown" ? ".md" : ".json");
     link.click(); URL.revokeObjectURL(url);
-  } catch (value) { if (current(generation, id)) fail(value); }
+  } catch (value) { if (current(generation, id) && selected.value?.id === view.id) fail(value); }
   finally { if (current(generation, id)) exporting.value = false; }
 }
-watch(() => props.investigation.id, () => {
-  clearPrivate(); error.value = ""; void refresh();
-}, { immediate: true });
+async function printAnalysis() {
+  const view = selected.value;
+  if (!view || printing.value) return;
+  const generation = epoch, id = props.investigation.id;
+  printing.value = true;
+  try {
+    const fresh = await engineRequest<AnalysisView>(endpoint(id) + "/" + encodeURIComponent(view.id));
+    if (!current(generation, id) || selected.value?.id !== view.id) return;
+    selected.value = fresh;
+    closeSource();
+    await nextTick();
+    if (current(generation, id) && selected.value?.id === view.id) window.print();
+  } catch (value) { if (current(generation, id) && selected.value?.id === view.id) fail(value); }
+  finally { if (current(generation, id)) printing.value = false; }
+}
+watch(() => props.investigation.id, () => { clearPrivate(); error.value = ""; void refresh(); }, { immediate: true });
 watch(() => props.investigation.revision, () => { if (!writing.value) void refresh(); });
+watch(() => props.preferredAnalysisId, (id) => {
+  if (id && id !== activeAnalysisId) void openAnalysis(id, true);
+});
 onUnmounted(() => { disposed = true; clearPrivate(); });
 </script>
 
 <template>
   <section class="engine-panel machine-analysis-panel">
     <div class="analysis-heading">
-      <div><h2>机器分析与调查过程</h2><p class="muted">读材料、查缺口、比较解释，并说明为什么维持或修改判断。</p></div>
-      <div class="no-print">
-        <ElButton :disabled="writing || loading" @click="refresh()">刷新分析</ElButton>
-        <ElButton type="primary" :loading="writing" :disabled="!canStart" @click="startAnalysis()">
-          {{ list?.items.length ? "根据当前材料更新分析" : "开展材料分析" }}
-        </ElButton>
+      <div>
+        <h2>{{ readOnly ? "已保存的研究报告" : "研究进度与报告" }}</h2>
+        <p class="muted">从实际采用的原文追溯回答、反证和每一版变化。</p>
+      </div>
+      <div class="analysis-actions no-print">
+        <ElButton :disabled="writing || loading" @click="refresh()">刷新</ElButton>
+        <ElButton v-if="!readOnly && list?.items.length" :loading="writing" :disabled="!canStart" @click="startAnalysis()">按当前材料更新</ElButton>
       </div>
     </div>
     <p v-if="error" class="error-panel no-print" role="alert">{{ error }}</p>
     <p v-if="list && (!list.enabled || !list.configured)" class="notice">
-      {{ unavailableLabels[list.unavailable_reason || ""] || "语义分析当前不可用；已有材料与研究记录仍可阅读。" }}
+      {{ unavailableLabels[list.unavailable_reason || ""] || list.unavailable_reason || "研究模型当前不可用；已有材料和报告仍可阅读。" }}
     </p>
-    <p v-if="investigation.status !== 'open'" class="notice">调查已暂停或停止，后台不会继续新增分析动作。</p>
+    <p v-if="investigation.status !== 'open'" class="notice">调查已暂停或停止，可继续阅读保存的结果。</p>
     <p v-if="list?.unavailable_count" class="notice">部分历史分析的来源当前不可读取，因此未显示。</p>
-    <p v-if="list" class="muted">
-      本次可补查：{{ list.retrieval_sources.map((item) => sourceLabels[item] || item).join("、") || "尚无可用来源" }}。
-      仅查询 Fabric 已采用版本；不表示全网资料已经查全。
+    <p v-if="list" class="muted no-print">
+      当前可补查：{{ (list.retrieval_sources ?? []).map((item) => sourceLabels[item] || item).join("、") || "尚无可用来源" }}。
     </p>
-    <div v-if="list?.items.length" class="analysis-history no-print">
+    <div v-if="list?.items.length" class="analysis-history no-print" aria-label="研究版本">
       <button v-for="item in list.items" :key="item.id" class="history-item"
         :class="{ active: selected?.id === item.id }" :disabled="writing"
         @click="openAnalysis(item.id, true)">
-        <span>{{ item.created_at }}<small>{{ stateLabels[item.state] }} · 基于调查第 {{ item.based_on_revision }} 版</small></span>
+        <span>{{ analysisTime(item.created_at) }}<small>{{ stateLabels[item.state] }}</small></span>
       </button>
-      <ElButton v-if="list.next_cursor" text :disabled="loading" @click="loadMore">读取更早分析</ElButton>
+      <ElButton v-if="list.next_cursor" text :disabled="loading" @click="loadMore">读取更早版本</ElButton>
     </div>
     <template v-if="selected">
       <div class="candidate-meta">
         <ElTag>{{ stateLabels[selected.state] }}</ElTag>
-        <span>{{ selected.is_demo ? "教学材料" : "真实资料" }} · 尚未专业审核 · {{ selected.evidence_count }} 项采用资料</span>
-        <ElButton text class="no-print" :loading="exporting" @click="exportAnalysis">下载本版记录</ElButton>
+        <span>{{ selected.is_demo ? "教学材料" : "真实资料" }} · {{ selected.evidence_count }} 项采用资料</span>
+        <div class="analysis-actions no-print">
+          <ElButton text :loading="exporting" @click="exportAnalysis('markdown')">下载研报</ElButton>
+          <ElButton text :loading="exporting" @click="exportAnalysis('json')">下载完整记录</ElButton>
+          <ElButton text :loading="printing" @click="printAnalysis">打印本版</ElButton>
+        </div>
       </div>
       <p class="investigation-prose"><strong>本版研究问题：</strong>{{ selected.question }}</p>
-      <p v-if="['queued', 'running'].includes(selected.state)" class="notice" role="status">
-        <template v-if="selected.state === 'queued'">
-          已排队，等待后台执行。暂停、功能停用或额度用完时，需相应条件恢复后才继续。
-        </template>
-        <template v-else>后台正在处理。关闭页面后任务仍会继续；页面会自动读取进度。</template>
-      </p>
-      <div v-if="['blocked', 'failed'].includes(selected.state)" class="notice">
-        <p>本次分析未完成。先核对来源许可、调查状态和执行记录；旧结果仍保留。</p>
-        <ElButton class="no-print" :disabled="!canStart" @click="startAnalysis(selected.id)">另起一次尝试</ElButton>
-        <p class="muted">这会发起新的模型调用，仍受次数限制；不会覆盖旧尝试。</p>
+      <ResearchProgress :analysis="selected" />
+      <div v-if="['blocked', 'failed', 'needs_review'].includes(selected.state)" class="notice">
+        <p>{{ selected.state === "needs_review" ? "本版仍有待核问题。" : stopReason(selected.error_code) }}</p>
+        <details v-if="selected.error_code"><summary>查看停止代码</summary><small>{{ selected.error_code }}</small></details>
+        <ElButton v-if="!readOnly" class="no-print" :loading="writing" :disabled="!canStart" @click="startAnalysis(selected.id)">重新研究</ElButton>
       </div>
       <MachineAnalysisResult :analysis="selected" @source="readSource" />
       <details v-if="selected.initial_draft" :open="!selected.result" class="initial-draft">
-        <summary>修订前的草稿与发现的问题</summary>
-        <p class="notice">保留第一次复核指出的问题，方便核对修订过程。这份初稿不代表最终判断。</p>
+        <summary>修订前的分析与发现的问题</summary>
         <MachineAnalysisResult :analysis="{ ...selected, result: selected.initial_draft }" @source="readSource" />
       </details>
-      <h3>实际补查了什么</h3>
-      <article v-for="query in selected.queries" :key="query.index" class="investigation-entry">
-        <p><strong>{{ sourceLabels[query.plan.source_id] || query.plan.source_id }}：</strong>{{ query.plan.terms.join(" + ") }}</p>
-        <p>{{ query.plan.reason }}</p>
-        <p>用于区分：{{ query.plan.expected_discrimination }}</p>
-        <p class="muted">
-          {{ queryLabels[query.status] }}
-          <template v-if="['read', 'empty'].includes(query.status)">
-            · 返回 {{ query.returned }} 条，本次新增 {{ query.new_versions }} 个版本
-            <span v-if="query.has_more"> · 仍有更多，受本轮读取范围限制</span>
+      <details :open="['queued', 'running', 'blocked', 'failed'].includes(selected.state)" class="research-queries">
+        <summary>实际检索与补查（{{ selected.queries.length }} 项）</summary>
+        <article v-for="query in selected.queries" :key="[query.provider, query.phase, query.index].join(':')" class="investigation-entry">
+          <p><strong>{{ query.provider === "weknora" ? "WeKnora 检索候选" : "Fabric 固定资料检索" }}</strong>
+            <small class="muted"> · {{ query.phase === "initial" ? "初查" : "补查" }}<template v-if="query.provider !== 'weknora'"> · {{ sourceLabels[query.plan.source_id] || query.plan.source_id }}</template></small>
+          </p>
+          <p>{{ query.plan.terms.join(" + ") }}</p>
+          <p>{{ query.plan.reason }}</p>
+          <p v-if="'expected_discrimination' in query.plan && query.plan.expected_discrimination">用于区分：{{ query.plan.expected_discrimination }}</p>
+          <p class="muted">
+            {{ queryState(query) }}
+            <template v-if="query.provider === 'weknora' && (['read', 'empty'].includes(query.status) || query.candidates?.length)">
+              · 候选 {{ query.candidates?.length ?? 0 }} 项，成功绑定原件 {{ query.returned }} 份，新增采用 {{ query.new_versions }} 个版本
+            </template>
+            <template v-else-if="['read', 'empty'].includes(query.status)">
+              · 返回 {{ query.returned }} 条，新增采用 {{ query.new_versions }} 个版本
+            </template>
+            <span v-if="query.has_more"> · 本次范围外仍有更多结果</span>
+          </p>
+          <template v-if="query.error_code">
+            <p class="muted">{{ stopReason(query.error_code) }}</p>
+            <details><summary>查看读取代码</summary><small>{{ query.error_code }}</small></details>
           </template>
-          <template v-else> · 尚未取得有效结果，不能判断命中数量</template>
-        </p>
-        <div class="no-print">
-          <ElButton v-for="key in query.evidence_keys" :key="key" text @click="readSource(key)">阅读 {{ key }}</ElButton>
-        </div>
-        <details v-if="query.error_code"><summary>读取未完成的原因</summary>{{ query.error_code }}</details>
-      </article>
-      <p v-if="!selected.queries.length" class="muted">本版尚无实际追加查找记录；不能把提出问题当作已经查过。</p>
-      <ul v-if="selected.limitations.length" class="muted">
-        <li v-for="item in selected.limitations" :key="item">{{ item }}</li>
-      </ul>
+          <details v-if="query.provider === 'weknora' && query.candidates?.length">
+            <summary>候选与原件绑定情况</summary>
+            <ul><li v-for="(candidate, index) in query.candidates" :key="index">
+              {{ candidate.knowledge_title || candidate.knowledge_id || candidate.id || "候选" }} ·
+              {{ candidateLabels[String(candidate.binding_status)] || "绑定状态待确认" }}
+              <small v-if="candidate.binding_reason" class="muted">（{{ candidate.binding_reason }}）</small>
+            </li></ul>
+          </details>
+          <div class="no-print"><ElButton v-for="key in query.evidence_keys" :key="key" text @click="readSource(key)">阅读 {{ key }}</ElButton></div>
+        </article>
+        <p v-if="!selected.queries.length" class="muted">本版尚无已记录的检索动作。</p>
+      </details>
+      <ul v-if="selected.limitations.length" class="muted"><li v-for="item in selected.limitations" :key="item">{{ item }}</li></ul>
       <details class="no-print">
         <summary>执行与版本记录</summary>
+        <p>本版记录：{{ selected.id }} · {{ selected.created_at }}</p>
         <p>分析版本：{{ selected.version }}；提示版本：{{ selected.prompt_version }}</p>
-        <p>固定补查来源：{{ selected.search_scope.map((item) => sourceLabels[item] || item).join("、") }}</p>
+        <p>实际补查范围：{{ selected.search_scope.map((item) => sourceLabels[item] || item).join("、") || "无" }}</p>
+        <p v-if="selected.progress?.updated_at">最近更新：{{ selected.progress.updated_at }}</p>
         <p v-if="selected.error_code">未完成代码：{{ selected.error_code }}</p>
-        <pre class="source-text">{{ JSON.stringify(selected.calls, null, 2) }}</pre>
+        <pre class="source-text">{{ JSON.stringify({ budget: selected.budget, calls: selected.calls }, null, 2) }}</pre>
       </details>
     </template>
-    <p v-else-if="loading" class="muted">正在读取分析记录…</p>
-    <p v-else class="muted">还没有机器分析。先采用与问题有关的材料，再开展分析；原有人工判断不受影响。</p>
+    <p v-else-if="loading" class="muted">正在读取研究记录…</p>
+    <p v-else class="muted">{{ readOnly ? "这项调查尚无已保存报告。打开调查后可开始研究。" : "提出研究问题，后台会取得材料并开展调查。" }}</p>
+    <ResearchQuestionForm v-if="!readOnly && list && investigation.status === 'open'"
+      :key="investigation.id + ':' + followUpVersion"
+      :follow-up="Boolean(selected)" :initial-question="selected ? '' : investigation.question"
+      :options="researchOptions" :disabled="!canStart" :submitting="writing"
+      :is-demo="investigation.is_demo"
+      @submit="startAnalysis(undefined, $event)" @unauthorized="fail" />
+    <RouterLink v-if="readOnly" :to="{ path: '/investigations', query: { id: investigation.id, ...(selected ? { analysis: selected.id } : {}) } }" class="text-link no-print">继续这项调查 →</RouterLink>
     <ElDrawer :model-value="sourceOpen" title="本版实际采用的固定资料" size="min(820px, 96vw)" @close="closeSource">
       <p v-if="sourceError" class="error-panel" role="alert">{{ sourceError }}</p>
       <template v-else-if="source">
@@ -312,6 +423,11 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
 .machine-analysis-panel { min-width: 0; overflow-wrap: anywhere; }
 .analysis-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; }
 .analysis-heading h2 { margin-top: 0; }
+.analysis-actions { display: inline-flex; flex-wrap: wrap; gap: 4px; }
 .analysis-history { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; }
 .analysis-history .history-item { max-width: 100%; width: auto; }
+.analysis-history .history-item small { display: block; margin-top: .2rem; }
+.research-queries { margin: 18px 0; }
+.machine-analysis-panel > .research-question-form { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--el-border-color); }
+@media print { .machine-analysis-panel { border: 0; box-shadow: none; } }
 </style>

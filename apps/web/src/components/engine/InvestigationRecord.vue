@@ -86,9 +86,9 @@ function basisEntries(ids: string[]) {
         >
       </div>
       <h2 class="investigation-title">{{ investigation.title }}</h2>
-      <p class="investigation-question">{{ investigation.question }}</p>
+      <p v-if="investigation.title.trim() !== investigation.question.trim()" class="investigation-question">{{ investigation.question }}</p>
       <p class="muted">
-        研究人员记录，尚未经专业评价；保存、停止跟进或打印都不代表专业批准。
+        研究人员审阅状态：待审阅。
       </p>
       <p v-if="investigation.origin" class="muted">
         原候选：{{ investigation.origin.candidate.title }} ·
@@ -96,8 +96,7 @@ function basisEntries(ids: string[]) {
       </p>
       <p v-else class="muted">这项调查来自研究人员直接提出的问题。</p>
       <p class="muted">
-        可通过命令行从 Data-Fabric 进行有限追查；实际查找过程见调查笔记。
-        WeKnora 自动取证与专业评价尚未接通，研究人员仍需核对材料。
+        研究进度、实际检索、报告和原文依据保存在下方各版记录中。
       </p>
       <details v-if="investigation.origin" class="run-policy">
         <summary>核对起始计算与资料版本</summary>
@@ -250,7 +249,12 @@ function basisEntries(ids: string[]) {
               :type="entry.payload.stance === 'oppose' ? 'warning' : 'info'"
               >{{ stanceLabels[entry.payload.stance] }}</ElTag
             ><span
-              >{{ entry.payload.automation ? "程序整理，待人工核对" : "研究人员分类" }} · {{ entry.created_by }} · {{ entry.created_at }}</span
+              >{{
+                entry.payload.automation
+                  ? "程序整理，待人工核对"
+                  : "研究人员分类"
+              }}
+              · {{ entry.created_by }} · {{ entry.created_at }}</span
             >
           </div>
           <p class="source-id">
