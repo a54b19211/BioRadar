@@ -618,7 +618,7 @@ def test_dynamic_generation_cap_and_received_write_resume_before_verification(ru
             "provider": "biocheck",
             "status": "PASS",
             "final_text": text,
-            "verification": {"status": "PASS", "draft": text},
+            "verification": {"status": "PASS", "draft": text, "units": []},
         }
 
     monkeypatch.setattr(biocheck, "run_biocheck", generated)
@@ -662,7 +662,8 @@ def test_dynamic_generation_cap_and_received_write_resume_before_verification(ru
     make().recover()
     make().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.state == "completed", result.error_code
+    assert result.state == "needs_review", result.error_code
+    assert result.result.report["support_audit"]["status"] == "NOT_RUN"
     assert len(model.requests) == 5 and result.calls[-1]["stage"] == "biocheck_check"
     assert result.calls[-2]["receipt"]["max_output_tokens"] == write["receipt"]["max_output_tokens"]
     assert result.result.report["verification"]["draft"] == result.result.report["final_text"]
@@ -1074,7 +1075,7 @@ def test_relaxation_does_not_repeat_an_equivalent_query_already_read(runtime):
     assert len(result.queries) == 2 and all(q.relaxed_from is None for q in result.queries)
 
 
-@pytest.mark.parametrize("max_calls", [16, 8])
+@pytest.mark.parametrize("max_calls", [16, 9])
 def test_final_report_can_repair_after_generic_revision_within_its_own_budget(
     runtime, database, installed_biocheck, max_calls
 ):
@@ -1086,6 +1087,11 @@ def test_final_report_can_repair_after_generic_revision_within_its_own_budget(
     parent = start(runtime)
     make().execute(parent["id"], parent["input_hash"])
     parent_before = make().get(actor, view["id"], parent["id"]).model_dump(mode="json")
+    core = installed_biocheck.biocheck_project_dir / "app/core.py"
+    core.write_text(
+        core.read_text() + "\ndef audit_support(packet, review, call, targets=None):\n"
+        "    return call('support_audit', INSTRUCTION, dict(packet, review=review, targets=targets))\n"
+    )
     settings.biocheck_project_dir = installed_biocheck.biocheck_project_dir
 
     def generic_problem(payload, output):
@@ -1120,7 +1126,15 @@ def test_final_report_can_repair_after_generic_revision_within_its_own_budget(
         payload = json.loads(body["messages"][1]["content"])
         stage = body["response_format"]["json_schema"]["name"]
         provider_posts.append(stage)
-        if stage == "biocheck_plan":
+        if stage == "biocheck_support_audit":
+            output = {
+                "status": "PASS",
+                "original_status": payload["review"]["status"],
+                "checks": [],
+                "verification_errors": [],
+                "scope": "SYNTHETIC selected supports only",
+            }
+        elif stage == "biocheck_plan":
             output = {"points": ["SYNTHETIC bound plan"]}
         elif stage in {"biocheck_write", "biocheck_revise"}:
             output = {
@@ -1133,7 +1147,7 @@ def test_final_report_can_repair_after_generic_revision_within_its_own_budget(
                 "status": "PASS" if stage == "biocheck_recheck" else "FAIL",
                 "draft": payload["draft"],
                 "problem_units": [] if stage == "biocheck_recheck" else ["U1"],
-                "units": [],
+                "units": [{"unit_id": "U1", "claims": [{"kind": "fact", "verdict": "supported"}]}],
                 "coverage": {"verdict": "complete"},
             }
         return httpx.Response(
@@ -1173,6 +1187,7 @@ def test_final_report_can_repair_after_generic_revision_within_its_own_budget(
         assert result.result.report["status"] == "FAIL"
         assert result.result.report["final_text"] == "SYNTHETIC final report with a remaining problem."
         assert result.result.report["revision"] is None
+    expected_provider += ["biocheck_support_audit"]
     assert stages[5:] == provider_posts == expected_provider
     assert len(stages) <= max_calls
     assert result.budget["usage"]["calls"] == len(stages)
@@ -1262,11 +1277,11 @@ def test_final_repair_resumes_after_saved_initial_check_without_reserving_finish
             "provider": "biocheck",
             "status": status,
             "final_text": text,
-            "verification": {"status": status, "draft": text},
+            "verification": {"status": status, "draft": text, "units": []},
         }
 
     monkeypatch.setattr(biocheck, "run_biocheck", generate)
-    accepted = start(runtime, budget=AnalysisBudget(max_calls=7))
+    accepted = start(runtime, budget=AnalysisBudget(max_calls=8))
     service = make()
     checkpoint, interrupted = service._checkpoint, [False]
 
@@ -1291,10 +1306,16 @@ def test_final_repair_resumes_after_saved_initial_check_without_reserving_finish
     resumed.execute(accepted["id"], accepted["input_hash"])
     resumed.execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.state == "completed", result.error_code
+    assert result.state == "needs_review", result.error_code
+    assert result.result.report["support_audit"]["status"] == "NOT_RUN"
     assert [c["stage"] for c in result.calls] == [
-        "read_plan", "synthesize", "biocheck_plan", "biocheck_write", "biocheck_check",
-        "biocheck_revise", "biocheck_recheck",
+        "read_plan",
+        "synthesize",
+        "biocheck_plan",
+        "biocheck_write",
+        "biocheck_check",
+        "biocheck_revise",
+        "biocheck_recheck",
     ]
     assert len(model.requests) == result.budget["usage"]["calls"] == 7
     assert result.budget["usage"]["total_tokens"] == 1050

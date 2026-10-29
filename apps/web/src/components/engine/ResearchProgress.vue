@@ -12,7 +12,8 @@ const stages: Record<string, string> = {
   mechanism_evaluation: "评价机制证据", final_verification: "核验最终报告",
   biocheck_plan: "规划报告内容", biocheck_write: "生成报告正文",
   biocheck_check: "核验报告正文", biocheck_revise: "修订报告正文",
-  biocheck_recheck: "复核报告正文", mech_decomposition: "拆分机制命题",
+  biocheck_recheck: "复核报告正文", biocheck_support_audit: "复核所选支持片段",
+  mech_decomposition: "拆分机制命题",
   mech_local_review: "核对局部机制证据", mech_mechanism_review: "评价机制证据链",
   completed: "调查完成", needs_review: "报告待核", failed: "本次未完成", blocked: "等待处理",
 };
@@ -58,7 +59,7 @@ function number(value: number | null | undefined) {
 }
 function providerState(value: ResearchProvider) {
   const results: Record<string, string> = {
-    PASS: "本版报告核验通过", REVIEW: "本版报告待核", FAIL: "本版报告未通过核验",
+    PASS: "原报告核验通过", REVIEW: "原报告待核", FAIL: "原报告未通过核验",
     completed: "本版已执行", not_requested: "本版未请求", needs_input: "本版仍缺输入",
     unavailable: "本版暂不可用", failed: "本版调用未完成",
     skipped_budget: "本轮预算保留给最终报告，未执行此项",

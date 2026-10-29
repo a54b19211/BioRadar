@@ -133,7 +133,20 @@ class AnalysisService:
         self.actor = DevelopmentAccess(self.settings).actor()
         self.reader, self.model_call = reader, model_call
         if reader is not None:
-            self.engine.history_source_reader = reader.sources
+            from bioradar.adapters.fabric_history import FabricHistoryReader
+
+            # Current permission checks must also work when only saving a completed
+            # report after its research read/time budget has expired.
+            def current_sources():
+                return FabricHistoryReader(
+                    reader.client,
+                    authorization_ref=reader.authorization_ref,
+                    source_instance=reader.source_instance,
+                    max_seconds=3,
+                    max_bytes=1_000_000,
+                ).sources()
+
+            self.engine.history_source_reader = current_sources
 
     def _row(self, session, actor, identifier, *, lock=False):
         InvestigationService(self.engine)._actor(actor)
@@ -200,6 +213,7 @@ class AnalysisService:
                 "evidence_versions": MAX_EVIDENCE,
                 "evidence_characters": MAX_CHARACTERS,
                 "records_per_query": 3,
+                "support_audit_calls": 1,
             },
             "providers": self._provider_status(),
             "runtime": {
@@ -333,8 +347,9 @@ class AnalysisService:
             limits={
                 **self._budget_limits(),
                 "model_calls": self.settings.analysis_max_calls,
-                "normal_model_calls": 3,
+                "normal_model_calls": 3,  # Legacy generic reading/synthesis/check baseline.
                 "conditional_revision_calls": 2,
+                "support_audit_calls": 1,
                 "queries": 2,
                 "records_per_query": 3,
                 "evidence_versions": 10,
@@ -521,7 +536,9 @@ class AnalysisService:
             if body.retry_of_analysis_id:
                 retry = self._row(session, actor, body.retry_of_analysis_id)
                 if retry.investigation_id != view.id or retry.state not in {
-                    "blocked", "failed", "needs_review"
+                    "blocked",
+                    "failed",
+                    "needs_review",
                 }:
                     raise DomainError("analysis_retry_invalid", "仅可明确另起一次未成功或待核的尝试", 409)
                 if body.question is None:
@@ -973,7 +990,8 @@ class AnalysisService:
             )
         return sum(bool(self.dispatch(identifier)) for identifier in queued)
 
-    def _guard(self, identifier, token):
+    def _guard(self, identifier, token, *, check_deadline=False):
+        # Time limits stop new upstream work, while confirmed receipts can still be saved locally.
         from bioradar.research.monitor.models import MonitorState
 
         self.engine._history_source_ids = None
@@ -1006,9 +1024,9 @@ class AnalysisService:
                 )
             budget = analysis_budget(row.fixed_input, row.progress, datetime.now(UTC))
             remaining_seconds = budget["limits"]["max_seconds"] - budget["usage"]["elapsed_seconds"]
-            if remaining_seconds <= 0:
+            if check_deadline and remaining_seconds <= 0:
                 raise DomainError("analysis_time_budget", "本轮研究达到固定时间预算，已保留进度", 409)
-            if self.reader is not None:
+            if check_deadline and self.reader is not None:
                 self.reader.deadline = min(self.reader.deadline, time.monotonic() + remaining_seconds)
             if (
                 row.execution_token != token
@@ -1065,7 +1083,7 @@ class AnalysisService:
         remaining = MAX_CHARACTERS
         evidence = []
         for item in fixed["evidence"]:
-            self._guard(identifier, token)
+            self._guard(identifier, token, check_deadline=True)
             value = copy.deepcopy(item)
             if value.get("history_binding") and self.reader is not None:
                 original = self.reader.read_version(
@@ -1093,7 +1111,7 @@ class AnalysisService:
     @staticmethod
     def _final_token_allowance(fixed, progress):
         final_calls = (
-            3
+            4
             if fixed.get("providers", {}).get("biocheck", {}).get("available")
             else int(fixed.get("parent_result") is not None)
         )
@@ -1105,7 +1123,7 @@ class AnalysisService:
     def _optional_budget(self, fixed, progress, calls, *, following=0):
         budget = analysis_budget(fixed, progress, datetime.now(UTC))
         final_calls = (
-            3
+            4
             if fixed.get("providers", {}).get("biocheck", {}).get("available")
             else int(fixed.get("parent_result") is not None)
         )
@@ -1116,7 +1134,12 @@ class AnalysisService:
     def _call(
         self, identifier, token, stage, schema, fixed, progress, payload, *, system_prompt=None, call_key=None
     ):
-        from bioradar.adapters.reasoning_model import ModelCallError, complete_json, encode_request
+        from bioradar.adapters.reasoning_model import (
+            ModelCallError,
+            ModelCallReceipt,
+            complete_json,
+            encode_request,
+        )
 
         self._guard(identifier, token)
         prompt = system_prompt or SYSTEM_PROMPT
@@ -1140,9 +1163,24 @@ class AnalysisService:
             if call["status"] == "received":
                 return call["output"], progress
             if call["status"] == "failed":
+                saved_receipt = call.get("receipt") or {}
+                if saved_receipt.get("error_code"):
+                    try:
+                        receipt = ModelCallReceipt.model_validate(saved_receipt)
+                    except ValueError:
+                        pass
+                    else:
+                        raise ModelCallError(
+                            receipt.error_code,
+                            "本阶段模型调用已停止；原回执保留，未自动重发",
+                            receipt,
+                            409,
+                        )
                 raise DomainError("model_call_failed", "本阶段模型调用已失败，未自动重发", 409)
             if call["status"] in {"sent", "unconfirmed"}:
                 raise DomainError("model_call_outcome_unconfirmed", "上次模型调用结果未知，未自动重发", 409)
+        # Reading a confirmed receipt and saving its report do not send another request.
+        self._guard(identifier, token, check_deadline=True)
         if call is None:
             parameters = dict(fixed["model_parameters"])
             budget = analysis_budget(fixed, progress, datetime.now(UTC))
@@ -1175,15 +1213,32 @@ class AnalysisService:
                 verification_input = verification_input_allowance(
                     payload, progress.get("final_candidate", ""), parameters["max_input_bytes"]
                 )
-                shared_output = (remaining - input_upper - verification_input) // 2
+                following_calls = 1 + int(
+                    progress.get("final_report_plan", {}).get("reserve_support_audit", False)
+                )
+                shared_output = (remaining - input_upper - following_calls * verification_input) // (
+                    1 + following_calls
+                )
                 following_output = min(parameters["max_output_tokens"], shared_output)
-                reserved = verification_input + max(128, following_output)
-                if len(progress["calls"]) + 2 > parameters["max_calls"]:
+                reserved = following_calls * (verification_input + max(128, following_output))
+                if len(progress["calls"]) + 1 + following_calls > parameters["max_calls"]:
                     raise DomainError(
                         "analysis_model_budget", "剩余调用不足以生成后核验，未发送生成请求", 422
                     )
-            if stage == "biocheck_plan" and len(progress["calls"]) + 3 > parameters["max_calls"]:
-                raise DomainError("analysis_model_budget", "剩余调用不足以完成最终规划、生成和核验", 422)
+            final_minimum = 3 + int(progress.get("final_report_plan", {}).get("reserve_support_audit", False))
+            if stage == "biocheck_plan" and len(progress["calls"]) + final_minimum > parameters["max_calls"]:
+                raise DomainError(
+                    "analysis_model_budget", "剩余调用不足以完成最终规划、生成、核验与所选片段复核", 422
+                )
+            if stage in {"biocheck_check", "biocheck_recheck"} and progress.get("final_report_plan", {}).get(
+                "reserve_support_audit"
+            ):
+                reserved = (
+                    verification_input_allowance(
+                        payload, payload.get("draft", ""), parameters["max_input_bytes"]
+                    )
+                    + 128
+                )
             output_cap = min(parameters["max_output_tokens"], remaining - input_upper - reserved)
             if output_cap < 128:
                 raise DomainError("analysis_token_budget", "剩余token预算不足以发送下一次有界请求", 422)
@@ -1205,7 +1260,7 @@ class AnalysisService:
             progress["calls"].append(call)
             progress["stage"] = stage
             self._checkpoint(identifier, token, progress)
-        self._guard(identifier, token)
+        self._guard(identifier, token, check_deadline=True)
         invoke = self.model_call or complete_json
         budget = analysis_budget(fixed, progress, datetime.now(UTC))
         seconds_left = budget["limits"]["max_seconds"] - budget["usage"]["elapsed_seconds"]
@@ -1223,8 +1278,41 @@ class AnalysisService:
         call["input_hash"] = canonical_hash(
             [call["system_prompt"], call["payload"], call["response_schema"], call["model_parameters"]]
         )
+        intent_at = datetime.now(UTC)
         call["status"] = "sent"
         self._checkpoint(identifier, token, progress)
+        # The durable intent itself may take longer than the remaining execution time.
+        now = datetime.now(UTC)
+        budget = analysis_budget(fixed, progress, now)
+        seconds_left = budget["limits"]["max_seconds"] - budget["usage"]["elapsed_seconds"]
+        if seconds_left < 1:
+            receipt = ModelCallReceipt(
+                call_id=call["call_id"],
+                stage=stage,
+                input_hash=call["input_hash"],
+                prompt_version=call["prompt_version"],
+                requested_model=fixed["model"],
+                configured_model_revision=fixed["model_revision"],
+                status="not_sent",
+                error_code="analysis_time_budget",
+                started_at=intent_at,
+                completed_at=now,
+                elapsed_ms=max(0, round((now - intent_at).total_seconds() * 1000)),
+                max_output_tokens=call["model_parameters"]["max_output_tokens"],
+            )
+            call["status"], call["receipt"] = "failed", receipt.model_dump(mode="json")
+            self._checkpoint(identifier, token, progress)
+            raise ModelCallError(
+                "analysis_time_budget", "发送意图保存后时间预算已耗尽，模型请求未发送", receipt, 409
+            )
+        # Timeout is a transport cap, not part of encode_request's wire body. Keep
+        # the durable intent/hash stable and record the tighter actual cap separately.
+        call["transport_timeout_seconds"] = min(
+            call["model_parameters"]["timeout_seconds"], int(seconds_left)
+        )
+        actual_settings = actual_settings.model_copy(
+            update={"semantic_llm_timeout_seconds": call["transport_timeout_seconds"]}
+        )
         try:
             completion = invoke(
                 actual_settings,
@@ -1393,6 +1481,7 @@ class AnalysisService:
                 progress["queries"].append(receipt)
                 self._checkpoint(identifier, token, progress)
             if "records" not in receipt and receipt["status"] == "prepared":
+                self._guard(identifier, token, check_deadline=True)
                 if self.reader is None:
                     receipt.update(status="failed", error_code="history_not_connected")
                     self._checkpoint(identifier, token, progress)
@@ -1468,23 +1557,42 @@ class AnalysisService:
             receipt.update(status="unconfirmed", error_code="weknora_outcome_unconfirmed")
             self._checkpoint(identifier, token, progress)
             return progress
+        if (
+            receipt.get("error_code") == "analysis_time_budget"
+            and (receipt.get("usage") or {}).get("request_status") == "not_sent"
+        ):
+            raise DomainError("analysis_time_budget", "候选请求此前在发送前达到时间预算，未自动重发", 409)
         if receipt["status"] == "prepared":
-            self._guard(identifier, token)
+            self._guard(identifier, token, check_deadline=True)
             receipt["status"] = "sent"
             self._checkpoint(identifier, token, progress)
+            seconds_left = (
+                fixed["budget"]["max_seconds"]
+                - analysis_budget(fixed, progress, datetime.now(UTC))["usage"]["elapsed_seconds"]
+            )
+            if seconds_left < 0.1:
+                receipt.update(
+                    status="failed",
+                    error_code="analysis_time_budget",
+                    records=[],
+                    usage={
+                        "request_status": "not_sent",
+                        "embedding_rerank_tokens": None,
+                        "monetary_cost": None,
+                    },
+                )
+                self._checkpoint(identifier, token, progress)
+                raise DomainError("analysis_time_budget", "发送意图保存后时间预算已耗尽，候选请求未发送", 409)
             found = search_candidates(
                 self.settings,
                 " ".join(receipt["plan"]["terms"]),
                 reader=self.reader,
+                selected_evidence=progress["evidence"],
                 source_ids=fixed["search_scope"],
                 cutoff=datetime.fromisoformat(fixed["as_of"]),
                 is_demo=fixed["is_demo"],
                 limit=3,
-                timeout_seconds=max(
-                    0.1,
-                    fixed["budget"]["max_seconds"]
-                    - analysis_budget(fixed, progress, datetime.now(UTC))["usage"]["elapsed_seconds"],
-                ),
+                timeout_seconds=seconds_left,
             )
             status = found["status"]
             receipt.update(
@@ -1705,7 +1813,13 @@ class AnalysisService:
         return progress
 
     def _final_report(self, identifier, token, fixed, progress, checked, raw):
-        from bioradar.adapters.biocheck import build_packet, load_biocheck, run_biocheck
+        from bioradar.adapters.biocheck import (
+            audit_biocheck_support,
+            build_packet,
+            load_biocheck,
+            run_biocheck,
+            support_audit_targets,
+        )
 
         self._guard(identifier, token)
         candidate = render_report(checked.model_dump(mode="json"), fixed["question"])
@@ -1716,8 +1830,19 @@ class AnalysisService:
             )
         progress["final_candidate"] = candidate
         progress["stage"] = "final_verification"
+        if "final_report_plan" not in progress:
+            used = [c for c in progress["calls"] if c["stage"].startswith("biocheck_")]
+            other_calls = len(progress["calls"]) - len(used)
+            legacy = bool(used or progress.get("final_report"))
+            progress["final_report_plan"] = {
+                "repair": any(c["stage"] in {"biocheck_revise", "biocheck_recheck"} for c in used)
+                or other_calls + (5 if legacy else 6) <= fixed["model_parameters"]["max_calls"],
+                "reserve_support_audit": not legacy,
+                "basis": "existing_provider_stages" if legacy else "new_report_with_support_audit",
+            }
         self._checkpoint(identifier, token, progress, fixed=fixed)
         report = progress.get("final_report")
+        loaded = None
         if report is None:
             context = report_context(checked.model_dump(mode="json"), progress.get("mechanism_evaluation"))
             packet = build_packet(fixed["question"], progress["evidence"], context)
@@ -1728,10 +1853,7 @@ class AnalysisService:
                 packet,
                 self._shared_callback(identifier, token, fixed, progress),
                 loaded=loaded,
-                repair=(
-                    sum(not c["stage"].startswith("biocheck_") for c in progress["calls"]) + 5
-                    <= fixed["model_parameters"]["max_calls"]
-                ),
+                repair=progress["final_report_plan"]["repair"],
             )
             progress["final_report"] = report
             self._checkpoint(identifier, token, progress)
@@ -1786,6 +1908,37 @@ class AnalysisService:
         }
         checked.report = report
         checked.mechanism_evaluation = progress.get("mechanism_evaluation")
+        if fixed.get("providers", {}).get("biocheck", {}).get("available") and "support_audit" not in report:
+            # Save the checked text before a separately fallible support audit.
+            progress["final_report"] = report
+            self._checkpoint(identifier, token, progress, result=checked.model_dump(mode="json"))
+            if loaded is None:
+                loaded = load_biocheck(self.settings)
+                self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
+                context = report_context(
+                    checked.model_dump(mode="json"), progress.get("mechanism_evaluation")
+                )
+                packet = build_packet(fixed["question"], progress["evidence"], context)
+            review = report.get("verification") or {}
+            if "support_audit_plan" not in progress:
+                try:
+                    targets = support_audit_targets(review)
+                except (ValueError, TypeError, KeyError, IndexError, AttributeError):
+                    targets = []
+                progress["support_audit_plan"] = {"targets": targets, "text_sha256": report["text_sha256"]}
+                self._checkpoint(identifier, token, progress)
+            progress["stage"] = "biocheck_support_audit"
+            audit = audit_biocheck_support(
+                self.settings,
+                packet,
+                review,
+                self._shared_callback(identifier, token, fixed, progress),
+                targets=progress["support_audit_plan"]["targets"],
+                loaded=loaded,
+            )
+            report = {**report, "support_audit": audit}
+            checked.report = progress["final_report"] = report
+            self._checkpoint(identifier, token, progress, result=checked.model_dump(mode="json"))
         providers = copy.deepcopy(progress.get("providers", fixed.get("providers", {})))
         providers.setdefault("biocheck", {})["result_status"] = report["status"]
         providers.setdefault("mech_evidence", {})["result_status"] = (
@@ -1849,8 +2002,10 @@ class AnalysisService:
             )
             _, verified = validate_synthesis(raw, progress["evidence"], parent=None)
             query_receipts = [{k: v for k, v in q.items() if k != "records"} for q in progress["queries"]]
-            shared_final_check = bool(fixed.get("providers", {}).get("biocheck", {}).get("available")) and (
-                fixed.get("parent_result") is None or not self._optional_budget(fixed, progress, 1)
+            shared_final_check = (
+                bool(fixed.get("providers", {}).get("biocheck", {}).get("available"))
+                and not any(c["stage"] == "check" for c in progress["calls"])
+                and (fixed.get("parent_result") is None or not self._optional_budget(fixed, progress, 1))
             )
             if shared_final_check:
                 parsed, verified = validate_synthesis(raw, progress["evidence"], parent=None)
@@ -1893,9 +2048,12 @@ class AnalysisService:
                 )
             has_parent = fixed.get("parent_result") is not None
             checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
-            if needs_revision(checked.review) and not self._optional_budget(fixed, progress, 2):
+            can_revise = any(c["stage"] == "revise" for c in progress["calls"]) or self._optional_budget(
+                fixed, progress, 2
+            )
+            if needs_revision(checked.review) and not can_revise:
                 progress["limitations"].append("剩余预算保留给最终生成与核验，本轮未修订前期草稿。")
-            if needs_revision(checked.review) and self._optional_budget(fixed, progress, 2):
+            if needs_revision(checked.review) and can_revise:
                 progress.setdefault("initial_draft", checked.model_dump(mode="json"))
                 self._checkpoint(
                     identifier,
@@ -1947,13 +2105,12 @@ class AnalysisService:
                 )
                 raw = revised
                 checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
-            if (
-                has_parent
-                and checked.review.status == "passed"
-                and not self._optional_budget(fixed, progress, 1)
-            ):
+            can_compare = any(c["stage"] == "compare" for c in progress["calls"]) or self._optional_budget(
+                fixed, progress, 1
+            )
+            if has_parent and checked.review.status == "passed" and not can_compare:
                 progress["limitations"].append("剩余预算保留给最终生成与核验，本轮未执行旧版比较。")
-            if has_parent and checked.review.status == "passed" and self._optional_budget(fixed, progress, 1):
+            if has_parent and checked.review.status == "passed" and can_compare:
                 from bioradar.adapters.reasoning_model import ModelCallError
 
                 # Preserve the verified current analysis before a separately fallible comparison.
@@ -2035,7 +2192,10 @@ class AnalysisService:
                 if row.execution_token != token:
                     return identifier
                 report_status = (result.get("report") or {}).get("status")
-                if report_status in {"PASS", "REVIEW", "FAIL", "failed"}:
+                audit_status = ((result.get("report") or {}).get("support_audit") or {}).get("status")
+                if audit_status in {"REVIEW", "NOT_RUN"}:
+                    row.state = "needs_review"
+                elif report_status in {"PASS", "REVIEW", "FAIL", "failed"}:
                     row.state = "completed" if report_status == "PASS" else "needs_review"
                 else:
                     row.state = (

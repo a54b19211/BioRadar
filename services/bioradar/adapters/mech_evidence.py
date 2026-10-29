@@ -130,6 +130,17 @@ def _source_kind(item, source_id, record_id):
     return None, "source_kind_unresolved"
 
 
+def _material_identity(packet, item):
+    source_id, record_id = _identity(packet.get("evidence_map", {}).get(item["id"], {}))
+    return {
+        "source_id": source_id or item.get("source_id") or "",
+        "record_id": record_id or item.get("source_record_id") or "",
+        "source_group": item.get("source_group", ""),
+        "url": item.get("source_url"),
+        **{field: copy.deepcopy(item[field]) for field in ("pmid", "doi") if field in item},
+    }
+
+
 def _case(packet):
     assessment = packet.get("assessment") or {}
     if not isinstance(assessment, dict):
@@ -143,10 +154,8 @@ def _case(packet):
     materials, missing, classification = [], [], []
     for item in packet.get("evidence", []):
         identifier = item["id"]
-        source_id, record_id = _identity(packet.get("evidence_map", {}).get(identifier, {}))
-        source_id = item.get("source_id") or source_id
-        record_id = item.get("source_record_id") or record_id
-        kind, basis = _source_kind(item, source_id, record_id)
+        identity = _material_identity(packet, item)
+        kind, basis = _source_kind(item, identity["source_id"], identity["record_id"])
         classification.append({"evidence_id": identifier, "source_kind": kind, "basis": basis})
         if kind is None:
             missing.append(f"materials.{identifier}.source_kind")
@@ -156,13 +165,10 @@ def _case(packet):
                 "id": identifier,
                 "text": item["text"],
                 "version": item["version"],
-                "source_id": source_id,
-                "record_id": record_id,
                 "title": item.get("title", ""),
-                "source_group": item.get("source_group", ""),
                 "source_kind": kind,
                 "text_level": item.get("text_level") or "selected_passages",
-                "url": item.get("source_url"),
+                **identity,
             }
         )
     return (
@@ -189,6 +195,20 @@ def _state(packet, status, *, version=None, code=None, missing=()):
     }
 
 
+def _identity_error_state(packet, version, error):
+    detail = error.as_dict()
+    return {
+        **_state(
+            packet,
+            detail["status"],
+            version=version,
+            code=detail["error_code"],
+            missing=[f"materials.{detail['material_id']}.{field}" for field in detail["fields"]],
+        ),
+        "identity_error": detail,
+    }
+
+
 def evaluate_mechanism(settings, packet, call, *, loaded=None):
     """Evaluate an explicit candidate; retain its strict schema on the common callback."""
     case, missing, classification = _case(packet)
@@ -205,6 +225,7 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
             code="mech_evidence_material_type_missing",
             missing=missing,
         )
+    identity_error = getattr(method, "IdentityInputError", ())
     try:
         # Explicit cases must still use exactly the caller's fixed and authorized material.
         evidence = {item["id"]: item for item in packet["evidence"]}
@@ -221,7 +242,18 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
                     version=version,
                     code="mech_evidence_material_mismatch",
                 )
+            identity = _material_identity(packet, original)
+            if any(
+                name in material and material[name] != identity.get(name)
+                for name in ("source_id", "record_id", "source_group", "url", "pmid", "doi")
+            ):
+                return _state(
+                    packet, "needs_input", version=version, code="mech_evidence_material_mismatch"
+                )
+            material.update(identity)
         validated = models.Case.model_validate(case)
+    except identity_error as exc:
+        return _identity_error_state(packet, version, exc)
     except (ValueError, TypeError, KeyError, AttributeError):
         return _state(packet, "needs_input", version=version, code="mech_evidence_input_invalid")
 
@@ -242,6 +274,8 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
         while cause is not None:
             if isinstance(cause, DomainError):
                 raise cause
+            if isinstance(cause, identity_error):
+                return _identity_error_state(packet, version, cause)
             cause = cause.__cause__
         return _state(packet, "failed", version=version, code="mech_evidence_result_invalid")
     if not isinstance(result, dict) or not isinstance(result.get("overall"), dict):

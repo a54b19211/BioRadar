@@ -57,11 +57,39 @@ export interface ResearchBudgetView {
   };
 }
 
+export interface ResearchSupportCheck {
+  unit_id: string;
+  claim_index: number;
+  span?: string;
+  verdict: string;
+  reason?: string;
+  evidence?: {
+    evidence_id: string;
+    segment_id: string;
+    version?: string;
+    start?: number;
+    end?: number;
+    quote?: string;
+  }[];
+}
+
+export interface ResearchSupportAudit {
+  status: string;
+  scope?: string;
+  reason?: string;
+  not_run_reason?: string;
+  error_code?: string | null;
+  checks?: ResearchSupportCheck[];
+  verification_errors?: unknown[];
+  [key: string]: unknown;
+}
+
 export interface ResearchReport {
   final_text: string;
   status: string;
   provider?: string;
   verification?: Record<string, unknown> | null;
+  support_audit?: ResearchSupportAudit | null;
   [key: string]: unknown;
 }
 

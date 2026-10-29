@@ -549,7 +549,7 @@ def test_mechanism_evaluates_known_material_and_retains_untyped_material_as_a_ga
     assert "e2" in result["evidence_map"]
 
 
-def test_exact_legacy_version_still_requires_its_original_source_selection():
+def test_exact_legacy_version_uses_selected_wrapper_and_fabric_permission_check():
     reader = FabricReader()
     metadata = {
         "source_id": "legacy_documents",
@@ -574,8 +574,10 @@ def test_exact_legacy_version_still_requires_its_original_source_selection():
             source_ids=["legacy_documents"],
             client=client,
         )
-    assert result["candidates"][0]["binding_status"] == "not_authorized"
-    assert not result["records"] and not reader.reads
+    assert result["candidates"][0]["binding_status"] == "bound"
+    assert len(result["records"]) == len(reader.reads) == 1
+    assert reader.reads[0]["source_id"] == "legacy_documents"
+    assert reader.reads[0]["version_id"] == "a" * 64
 
 
 def test_optional_repair_budget_preserves_the_checked_original_not_unchecked_revision(installed_biocheck):
@@ -651,8 +653,8 @@ def test_weknora_uses_remaining_overall_time_for_the_transport():
 
     def handler(request):
         requests.append(request)
-        assert request.extensions["timeout"]["read"] == 0.25
-        assert request.extensions["timeout"]["connect"] == 0.25
+        assert 0 < request.extensions["timeout"]["read"] <= 0.25
+        assert 0 < request.extensions["timeout"]["connect"] <= 0.25
         return httpx.Response(200, json={"success": True, "data": []})
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:

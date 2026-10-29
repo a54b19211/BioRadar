@@ -8,8 +8,16 @@ const props = defineProps<{ analysis: View }>();
 const genericReviewRan = computed(() => props.analysis.calls.some(call => ["check", "recheck", "final_check"].includes(call.stage) && call.status === "received"));
 const emit = defineEmits<{ source: [key: string] }>();
 const reportStatus: Record<string, string> = {
-  PASS: "BioCheck 核验通过", REVIEW: "报告待核", FAIL: "报告核验未通过",
+  PASS: "BioCheck 原核验通过", REVIEW: "报告待核", FAIL: "报告核验未通过",
   UNAVAILABLE: "核验服务暂不可用", FAILED: "报告核验未完成",
+};
+const supportAudit = computed(() => props.analysis.result?.report?.support_audit);
+const supportAuditStatus = computed(() => supportAudit.value?.status.toUpperCase() || "NOT_RUN");
+const auditLabels: Record<string, string> = {
+  PASS: "所列片段支持复核通过", REVIEW: "所选支持片段待核", NOT_RUN: "所选片段复核未执行",
+};
+const supportVerdicts: Record<string, string> = {
+  supported: "所选片段支持", not_supported: "所选片段不支持", uncertain: "支持关系待核",
 };
 const mechanismStatus: Record<string, string> = {
   supported: "所列机制证据支持", partial: "机制链仅部分支持", insufficient: "机制证据不足",
@@ -60,12 +68,42 @@ const reviewStatus: Record<string, string> = {
       <div v-if="analysis.result.report.final_text" class="report-document">{{ analysis.result.report.final_text }}</div>
       <p v-else class="notice">本版尚未取得可阅读的报告正文，请查看核验与执行记录。</p>
       <p class="muted">{{ analysis.result.report.provider || "报告生成服务" }} ·
-        {{ analysis.result.report.status.toUpperCase() === "PASS" ? "本版已通过所配置服务的核验" : "当前版本保留供检查，尚未形成核验通过的交付稿" }}
+        {{ analysis.result.report.status.toUpperCase() === "PASS" ? "原报告核验已通过；所选片段复核另见下方。" : "原报告核验尚未通过，当前正文已保留供检查。" }}
       </p>
       <details v-if="analysis.result.report.verification">
-        <summary>本次报告核验结果</summary>
+        <summary>原报告核验结果</summary>
         <pre class="source-text">{{ JSON.stringify(analysis.result.report.verification, null, 2) }}</pre>
       </details>
+      <div class="support-audit">
+        <div class="candidate-meta">
+          <h4>所选支持片段复核</h4>
+          <ElTag :type="supportAuditStatus === 'PASS' ? 'success' : 'warning'">
+            {{ auditLabels[supportAuditStatus] || "片段复核结果待确认" }}
+          </ElTag>
+        </div>
+        <p v-if="supportAudit?.not_run_reason || supportAuditStatus === 'NOT_RUN'" class="muted">
+          {{ supportAudit?.not_run_reason || supportAudit?.reason || "本版未保存所选片段复核结果。" }}
+        </p>
+        <p v-if="supportAudit?.scope" class="muted">{{ supportAudit.scope }}</p>
+        <p v-if="supportAudit?.verification_errors?.length" class="notice">片段复核的定位或回执仍有问题，具体原因见完整记录。</p>
+        <details v-for="check in supportAudit?.checks || []" :key="check.unit_id + ':' + check.claim_index"
+          :open="check.verdict !== 'supported'">
+          <summary>{{ check.unit_id }} · 陈述 {{ check.claim_index + 1 }} · {{ supportVerdicts[check.verdict] || "支持关系待核" }}</summary>
+          <p class="investigation-prose">{{ check.span }}</p>
+          <p>{{ check.reason }}</p>
+          <div v-for="(reference, index) in check.evidence || []" :key="index" class="analysis-citation">
+            <p>{{ reference.evidence_id }} · {{ reference.segment_id }}
+              <small v-if="reference.start != null && reference.end != null" class="muted"> · 位置 {{ reference.start }}–{{ reference.end }}</small>
+            </p>
+            <blockquote v-if="reference.quote">{{ reference.quote }}</blockquote>
+            <ElButton class="no-print" text type="primary" @click="emit('source', reference.evidence_id)">阅读固定原文</ElButton>
+          </div>
+        </details>
+        <details v-if="supportAudit">
+          <summary>所选片段复核完整记录</summary>
+          <pre class="source-text">{{ JSON.stringify(supportAudit, null, 2) }}</pre>
+        </details>
+      </div>
     </section>
     <section v-if="analysis.result.mechanism_evaluation && analysis.result.mechanism_evaluation.status !== 'not_requested'" class="mechanism-summary">
       <h3>机制证据评价</h3>

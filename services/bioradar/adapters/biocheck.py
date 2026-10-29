@@ -3,6 +3,7 @@
 import ast
 import copy
 import hashlib
+import json
 import re
 import sys
 from pathlib import Path
@@ -20,6 +21,7 @@ _STAGES = {
     "write_plain": "biocheck_write",
     "write_direct": "biocheck_write",
     "revise": "biocheck_revise",
+    "support_audit": "biocheck_support_audit",
 }
 _CITATION_ID = re.compile(r"[A-Za-z][A-Za-z0-9_.:-]*")
 
@@ -141,6 +143,11 @@ def build_packet(question, evidence, assessment=None):
                 entry[name] = copy.deepcopy(item[name])
             elif isinstance(facts, dict) and name in facts:
                 entry[name] = copy.deepcopy(facts[name])
+        for name in ("pmid", "doi"):
+            if isinstance(facts, dict) and name in facts:
+                entry[name] = copy.deepcopy(facts[name])
+            elif name in item:
+                entry[name] = copy.deepcopy(item[name])
         items.append(entry)
         references[key] = {
             name: copy.deepcopy(item[name])
@@ -232,6 +239,16 @@ def _result(packet, draft, review, initial, revision, version, **extra):
 def _optional_repair(core, packet, draft, initial, invoke, repair):
     if not repair or not initial.get("problem_units"):
         return draft, initial, None, {}
+    if initial.get("verification_errors"):
+        return (
+            draft,
+            initial,
+            None,
+            {
+                "repair_error_code": "biocheck_verification_errors",
+                "repair_stop_reason": "核验回执的原文或陈述位置未通过检查，已保留初稿，未据此修订。",
+            },
+        )
     revision = None
     try:
         revision = core.revise(copy.deepcopy(packet), initial, invoke)
@@ -239,12 +256,12 @@ def _optional_repair(core, packet, draft, initial, invoke, repair):
         review = core.verify(copy.deepcopy(packet), candidate, invoke)
         return candidate, review, revision, {}
     except DomainError as exc:
-        not_sent_input_limit = (
-            isinstance(exc, ModelCallError)
-            and exc.code == "model_input_budget"
-            and exc.receipt.status == "not_sent"
-        )
-        if exc.code not in {"analysis_model_budget", "analysis_token_budget"} and not not_sent_input_limit:
+        budget_stop = exc.code in {"analysis_model_budget", "analysis_token_budget", "analysis_time_budget"}
+        if isinstance(exc, ModelCallError):
+            budget_stop = exc.receipt.status == "not_sent" and (
+                budget_stop or exc.code == "model_input_budget"
+            )
+        if not budget_stop:
             raise
         # A revision without its own check cannot replace an already checked draft.
         return (
@@ -253,6 +270,8 @@ def _optional_repair(core, packet, draft, initial, invoke, repair):
             None,
             {
                 "repair_error_code": exc.code,
+                "repair_stopped_at": "biocheck_revise" if revision is None else "biocheck_recheck",
+                "repair_stop_reason": "可选修订或复核在请求发送前达到预算，已保留完成核验的初稿。",
                 "unverified_revision": revision,
             },
         )
@@ -288,3 +307,133 @@ def run_biocheck(settings, packet, call, *, repair=True, loaded=None):
         return _result(packet, draft, review, initial, revision, version, generated=generated, **repair_state)
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         return _unavailable(packet, draft, version=version, status="failed")
+
+
+def support_audit_targets(review):
+    """Freeze only the already supported fact identifiers; this does not judge support."""
+    if review.get("verification_errors"):
+        return []
+    return [
+        [unit["unit_id"], index]
+        for unit in review["units"]
+        for index, claim in enumerate(unit["claims"])
+        if claim.get("kind", "fact") == "fact" and claim["verdict"] == "supported"
+    ]
+
+
+def audit_biocheck_support(settings, packet, review, call, *, targets=None, loaded=None):
+    """Audit selected support independently, preserving the exact draft and old verification."""
+    core, version = load_biocheck(settings) if loaded is None else loaded
+    binding = {
+        "provider": "biocheck",
+        "provider_version": version,
+        "original_status": review.get("status") if isinstance(review, dict) else None,
+        "targets": [],
+        "text_sha256": None,
+        "review_sha256": None,
+        "evidence_map": copy.deepcopy(packet.get("evidence_map", {})) if isinstance(packet, dict) else {},
+        "evidence_versions": {},
+    }
+
+    def stopped(status, code, reason):
+        return {
+            "status": status,
+            "checks": [],
+            "skipped": [],
+            "verification_errors": [],
+            "scope": "仅复核固定目标的所选支持片段；不判断事实整体真伪，不改写正文，PASS不代表整稿通过。",
+            **binding,
+            "error_code": code,
+            "not_run_reason": reason,
+        }
+
+    callback_failure = None
+    guarded_call = _callback(call)
+
+    def invoke(stage, instruction, payload):
+        nonlocal callback_failure
+        try:
+            return guarded_call(stage, instruction, payload)
+        except Exception as exc:
+            callback_failure = exc
+            raise
+
+    try:
+        draft = review["draft"]
+        if not isinstance(draft, str) or not draft.strip():
+            raise ValueError("missing checked text")
+        binding["text_sha256"] = hashlib.sha256(draft.encode()).hexdigest()
+        binding["review_sha256"] = hashlib.sha256(
+            json.dumps(review, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
+        ).hexdigest()
+        binding["evidence_versions"] = {
+            item["id"]: {
+                "version": item["version"],
+                "selected_text_sha256": hashlib.sha256(item["text"].encode()).hexdigest(),
+            }
+            for item in packet["evidence"]
+        }
+        if review.get("verification_errors"):
+            result = stopped(
+                "NOT_RUN",
+                "biocheck_verification_errors",
+                "原核验回执存在位置或材料错误，未发送所选片段复核请求。",
+            )
+            result["verification_errors"] = copy.deepcopy(review["verification_errors"])
+            return result
+        eligible = [tuple(target) for target in support_audit_targets(review)]
+        requested = eligible if targets is None else [tuple(target) for target in targets]
+        if len(set(requested)) != len(requested) or any(
+            len(target) != 2
+            or not isinstance(target[0], str)
+            or type(target[1]) is not int
+            or target not in eligible
+            for target in requested
+        ):
+            raise ValueError("invalid support targets")
+        binding["targets"] = [list(target) for target in requested]
+        if not requested:
+            return stopped("NOT_RUN", "biocheck_support_no_targets", "原核验没有已判支持的事实目标。")
+        if core is None or not callable(getattr(core, "audit_support", None)):
+            return stopped("NOT_RUN", "biocheck_support_unavailable", "当前共享方法未提供所选片段复核。")
+        audit = core.audit_support(copy.deepcopy(packet), copy.deepcopy(review), invoke, targets=requested)
+        if (
+            not isinstance(audit, dict)
+            or audit.get("status") not in {"PASS", "REVIEW", "NOT_RUN"}
+            or audit.get("original_status") != review["status"]
+        ):
+            raise ValueError("invalid support audit")
+        result = {**audit, **binding, "error_code": None}
+        if audit["status"] == "NOT_RUN":
+            result.update(
+                error_code="biocheck_support_no_targets",
+                not_run_reason="共享方法未形成可发送的有效片段复核目标。",
+            )
+        return result
+    except DomainError as exc:
+        budget_stop = exc.code in {"analysis_model_budget", "analysis_token_budget", "analysis_time_budget"}
+        if isinstance(exc, ModelCallError):
+            budget_stop = exc.receipt.status == "not_sent" and (
+                budget_stop or exc.code == "model_input_budget"
+            )
+            if (
+                exc.receipt.status == "failed"
+                and exc.receipt.http_status == 200
+                and exc.code in {"model_output_invalid", "model_protocol_error"}
+            ):
+                result = stopped("REVIEW", exc.code, "所选片段复核已收到响应，但格式无效，需人工核对。")
+                result["model_receipt_status"] = exc.receipt.status
+                return result
+        if budget_stop:
+            result = stopped("NOT_RUN", exc.code, "请求发送前达到统一预算，所选片段复核未执行。")
+            result["model_receipt_status"] = (
+                exc.receipt.status if isinstance(exc, ModelCallError) else "not_sent"
+            )
+            return result
+        if exc.code == "biocheck_response_invalid" and not isinstance(exc, ModelCallError):
+            return stopped("REVIEW", exc.code, "所选片段复核响应不是JSON对象，需人工核对。")
+        raise
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError, RecursionError):
+        if callback_failure is not None:
+            raise
+        return stopped("REVIEW", "biocheck_support_invalid", "所选片段复核输入或回执无效，需人工核对。")

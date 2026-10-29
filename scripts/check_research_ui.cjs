@@ -85,7 +85,7 @@ function analysisPanel(request) {
     "\nglobalThis.probe={startAnalysis,refresh,list,selected};", context);
   return { ...context.probe, props, events };
 }
-async function renderReport(status, genericState = "passed", calls = []) {
+async function renderReport(status, genericState = "passed", calls = [], reportFields = {}) {
   const relative = "apps/web/src/components/engine/MachineAnalysisResult.vue";
   const source = fs.readFileSync(path.join(root, relative), "utf8");
   const { descriptor } = compiler.parse(source, { filename: relative });
@@ -113,7 +113,7 @@ async function renderReport(status, genericState = "passed", calls = []) {
   vm.runInContext(compile(compiledScript.content + "\n" + template.code) +
     "\nexports.default.render=exports.render;", context);
   const result = {
-    report: { final_text: "Exact final report text", status, provider: "Synthetic provider" },
+    report: { final_text: "Exact final report text", status, provider: "Synthetic provider", ...reportFields },
     conditional_answer: { answer: "Earlier structured answer", conditions: [], unknowns: [] },
     claims: [], explanations: [], gaps: [], limitations: [],
     review: { status: genericState, claims: [], overall_limitations: [] },
@@ -236,10 +236,10 @@ async function main() {
   const review = await renderReport("REVIEW");
   assert.match(review, /Exact final report text/);
   assert.match(review, /报告待核/);
-  assert.doesNotMatch(review, /BioCheck 核验通过/);
+  assert.doesNotMatch(review, /BioCheck 原核验通过/);
   assert.match(review, /报告生成前的结构化分析与引文记录/);
   const passed = await renderReport("PASS");
-  assert.match(passed, /BioCheck 核验通过/);
+  assert.match(passed, /BioCheck 原核验通过/);
   assert.match(passed, /Exact final report text/);
   assert.match(passed, /上方核验状态对应上方报告正文/);
 
@@ -265,4 +265,5 @@ async function main() {
     "unexecuted_general_review_is_not_reported_as_a_failed_check",
   ] }));
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+module.exports = { renderReport };
+if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });
