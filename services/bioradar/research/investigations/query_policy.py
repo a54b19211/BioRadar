@@ -467,6 +467,20 @@ def normalize_policy_coverage(reading, declared_checks, evidence):
     return value, list(unique.values())
 
 
+def _coverage_question_text(value):
+    """Keep structured provider gaps lossless while exposing a textual check question."""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(
+            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
+        )
+    except (TypeError, ValueError):
+        raise DomainError(
+            "analysis_policy_coverage_invalid", "取证检查问题须为字符串或有限JSON值", 422
+        ) from None
+
+
 def build_coverage_checks(fixed, progress, *, reading=None):
     evidence_ids = {item["key"] for item in progress.get("evidence", [])}
     saved = progress.get("query_policy", {}).get("checks", [])
@@ -602,6 +616,9 @@ def build_coverage_checks(fixed, progress, *, reading=None):
         )
     if len(checks) > 64:
         raise DomainError("analysis_policy_input_limit", "本轮取证覆盖检查超过策略接口上限", 422)
+    for item in checks.values():
+        # Also cover saved checks received before structured quality gaps were supported.
+        item["question"] = _coverage_question_text(item.get("question"))
     return list(checks.values())
 
 

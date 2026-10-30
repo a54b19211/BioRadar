@@ -1177,7 +1177,7 @@ def compact_query_context(context):
             for key in ("id", "required", "status", "evidence_ids", "question")
             if key in check
         }
-        if check.get("question") in repeated_questions:
+        if isinstance(check.get("question"), str) and check["question"] in repeated_questions:
             index = repeated_questions[check["question"]]
             item["question"] = f"专业缺口见mechanism_query_context.critical_gaps[{index}]，含条件与待查实验。"
             item["mechanism_gap_index"] = index
