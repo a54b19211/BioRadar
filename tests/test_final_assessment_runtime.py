@@ -20,7 +20,9 @@ from test_query_policy_runtime import expire
 pytestmark = pytest.mark.ENGINE
 
 
-def test_final_current_claim_repair_received_restart_preserves_prose_and_never_repeats(runtime, database):
+def test_final_current_claim_repair_received_restart_preserves_prose_and_never_repeats(
+    runtime, database, monkeypatch
+):
     directory = os.environ.get("BIORADAR_QUERY_PLANNER_TEST_PROJECT_DIR")
     if not directory:
         pytest.fail("Native query-planner is required")
@@ -71,6 +73,17 @@ def test_final_current_claim_repair_received_restart_preserves_prose_and_never_r
             },
         )
 
+    # Persisted v1 requests retain this exact protocol after future v2 tasks are enabled.
+    from bioradar.research.investigations import query_policy
+
+    freeze = query_policy.freeze_policy
+
+    def legacy_policy(*args, **kwargs):
+        value = freeze(*args, **kwargs)
+        value.pop("final_reference_repair_version", None)
+        return value
+
+    monkeypatch.setattr(query_policy, "freeze_policy", legacy_policy)
     accepted = start(runtime, auto_retrieve=True, query_policy="query_planner")
     with httpx.Client(base_url="http://127.0.0.1", transport=httpx.MockTransport(transport)) as client:
         service = make()

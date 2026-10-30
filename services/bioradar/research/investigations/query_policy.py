@@ -193,6 +193,7 @@ def freeze_policy(settings, requested=None):
                 "pagination_version": PAGINATION_VERSION,
                 "professional_retry_version": "biocheck-contract-repair-v1",
                 "final_assessment_version": "bioradar-research-final-v1",
+                "final_reference_repair_version": "bioradar-synthesis-reference-repair-v1",
                 "retrieval_allocation": {
                     "automatic_initial_queries": 3,
                     "explicit_queries": "preserved_within_existing_limits",

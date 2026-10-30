@@ -904,7 +904,12 @@ def report_context(result, mechanism):
 def render_report(result, question):
     """Render only saved structured fields; no model writes follow final verification."""
     answer = result["conditional_answer"]
-    lines = ["# 研究分析报告", "", question, "", answer["answer"], "", "## 适用条件"]
+    stopped = (result.get("query_policy") or {}).get("synthesis_reading_basis") or {}
+    heading = "# 阅读草稿（综合未完成）" if stopped else "# 研究分析报告"
+    lines = [heading, "", question, ""]
+    if stopped:
+        lines.extend([stopped["qualification"], ""])
+    lines.extend([answer["answer"], "", "## 适用条件"])
     lines.extend("- " + text for text in answer["conditions"])
     lines.extend(["", "## 证据与命题"])
     for claim in result["claims"]:
@@ -962,6 +967,9 @@ def readable_result(result):
         "尚未解决：" + "；".join(answer["unknowns"]),
         "本版与前版：" + "；".join(result["update"]["reasons"]),
     ]
+    stopped = (result.get("query_policy") or {}).get("synthesis_reading_basis")
+    if stopped:
+        lines.insert(1, stopped["qualification"])
     return (prefix + "\n".join(lines))[:7900]
 
 

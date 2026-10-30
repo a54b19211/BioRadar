@@ -324,3 +324,121 @@ def execute_document_read(service, identifier, token, fixed, progress, action, s
             fixed["dependency_sources"].append(dependency)
         service._checkpoint(identifier, token, progress, fixed=fixed)
     return receipt
+
+
+def retained_policy_reading(fixed, progress):
+    """Return only a reading tied to its received input, fixed versions and exact text."""
+    from bioradar.research.investigations.analysis import (
+        model_evidence,
+        parse_policy_reading,
+        semantic_reading_state,
+        validate_policy_reading,
+        validate_selection,
+    )
+    from bioradar.research.investigations.query_policy import normalize_policy_coverage
+
+    try:
+        state = progress.get("query_policy") or {}
+        fingerprint = state.get("reading_evidence_hash")
+        if (
+            state.get("reading_kind") != "policy"
+            or fixed.get("query_context_version") != "semantic-v2"
+            or fixed.get("query_policy", {}).get("effective") != "query_planner"
+            or not isinstance(fingerprint, str)
+            or len(fingerprint) != 64
+            or any(char not in "0123456789abcdef" for char in fingerprint)
+        ):
+            return None
+        key = "policy-read:" + fingerprint
+        originals = [call for call in progress.get("calls", []) if call.get("call_key") == key]
+        if len(originals) != 1:
+            return None
+        original = originals[0]
+
+        def received(call):
+            receipt = call.get("receipt") or {}
+            return call.get("status") == "received" and receipt.get("status") == "completed"
+
+        if original.get("stage") != "read_plan" or not received(original):
+            return None
+        payload = original["payload"]
+        if (
+            payload.get("task") != "read_plan"
+            or payload.get("question") != fixed["question"]
+            or payload.get("as_of") != fixed["as_of"]
+            or payload.get("search_scope") != fixed["search_scope"]
+        ):
+            return None
+        source = original
+        repair = progress.get("reading_repairs", {}).get(key)
+        if repair is not None:
+            repairs = [
+                call
+                for call in progress.get("calls", [])
+                if call.get("call_key") == repair.get("repair_call_key")
+            ]
+            if repair.get("status") != "validated" or len(repairs) != 1:
+                return None
+            source = repairs[0]
+            if (
+                repair.get("original_call_key") != key
+                or source.get("stage") != "read_plan_repair"
+                or not received(source)
+                or source.get("call_id") != repair.get("repair_call_id")
+                or source["payload"].get("original_request") != payload
+                or source["payload"].get("invalid_output") != original.get("output")
+            ):
+                return None
+        rows = progress["evidence"]
+        by_key = {item["key"]: item for item in rows}
+        requested = [item["evidence_key"] for item in payload["evidence"]]
+        if len(by_key) != len(rows) or len(set(requested)) != len(requested):
+            return None
+        selected = [by_key[key] for key in requested]
+        for item in selected:
+            validate_selection(item)
+        # The model projection has no standalone version field. Full projection
+        # equality checks its actual words/context; the fingerprint below binds
+        # selection_hash, which also contains the complete adopted record_ref.
+        if (
+            model_evidence(
+                selected,
+                include_source_context="research_task" in payload,
+                evidence_time=fixed.get("evidence_time"),
+            )
+            != payload["evidence"]
+        ):
+            return None
+        if payload.get("mechanism_query_context") or payload.get("mechanism_evaluation"):
+            # The compact mechanism query omits part of its semantic preimage.
+            # Never substitute the current professional context to guess it.
+            return None
+        context = {
+            "graph_context": payload.get("graph_context", []),
+            "analysis_results": payload.get("analysis_results", []),
+            "quality_feedback": payload.get("quality_feedback"),
+            "mechanism_evaluation": None,
+        }
+        if canonical_hash(semantic_reading_state(selected, context)) != fingerprint:
+            return None
+        normalized, _ = parse_policy_reading(source["output"])
+        normalized, _ = normalize_policy_coverage(normalized, payload.get("coverage_checks", []), selected)
+        parsed = validate_policy_reading(normalized, selected, fixed["search_scope"])
+        if parsed.model_dump(mode="json") != state.get("reading"):
+            return None
+        return parsed, original
+    except DomainError as exc:
+        if hasattr(exc, "receipt") or exc.code not in {
+            "analysis_selection_mismatch",
+            "analysis_reading_invalid",
+            "analysis_reference_invalid",
+            "analysis_passage_invalid",
+            "analysis_unbound_claim",
+            "analysis_query_invalid",
+            "analysis_output_invalid",
+            "analysis_policy_coverage_invalid",
+        }:
+            raise
+        return None
+    except (KeyError, IndexError, TypeError, ValueError):
+        return None

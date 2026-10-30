@@ -323,3 +323,173 @@ def validate_assessment_repair(original, repaired):
             reject()
     except (KeyError, IndexError, TypeError, ValueError):
         reject()
+
+
+FINAL_REFERENCE_REPAIR_VERSION = "bioradar-synthesis-reference-repair-v1"
+_FINAL_REFERENCE_ERRORS = {"unknown_claim", "unknown_evidence", "unknown_passage"}
+
+
+def _final_source_reference_ids(original_request):
+    """Use only the exact original model input, never later accumulated evidence."""
+    request = _plain(original_request)
+    rows = request.get("evidence") if isinstance(request, dict) else None
+    if not isinstance(rows, list):
+        raise DomainError("analysis_reference_repair_context_invalid", "缺少原综合输入引用清单", 422)
+    allowed, owners = {}, {}
+    for row in rows:
+        key = row.get("evidence_key") if isinstance(row, dict) else None
+        passages = row.get("passages") if isinstance(row, dict) else None
+        if not isinstance(key, str) or not key or key in allowed or not isinstance(passages, list):
+            raise DomainError("analysis_reference_repair_context_invalid", "原综合输入引用身份不唯一", 422)
+        identifiers = []
+        for passage in passages:
+            identifier = passage.get("id") if isinstance(passage, dict) else None
+            if not isinstance(identifier, str) or not identifier or identifier in owners:
+                raise DomainError("analysis_reference_repair_context_invalid", "原综合片段身份不唯一", 422)
+            identifiers.append(identifier)
+            owners[identifier] = key
+        if not identifiers:
+            raise DomainError("analysis_reference_repair_context_invalid", "原综合材料没有固定片段", 422)
+        allowed[key] = identifiers
+    return allowed, owners
+
+
+def final_reference_errors(value, original_request, *, topic_risk_scope=None):
+    """Describe scalar ID faults; semantic/structural faults cannot enter this repair."""
+    from bioradar.research.investigations.analysis_models import FinalResearchSynthesis
+
+    plain = _plain(value)
+    try:
+        FinalResearchSynthesis.model_validate(plain)
+    except ValidationError as exc:
+        return [
+            {"path": list(item["loc"]), "reason": "invalid_synthesis_structure", "type": item["type"]}
+            for item in exc.errors(include_input=False, include_context=False)
+        ]
+    allowed, owners = _final_source_reference_ids(original_request)
+    errors = claim_assessment_errors(plain, topic_risk_scope=topic_risk_scope)
+    for error in errors:
+        if error["reason"] == "unknown_claim":
+            error["allowed_id_values"] = error["allowed_claim_ids"].copy()
+    for claim_index, claim in enumerate(plain["claims"]):
+        for link_index, link in enumerate(claim["evidence_links"]):
+            key, passage = link["evidence_key"], link["passage_id"]
+            path = ["claims", claim_index, "evidence_links", link_index]
+            if key not in allowed:
+                errors.append(
+                    {
+                        "path": [*path, "evidence_key"],
+                        "reason": "unknown_evidence",
+                        "claim_id": claim["id"],
+                        "rejected_id": key,
+                        "allowed_id_values": [owners[passage]] if passage in owners else list(allowed),
+                    }
+                )
+            # A real evidence owner is immutable. A globally valid passage also
+            # remains immutable when only its owner key was invented.
+            permitted = allowed[key] if key in allowed else list(owners)
+            if passage not in permitted:
+                errors.append(
+                    {
+                        "path": [*path, "passage_id"],
+                        "reason": "unknown_passage",
+                        "claim_id": claim["id"],
+                        "evidence_key": key,
+                        "rejected_id": passage,
+                        "allowed_id_values": permitted.copy(),
+                    }
+                )
+    if any(error.get("allowed_id_values") == [] for error in errors):
+        errors.append({"path": [], "reason": "no_legal_reference_replacement"})
+    return errors
+
+
+def _require_final_reference_errors(errors):
+    if not errors or any(error["reason"] not in _FINAL_REFERENCE_ERRORS for error in errors):
+        raise DomainError(
+            "analysis_reference_repair_invalid", "仅本轮确定无效引用可进入一次综合引用修复", 422
+        )
+
+
+def final_reference_repair_payload(
+    original_request, invalid_output, *, validation_error, topic_risk_scope=None
+):
+    """Prepare one shared synthesis-repair slot; the host owns receipts and budget."""
+    import hashlib
+
+    plain = _plain(invalid_output)
+    errors = final_reference_errors(plain, original_request, topic_risk_scope=topic_risk_scope)
+    _require_final_reference_errors(errors)
+    allowed, _ = _final_source_reference_ids(original_request)
+    encoded = json.dumps(plain, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    payload = {
+        "task": "repair_final_references",
+        "repair_version": FINAL_REFERENCE_REPAIR_VERSION,
+        "maximum_attempts": 1,
+        "original_request": copy.deepcopy(_plain(original_request)),
+        "invalid_output": copy.deepcopy(plain),
+        "original_output_sha256": hashlib.sha256(encoded.encode()).hexdigest(),
+        "validation_error": validation_error,
+        "reference_errors": errors,
+        "allowed_claim_ids": [claim["id"] for claim in plain["claims"]],
+        "allowed_reference_ids": allowed,
+        "instruction": (
+            "本次综合仅有一次共用引用修复名额，不区分命题、材料或片段另开重试。"
+            "只允许reference_errors列出的无效标识字段改为该路径allowed_id_values中的已有编号。"
+            "有效材料owner和有效片段编号不能换；最终材料与片段必须是原输入的真实配对。"
+            "逐条重读同一原文判断能否支持原命题，不按编号相似度、列表位置或仅因只有一个候选而猜链接。"
+            "其他JSON逐字段原样保留，包括命题编号与文字、role/reason、行动等级、条件、反证、缺口、"
+            "范围与列表次序/数量。无法确认支持时保留原无效编号供校验拒绝，不删除链接或改写结论求通过。"
+            "输出同一完整增强JSON；合法编号不代表事实已核验或风险已解除，修复后仍须全部校验。"
+        ),
+    }
+    if topic_risk_scope is not None:
+        payload["required_topic_risk_scope"] = copy.deepcopy(_plain(topic_risk_scope))
+    return payload
+
+
+def validate_final_reference_repair(original, repaired, original_request, *, topic_risk_scope=None):
+    """Permit only known-invalid scalar IDs, then require complete host validation."""
+    before, after = _plain(original), _plain(repaired)
+    errors = final_reference_errors(before, original_request, topic_risk_scope=topic_risk_scope)
+    _require_final_reference_errors(errors)
+
+    def reject():
+        raise DomainError(
+            "analysis_reference_repair_invalid",
+            "引用修复仅可改列出的无效编号；有效owner、全文、角色、条件与反证必须原样保留",
+            422,
+        )
+
+    if not isinstance(after, dict):
+        reject()
+    expected = copy.deepcopy(before)
+    try:
+        for error in errors:
+            source, target, unchanged = before, after, expected
+            path = error["path"]
+            for part in path[:-1]:
+                source, target, unchanged = source[part], target[part], unchanged[part]
+            old, new = source[path[-1]], target[path[-1]]
+            allowed = error["allowed_id_values"]
+            if not isinstance(old, str) or old in allowed or not isinstance(new, str) or new not in allowed:
+                reject()
+            unchanged[path[-1]] = new
+
+        def canonical(value):
+            return json.dumps(
+                value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+            )
+
+        if canonical(expected) != canonical(after):
+            reject()
+        allowed, _ = _final_source_reference_ids(original_request)
+        for claim in after["claims"]:
+            for link in claim["evidence_links"]:
+                if (
+                    link["evidence_key"] not in allowed
+                    or link["passage_id"] not in allowed[link["evidence_key"]]
+                ):
+                    reject()
+    except (KeyError, IndexError, TypeError, ValueError):
+        reject()

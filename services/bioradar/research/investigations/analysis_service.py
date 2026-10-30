@@ -97,7 +97,10 @@ from bioradar.research.investigations.research_assessment import (
     assessment_result_view,
     claim_assessment_errors,
     final_assessment_context,
+    final_reference_repair_payload,
     synthesis_schema,
+    validate_assessment_repair,
+    validate_final_reference_repair,
 )
 from bioradar.research.investigations.service import (
     InvestigationEntryRecord,
@@ -2221,6 +2224,14 @@ class AnalysisService:
             "checks": copy.deepcopy(state.get("checks", [])),
             "coverage_issues": copy.deepcopy(state.get("coverage_issues", [])),
             "reading_manifest": copy.deepcopy(state.get("reading_manifest", [])),
+            **(
+                {
+                    "synthesis_stop_reason": progress["synthesis_stop_reason"],
+                    "synthesis_reading_basis": copy.deepcopy(progress["synthesis_reading_basis"]),
+                }
+                if progress.get("synthesis_stop_reason")
+                else {}
+            ),
             "decisions": copy.deepcopy(state.get("decisions", [])),
             "phase_transitions": copy.deepcopy(state.get("phase_transitions", [])),
             "pending_action": copy.deepcopy(state.get("pending_action")),
@@ -3845,34 +3856,56 @@ class AnalysisService:
                     raw, progress["evidence"], parent=None, schema=schema, topic_risk_scope=risk_scope
                 )
             except DomainError as exc:
-                errors = claim_assessment_errors(raw, topic_risk_scope=risk_scope)
-                if (
-                    exc.code not in {"analysis_output_invalid", "analysis_assessment_invalid"}
-                    or not errors
-                    or any(item["reason"] != "unknown_claim" for item in errors)
-                ):
-                    raise
                 round_ = progress.get("active_report_round", 0)
-                key = ("report-round:" + str(round_) + ":" if round_ else "") + stage
+                prefix = "report-round:" + str(round_) + ":" if round_ else ""
+                key = prefix + stage
                 initial = next(c for c in progress["calls"] if c.get("call_key", c["stage"]) == key)
+                saved = next(
+                    (c for c in progress["calls"] if c.get("call_key") == key + ":assessment-repair"),
+                    None,
+                )
+                # All reference errors share this existing one repair slot. A saved
+                # v1 request keeps its original payload and validator after an upgrade.
+                enhanced = (
+                    saved["payload"].get("task") == "repair_final_references"
+                    if saved is not None
+                    else fixed.get("query_policy", {}).get("final_reference_repair_version")
+                    == "bioradar-synthesis-reference-repair-v1"
+                )
+                if enhanced:
+                    if exc.code not in {
+                        "analysis_output_invalid", "analysis_assessment_invalid",
+                        "analysis_reference_invalid", "analysis_passage_invalid",
+                    }:
+                        raise
+                    payload = final_reference_repair_payload(
+                        initial["payload"], raw,
+                        validation_error=exc.code, topic_risk_scope=risk_scope,
+                    )
+                else:
+                    errors = claim_assessment_errors(raw, topic_risk_scope=risk_scope)
+                    if (
+                        exc.code not in {"analysis_output_invalid", "analysis_assessment_invalid"}
+                        or not errors
+                        or any(item["reason"] != "unknown_claim" for item in errors)
+                    ):
+                        raise
+                    payload = assessment_repair_payload(
+                        initial["payload"], raw,
+                        validation_error=exc.code, topic_risk_scope=risk_scope,
+                    )
+                if saved is not None:
+                    payload = copy.deepcopy(saved["payload"])
                 repaired, _ = self._call(
-                    identifier,
-                    token,
-                    stage,
-                    schema,
-                    fixed,
-                    progress,
-                    assessment_repair_payload(
-                        initial["payload"],
-                        raw,
-                        validation_error=exc.code,
-                        topic_risk_scope=risk_scope,
-                    ),
+                    identifier, token, stage, schema, fixed, progress, payload,
                     call_key=stage + ":assessment-repair",
                 )
-                from bioradar.research.investigations.research_assessment import validate_assessment_repair
-
-                validate_assessment_repair(raw, repaired)
+                if enhanced:
+                    validate_final_reference_repair(
+                        raw, repaired, initial["payload"], topic_risk_scope=risk_scope
+                    )
+                else:
+                    validate_assessment_repair(raw, repaired)
                 validate_synthesis(
                     repaired,
                     progress["evidence"],
@@ -4478,6 +4511,67 @@ class AnalysisService:
         self._checkpoint(identifier, token, progress)
         return checked, progress
 
+    def _retained_reading_draft(self, identifier, token, fixed, progress, failure):
+        """Deliver a prior, source-bound reading when final synthesis is known incomplete."""
+        from bioradar.adapters.reasoning_model import ModelCallError
+        from bioradar.research.investigations.analysis import validate_claims
+        from bioradar.research.investigations.reading_execution import retained_policy_reading
+
+        known_invalid_response = (
+            isinstance(failure, ModelCallError)
+            and failure.receipt.status == "failed"
+            and failure.receipt.http_status == 200
+            and failure.code in {"model_output_invalid", "model_output_truncated", "model_protocol_error"}
+        )
+        if (
+            fixed.get("query_policy", {}).get("final_reference_repair_version")
+            != "bioradar-synthesis-reference-repair-v1"
+            or not (
+                self._report_budget_stop(failure)
+                or known_invalid_response
+                or not isinstance(failure, ModelCallError) and failure.code in {
+                    "analysis_output_invalid", "analysis_assessment_invalid",
+                    "analysis_reference_invalid", "analysis_passage_invalid",
+                    "analysis_unbound_claim", "analysis_reference_repair_invalid",
+                    "analysis_reference_repair_context_invalid",
+                }
+            )
+        ):
+            raise failure
+        retained = retained_policy_reading(fixed, progress)
+        if retained is None:
+            raise failure
+        reading, original = retained
+        note = (
+            "最终综合未完成，以下保留此前阅读草稿；只确认引用对应原先读过的固定材料，"
+            "未完成通用或专业核验，新增材料及后续缺口未因此视为已解决。"
+        )
+        if note not in progress["limitations"]:
+            progress["limitations"].append(note)
+        progress["synthesis_stop_reason"] = failure.code
+        progress["synthesis_reading_basis"] = {
+            "call_key": original.get("call_key", original["stage"]),
+            "call_id": original["call_id"],
+            "reading_evidence_hash": progress["query_policy"]["reading_evidence_hash"],
+            "status": "unfinished_reading_draft",
+            "qualification": note,
+        }
+        result = AnalysisResult(
+            claims=validate_claims(reading.claims, progress["evidence"]),
+            explanations=reading.explanations,
+            gaps=reading.gaps,
+            conditional_answer=reading.conditional_answer,
+            update=program_update(fixed.get("parent_result") is not None),
+            review=GenericReview(status="needs_review", claims=[], overall_limitations=[note]),
+            limitations=progress["limitations"],
+            query_policy=self._policy_view(fixed, progress),
+        ).model_dump(mode="json")
+        # Reuse the existing final-delivery checkpoint so a restart cannot resume
+        # a stopped synthesis or replace this reading with an unverified draft.
+        progress["final_delivery_result"] = copy.deepcopy(result)
+        self._checkpoint(identifier, token, progress, fixed=fixed, result=result)
+        return result
+
     def _research_result(self, identifier, token, fixed, progress):
         workflow = progress.get("report_workflow")
         if workflow:
@@ -4516,23 +4610,26 @@ class AnalysisService:
                 identifier, token, fixed, progress, reading.next_queries, phase="followup"
             )
             progress = self._mechanism(identifier, token, fixed, progress, reading)
-        raw, progress = self._call(
-            identifier,
-            token,
-            "synthesize",
-            synthesis_schema(fixed),
-            fixed,
-            progress,
-            self._synthesis_payload(fixed, progress),
-        )
-        raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
-        _, verified = validate_synthesis(
-            raw,
-            progress["evidence"],
-            parent=None,
-            schema=synthesis_schema(fixed),
-            topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
-        )
+        try:
+            raw, progress = self._call(
+                identifier,
+                token,
+                "synthesize",
+                synthesis_schema(fixed),
+                fixed,
+                progress,
+                self._synthesis_payload(fixed, progress),
+            )
+            raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
+            _, verified = validate_synthesis(
+                raw,
+                progress["evidence"],
+                parent=None,
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+            )
+        except DomainError as exc:
+            return self._retained_reading_draft(identifier, token, fixed, progress, exc), progress
         query_receipts = [{k: v for k, v in q.items() if k != "records"} for q in progress["queries"]]
         shared_final_check = (
             bool(fixed.get("providers", {}).get("biocheck", {}).get("available"))
@@ -4822,7 +4919,9 @@ class AnalysisService:
                 progress["finished_at"] = datetime.now(UTC).isoformat()
                 row.progress = copy.deepcopy(progress)
                 row.completed_at, row.lease_until, row.execution_token = datetime.now(UTC), None, None
-                row.error_code = progress.get("comparison_error_code")
+                row.error_code = (
+                    progress.get("comparison_error_code") or progress.get("synthesis_stop_reason")
+                )
             return identifier
         except SQLAlchemyError:
             # The preceding commit may already exist. Keep its durable state and let
