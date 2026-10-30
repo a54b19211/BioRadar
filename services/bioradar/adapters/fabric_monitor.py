@@ -255,7 +255,7 @@ def build_snapshot(records, *, is_demo, as_of, omitted=0):
     records = tuple(by_ref[key] for key in sorted(by_ref))
     if not records:
         return None
-    instance = "fixture" if is_demo else records[0].source_instance
+    instance = records[0].source_instance
     counts = {}
     for record in records:
         counts[record.source_id] = counts.get(record.source_id, 0) + 1
@@ -362,9 +362,18 @@ def search_records(reader, *, source_id, is_demo, term):
 
 
 def search_analysis_records(
-    reader, *, source_id, is_demo, terms, cutoff, limit=3, mode="current", run_id=None
+    reader,
+    *,
+    source_id,
+    is_demo,
+    terms,
+    cutoff,
+    limit=3,
+    mode="current",
+    run_id=None,
+    catalog_discovery=False,
 ):
-    """One source's adopted versions; the research service supplies its authorized source scope."""
+    """Read one authorized source page; catalog discovery is an explicit bounded fallback."""
     from bioradar.api.errors import DomainError
 
     if (
@@ -373,8 +382,9 @@ def search_analysis_records(
         or type(is_demo) is not bool
         or type(limit) is not int
         or not 1 <= limit <= 20
+        or type(catalog_discovery) is not bool
         or not isinstance(terms, (list, tuple))
-        or not 1 <= len(terms) <= 3
+        or (len(terms) != 0 if catalog_discovery else not 1 <= len(terms) <= 3)
         or any(not isinstance(term, str) or not 2 <= len(term.strip()) <= 120 for term in terms)
         or not isinstance(cutoff, datetime)
         or cutoff.tzinfo is None
@@ -416,6 +426,10 @@ def search_analysis_records(
         "complete": False,
         "followup_limit": limit,
         "has_more": bool(page.get("next_cursor")),
-        "search_scope": "adopted_title_or_clean_text_literal_and_not_the_web",
+        "search_scope": (
+            "bounded_original_catalog_not_keyword_match"
+            if catalog_discovery
+            else "adopted_title_or_clean_text_literal_and_not_the_web"
+        ),
     }
     return {**page, "source_id": source_id, "is_demo": is_demo, "coverage": coverage}

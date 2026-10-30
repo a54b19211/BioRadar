@@ -9,6 +9,7 @@ from bioradar.research.investigations.analysis_models import InitialQuery, Quest
 
 SCHEMA_VERSION = "query-planner.external.v1"
 BASELINE_VERSION = "bioradar-query-baseline-v1"
+INITIAL_RETRIEVAL_VERSION = "literal-language-alternatives-v1"
 _DIMENSIONS = {"tool_calls", "tokens", "relation_access"}
 _GRAPH_KINDS = {"entity_relations", "graph_neighbors", "graph_path"}
 _PENDING = {"prepared", "sent", "unknown", "unconfirmed"}
@@ -79,6 +80,21 @@ def semantic_key(kind, arguments):
     } or not isinstance(arguments, dict):
         raise DomainError("query_policy_action_invalid", "查询动作种类或参数无效", 422)
     effective = {key: value for key, value in arguments.items() if key not in _HOST_ARGUMENTS}
+    if kind == "document_search" and arguments.get("catalog_discovery") is True:
+        if (
+            arguments.get("provider") != "fabric" or arguments.get("terms") != []
+            or "query" in arguments or not isinstance(arguments.get("source_id"), str)
+            or not arguments["source_id"] or type(arguments.get("is_demo")) is not bool
+            or arguments.get("mode") not in {
+                "current", "operational_replay", "public_history_reconstruction",
+            }
+            or not isinstance(arguments.get("as_of"), str) or not arguments["as_of"]
+        ):
+            raise DomainError("query_policy_action_invalid", "目录发现缺少明确来源或固定时点", 422)
+        effective = {
+            key: arguments[key]
+            for key in ("provider", "source_id", "mode", "as_of", "is_demo", "catalog_discovery")
+        }
     if kind == "document_read":
         records = copy.deepcopy(effective.get("records"))
         if not isinstance(records, list) or not records:
@@ -143,6 +159,7 @@ def freeze_policy(settings, requested=None):
         if kdd else getattr(settings, "analysis_query_policy_max_steps", 12),
         **({
             "research_contract_version": "bioradar-research-input-v1",
+            "initial_retrieval_version": INITIAL_RETRIEVAL_VERSION,
             "action_limits": copy.deepcopy(getattr(settings, "analysis_v2_action_limits", {})),
         } if kdd else {}),
         "provider_status": status,
@@ -165,7 +182,37 @@ def validate_frozen_policy(settings, frozen):
         raise DomainError("query_policy_version_changed", "查询策略源码与本轮固定版本不同，未重选动作", 409)
 
 
+def _language_alternatives(fixed):
+    policy = fixed.get("query_policy", {})
+    return (
+        policy.get("effective") == "query_planner"
+        and policy.get("schema_version") == "query-planner.external.v2"
+        and policy.get("research_contract_version") == "bioradar-research-input-v1"
+        and policy.get("initial_retrieval_version") == INITIAL_RETRIEVAL_VERSION
+    )
+
+
 def question_plan_payload(fixed):
+    if _language_alternatives(fixed):
+        return {
+            "task": "question_plan",
+            "question": fixed["question"],
+            "search_scope": fixed["search_scope"],
+            "max_queries": min(6, fixed["budget"]["max_queries"]),
+            "retrieval_strategy_version": INITIAL_RETRIEVAL_VERSION,
+            "instruction": (
+                "在允许来源内规划最多六项独立字面查询，每项最多三个词，预算更小时按max_queries。"
+                "不同queries是依次可执行的OR备选；同一query的terms仍须全部字面同时满足（AND）。"
+                "根据问题中的实际对象或核心现象，安排原问题语言、英语等义表达及少量常用同义变体。"
+                "问题不是英语时，至少安排一个独立英语等义备选；"
+                "若对象只有固定专名或缩写且无需翻译，则保留原名并在reason说明。"
+                "绝不把不同语言或同义词强行放进同一terms要求同时出现。"
+                "优先仅用一个辨识力强的对象或核心现象词，不叠加试验类型、机制等额外限定。"
+                "只能翻译或改写问题已有含义，禁止补入问题未给的疾病、地点、年份、病例答案或文档编号。"
+                "reason说明原词与等义表达或同义变体的关系，并标明待检索假设、尚非原始事实或证据。"
+                "当前没有已读证据，不输出事实、命题或结论；一次字面查询为空不否定其余语言备选。"
+            ),
+        }
     return {
         "task": "question_plan",
         "question": fixed["question"],
@@ -191,7 +238,7 @@ def validate_initial_plans(raw, fixed):
         )
     except ValueError:
         raise DomainError("analysis_question_plan_invalid", "初查规划格式无效，未补造查询", 422) from None
-    maximum = min(6 if explicit else 2, fixed["budget"]["max_queries"])
+    maximum = min(6 if explicit or _language_alternatives(fixed) else 2, fixed["budget"]["max_queries"])
     if len(plans) > maximum:
         raise DomainError("analysis_query_budget", "初查规划超过本轮固定查询预算", 422)
     if any(plan.source_id not in fixed["search_scope"] for plan in plans):
@@ -565,11 +612,21 @@ def _category_covers(plan, checks, reading, *, normalize_gaps=False):
 
 def _candidate(plan, provider, phase, index, fixed, checks, reading):
     arguments = _action_arguments(plan, provider, phase, index, fixed)
+    hypothesis = _language_alternatives(fixed) and phase == "initial"
+    if hypothesis:
+        arguments["plan"]["reason"] = "待检索假设（非原始事实或证据）：" + plan["reason"]
     key = semantic_key("document_search", arguments)
     return {
         "id": f"{phase}-{provider}-{index}-" + key[:16],
         "kind": "document_search",
         "arguments": arguments,
+        **({
+            "reason": arguments["plan"]["reason"],
+            "applicability": {
+                "status": "eligible", "scope_match": 1,
+                "reason": "固定问题规划的独立字面备选，执行前仍核当前来源许可。",
+            },
+        } if hypothesis else {}),
         "covers": _category_covers(
             plan,
             checks,
@@ -962,6 +1019,74 @@ def document_read_candidates(fixed, progress, manifest, checks):
     return result
 
 
+
+def catalog_discovery_candidates(fixed, progress, plans, checks):
+    """One bounded source directory page only after its actual literal alternatives are empty."""
+    if not _language_alternatives(fixed) or progress.get("evidence"):
+        return []
+    history = _history(fixed, progress)
+    if any(entry["status"] in _PENDING for entry in history):
+        return []
+    initial = [_plain(plan) for plan in plans]
+    by_source = {}
+    for plan in initial:
+        if plan["source_id"] not in fixed["search_scope"]:
+            raise DomainError("analysis_query_invalid", "目录发现越过本轮授权来源", 422)
+        key = semantic_key("document_search", _action_arguments(plan, "fabric", "initial", 0, fixed))
+        by_source.setdefault(plan["source_id"], set()).add(key)
+    observed_empty, attempted_directory = set(), set()
+    for query, entry in zip(progress.get("queries", []), history, strict=False):
+        args = entry["arguments"]
+        if entry["kind"] != "document_search" or args.get("provider") != "fabric":
+            continue
+        if args.get("catalog_discovery") is True:
+            attempted_directory.add(args.get("source_id"))
+            continue
+        cost = (query.get("cost") or {}).get("tool_calls")
+        request_status = (query.get("usage") or {}).get("request_status")
+        if (
+            query.get("status") == "empty"
+            and type(query.get("returned")) is int and query["returned"] == 0
+            and type(cost) is int and cost >= 1
+            and request_status not in {"not_sent", "unknown", "unconfirmed"}
+        ):
+            observed_empty.add(semantic_key("document_search", args))
+    declared = {item["id"] for item in checks}
+    limit = fixed.get("reading_limits", {}).get("search_limit", 8)
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise DomainError("analysis_query_invalid", "目录发现页大小不在固定读取范围内", 422)
+    result = []
+    for offset, (source_id, required) in enumerate(sorted(by_source.items())):
+        if source_id in attempted_directory or not required.issubset(observed_empty):
+            continue
+        reason = (
+            "该来源的独立语言或同义备选均实际返回空，且本轮尚无已读证据；"
+            "仅发现同一授权来源、同一时点的一页固定原件，不翻页、不搜全网，所得候选仍非证据。"
+        )
+        plan = {"source_id": source_id, "terms": [], "reason": reason}
+        args = _action_arguments(plan, "fabric", "initial", len(initial) + 1 + offset, fixed)
+        args.update(
+            catalog_discovery=True, limit=limit, is_demo=fixed.get("is_demo", False),
+            scope={
+                "direction": fixed["query_policy"].get("direction", "research"),
+                "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of")),
+                "mode": fixed.get("evidence_time", {}).get("mode", "current"),
+                "is_demo": fixed.get("is_demo", False),
+            },
+        )
+        result.append({
+            "id": "catalog:" + semantic_key("document_search", args)[:32],
+            "kind": "document_search", "arguments": args,
+            "covers": [key for key in ("source_materials", "answer_scope") if key in declared],
+            "reason": reason,
+            "applicability": {
+                "status": "eligible", "scope_match": 1,
+                "reason": "仅本来源已有全部字面空回执；发送前仍核当前许可与固定时点。",
+            },
+            "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
+        })
+    return result
+
 def build_policy_context(
     fixed, progress, *, phase, plans, reading=None, provider_status=None, graph_candidates=None
 ):
@@ -1008,6 +1133,8 @@ def build_policy_context(
             relaxed = _relaxation_candidate(fixed, progress, items, stage, checks, value, originals)
             if relaxed and not any(_receipt_matches(query, relaxed) for query in queries):
                 candidates.append(relaxed)
+    initial = next((items for stage, items in stages if stage == "initial"), [])
+    candidates.extend(catalog_discovery_candidates(fixed, progress, initial, checks))
     status = provider_status or fixed.get("providers", {})
     weknora = status.get("weknora", {})
     available = weknora.get("available", False) if isinstance(weknora, dict) else bool(weknora)

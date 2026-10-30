@@ -136,7 +136,8 @@ def build_graph_candidates(settings, fixed, progress, reading, *, checks):
     if SOURCE not in scope:
         return fixed_candidates
     instance = (
-        "fixture" if fixed.get("is_demo")
+        (getattr(settings, "data_fabric_demo_source_instance", None) or "fixture")
+        if fixed.get("is_demo")
         else getattr(settings, "data_fabric_source_instance", "datafabric-test")
     )
     if SOURCE not in getattr(settings, "engine_source_id_allowlist", {}).get(instance, []):
@@ -300,10 +301,15 @@ def execute_graph_action(settings, reader, arguments, *, mode, cutoff, idempoten
     """
     if isinstance(arguments, dict) and (
         arguments.get("operation") == "resolve"
-        or isinstance(arguments.get("binding"), dict) and arguments["binding"].get("source_id") != SOURCE
+        or isinstance(arguments.get("binding"), dict)
+        and arguments["binding"].get("source_id") != SOURCE
     ):
         return execute_fixed_graph_action(
-            reader, arguments, mode=mode, cutoff=cutoff, timeout_seconds=timeout_seconds,
+            reader,
+            arguments,
+            mode=mode,
+            cutoff=cutoff,
+            timeout_seconds=timeout_seconds,
         )
     start = time.monotonic()
     extra = 0

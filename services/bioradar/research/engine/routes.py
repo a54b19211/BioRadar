@@ -235,7 +235,11 @@ def create_engine_router(settings: Settings) -> APIRouter:
             cutoff = datetime.now(UTC)
         if cutoff.tzinfo is None or cutoff.utcoffset() is None or cutoff > datetime.now(UTC):
             raise DomainError("graph_cutoff_invalid", "列表截止时间须为已有的含时区时间", 422)
-        instance = "fixture" if is_demo else settings.data_fabric_source_instance
+        instance = (
+            (settings.data_fabric_demo_source_instance or "fixture")
+            if is_demo
+            else settings.data_fabric_source_instance
+        )
         if instance not in actor.source_allowlist or source_id not in settings.engine_source_id_allowlist.get(
             instance, []
         ):

@@ -368,7 +368,10 @@ def extend_context(fixed, progress, context, reading=None):
         })
         for item in list(candidates):
             query = item.get("arguments", {})
-            if item["kind"] != "document_search" or query.get("provider") != "fabric":
+            if (
+                item["kind"] != "document_search" or query.get("provider") != "fabric"
+                or query.get("catalog_discovery") is True
+            ):
                 continue
             if query.get("source_id") not in {
                 "clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don", "sec_companyfacts",

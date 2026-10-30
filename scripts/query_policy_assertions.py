@@ -34,6 +34,133 @@ def _search_key(action):
     )
 
 
+def _catalog_discovery(view, trace, decisions, position):
+    decision = decisions[position]
+    action = decision["action"]
+    args = action["arguments"]
+    request = decision.get("policy_request") or {}
+    fixed_time = trace.get("evidence_time") or {}
+    _require(
+        trace.get("schema_version") == "query-planner.external.v2"
+        and trace.get("effective") == "query_planner"
+        and trace.get("research_contract_version") == "bioradar-research-input-v1"
+        and trace.get("initial_retrieval_version") == "literal-language-alternatives-v1"
+        and args.get("provider") == "fabric"
+        and args.get("catalog_discovery") is True
+        and args.get("terms") == []
+        and "query" not in args,
+        "empty terms are only valid for the new explicit Fabric catalog contract",
+    )
+    _require(
+        args.get("source_id") in view.get("search_scope", [])
+        and type(view.get("is_demo")) is bool
+        and args.get("is_demo") is view["is_demo"]
+        and args.get("mode") == fixed_time.get("mode")
+        and args.get("as_of") == fixed_time.get("cutoff")
+        and args.get("scope")
+        == {
+            "direction": trace.get("direction"),
+            "mode": fixed_time.get("mode"),
+            "as_of": fixed_time.get("cutoff"),
+            "is_demo": view["is_demo"],
+        }
+        and type(args.get("limit")) is int
+        and 1 <= args["limit"] <= 20
+        and action.get("estimated_cost", {}).get("tool_calls") == 1,
+        "catalog discovery changed its fixed source, time, data class or one-page limit",
+    )
+    identity = {
+        key: args[key] for key in ("provider", "source_id", "mode", "as_of", "is_demo", "catalog_discovery")
+    }
+    _require(
+        action.get("id") == "catalog:" + _hash(["document_search", identity])[:32],
+        "catalog identity changed across a phase or page-size retry",
+    )
+    _require(
+        request.get("schema_version") == "query-planner.external.v2"
+        and request.get("evidence") == []
+        and any(
+            item.get("id") == action["id"] and item.get("arguments") == args
+            for item in request.get("candidates", [])
+        ),
+        "catalog discovery lacks the actual evidence-free candidate request",
+    )
+    declared = set()
+    for earlier in decisions[:position]:
+        candidates = (earlier.get("policy_request") or {}).get("candidates", [])
+        same_source = [
+            item
+            for item in candidates
+            if item.get("kind") == "document_search"
+            and item.get("arguments", {}).get("provider") == "fabric"
+            and item["arguments"].get("source_id") == args["source_id"]
+            and item["arguments"].get("phase") == "initial"
+            and not item["arguments"].get("catalog_discovery")
+            and not item["arguments"].get("relaxed_from")
+        ]
+        if same_source:
+            declared = {_search_key(item) for item in same_source}
+            break
+    _require(bool(declared), "catalog discovery has no frozen initial language alternatives")
+    empty = set()
+    queries = view.get("queries", [])
+    for earlier in decisions[:position]:
+        prior = earlier.get("action") or {}
+        prior_args = prior.get("arguments") or {}
+        if prior.get("kind") != "document_search" or prior_args.get("provider") != "fabric":
+            continue
+        if prior_args.get("source_id") != args["source_id"]:
+            continue
+        _require(prior_args.get("catalog_discovery") is not True, "same source catalog was scanned twice")
+        key = _search_key(prior)
+        if key not in declared:
+            continue
+        saved = earlier.get("receipt") or {}
+        index = saved.get("query_index")
+        _require(type(index) is int and 0 <= index < len(queries), "initial empty response is not durable")
+        query = queries[index]
+        actual_cost = (query.get("cost") or {}).get("tool_calls")
+        _require(
+            query.get("action_id") == prior.get("id")
+            and query.get("provider") == "fabric"
+            and query.get("plan", {}).get("source_id") == args["source_id"]
+            and _terms(query.get("plan", {}).get("terms", [])) == _terms(prior_args.get("terms", []))
+            and saved.get("status") == query.get("status") == "empty"
+            and type(query.get("returned")) is int
+            and query["returned"] == 0
+            and type(actual_cost) is int
+            and actual_cost >= 1
+            and (query.get("usage") or {}).get("request_status") not in {"not_sent", "unknown", "unconfirmed"}
+            and not query.get("evidence_keys")
+            and not saved.get("evidence_ids"),
+            "catalog discovery was unlocked by a failed, unmeasured or nonempty initial response",
+        )
+        empty.add(key)
+    _require(declared <= empty, "catalog discovery skipped an initial same-source language alternative")
+    receipt = decision.get("receipt")
+    if receipt is None:
+        return
+    index = receipt.get("query_index")
+    _require(type(index) is int and 0 <= index < len(queries), "catalog receipt is not a saved query")
+    query = queries[index]
+    _require(query.get("plan", {}).get("terms") == [], "catalog actual query retained keyword terms")
+    _require(
+        query.get("scope") == "fabric_bounded_original_catalog_not_keyword_match",
+        "catalog originals were represented as keyword matches",
+    )
+    if query.get("status") in {"read", "empty"}:
+        usage = query.get("usage") or {}
+        coverage = usage.get("coverage") or {}
+        _require(
+            usage.get("catalog_discovery") is True
+            and coverage.get("complete") is False
+            and coverage.get("search_scope") == "bounded_original_catalog_not_keyword_match"
+            and coverage.get("followup_limit") == args["limit"]
+            and coverage.get("has_more") is query.get("has_more"),
+            "catalog receipt lost the actual one-page scope or truncation",
+        )
+
+
 _KDD_KINDS = {"dataset_prepare", "analysis_run", "professional_assess"}
 _ARTIFACT_KINDS = {"source_documents", "analysis_dataset", "pattern_result", "professional_assessment"}
 
@@ -758,10 +885,13 @@ def assert_query_policy(view, *, expected_policy=None, terminal=True):
             _require(
                 args.get("provider") in {"fabric", "weknora"}, "search did not select exactly one provider"
             )
-            _require(
-                bool(args.get("query")) != bool(args.get("terms")),
-                "search needs exactly one query or terms set",
-            )
+            if args.get("catalog_discovery") is True:
+                _catalog_discovery(view, trace, decisions, position)
+            else:
+                _require(
+                    bool(args.get("query")) != bool(args.get("terms")),
+                    "search needs exactly one query or terms set",
+                )
             _require(
                 action.get("estimated_cost", {}).get("tool_calls") == 1,
                 "one provider search must cost one estimated call",

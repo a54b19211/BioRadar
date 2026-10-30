@@ -34,7 +34,7 @@ def main() -> None:
         parser.error("Configure BIORADAR_DATA_FABRIC_URL with the reviewed service root")
     if (
         args.source_instance not in actor.source_allowlist
-        or args.source_instance == "fixture"
+        or args.source_instance in {"fixture", settings.data_fabric_demo_source_instance}
         or not source_ids
     ):
         parser.error("The source instance and source IDs require server authorization")

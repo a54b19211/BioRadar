@@ -551,7 +551,11 @@ def run_graph_investigation(engine, actor, reader, request, *, execution_id, cli
     cutoff = request.cutoff or datetime.now(UTC)
     if cutoff > datetime.now(UTC):
         raise DomainError("graph_future_cutoff", "图谱调查截止时间不能在未来", 422)
-    instance = "fixture" if request.is_demo else reader.source_instance
+    instance = (
+        (engine.settings.data_fabric_demo_source_instance or "fixture")
+        if request.is_demo
+        else reader.source_instance
+    )
     if (
         instance not in actor.source_allowlist
         or request.source_id not in engine.settings.engine_source_id_allowlist.get(instance, [])

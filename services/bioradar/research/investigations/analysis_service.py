@@ -2488,6 +2488,28 @@ class AnalysisService:
         for source in sources:
             self.engine.authorize_history_source(source)
 
+    def _catalog_discovery_plan(self, fixed, progress, action):
+        """Rebuild the one-page fallback from committed empty searches before sending."""
+        from bioradar.research.investigations.query_policy import catalog_discovery_candidates
+
+        observed = copy.deepcopy(progress)
+        state = observed["query_policy"]
+        pending = state.get("pending_action")
+        if pending is not None and pending.get("id") == action["id"]:
+            state["pending_action"] = None
+        observed["queries"] = [
+            query for query in observed["queries"] if query.get("action_id") != action["id"]
+        ]
+        candidates = catalog_discovery_candidates(
+            fixed, observed, state.get("initial_plans", []), state.get("checks", [])
+        )
+        for candidate in candidates:
+            if candidate["id"] == action["id"] and candidate["arguments"] == action["arguments"]:
+                return copy.deepcopy(candidate["arguments"]["plan"])
+        raise DomainError(
+            "analysis_query_invalid", "目录发现须在同来源全部关键词实际无命中后执行一次，请求未发送", 422
+        )
+
     def _execute_policy_action(self, identifier, token, fixed, progress, action, step):
         from bioradar.research.investigations.query_policy import semantic_key
 
@@ -2515,6 +2537,15 @@ class AnalysisService:
         provider = arguments.get("provider", "graph" if kind != "document_search" else "fabric")
         phase = arguments.get("phase", progress["query_policy"]["phase"])
         receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
+        catalog_plan = None
+        if "catalog_discovery" in arguments and (receipt is None or receipt["status"] == "prepared"):
+            if (
+                kind != "document_search"
+                or provider != "fabric"
+                or arguments["catalog_discovery"] is not True
+            ):
+                raise DomainError("analysis_query_invalid", "目录发现只接受明确的Fabric原件目录动作", 422)
+            catalog_plan = self._catalog_discovery_plan(fixed, progress, action)
         if receipt is None:
             if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
                 raise DomainError("analysis_query_budget", "本轮研究动作预算已用尽", 422)
@@ -2533,8 +2564,9 @@ class AnalysisService:
                     if "gap_id" in plan_data
                     else InitialQuery
                 )
-                plan = plan_type.model_validate(plan_data)
-                if plan.source_id not in fixed["search_scope"]:
+                plan = catalog_plan if catalog_plan is not None else plan_type.model_validate(plan_data)
+                source_id = plan["source_id"] if isinstance(plan, dict) else plan.source_id
+                if source_id not in fixed["search_scope"]:
                     raise DomainError("analysis_query_invalid", "策略查询超出本轮授权来源", 422)
             elif kind in {"entity_relations", "graph_neighbors", "graph_path"}:
                 plan = copy.deepcopy(arguments)
@@ -2551,7 +2583,9 @@ class AnalysisService:
                 semantic_key=semantic_key(kind, arguments),
                 decision_step=step,
                 status="prepared",
-                scope="fixed_graph_background_not_research_evidence"
+                scope="fabric_bounded_original_catalog_not_keyword_match"
+                if catalog_plan is not None
+                else "fixed_graph_background_not_research_evidence"
                 if provider == "fabric_graph"
                 else "weknora_candidates_bound_to_authorized_fabric_versions"
                 if provider == "weknora"
@@ -2652,7 +2686,13 @@ class AnalysisService:
                             mode=mode,
                             limit=reading_limits(fixed)["search_limit"],
                             run_id=fixed.get("evidence_time", {}).get("run_id"),
+                            catalog_discovery=arguments.get("catalog_discovery") is True,
                         )
+                        if arguments.get("catalog_discovery") is True:
+                            receipt["usage"] = {
+                                "catalog_discovery": True,
+                                "coverage": copy.deepcopy(found["coverage"]),
+                            }
                         receipt.update(
                             status="read" if found["items"] else "empty",
                             records=copy.deepcopy(found["items"]),

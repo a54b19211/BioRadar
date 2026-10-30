@@ -36,6 +36,7 @@ def graph_reader(settings):
             max_bytes=8_000_000,
             max_seconds=60,
             source_instance=settings.data_fabric_source_instance,
+            demo_source_instance=settings.data_fabric_demo_source_instance,
         )
 
 

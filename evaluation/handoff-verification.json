@@ -491,14 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-30T18:18:21.596487+00:00",
-    "status": "isolated_code_ready_for_coordinated_real_acceptance",
-    "details": "natural_materials_coordination_20261031",
+    "checked_at": "2026-10-30T18:56:59.328425+00:00",
+    "status": "isolated_patch_reviewed_ready_for_fresh_R2",
+    "details": "r2_connectivity_fixes_20261031",
     "source_roots": {
       "radar": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar"
     },
-    "scope": "Engineering changes and targeted fault recovery verified; new real-data acceptance remains separate.",
-    "deployment_evidence": "Only isolated zktest Radar worktree changed; no main merge, production deployment, external repository mutation or restored 4022 checkout."
+    "scope": "Configured demo namespace, language alternatives, bounded original catalog and durable recovery verified. R2 real outcomes are recorded separately.",
+    "deployment_evidence": "Same isolated Radar branch only; no production/main merge, no upstream edits, no restored 4022 source copy."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -6215,5 +6215,89 @@
       "scope": "A/B/C/M directed comparisons, strict public-history D and accelerated lifecycle cases are coordinated externally. This entry does not claim scientific PASS."
     },
     "deployment": "Only isolated zktest Radar worktree changed; no main merge, production deployment, external repository mutation or restored 4022 checkout."
+  },
+  "r2_connectivity_fixes_20261031": {
+    "checked_at": "2026-10-30T18:56:59.328425+00:00",
+    "status": "isolated_patch_reviewed_ready_for_fresh_R2",
+    "branch": "codex/radar-kdd-20261030",
+    "code_root": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar",
+    "base_commit": "4b05ba14a934552a979eb653c5c9ea7add2520d8",
+    "evidence_archive": "/home/zk_test/zk_projects/.bioradar-kdd-integration/acceptance-20261031/engineering/r2-connectivity",
+    "changes": [
+      "Use configured demo source instance consistently through monitor, fixed snapshots and graph access; retain fixture only as the unset default.",
+      "Freeze literal-language-alternatives-v1 only for new v2 investigations; retain baseline and flag-absent historical prompt/ordering.",
+      "Execute independent language alternatives as separate literal AND searches; mark proposed words as retrieval hypotheses.",
+      "Only after all same-source alternatives have actual empty responses and no evidence, allow one bounded original-catalog page with identical authorized source, mode, cutoff and data class.",
+      "Replay durable returned catalog originals through the existing adoption path, without another catalog request or repeated question-plan call.",
+      "Independent receipt checker recognizes only the explicit new catalog contract and rejects forged scope, status, coverage and ordinary empty searches."
+    ],
+    "checks": {
+      "demo_namespace_pg_rq_http": {
+        "passed": 6,
+        "skipped": 0,
+        "log": "namespace-runtime-regression.log"
+      },
+      "initial_language_native_selector_mock_http": {
+        "passed": 42,
+        "skipped": 0,
+        "log": "initial-language-regression.log"
+      },
+      "catalog_language_and_received_recovery_pg": {
+        "passed": 3,
+        "skipped": 0,
+        "log": "catalog-runtime-regression.log"
+      },
+      "legacy_namespace_test_double": {
+        "initial_failed": 1,
+        "cause": "Old SimpleNamespace test double omitted the existing Settings demo-source field.",
+        "fixed_passed": 1,
+        "logs": [
+          "namespace-legacy-permission-regression.log",
+          "namespace-legacy-permission-fixed.log"
+        ]
+      },
+      "independent_checker": {
+        "passed": 1,
+        "log": "c-catalog-final-pure.log",
+        "scope": "Explicit catalog success and ten corrupted-receipt controls; synthetic source responses.",
+        "review_fix": "Independent reviewer found saved catalog plan terms were not checked; final checker now rejects nonempty saved terms."
+      },
+      "affected_ruff": {
+        "exit_code": 0,
+        "log": "r2-connectivity-affected-lint.log"
+      },
+      "diff_check": {
+        "exit_code": 0,
+        "log": "r2-connectivity-diff-check.log"
+      },
+      "qualification": "Some targeted runs overlap; do not sum counts or label engineering checks as scientific success. Previous full checks remain under natural_materials_coordination_20261031; no new full paid matrix."
+    },
+    "actual_query_planner": {
+      "commit": "17c1414797e7528d6028d98d52c774a1d2005d4b",
+      "provider_version": "28820b480c9ba345937fb4051899c8b3e02cb74490af7306f20e521c41c063dd",
+      "kdd_source_sha256": "a17f02c507173d8edde5c4e18c9382c7251430946d55d6f345a952a43ec33e7b",
+      "qualification": "Native checks ran the reviewed source before its final commit; final file hash matches."
+    },
+    "coordinator_announced_biocheck_r2": {
+      "commit": "e116509d6b8298ef0c4d0924efe366579c252eef",
+      "provider_version": "4dc40d8cc1eb4bb7761110c7189bc89bfeed86b082829738cd8f4118e6881a72",
+      "qualification": "Coordinator verified the R2 service and froze this version; this Radar patch required no adapter change and made no new paid model call."
+    },
+    "cross_review": {
+      "status": "accepted_by_nonauthor_GPT_6_1_SOL",
+      "records": [
+        "c-demo-namespace-nonauthor-review.json",
+        "c-initial-language-nonauthor-review.json",
+        "b-catalog-runtime-nonauthor-review.json",
+        "c-catalog-policy-final-handoff.json",
+        "b-catalog-checker-nonauthor-review.json"
+      ]
+    },
+    "real_acceptance": {
+      "status": "handoff_for_fresh_coordinator_R2",
+      "previous_attempt": "R1 failed/needs-review results and paid call receipts are preserved; no old database result is rewritten.",
+      "scope": "This change verifies runtime connectivity and bounded recovery with actual PostgreSQL/RQ and synthetic HTTP/model responses. New real research outcomes belong to separate R2 records."
+    },
+    "deployment": "Same isolated Radar branch only; no production/main merge, no upstream edits, no restored 4022 source copy."
   }
 }

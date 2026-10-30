@@ -216,7 +216,11 @@ class MonitorService:
         return self.online_ids
 
     def permitted(self, *, online=True):
-        instance = "fixture" if self.settings.monitor_is_demo else self.settings.data_fabric_source_instance
+        instance = (
+            (self.settings.data_fabric_demo_source_instance or "fixture")
+            if self.settings.monitor_is_demo
+            else self.settings.data_fabric_source_instance
+        )
         if instance not in self.actor.source_allowlist:
             return set()
         local = set(self.settings.engine_source_id_allowlist.get(instance, []))

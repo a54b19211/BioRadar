@@ -116,7 +116,10 @@ class EngineService:
             raise DomainError("permission_denied", "开发授权上下文不匹配", 403)
         if snapshot.source_instance not in actor.source_allowlist:
             raise DomainError("source_not_authorized", "来源不在当前开发采用许可范围", 403)
-        if (snapshot.source_instance == "fixture") != snapshot.is_demo:
+        demo_instance = self.settings.data_fabric_demo_source_instance or "fixture"
+        if (snapshot.is_demo and snapshot.source_instance != demo_instance) or (
+            not snapshot.is_demo and snapshot.source_instance in {"fixture", demo_instance}
+        ):
             raise DomainError("fixture_scope_mismatch", "测试材料与真实来源采用必须分开", 422)
         if not snapshot.records:
             raise DomainError("snapshot_empty", "未取得可采用记录，不能创建空成功快照", 422)

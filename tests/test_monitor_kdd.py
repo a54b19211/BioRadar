@@ -36,7 +36,9 @@ pytestmark = pytest.mark.ENGINE
 
 def monitor_stub(mapping=None):
     value = MonitorService.__new__(MonitorService)
-    value.settings = SimpleNamespace(engine_max_records=2000, monitor_kdd_directions=mapping or {})
+    value.settings = SimpleNamespace(
+        engine_max_records=2000, monitor_kdd_directions=mapping or {}, data_fabric_demo_source_instance=None
+    )
     return value
 
 

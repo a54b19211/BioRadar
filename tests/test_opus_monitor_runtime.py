@@ -38,8 +38,9 @@ def test_batch_cap_survives_repoll_and_restart_and_topic_has_its_own_pool(runtim
         assert sum(r.response_body["batch_id"] == "batch-one" for r in rows) == 1
 
 
+@pytest.mark.parametrize("demo_namespace", [None, "explicit-simulation-namespace"])
 def test_normal_monitor_discovery_rq_queues_automatic_topics_and_admits_after_manual_close(
-    runtime, monkeypatch
+    runtime, monkeypatch, demo_namespace
 ):
     import os
     from uuid import uuid4
@@ -55,9 +56,15 @@ def test_normal_monitor_discovery_rq_queues_automatic_topics_and_admits_after_ma
     from test_monitor import record
 
     factory, source, settings = runtime
+    if demo_namespace:
+        settings.data_fabric_demo_source_instance = demo_namespace
+        settings.engine_source_allowlist = [demo_namespace]
+        settings.engine_source_id_allowlist = {demo_namespace: ["fixture-source"]}
 
     def make():
-        return factory(legacy=False)
+        monitor = factory(legacy=False)
+        monitor.reader.demo_source_instance = demo_namespace
+        return monitor
 
     redis_url = os.environ.get("BIORADAR_ENGINE_TEST_REDIS_URL")
     assert redis_url, "Dedicated real test Redis is required for this RQ regression"
@@ -106,6 +113,12 @@ def test_normal_monitor_discovery_rq_queues_automatic_topics_and_admits_after_ma
             assert run.state in {"completed", "partial"}, (run.error_code, diagnostics)
             assert run.policy["discovery_directions"] == ["research", "pipeline", "business", "public_health"]
             result_hash = run.result_hash
+            adopted = monitor.engine.get_snapshot(monitor.actor, run.snapshot_id)
+            assert adopted.snapshot.source_instance == (demo_namespace or "fixture")
+            assert all(
+                record.source_instance == adopted.snapshot.source_instance
+                for record in adopted.snapshot.records
+            )
         make().tick()
         with Session(monitor.engine.database) as session:
             leads = list(session.scalars(select(MonitorLead)))
@@ -115,6 +128,7 @@ def test_normal_monitor_discovery_rq_queues_automatic_topics_and_admits_after_ma
             waiting_id, intent_key = waiting[0].id, waiting[0].payload["auto_topic"]["key"]
             scope = session.scalar(select(TopicScopeRecord))
             topic_id, revision = scope.topic_id, scope.control_revision
+            assert scope.definition["source_instance"] == (demo_namespace or "fixture")
         topics = TopicService(monitor.engine, monitor.reader)
         topics.control(
             topics.actor,
