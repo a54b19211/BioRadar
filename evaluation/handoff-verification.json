@@ -491,14 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-30T19:36:53.048974+00:00",
-    "status": "isolated_runtime_repairs_reviewed_ready_for_fresh_main_R3",
-    "details": "r3_runtime_protocol_fixes_20261031",
+    "checked_at": "2026-10-30T22:24:32.366590+00:00",
+    "status": "engineering_reviewed_ready_for_fresh_R4",
+    "details": "r4_coordinated_defect_fixes_20261031",
     "source_roots": {
       "radar": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar"
     },
-    "scope": "Bounded reference repair, graph metadata event consumption, typed receipts and safe diagnostics verified with existing PG/RQ and zero new commercial-model calls.",
-    "deployment_evidence": "Only current isolated Radar branch modified. Live strict-D and social R2 workers remain on their frozen 5c8e420 code. No old failed record, monitor cursor, production service or upstream repo was changed."
+    "scope": "Confirmed R3 defects corrected, nonauthor SOL reviewed, and actual a008 R4 target verified. Legacy real receipts replay exactly; native inputs and existing PostgreSQL/RQ fault paths pass. Fresh real R4 research is separate.",
+    "deployment_evidence": "Final code prepared on isolated F; existing branch can fast-forward after documentation commit. No old task or production service changed."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -6564,5 +6564,191 @@
       "c-a-topic-risk-service-nonauthor-review.json": "571b36b48530fd9488ddeaea9d1e2ca54d51ca8f1eb7ad4972cad3687de179ef",
       "a-c-final-assessment-nonauthor-review.json": "01fe2437475e7d87732bd4d11f37c00bb2377cc1e0c2cf8cb4cc01f0e60d4624"
     }
+  },
+  "r4_coordinated_defect_fixes_20261031": {
+    "checked_at": "2026-10-30T22:24:32.366590+00:00",
+    "status": "engineering_reviewed_ready_for_fresh_R4",
+    "code_commit": "6c3fb20653758929d0ad3178369e761c9d4cb92a",
+    "base_commit": "bb0e9aac6d3b66fe155638ae81dcd36d1da56a34",
+    "commits": [
+      {
+        "commit": "d4d0de53ef2c1328a337740f93b970ca477e1489",
+        "change": "Correct professional generation budget forecast"
+      },
+      {
+        "commit": "4dc13cf85b5c594b9cb26b6a06153232b28c8518",
+        "change": "Preserve structured quality gaps in research checks"
+      },
+      {
+        "commit": "b184f4e952892809c2865c082bc6afca48e90d7a",
+        "change": "Repair final references once and retain unfinished source-bound readings"
+      },
+      {
+        "commit": "93ca44ee424a767c3d4e239e0256900f97f63f1b",
+        "change": "Keep unmet parent checks on bounded continuation queries"
+      },
+      {
+        "commit": "546ddfb576528f94809647acef866d5a585f1bb1",
+        "change": "fix(monitor): adopt discovery vectors within explicit source scopes"
+      },
+      {
+        "commit": "b2a116140e2c090559626c6204bfcacf5cb265cb",
+        "change": "fix(biocheck): declare adopted windows and native audit input"
+      },
+      {
+        "commit": "48fa117bbda558e05e30d2d192b48b4ab3e12135",
+        "change": "Bind versioned narrative observations to literal business context"
+      },
+      {
+        "commit": "6c3fb20653758929d0ad3178369e761c9d4cb92a",
+        "change": "Freeze and propagate reviewed narrative and professional input contracts"
+      },
+      {
+        "commit": "1422e3bc2ea3937888c4515c459ccbefc38e57e1",
+        "change": "Exercise reading recovery with a receipt-bound synthetic source",
+        "scope": "test fixture only; production behavior unchanged"
+      }
+    ],
+    "changes": [
+      "Professional plan/write forecasts count actual native model fields and wire envelope; complete host evidence map retained without duplicate reservation.",
+      "Structured quality reasons survive as lossless textual coverage checks; original gaps preserved.",
+      "One final reference repair slot; known failures can retain the exact source-bound prior reading as unfinished needs_review, without a professional report.",
+      "Continuation candidates inherit only still-unmet declared parent checks, with original query/cursor/scope and original scoring/limits.",
+      "Single/multiple direction monitors adopt complete fixed document vectors using explicit authorized source scopes; graph/failures remain in population.",
+      "Versioned literal business observations bind complete numeric tokens, units, periods, subject and roles; old v1 wire/cache preserved.",
+      "Native BioCheck sees honest adopted windows and receives exactly its declared selected-support audit input for future tasks.",
+      "New task versions freeze at admission; old packets, requests, signatures and received outputs stay unchanged."
+    ],
+    "required_checks": {
+      "make test CARD=BOOT": {
+        "passed": 43,
+        "skipped": 0
+      },
+      "make lint": {
+        "exit_code": 0
+      },
+      "make contract-check": {
+        "exit_code": 0
+      },
+      "make web-check": {
+        "exit_code": 0
+      }
+    },
+    "targeted_checks": {
+      "budget": {
+        "passed": 12,
+        "actual_received_wire_hashes_reconstructed": 9
+      },
+      "structured_quality": {
+        "passed": 17,
+        "real_DC01_raw_gaps_unchanged": 13,
+        "real_received_calls_unchanged": 7
+      },
+      "final_references": {
+        "pure_passed": 44,
+        "actual_PostgreSQL_passed": 6,
+        "actual_prior_reading_bases_proven": 2,
+        "eligibility": "Retained draft requires a reconstructable original received reading basis and exact source version/text/fingerprint; unknown or mismatched bases are not substituted."
+      },
+      "pagination": {
+        "passed": 11,
+        "actual_SRT3_step7_zero_call_proof": "gap:G1 recovered; query/cursor/scope unchanged"
+      },
+      "monitor_features": {
+        "passed": 27,
+        "controlled_population": 102,
+        "controlled_vectors": 101,
+        "request_groups": [
+          100,
+          1
+        ],
+        "native_clustering": "exploratory_only/success"
+      },
+      "business_v2": {
+        "passed": 36,
+        "scientific_or_business_accuracy_claimed": false
+      },
+      "declared_biocheck_inputs": {
+        "native_pure_passed": 14
+      },
+      "integrated_host": {
+        "passed": 36,
+        "actual_PostgreSQL_and_RQ": true,
+        "provider_transport": "controlled local HTTP callbacks"
+      },
+      "actual_legacy_replay": {
+        "analysis": "822e94c3-d95b-4375-b2f5-7e652667f1f1",
+        "packet_payload_signature_audit_exact": true,
+        "original_state": "failed",
+        "original_report_status": "REVIEW",
+        "HTTP_model_DB_attempts": 0
+      },
+      "note": "Counts describe individual check groups and may overlap; they are not summed as unique tests. Native method checks and PG/RQ transport checks have distinct scopes.",
+      "R4_target_query_planner": {
+        "commit": "a008894949f55c52c577150885bcc09be39cb5ac",
+        "related_cases_passed": 33,
+        "initial_log": "r4-target-a008-integration.log",
+        "initial_result": "32 passed, one test-source response lacked pagination coverage.max_seq",
+        "resolved_fixture_only": "Test source can opt into a sequence computed from its actual records; fault occurs only after an actual second material. Exact two-material/original-reading/hash/one-repair/zero-repeat assertions retained.",
+        "target_resolved_log": "r4-a008-optional-reading-source-contract.log",
+        "same_fixture_received_recovery_log": "r4-a008-reading-received-source-contract.log",
+        "legacy_same_case_log": "r4-a617-legacy-optional-reading-source-contract.log",
+        "product_code_changed_for_this_check": false,
+        "independent_native_crossrepo": {
+          "cases": 10,
+          "valid_native_outputs": 9,
+          "hard_rejected_scope_drift": 1,
+          "receipt": "r4-planner-a008-crossrepo-probe/receipt.json",
+          "sha256": "48a53b9d8ac8a6bf22d0fc67ab886ca707f49f6a0d468f27f19ab869e9b1c69a"
+        },
+        "earlier_a617_evidence": "legacy compatibility only; not a substitute for target a008 verification",
+        "status": "passed_and_independently_reviewed"
+      }
+    },
+    "actual_versions": {
+      "native_biocheck_commit": "478be0be85e813d4f30ae0ed4eb5912b16fad119",
+      "native_biocheck_rpc_provider": "e003bb5e08f9a53dc11ff1746bdf6844e8967a8421ee392510576a29abf3514b",
+      "native_biocheck_local_method_hash": "ae8285db9c48d86b79a05fbf9fc021395596472c267952ffebd3221af3062caf",
+      "configured_mechevidence_commit": "5aa38a9b88910f9125c706b729895865068d98d6",
+      "legacy_actual_biocheck_provider": "4b097ec6fe8c9cf31b17590fa3bc49a6f391b1679617801989bb6ea78fc25dcd",
+      "note": "Native test versions, configured component revisions and the historical real receipt provider are distinct. No new commercial-model investigation was run by this fix batch. Early native routing logs used a617 in the legacy directory; R4 routing, protocol and PG integration were separately revalidated against frozen a008. This does not change the actual historical R3 dependency.",
+      "legacy_native_query_planner_commit": "a617dfccf8908fd6c8fbffb0be8bbccfb9a147e5",
+      "target_native_query_planner_commit": "a008894949f55c52c577150885bcc09be39cb5ac",
+      "target_native_query_planner_path": "/home/zk_test/zk_projects/.bioradar-opus-validation-20261031/query-planner-r3"
+    },
+    "future_query_policy_fields": {
+      "final_reference_repair_version": "bioradar-synthesis-reference-repair-v1",
+      "pagination_cover_version": "fabric-parent-gap-pagination-v1",
+      "narrative_contract_version": "literal-narrative-observations-v2",
+      "biocheck_input_version": "adopted-window-declared-audit-v1"
+    },
+    "runtime_configuration": {
+      "demo": "Existing explicit isolated demo KB and simulation source_scope suffice; no new direction grant or feature scope map required.",
+      "real": "BIORADAR_WEKNORA_KDD_FEATURE_SOURCE_SCOPES is a source_id to existing authorized source_scope JSON map, default {}; no real permission is inferred.",
+      "preserved": "Existing 100-member feature groups, complete population, fixed version/raw/text/model guards and total research budgets.",
+      "upstream_R4": "Coordinator owns new BioCheck 19062, Fabric 19064 and WeKnora 19063 runtime registries."
+    },
+    "reviews": {
+      "budget": "b-budget-reserve-fix-nonauthor-review.json",
+      "structured_quality": "c-r3-quality-gap-nonauthor-review.json",
+      "references_pure": "b-r3-retained-reference-nonauthor-review.json",
+      "references_host": "c-r3-final-reference-host-nonauthor-review.json",
+      "pagination": "a-pagination-parent-gaps-nonauthor-review.json",
+      "monitor_features": "b-monitor-feature-scopes-nonauthor-review.json",
+      "business": "a-business-observation-v2-nonauthor-review.json",
+      "biocheck_adapter": "b-biocheck-declared-inputs-nonauthor-review.json",
+      "future_input_host": "a-biocheck-host-input-nonauthor-review.json",
+      "reviewers": "GPT-6.1 SOL nonauthors, as requested; concrete findings corrected before acceptance.",
+      "target_query_planner": "a-r4-a008-target-nonauthor-review.json"
+    },
+    "evidence_archive": "/home/zk_test/zk_projects/.bioradar-kdd-integration/acceptance-20261031/engineering/r4-coordinated-fixes",
+    "new_paid_model_calls": 0,
+    "preserved": [
+      "R1/R2/R3 source snapshots, original requests and receipts, failures and scientific REVIEW/FAIL outcomes",
+      "Frozen R3 bb0 source and data",
+      "Existing main/production services"
+    ],
+    "next": "Coordinator freezes final Radar commit and executes the original real R4 tasks in new independent databases. Engineering pass is not a scientific PASS.",
+    "test_compatibility_commit": "1422e3bc2ea3937888c4515c459ccbefc38e57e1"
   }
 }
