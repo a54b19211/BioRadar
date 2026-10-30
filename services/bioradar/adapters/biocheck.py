@@ -103,8 +103,61 @@ def _value(value):
     return value.model_dump(mode="json") if hasattr(value, "model_dump") else copy.deepcopy(value)
 
 
-def build_packet(question, evidence, assessment=None):
+BIOCHECK_INPUT_VERSION = "adopted-window-declared-audit-v1"
+
+
+def _adopted_input_version(value):
+    if value is None:
+        return False
+    if value != BIOCHECK_INPUT_VERSION:
+        raise DomainError("biocheck_input_version_invalid", "固定专业输入版本不受支持", 422)
+    return True
+
+
+def _adopted_source_window(item, text):
+    start, end, length = item.get("start"), item.get("end"), item.get("source_length")
+    if start is not None or end is not None:
+        if type(start) is not int or type(end) is not int or start < 0 or end - start != len(text):
+            raise DomainError("provider_input_invalid", "采用窗口未对应实际文本区间", 422)
+    if length is not None and (
+        type(length) is not int or length < len(text) or end is not None and end > length
+    ):
+        raise DomainError("provider_input_invalid", "采用窗口越过已知原文长度", 422)
+    return {
+        "start": start,
+        "end": end,
+        "source_length": length,
+        "offset_basis": "unicode_code_points" if start is not None else None,
+        "text_basis": item.get("text_basis"),
+        "adopted_text_length": len(text),
+        "text_sha256": hashlib.sha256(text.encode()).hexdigest(),
+        "source_text_sha256": item.get("text_sha256"),
+        "hash_scope": "adopted_packet_text",
+    }
+
+
+def _adopted_source_context(entry, item, facts, text):
+    context = copy.deepcopy(entry.get("source_context") or {})
+    level = context.get(
+        "original_text_level",
+        context.get(
+            "text_level", item.get("text_level", facts.get("text_level") if isinstance(facts, dict) else None)
+        ),
+    )
+    if context.get("source_window") is not None:
+        context.setdefault("original_source_window", copy.deepcopy(context["source_window"]))
+    context.update(
+        original_text_level=level,
+        adopted_text_level="selected_passages",
+        text_level="selected_passages",
+        source_window=_adopted_source_window(item, text),
+    )
+    return context
+
+
+def build_packet(question, evidence, assessment=None, *, input_version=None):
     """Keep exact selected text, versions and a reversible Radar reference mapping."""
+    versioned = _adopted_input_version(input_version)
     if not isinstance(question, str) or not question.strip():
         raise DomainError("provider_input_invalid", "共享研究输入缺少问题", 422)
     items, references = [], {}
@@ -189,6 +242,9 @@ def build_packet(question, evidence, assessment=None):
                 entry[name] = copy.deepcopy(facts[name])
             elif name in item:
                 entry[name] = copy.deepcopy(item[name])
+        if versioned:
+            entry["source_context"] = _adopted_source_context(entry, item, facts, text)
+            entry["text_level"] = "selected_passages"
         items.append(entry)
         references[key] = {
             name: copy.deepcopy(item[name])
@@ -619,8 +675,9 @@ def support_audit_targets(review):
     ]
 
 
-def audit_biocheck_support(settings, packet, review, call, *, targets=None, loaded=None):
+def audit_biocheck_support(settings, packet, review, call, *, targets=None, loaded=None, input_version=None):
     """Audit selected support independently, preserving the exact draft and old verification."""
+    versioned = _adopted_input_version(input_version)
     core, version = load_biocheck(settings) if loaded is None else loaded
     binding = {
         "provider": "biocheck",
@@ -653,7 +710,8 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
         try:
             assessment = packet.get("assessment")
             if (
-                stage == "support_audit"
+                not versioned
+                and stage == "support_audit"
                 and isinstance(payload, dict)
                 and isinstance(assessment, dict)
                 and ("research_scope" in assessment or "source_updates" in assessment)
