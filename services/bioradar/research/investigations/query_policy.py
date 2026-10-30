@@ -12,6 +12,7 @@ BASELINE_VERSION = "bioradar-query-baseline-v1"
 INITIAL_RETRIEVAL_VERSION = "literal-language-alternatives-v1"
 BOUNDED_INITIAL_VERSION = "literal-language-budget-v2"
 PAGINATION_VERSION = "fabric-receipt-bound-pagination-v1"
+PAGINATION_COVER_VERSION = "fabric-parent-gap-pagination-v1"
 _DIMENSIONS = {"tool_calls", "tokens", "relation_access"}
 _GRAPH_KINDS = {"entity_relations", "graph_neighbors", "graph_path"}
 _PENDING = {"prepared", "sent", "unknown", "unconfirmed"}
@@ -191,6 +192,7 @@ def freeze_policy(settings, requested=None):
                 "research_contract_version": "bioradar-research-input-v1",
                 "initial_retrieval_version": BOUNDED_INITIAL_VERSION,
                 "pagination_version": PAGINATION_VERSION,
+                "pagination_cover_version": PAGINATION_COVER_VERSION,
                 "professional_retry_version": "biocheck-contract-repair-v1",
                 "final_assessment_version": "bioradar-research-final-v1",
                 "final_reference_repair_version": "bioradar-synthesis-reference-repair-v1",
@@ -1124,6 +1126,42 @@ def document_read_candidates(fixed, progress, manifest, checks):
     return result
 
 
+def _pagination_covers(fixed, progress, previous, checks):
+    """A continuation retains only still-unmet checks of its recorded parent action."""
+    declared = {item["id"]: item for item in checks}
+    covers = [key for key in ("source_materials", "answer_scope") if key in declared]
+    if fixed.get("query_policy", {}).get("pagination_cover_version") != PAGINATION_COVER_VERSION:
+        return covers
+    entries = [
+        entry for entry in progress.get("query_policy", {}).get("decisions", [])
+        if (_selected_action(entry) or {}).get("id") == previous["action_id"]
+    ]
+    queries = [q for q in progress.get("queries", []) if q.get("action_id") == previous["action_id"]]
+    if len(entries) != 1 or len(queries) != 1:
+        return covers
+    parent = _selected_action(entries[0])
+    query, args = queries[0], parent["arguments"]
+    if (
+        parent["kind"] != "document_search"
+        or not _receipt_matches(query, parent)
+        or any(query.get("plan", {}).get(key) != args.get(key) for key in ("source_id", "terms"))
+        or semantic_key(parent["kind"], args) != semantic_key(previous["kind"], previous["arguments"])
+    ):
+        return covers
+    original_checks = {
+        item["id"] for item in (entries[0].get("policy_request") or {}).get("checks", [])
+    }
+    for key in parent.get("covers", []):
+        if (
+            key in original_checks
+            and key in declared
+            and declared[key]["status"] != "passed"
+            and key not in covers
+        ):
+            covers.append(key)
+    return covers
+
+
 def pagination_candidates(fixed, progress, checks):
     """Offer only the exact next page returned by a completed, fixed Fabric query."""
     if not pagination_enabled(fixed):
@@ -1132,7 +1170,6 @@ def pagination_candidates(fixed, progress, checks):
     if any(entry["status"] in _PENDING for entry in history):
         return []
     attempted = {semantic_key(entry["kind"], entry["arguments"]) for entry in history}
-    declared = {item["id"] for item in checks}
     candidates = []
     for previous in history:
         page, args = previous.get("pagination") or {}, previous["arguments"]
@@ -1183,7 +1220,7 @@ def pagination_candidates(fixed, progress, checks):
                 "id": "page:" + identity[:32],
                 "kind": "document_search",
                 "arguments": next_args,
-                "covers": [key for key in ("source_materials", "answer_scope") if key in declared],
+                "covers": _pagination_covers(fixed, progress, previous, checks),
                 "reason": reason,
                 "applicability": {"status": "eligible", "scope_match": 1, "reason": reason},
                 "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
