@@ -37,7 +37,11 @@ pytestmark = pytest.mark.ENGINE
 def monitor_stub(mapping=None):
     value = MonitorService.__new__(MonitorService)
     value.settings = SimpleNamespace(
-        engine_max_records=2000, monitor_kdd_directions=mapping or {}, data_fabric_demo_source_instance=None
+        engine_max_records=2000,
+        monitor_kdd_directions=mapping or {},
+        weknora_kdd_feature_source_scopes={},
+        weknora_kdd_knowledge_base_id="SYNTHETIC-real-kb",
+        data_fabric_demo_source_instance=None,
     )
     return value
 
@@ -267,11 +271,15 @@ def test_feature_adoption_groups_full_fixed_scope_and_preserves_graph_and_failur
     monitor = monitor_stub(
         {"research-source": "research", "pipeline-source": "pipeline", "graph-source": "pipeline"}
     )
+    monitor.settings.weknora_kdd_feature_source_scopes = {
+        "research-source": "research-vectors",
+        "pipeline-source": "clinical-vectors",
+    }
     observed = []
 
     def features(settings, scope, *, direction):
         observed.append((direction, [row.source_id for row in scope.records]))
-        if fail_pipeline and direction == "pipeline":
+        if fail_pipeline and direction == "clinical-vectors":
             raise DomainError("synthetic_feature_unavailable", "synthetic unavailable", 502)
         records = tuple(
             row.model_copy(
@@ -299,7 +307,8 @@ def test_feature_adoption_groups_full_fixed_scope_and_preserves_graph_and_failur
     enriched, receipt = monitor._feature_snapshot(
         data, {"evidence": [{"record_kind": "graph", "ref_key": list(rows[2].record_ref.version_key)}]}
     )
-    assert observed == [("pipeline", ["pipeline-source"]), ("research", ["research-source"])]
+    assert observed == [("clinical-vectors", ["pipeline-source"]), ("research-vectors", ["research-source"])]
+    assert any(item["reason"] == "feature_source_scope_not_configured" for item in receipt["excluded"])
     assert [row.record_ref for row in enriched.records] == [row.record_ref for row in data.records]
     assert enriched.records[0].embedding is not None
     assert (enriched.records[1].embedding is None) is fail_pipeline
@@ -315,7 +324,8 @@ def test_feature_adoption_groups_full_fixed_scope_and_preserves_graph_and_failur
     assert data.model_dump(mode="json") == before
 
 
-def test_adopted_feature_snapshot_recovery_does_not_repeat_provider_read():
+@pytest.mark.parametrize("discovery", [False, True])
+def test_adopted_feature_snapshot_recovery_does_not_repeat_provider_read(discovery):
     from test_weknora_kdd import fixed_snapshot
 
     snapshot = fixed_snapshot()
@@ -325,7 +335,9 @@ def test_adopted_feature_snapshot_recovery_does_not_repeat_provider_read():
     saved = {}
     payload = {
         "snapshot": snapshot.model_dump(mode="json"),
-        "policy": policy("research").model_dump(mode="json"),
+        "policy": (
+            monitor._mining_policy("unconfigured", AS_OF) if discovery else policy("research")
+        ).model_dump(mode="json"),
     }
     calls = []
 
@@ -347,12 +359,15 @@ def test_adopted_feature_snapshot_recovery_does_not_repeat_provider_read():
     monitor._saved_response = lambda operation, key: saved.get((operation, key))
     monitor._save_batch = lambda identifier, **values: saved.update(values)
     monitor.engine = SimpleNamespace(
-        adopt_snapshot=adopt, create_run=create, dispatch=lambda identifier: None
+        _authorize_snapshot=lambda actor, current: calls.append("authorize"),
+        adopt_snapshot=adopt,
+        create_run=create,
+        dispatch=lambda identifier: None,
     )
     monitor._adopt_and_queue("synthetic-batch", payload)
     assert "feature_adoption" in saved["payload"]
     monitor._adopt_and_queue("synthetic-batch", saved["payload"])
-    assert calls == ["features", "adopt", "create"]
+    assert calls == ["authorize", "features", "adopt", "create"]
 
 
 def test_kdd_projection_uses_fabric_fixed_text_and_legacy_keeps_abstract():

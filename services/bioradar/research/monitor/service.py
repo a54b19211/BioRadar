@@ -1119,42 +1119,54 @@ class MonitorService:
 
     def _feature_snapshot(self, snapshot, payload):
         """Read every eligible fixed member in source scopes, retaining the complete window."""
-        from bioradar.adapters.weknora_kdd import features_for_snapshot
+        from bioradar.adapters.weknora_kdd import features_for_snapshot, retrieval_scope
 
-        mapping = self.settings.monitor_kdd_directions
+        mapping = self.settings.weknora_kdd_feature_source_scopes
         graph_versions = {
             tuple(item["ref_key"])
             for item in payload.get("evidence", [])
             if item.get("record_kind") == "graph"
         }
-        groups, excluded = defaultdict(list), []
+        groups, scopes, excluded = defaultdict(list), {}, []
         by_ref = {row.record_ref.version_key: row for row in snapshot.records}
         gaps = set(snapshot.metadata_gaps)
         for row in snapshot.records:
-            direction = mapping.get(row.source_id)
+            source_scope = (
+                self.settings.weknora_kdd_demo_source_scope
+                if snapshot.is_demo
+                else mapping.get(row.source_id)
+            )
             reason = None
             if row.graph_hints or row.record_ref.version_key in graph_versions:
                 reason = "graph_package_is_not_document_embedding_unit"
-            elif direction is None:
-                reason = "feature_source_direction_not_configured"
+            elif source_scope is None:
+                reason = "feature_source_scope_not_configured"
+            else:
+                try:
+                    scope = retrieval_scope(self.settings, direction=source_scope, is_demo=snapshot.is_demo)
+                except DomainError as error:
+                    reason = error.code
+                else:
+                    scopes[source_scope] = scope
             if reason:
                 excluded.append({"record_ref": row.record_ref.model_dump(mode="json"), "reason": reason})
                 gaps.add("weknora_feature:" + reason)
             else:
-                groups[direction].append(row)
+                groups[source_scope].append(row)
         receipts = []
         adopted_count = 0
-        for direction, members in sorted(groups.items()):
+        for source_scope, members in sorted(groups.items()):
             for index in range(0, len(members), 100):
                 chunk = members[index : index + 100]
                 scope = snapshot.model_copy(
                     update={
                         "records": tuple(chunk),
-                        "snapshot_id": snapshot.snapshot_id + f"-{direction}-{index}",
+                        "snapshot_id": snapshot.snapshot_id
+                        + f"-scope-{canonical_hash(scopes[source_scope])[:12]}-{index}",
                     }
                 )
                 try:
-                    enriched, receipt = features_for_snapshot(self.settings, scope, direction=direction)
+                    enriched, receipt = features_for_snapshot(self.settings, scope, direction=source_scope)
                 except DomainError as error:
                     receipt = {
                         "status": "unavailable",
@@ -1176,9 +1188,9 @@ class MonitorService:
                     gaps.update(enriched.metadata_gaps)
                     adopted_count += len(receipt["adopted"])
                     excluded.extend(receipt["excluded"])
-                receipts.append({"direction": direction, "start_index": index, "receipt": receipt})
+                receipts.append({**scopes[source_scope], "start_index": index, "receipt": receipt})
         receipt = {
-            "schema_version": "bioradar.monitor-feature-adoption.v1",
+            "schema_version": "bioradar.monitor-feature-adoption.v2",
             "population": "complete_fixed_monitor_window_not_search_top_k",
             "record_count": len(snapshot.records),
             "adopted_count": adopted_count,
@@ -1204,10 +1216,11 @@ class MonitorService:
         adopted = self._saved_response("snapshot.create", key)
         if adopted is None:
             if (
-                "kdd_direction" in payload["policy"]
+                ("kdd_direction" in payload["policy"] or "discovery_directions" in payload["policy"])
                 and self.settings.weknora_kdd_url
                 and "feature_adoption" not in payload
             ):
+                self.engine._authorize_snapshot(self.actor, snapshot)
                 snapshot, receipt = self._feature_snapshot(snapshot, payload)
                 payload = {
                     **payload,
