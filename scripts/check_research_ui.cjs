@@ -550,6 +550,16 @@ async function main() {
   assert.equal(controls[0].body.reason, topicContext.probe.lifecycleReason.value);
 
   await require("./check_query_policy_ui.cjs")();
+  const unboundAssessment = await renderReport("PASS", "passed", [], {}, {
+    assessment_binding: { status: "unbound", scope: "current_result_claim_ids", can_use_bound_claim_refs: false,
+      unbound_claim_ids: ["OLD"], issues: [], qualification: "Synthetic binding diagnostic" },
+    warning_assessment: { decision: "watch", supporting_claim_ids: ["OLD"], opposing_claim_ids: [],
+      critical_unknowns: [], next_actions: [], reason: "Synthetic original assessment" },
+  });
+  assert.match(unboundAssessment, /aria-label="结构化判断引用未绑定"/);
+  assert.match(unboundAssessment, /不作为已绑定评分或自动行动依据/);
+  assert.match(unboundAssessment, /Exact final report text/);
+  assert.match(unboundAssessment, /OLD（本版未找到对应陈述）/);
   console.log(JSON.stringify({ status: "passed", checks: [
     "api_preserves_retained_investigation_receipt",
     "markdown_download_reads_exact_text",
@@ -576,6 +586,7 @@ async function main() {
     "source_truth_conditional_consequence_and_verification_priority_are_separate",
     "manual_topic_close_requires_reason_and_preserves_revision_gate",
     "fixed_document_windows_computation_professional_and_source_fetch_labels_match_actual_actions",
+    "legacy_unbound_assessment_status_preserves_exact_body_and_missing_id_label",
   ] }));
 }
 module.exports = { renderReport };

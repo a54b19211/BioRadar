@@ -14,7 +14,7 @@ from bioradar.research.mining.prepare import time_interval
 from bioradar.research.mining.signals import assess_records
 from bioradar.research.mining.temporal import batch_bursts
 
-TOPIC_COMPUTE_VERSION = "bioradar-topic-series-v0.4"
+TOPIC_COMPUTE_VERSION = "bioradar-topic-series-v0.5"
 # This release changes assessment/follow-up semantics, not stored feature extraction.
 TOPIC_FEATURE_VERSION = "bioradar-topic-series-v0.2"
 MAX_FEATURES_PER_RECORD = 256

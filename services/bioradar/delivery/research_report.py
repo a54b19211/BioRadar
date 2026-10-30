@@ -6,6 +6,10 @@ from urllib.parse import quote
 
 from bioradar.research.investigations.analysis import render_report
 from bioradar.research.investigations.kdd import scope_markdown
+from bioradar.research.investigations.research_assessment import (
+    assessment_binding_note,
+    assessment_result_view,
+)
 
 SCHEMA_VERSION = "bioradar-report-delivery-v1"
 SOURCE_NAMES = {
@@ -158,6 +162,10 @@ def build_report_delivery(analysis):
     saved_hash = report.get("text_sha256")
     verification = _object(report.get("verification"))
     prefix = scope_markdown(_object(analysis.get("progress")).get("material_scope"))
+    projected = assessment_result_view(_object(analysis.get("result")))
+    binding = projected.get("assessment_binding")
+    note = assessment_binding_note(projected)
+    assessment_prefix = "> " + note + "\n\n" if note else ""
     rows = _citation_rows(body, analysis, report)
     return {
         "schema_version": SCHEMA_VERSION,
@@ -167,10 +175,19 @@ def build_report_delivery(analysis):
         "saved_hash_matches": digest == saved_hash if isinstance(saved_hash, str) else None,
         "verification_status": report.get("status"),
         "verification_text_matches": verification.get("draft") == body if verification else None,
-        "body_range": {"start": len(prefix), "end": len(prefix) + len(body), "unit": "unicode_code_points"},
+        "body_range": {
+            "start": len(prefix) + len(assessment_prefix),
+            "end": len(prefix) + len(assessment_prefix) + len(body),
+            "unit": "unicode_code_points",
+        },
         "source_index": rows,
         "unbound_citations": [row["citation"] for row in rows if row["binding_status"] == "unbound"],
         "scope_prefix": prefix,
+        **(
+            {"assessment_binding": binding, "assessment_prefix": assessment_prefix}
+            if binding is not None
+            else {}
+        ),
         "source_index_markdown": _index_markdown(rows, digest),
         "qualification": "系统来源索引未纳入原正文核验；文字核验通过不等于传言属实、证据覆盖完整或人工批准。",
     }
@@ -180,4 +197,9 @@ def render_report_markdown(analysis):
     """Scope prefix + byte-identical saved body + separately labelled system source index."""
     body, _, _ = _body(analysis)
     delivery = build_report_delivery(analysis)
-    return delivery["scope_prefix"] + body + delivery["source_index_markdown"]
+    return (
+        delivery["scope_prefix"]
+        + delivery.get("assessment_prefix", "")
+        + body
+        + delivery["source_index_markdown"]
+    )

@@ -94,6 +94,20 @@ def test_new_v2_empty_keyword_alternatives_reach_fixed_originals(runtime, databa
         ),
         "synthetic-v2-initial-" + path,
     )[1]
+    with Session(database) as session, session.begin():
+        row = session.get(InvestigationAnalysisRecord, accepted["id"])
+        frozen = copy.deepcopy(row.fixed_input)
+        policy = frozen["query_policy"]
+        policy["initial_retrieval_version"] = "literal-language-alternatives-v1"
+        policy["stop"] = "observed_checks_reading_v2"
+        for key in (
+            "pagination_version",
+            "retrieval_allocation",
+            "professional_retry_version",
+            "final_assessment_version",
+        ):
+            policy.pop(key, None)
+        row.fixed_input = frozen
     with httpx.Client(base_url="http://127.0.0.1", transport=httpx.MockTransport(records)) as client:
         service = make()
         service.reader = FabricHistoryReader(client, authorization_ref=GRANT, max_seconds=90)

@@ -288,7 +288,7 @@ def test_new_action_limits_are_fixed_and_visible_without_counting_windows_as_ver
         analysis_v2_action_limits={"document_read": 16, "source_fetch": 2},
     )
     policy = freeze_policy(cfg)
-    assert policy["stop"] == "observed_checks_reading_v2" and policy["max_steps"] == 32
+    assert policy["stop"] == "observed_checks_reading_pages_v3" and policy["max_steps"] == 32
     assert policy["action_limits"] == {"document_read": 16, "source_fetch": 2}
     cfg.analysis_v2_action_limits["document_read"] = 1
     assert policy["action_limits"]["document_read"] == 16

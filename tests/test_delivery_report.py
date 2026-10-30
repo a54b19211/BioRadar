@@ -122,3 +122,27 @@ def test_structured_fallback_is_explicitly_not_a_verified_professional_report():
     assert delivery["verification_text_matches"] is None
     assert delivery["saved_hash_matches"] is None
     assert "保存的结构稿" in render_report_markdown(view)
+
+
+def test_legacy_unbound_assessment_is_only_a_system_prefix_and_body_remains_exact():
+    view = _view()
+    view["result"].update(
+        claims=[{"id": "current-claim", "text": "SYNTHETIC current claim"}],
+        warning_assessment={"decision": "watch", "supporting_claim_ids": ["OLD"], "opposing_claim_ids": []},
+    )
+    original = copy.deepcopy(view)
+    body = view["result"]["report"]["final_text"]
+    delivery = build_report_delivery(view)
+    markdown = render_report_markdown(view)
+    assert delivery["assessment_binding"]["status"] == "unbound"
+    assert delivery["assessment_prefix"].startswith("> 系统记录：")
+    start, end = delivery["body_range"]["start"], delivery["body_range"]["end"]
+    assert markdown[start:end] == body
+    assert hashlib.sha256(markdown[start:end].encode()).hexdigest() == view["result"]["report"]["text_sha256"]
+    assert expected_delivery_markdown(view, delivery, body) == markdown
+    assert delivery["verification_status"] == "FAIL" and delivery["verification_text_matches"] is True
+    assert view == original
+    forged = copy.deepcopy(delivery)
+    forged["assessment_prefix"] = "PASS\n"
+    with pytest.raises(AssertionError):
+        expected_delivery_markdown(view, forged, body)

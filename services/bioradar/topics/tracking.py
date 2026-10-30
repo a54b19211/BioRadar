@@ -6,9 +6,9 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from bioradar.research.mining.models import ProviderRef, SignalContext, canonical_hash
-from bioradar.research.mining.signals import source_groups
+from bioradar.research.mining.signals import affirmed_event_anchors, source_groups
 
-TRACKING_VERSION = "source-evidence-heat-lifecycle-v1"
+TRACKING_VERSION = "source-evidence-heat-lifecycle-v2"
 
 
 def tracking_view(state):
@@ -159,12 +159,59 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
     )
     changed = evidence_fingerprint != old.get("_evidence_fingerprint")
     risk = copy.deepcopy(old.get("risk") or {"status": "unknown", "critical_gaps": [], "basis_refs": []})
-    if definition["domain"] == "public_health" and claims and risk["status"] != "resolved":
-        risk = {
-            "status": "unresolved",
-            "critical_gaps": ["pathogen_transmission_and_control_not_resolved_by_adopted_evidence"],
-            "basis_refs": list(refs.values()),
+    risk_claims = sorted(
+        {
+            re.sub(r"[\s：:；;，,]+", "", re.sub(r"^(?:转发|转载|网传|据称)[:：\s]*", "", claim["text"]))
+            for claim in claims
+            if affirmed_event_anchors(claim)
         }
+    )
+    # Versions/origin labels and environment reactions are not new risk semantics.
+    # A recorded resolution covers its reviewed basis, not future substantive claims.
+    risk_numeric = sorted(
+        {
+            canonical_hash(
+                {
+                    key: observation.get(key)
+                    for key in (
+                        "metric_id",
+                        "metric_version",
+                        "value",
+                        "unit",
+                        "period_start",
+                        "period_end",
+                        "population",
+                        "region",
+                    )
+                }
+            )
+            for value in values
+            if (observation := value.get("observation"))
+            and observation.get("kind") == "metric"
+            and observation.get("basis", {}).get("kind") == "source_bound"
+            and observation.get("status") != "withdrawn"
+        }
+    )
+    risk_atoms = sorted(
+        {"claim:" + canonical_hash(claim) for claim in risk_claims}
+        | {"metric:" + item for item in risk_numeric}
+    )
+    if definition["domain"] == "public_health" and risk_atoms:
+        reviewed_atoms = set(risk.get("basis_atoms", []))
+        # Disappearance of an old source/window is not newly observed risk. Keep
+        # the reviewed set so the same claim returning later is still recognized.
+        reopened = risk["status"] == "resolved" and bool(set(risk_atoms) - reviewed_atoms)
+        if risk["status"] != "resolved" or reopened:
+            if reopened:
+                risk["prior_resolution"] = copy.deepcopy(risk.get("assessment"))
+                risk["reopened_reason"] = "new_semantic_risk_outside_reviewed_basis"
+            risk.update(
+                status="unresolved",
+                critical_gaps=["pathogen_transmission_and_control_not_resolved_by_adopted_evidence"],
+                basis_refs=list(refs.values()),
+                basis_sha256=canonical_hash(risk_atoms),
+                basis_atoms=risk_atoms,
+            )
     if source_errors:
         risk["critical_gaps"] = sorted(
             set(risk.get("critical_gaps", [])) | {"source_unavailable_not_evidence_of_resolution"}

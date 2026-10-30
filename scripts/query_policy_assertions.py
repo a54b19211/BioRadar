@@ -25,6 +25,17 @@ def _terms(value):
 
 def _search_key(action):
     args = action["arguments"]
+    if "cursor" in args:
+        return (
+            "fabric-page",
+            args.get("provider"),
+            args.get("source_id"),
+            tuple(_terms(args.get("terms", []))),
+            args.get("limit"),
+            _hash(args.get("scope")),
+            args.get("catalog_discovery", False),
+            args.get("cursor"),
+        )
     return (
         action["kind"],
         args.get("provider"),
@@ -44,7 +55,11 @@ def _catalog_discovery(view, trace, decisions, position):
         trace.get("schema_version") == "query-planner.external.v2"
         and trace.get("effective") == "query_planner"
         and trace.get("research_contract_version") == "bioradar-research-input-v1"
-        and trace.get("initial_retrieval_version") == "literal-language-alternatives-v1"
+        and (
+            trace.get("initial_retrieval_version") == "literal-language-alternatives-v1"
+            or trace.get("initial_retrieval_version") == "literal-language-budget-v2"
+            and trace.get("pagination_version") == "fabric-receipt-bound-pagination-v1"
+        )
         and args.get("provider") == "fabric"
         and args.get("catalog_discovery") is True
         and args.get("terms") == []
@@ -159,6 +174,170 @@ def _catalog_discovery(view, trace, decisions, position):
             and coverage.get("has_more") is query.get("has_more"),
             "catalog receipt lost the actual one-page scope or truncation",
         )
+
+
+def _pagination(view, trace, decisions, position):
+    """A page is an exact continuation of a previously measured Fabric receipt."""
+    decision = decisions[position]
+    action, queries = decision["action"], view.get("queries", [])
+    args, request = action["arguments"], decision.get("policy_request") or {}
+    temporal = trace.get("evidence_time") or {}
+    _require(
+        trace.get("schema_version") == "query-planner.external.v2"
+        and trace.get("effective") == "query_planner"
+        and trace.get("research_contract_version") == "bioradar-research-input-v1"
+        and trace.get("pagination_version") == "fabric-receipt-bound-pagination-v1"
+        and args.get("provider") == "fabric"
+        and args.get("source_id") in view.get("search_scope", [])
+        and isinstance(args.get("cursor"), str)
+        and 0 < len(args["cursor"]) <= 4096
+        and type(args.get("limit")) is int
+        and 1 <= args["limit"] <= 20
+        and type(args.get("max_seq")) is int
+        and args["max_seq"] >= 0
+        and type(args.get("page_number")) is int
+        and 2 <= args["page_number"] <= 8
+        and type(view.get("is_demo")) is bool
+        and args.get("is_demo") is view["is_demo"]
+        and args.get("mode") == temporal.get("mode")
+        and args.get("as_of") == temporal.get("cutoff")
+        and args.get("scope")
+        == {
+            "direction": trace.get("direction"),
+            "mode": temporal.get("mode"),
+            "as_of": temporal.get("cutoff"),
+            "is_demo": view["is_demo"],
+        }
+        and isinstance(args.get("terms"), list)
+        and all(isinstance(term, str) and term.strip() for term in args["terms"])
+        and "query" not in args
+        and ("catalog_discovery" not in args or args["catalog_discovery"] is True)
+        and (args.get("terms") == [] if args.get("catalog_discovery") is True else bool(args.get("terms"))),
+        "pagination lacks the frozen new contract, cursor or legal source/time binding",
+    )
+    previous = next(
+        (
+            prior
+            for prior in decisions[:position]
+            if (prior.get("action") or {}).get("id") == args.get("previous_action_id")
+        ),
+        None,
+    )
+    _require(previous is not None, "page has no earlier actual predecessor action")
+    prior_action, saved = previous["action"], previous.get("receipt") or {}
+    prior_args = prior_action.get("arguments") or {}
+    index = saved.get("query_index")
+    _require(type(index) is int and 0 <= index < len(queries), "page predecessor has no durable query")
+    prior_query = queries[index]
+    page = prior_query.get("pagination") or {}
+    _require(
+        prior_action.get("kind") == "document_search"
+        and prior_args.get("provider") == "fabric"
+        and saved.get("status") == prior_query.get("status")
+        and prior_query.get("status") in {"read", "empty"}
+        and prior_query.get("action_id") == prior_action.get("id")
+        and prior_query.get("provider") == "fabric"
+        and prior_query.get("plan", {}).get("source_id") == prior_args.get("source_id")
+        and prior_query.get("plan", {}).get("terms") == prior_args.get("terms")
+        and type((prior_query.get("cost") or {}).get("tool_calls")) is int
+        and prior_query["cost"]["tool_calls"] >= 1
+        and (prior_query.get("usage") or {}).get("request_status") not in UNCONFIRMED | {"not_sent"}
+        and prior_query.get("has_more") is True
+        and page.get("has_more") is True
+        and page.get("next_cursor") == args["cursor"]
+        and type(page.get("max_seq")) is int
+        and page["max_seq"] == args["max_seq"]
+        and type(page.get("page_number")) is int
+        and page["page_number"] == prior_args.get("page_number", 1)
+        and args["page_number"] == page["page_number"] + 1,
+        "page was not unlocked by the measured completed predecessor and exact returned cursor",
+    )
+    _require(
+        all(
+            args.get(key) == prior_args.get(key)
+            for key in (
+                "provider",
+                "source_id",
+                "terms",
+                "limit",
+                "mode",
+                "as_of",
+                "is_demo",
+                "scope",
+                "plan",
+            )
+        )
+        and args.get("catalog_discovery", False) == prior_args.get("catalog_discovery", False)
+        and ("max_seq" not in prior_args or prior_args["max_seq"] == args["max_seq"]),
+        "page changed the original source/query/size/sequence binding",
+    )
+    identity = {
+        "provider": "fabric",
+        "source_id": args["source_id"],
+        "terms": sorted({term.strip() for term in args["terms"]}),
+        "limit": args["limit"],
+        "scope": args["scope"],
+        "catalog_discovery": args.get("catalog_discovery", False),
+        "cursor": args["cursor"],
+    }
+    _require(
+        action.get("id") == "page:" + _hash(["document_search", identity])[:32],
+        "page identity changed across metadata-only retries",
+    )
+    actual_history = next(
+        (item for item in request.get("history", []) if item.get("action_id") == prior_action["id"]), None
+    )
+    _require(
+        request.get("schema_version") == "query-planner.external.v2"
+        and any(
+            item.get("id") == action["id"] and item.get("arguments") == args
+            for item in request.get("candidates", [])
+        )
+        and actual_history is not None
+        and actual_history.get("kind") == "document_search"
+        and actual_history.get("status") == "completed"
+        and actual_history.get("arguments") == prior_args
+        and actual_history.get("pagination") == page,
+        "page decision did not observe its actual fixed predecessor receipt",
+    )
+    receipt = decision.get("receipt")
+    if receipt is None:
+        return
+    index = receipt.get("query_index")
+    _require(type(index) is int and 0 <= index < len(queries), "page receipt has no saved query")
+    query = queries[index]
+    _require(
+        query.get("plan", {}).get("terms") == args["terms"], "page actual terms differ from selected terms"
+    )
+    if query.get("status") in {"read", "empty"}:
+        current = query.get("pagination") or {}
+        _require(
+            current.get("page_number") == args["page_number"]
+            and type(current.get("max_seq")) is int
+            and current["max_seq"] == args["max_seq"]
+            and type(current.get("has_more")) is bool
+            and current["has_more"] is query.get("has_more")
+            and (
+                isinstance(current.get("next_cursor"), str)
+                and bool(current["next_cursor"])
+                and current["next_cursor"] != args["cursor"]
+                if current["has_more"]
+                else current.get("next_cursor") is None
+            ),
+            "received page lost its actual sequence, page number or truncation",
+        )
+        if args.get("catalog_discovery") is True:
+            usage = query.get("usage") or {}
+            coverage = usage.get("coverage") or {}
+            _require(
+                query.get("scope") == "fabric_bounded_original_catalog_not_keyword_match"
+                and usage.get("catalog_discovery") is True
+                and coverage.get("complete") is False
+                and coverage.get("search_scope") == "bounded_original_catalog_not_keyword_match"
+                and coverage.get("followup_limit") == args["limit"]
+                and coverage.get("has_more") is query.get("has_more"),
+                "catalog page was represented as a keyword match or complete source inventory",
+            )
 
 
 _KDD_KINDS = {"dataset_prepare", "analysis_run", "professional_assess"}
@@ -885,7 +1064,9 @@ def assert_query_policy(view, *, expected_policy=None, terminal=True):
             _require(
                 args.get("provider") in {"fabric", "weknora"}, "search did not select exactly one provider"
             )
-            if args.get("catalog_discovery") is True:
+            if "cursor" in args:
+                _pagination(view, trace, decisions, position)
+            elif args.get("catalog_discovery") is True:
                 _catalog_discovery(view, trace, decisions, position)
             else:
                 _require(

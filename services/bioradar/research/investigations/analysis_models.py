@@ -7,6 +7,7 @@ from pydantic import AwareDatetime, Field
 
 from bioradar.research.engine.schemas import RuntimeModel
 from bioradar.research.mining.models import ProviderRef
+from bioradar.topics.risk import TopicRiskReassessment
 
 ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.5"
 PROMPT_VERSION = "bioradar-investigation-reading-v0.5"
@@ -190,6 +191,20 @@ class ModelSynthesis(RuntimeModel):
     update: AnalysisUpdate
 
 
+class FinalResearchSynthesis(ModelSynthesis):
+    """Future-only synthesis: all assessment references share this output's claims."""
+
+    warning_assessment: WarningAssessment | None = Field(
+        description="本轮问题的总体行动建议；可同时列出定向核实动作。不适用时显式null，不是真实性概率。"
+    )
+    competing_hypotheses: list[CompetingHypothesis] = Field(
+        max_length=4, description="只引用本次claims已有id；无合理竞争解释时显式空列表，不猜旧编号映射。"
+    )
+    topic_risk_reassessment: TopicRiskReassessment | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+
 class ClaimReview(RuntimeModel):
     claim_id: LocalId
     verdict: Literal["grounded", "overstated", "unsupported", "uncertain"]
@@ -320,7 +335,18 @@ class AnalysisResult(RuntimeModel):
     competing_hypotheses: list[CompetingHypothesis] | None = Field(
         default=None, max_length=4, exclude_if=lambda value: value is None
     )
+    assessment_binding: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    topic_risk_reassessment: TopicRiskReassessment | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     limitations: list[str]
+
+
+class QueryPagination(RuntimeModel):
+    has_more: bool
+    next_cursor: str | None = None
+    max_seq: int = Field(ge=0)
+    page_number: int = Field(ge=1)
 
 
 class AnalysisQueryReceipt(RuntimeModel):
@@ -343,6 +369,7 @@ class AnalysisQueryReceipt(RuntimeModel):
     returned: int = 0
     new_versions: int = 0
     has_more: bool = False
+    pagination: QueryPagination | None = Field(default=None, exclude_if=lambda value: value is None)
     error_code: str | None = None
     evidence_keys: list[str] = Field(default_factory=list)
     candidates: list[dict] = Field(default_factory=list)

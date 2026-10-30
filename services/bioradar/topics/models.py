@@ -94,6 +94,11 @@ class TopicView(RuntimeModel):
     tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
+class TopicRiskReviewView(RuntimeModel):
+    topic: TopicView
+    assessment: dict
+
+
 class TopicList(RuntimeModel):
     items: list[TopicView]
     next_cursor: str | None = None

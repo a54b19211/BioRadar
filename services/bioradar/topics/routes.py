@@ -19,10 +19,12 @@ from bioradar.topics.models import (
     TopicEvaluation,
     TopicEvaluationList,
     TopicList,
+    TopicRiskReviewView,
     TopicTemplates,
     TopicUpdate,
     TopicView,
 )
+from bioradar.topics.risk import TopicRiskReviewRequest
 from bioradar.topics.service import TopicService
 
 
@@ -105,6 +107,21 @@ def create_topic_router(settings):
         actor=Depends(access.require_actor),
     ):
         code, result = service(request).control(actor, identifier, body, idempotency_key)
+        return JSONResponse(status_code=code, content=result)
+
+    @router.post("/{identifier}/risk-reassessments", response_model=TopicRiskReviewView)
+    def risk_reassessment(
+        identifier: str,
+        body: TopicRiskReviewRequest,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor=Depends(access.require_actor),
+    ):
+        runtime = service(request)
+        with history_reader(settings) as reader:
+            runtime.reader = reader
+            runtime.engine.history_source_reader = reader.sources
+            code, result = runtime.review_risk(actor, identifier, body, idempotency_key)
         return JSONResponse(status_code=code, content=result)
 
     @router.get("/{identifier}/evaluations", response_model=TopicEvaluationList)

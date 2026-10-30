@@ -694,6 +694,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/topics/{identifier}/risk-reassessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Risk Reassessment */
+        post: operations["risk_reassessment_api_engine_topics__identifier__risk_reassessments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/topics/{identifier}/evaluations": {
         parameters: {
             query?: never;
@@ -1066,6 +1083,7 @@ export interface components {
              * @default false
              */
             has_more: boolean;
+            pagination?: components["schemas"]["QueryPagination"] | null;
             /** Error Code */
             error_code?: string | null;
             /** Evidence Keys */
@@ -1117,6 +1135,11 @@ export interface components {
             warning_assessment?: components["schemas"]["WarningAssessment"] | null;
             /** Competing Hypotheses */
             competing_hypotheses?: components["schemas"]["CompetingHypothesis"][] | null;
+            /** Assessment Binding */
+            assessment_binding?: {
+                [key: string]: unknown;
+            } | null;
+            topic_risk_reassessment?: components["schemas"]["TopicRiskReassessment"] | null;
             /** Limitations */
             limitations: string[];
         };
@@ -5119,6 +5142,17 @@ export interface components {
             /** Value */
             value?: string | number | boolean | null;
         };
+        /** QueryPagination */
+        QueryPagination: {
+            /** Has More */
+            has_more: boolean;
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Max Seq */
+            max_seq: number;
+            /** Page Number */
+            page_number: number;
+        };
         /** QuestionAsk */
         QuestionAsk: {
             /** Question */
@@ -6065,6 +6099,66 @@ export interface components {
              * @default last_known_registration_not_current_clinical_truth
              */
             qualification: string;
+        };
+        /** TopicRiskReassessment */
+        TopicRiskReassessment: {
+            scope: components["schemas"]["TopicRiskScopeStamp"];
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "unresolved" | "resolved_within_scope";
+            /** Decision Claim Id */
+            decision_claim_id: string;
+            /** Decision Statement */
+            decision_statement: string;
+            /** Supporting Claim Ids */
+            supporting_claim_ids: string[];
+            /** Scope Control Claim Ids */
+            scope_control_claim_ids: string[];
+            /** Opposing Claim Ids */
+            opposing_claim_ids?: string[];
+            /**
+             * Scope Coverage
+             * @enum {string}
+             */
+            scope_coverage: "full_declared_scope" | "partial" | "unknown";
+            /** Remaining Critical Gaps */
+            remaining_critical_gaps?: string[];
+            /** Conditions */
+            conditions?: string[];
+            /** Reason */
+            reason: string;
+        };
+        /** TopicRiskReviewRequest */
+        TopicRiskReviewRequest: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Evaluation Id */
+            evaluation_id: string;
+            /** Analysis Id */
+            analysis_id: string;
+        };
+        /** TopicRiskReviewView */
+        TopicRiskReviewView: {
+            topic: components["schemas"]["TopicView"];
+            /** Assessment */
+            assessment: {
+                [key: string]: unknown;
+            };
+        };
+        /** TopicRiskScopeStamp */
+        TopicRiskScopeStamp: {
+            /** Topic Id */
+            topic_id: string;
+            /** Scope Revision */
+            scope_revision: number;
+            /** Observation Revision */
+            observation_revision: number;
+            /** Definition Sha256 */
+            definition_sha256: string;
+            /** Risk Basis Sha256 */
+            risk_basis_sha256: string;
         };
         /** TopicSignal */
         TopicSignal: {
@@ -7954,6 +8048,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopicView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    risk_reassessment_api_engine_topics__identifier__risk_reassessments_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicRiskReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicRiskReviewView"];
                 };
             };
             /** @description Validation Error */

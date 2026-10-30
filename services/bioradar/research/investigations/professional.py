@@ -349,7 +349,9 @@ def load_provider(service, identifier, token, fixed, progress, name):
         return result
 
     if name == "biocheck":
-        return load_biocheck_http(execute, version)
+        return load_biocheck_http(
+            execute, version, capabilities=progress.get("professional_capabilities", {}).get(name)
+        )
     refs = []
     for artifact in progress.get("kdd_artifacts", []):
         if artifact.get("kind") == "pattern_result":

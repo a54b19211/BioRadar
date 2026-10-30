@@ -372,8 +372,11 @@ def search_analysis_records(
     mode="current",
     run_id=None,
     catalog_discovery=False,
+    cursor=None,
+    max_seq=None,
+    pagination=False,
 ):
-    """Read one authorized source page; catalog discovery is an explicit bounded fallback."""
+    """Read exactly one authorized page; preserve the source's frozen cursor and sequence."""
     from bioradar.api.errors import DomainError
 
     if (
@@ -383,6 +386,13 @@ def search_analysis_records(
         or type(limit) is not int
         or not 1 <= limit <= 20
         or type(catalog_discovery) is not bool
+        or type(pagination) is not bool
+        or cursor is not None
+        and (not isinstance(cursor, str) or not cursor or len(cursor) > 4096)
+        or max_seq is not None
+        and (type(max_seq) is not int or max_seq < 0)
+        or cursor is not None
+        and max_seq is None
         or not isinstance(terms, (list, tuple))
         or (len(terms) != 0 if catalog_discovery else not 1 <= len(terms) <= 3)
         or any(not isinstance(term, str) or not 2 <= len(term.strip()) <= 120 for term in terms)
@@ -403,6 +413,8 @@ def search_analysis_records(
     ]
     if run_id is not None:
         params.append(("run_id", run_id))
+    if cursor is not None:
+        params.append(("cursor", cursor))
     page = reader._get("/api/history/records", params)
     if (
         not isinstance(page, dict)
@@ -414,6 +426,12 @@ def search_analysis_records(
         and not isinstance(page["next_cursor"], str)
     ):
         raise history_error()
+    if pagination or cursor is not None:
+        sequence = page["coverage"].get("max_seq")
+        if type(sequence) is not int or sequence < 0 or max_seq is not None and sequence != max_seq:
+            raise history_error()
+        if page.get("next_cursor") == "" or cursor is not None and page.get("next_cursor") == cursor:
+            raise history_error()
     identities = set()
     for record in page["items"]:
         validate_record(record, source_id, is_demo, mode, cutoff)

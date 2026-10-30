@@ -14,6 +14,7 @@ from bioradar.adapters.query_planner import decide_query
 from bioradar.api.errors import DomainError
 from bioradar.research.investigations.kdd import extend_context
 from bioradar.research.investigations.query_policy import (
+    BOUNDED_INITIAL_VERSION,
     INITIAL_RETRIEVAL_VERSION,
     build_policy_context,
     catalog_discovery_candidates,
@@ -93,7 +94,7 @@ def test_new_frozen_flag_uses_existing_six_plan_schema_and_preserves_old_payload
     settings = write_planner(tmp_path)
     settings.analysis_kdd_enabled = True
     settings.analysis_query_policy_v2_max_steps = 32
-    assert freeze_policy(settings)["initial_retrieval_version"] == INITIAL_RETRIEVAL_VERSION
+    assert freeze_policy(settings)["initial_retrieval_version"] == BOUNDED_INITIAL_VERSION
     assert "initial_retrieval_version" not in freeze_policy(settings, "baseline")
 
     data = fixed()

@@ -2945,6 +2945,77 @@
         }
       }
     },
+    "/api/engine/topics/{identifier}/risk-reassessments": {
+      "post": {
+        "tags": [
+          "Long-term topics"
+        ],
+        "summary": "Risk Reassessment",
+        "operationId": "risk_reassessment_api_engine_topics__identifier__risk_reassessments_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopicRiskReviewRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopicRiskReviewView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/engine/topics/{identifier}/evaluations": {
       "get": {
         "tags": [
@@ -4036,6 +4107,16 @@
             "title": "Has More",
             "default": false
           },
+          "pagination": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QueryPagination"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "error_code": {
             "anyOf": [
               {
@@ -4201,6 +4282,28 @@
               }
             ],
             "title": "Competing Hypotheses"
+          },
+          "assessment_binding": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessment Binding"
+          },
+          "topic_risk_reassessment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TopicRiskReassessment"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "limitations": {
             "items": {
@@ -14435,6 +14538,43 @@
         ],
         "title": "Qualifier"
       },
+      "QueryPagination": {
+        "properties": {
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "max_seq": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Max Seq"
+          },
+          "page_number": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Page Number"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "has_more",
+          "max_seq",
+          "page_number"
+        ],
+        "title": "QueryPagination"
+      },
       "QuestionAsk": {
         "properties": {
           "question": {
@@ -17002,6 +17142,197 @@
           "evidence_key"
         ],
         "title": "TopicRegisteredState"
+      },
+      "TopicRiskReassessment": {
+        "properties": {
+          "scope": {
+            "$ref": "#/components/schemas/TopicRiskScopeStamp"
+          },
+          "decision": {
+            "type": "string",
+            "enum": [
+              "unresolved",
+              "resolved_within_scope"
+            ],
+            "title": "Decision"
+          },
+          "decision_claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Decision Claim Id"
+          },
+          "decision_statement": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Decision Statement"
+          },
+          "supporting_claim_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Supporting Claim Ids"
+          },
+          "scope_control_claim_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "minItems": 1,
+            "title": "Scope Control Claim Ids"
+          },
+          "opposing_claim_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Opposing Claim Ids"
+          },
+          "scope_coverage": {
+            "type": "string",
+            "enum": [
+              "full_declared_scope",
+              "partial",
+              "unknown"
+            ],
+            "title": "Scope Coverage"
+          },
+          "remaining_critical_gaps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Remaining Critical Gaps"
+          },
+          "conditions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Conditions"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scope",
+          "decision",
+          "decision_claim_id",
+          "decision_statement",
+          "supporting_claim_ids",
+          "scope_control_claim_ids",
+          "scope_coverage",
+          "reason"
+        ],
+        "title": "TopicRiskReassessment"
+      },
+      "TopicRiskReviewRequest": {
+        "properties": {
+          "expected_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Expected Revision"
+          },
+          "evaluation_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Evaluation Id"
+          },
+          "analysis_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Analysis Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_revision",
+          "evaluation_id",
+          "analysis_id"
+        ],
+        "title": "TopicRiskReviewRequest"
+      },
+      "TopicRiskReviewView": {
+        "properties": {
+          "topic": {
+            "$ref": "#/components/schemas/TopicView"
+          },
+          "assessment": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Assessment"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "topic",
+          "assessment"
+        ],
+        "title": "TopicRiskReviewView"
+      },
+      "TopicRiskScopeStamp": {
+        "properties": {
+          "topic_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Topic Id"
+          },
+          "scope_revision": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Scope Revision"
+          },
+          "observation_revision": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Observation Revision"
+          },
+          "definition_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Definition Sha256"
+          },
+          "risk_basis_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Risk Basis Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "topic_id",
+          "scope_revision",
+          "observation_revision",
+          "definition_sha256",
+          "risk_basis_sha256"
+        ],
+        "title": "TopicRiskScopeStamp"
       },
       "TopicSignal": {
         "properties": {

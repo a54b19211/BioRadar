@@ -370,7 +370,7 @@ def extend_context(fixed, progress, context, reading=None):
             query = item.get("arguments", {})
             if (
                 item["kind"] != "document_search" or query.get("provider") != "fabric"
-                or query.get("catalog_discovery") is True
+                or query.get("catalog_discovery") is True or "cursor" in query
             ):
                 continue
             if query.get("source_id") not in {

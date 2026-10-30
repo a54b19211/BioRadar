@@ -47,9 +47,35 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
     assert legacy_markdown.endswith(body)
     prefix = legacy_markdown[: -len(body)] if body else legacy_markdown
     assert delivery["scope_prefix"] == prefix
+    result = view["result"]
+    binding = delivery.get("assessment_binding")
+    if result.get("assessment_binding") is not None:
+        assert binding == result["assessment_binding"], "delivery changed assessment binding"
+    claim_ids = {claim["id"] for claim in result.get("claims", [])}
+    sidecars = [result.get("warning_assessment") or {}, *(result.get("competing_hypotheses") or [])]
+    risk = result.get("topic_risk_reassessment") or {}
+    sidecars.append(risk)
+    references = [
+        reference
+        for item in sidecars
+        for field in ("supporting_claim_ids", "opposing_claim_ids", "scope_control_claim_ids")
+        for reference in item.get(field, [])
+    ]
+    if risk.get("decision_claim_id"):
+        references.append(risk["decision_claim_id"])
+    if set(references) - claim_ids:
+        assert binding and binding["status"] == "unbound", "dangling final claim references hidden"
+    if binding and binding["status"] == "bound":
+        assert not set(references) - claim_ids, "bound assessment contains missing claim IDs"
+    assessment_prefix = (
+        "> 系统记录：结构化研究判断未绑定本版命题；原稿与原判断保留，不作为已绑定评分或自动行动依据。\n\n"
+        if binding and binding["status"] == "unbound"
+        else ""
+    )
+    assert delivery.get("assessment_prefix", "") == assessment_prefix
     assert delivery["body_range"] == {
-        "start": len(prefix),
-        "end": len(prefix) + len(body),
+        "start": len(prefix) + len(assessment_prefix),
+        "end": len(prefix) + len(assessment_prefix) + len(body),
         "unit": "unicode_code_points",
     }
     evidence = {item["key"]: item for item in view["evidence"]}
@@ -128,4 +154,4 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
     assert delivery["source_index_markdown"] == appendix, (
         "source appendix differs from independently checked metadata"
     )
-    return legacy_markdown + appendix
+    return prefix + assessment_prefix + body + appendix

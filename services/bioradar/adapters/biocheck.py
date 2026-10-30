@@ -17,6 +17,8 @@ _METHODS = ("generate", "verify", "revise")
 _STAGES = {
     "plan_bound": "biocheck_plan",
     "plan_plain": "biocheck_plan",
+    "replan_bound": "biocheck_plan_repair",
+    "replan_plain": "biocheck_plan_repair",
     "write_bound": "biocheck_write",
     "write_plain": "biocheck_write",
     "write_direct": "biocheck_write",
@@ -35,6 +37,8 @@ def _sources(settings):
         names = list(_PROVIDER_FILES)
         if (root / "source_context.py").is_file():
             names.insert(0, "source_context.py")
+        if (root / "contracts.py").is_file():
+            names.insert(-1, "contracts.py")
         sources = {name: (root / name).read_text(encoding="utf-8") for name in names}
         methods = {
             node.name for node in ast.parse(sources["core.py"]).body if isinstance(node, ast.FunctionDef)
@@ -45,9 +49,7 @@ def _sources(settings):
             ast.parse(source)
     except (OSError, UnicodeError, SyntaxError):
         return None
-    version = hashlib.sha256(
-        "".join(name + "\0" + sources[name] for name in sources).encode()
-    ).hexdigest()
+    version = hashlib.sha256("".join(name + "\0" + sources[name] for name in sources).encode()).hexdigest()
     return sources, version
 
 
@@ -138,8 +140,10 @@ def build_packet(question, evidence, assessment=None):
             interpretation = _value(assessment) if assessment is not None else {}
             temporal = (interpretation.get("research_scope") or {}).get("evidence_time") or {}
             entry["source_context"] = context_at(
-                source_context, mode=temporal.get("mode", "current"),
-                cutoff=temporal.get("cutoff"), text=text,
+                source_context,
+                mode=temporal.get("mode", "current"),
+                cutoff=temporal.get("cutoff"),
+                text=text,
             )
             try:
                 source_id, native_id, demo = json.loads(reference["object_id"])
@@ -153,8 +157,10 @@ def build_packet(question, evidence, assessment=None):
             if entry["source_context"].get("information_events"):
                 entry["source_context"]["information_environment_event"] = True
             entry["verification_status"] = (
-                "unverified" if source_context.get("statement_status") == "unverified_report"
-                or source_context.get("material_kind") in {"social_media", "repost"} else "unknown"
+                "unverified"
+                if source_context.get("statement_status") == "unverified_report"
+                or source_context.get("material_kind") in {"social_media", "repost"}
+                else "unknown"
             )
             if source_context.get("text_level") is not None:
                 entry["text_level"] = "selected_passages"
@@ -210,18 +216,92 @@ def build_packet(question, evidence, assessment=None):
     return packet
 
 
-def _callback(call):
+def _retry_kwargs(value, name):
+    if type(value) is not int or value not in {0, 1}:
+        raise DomainError("biocheck_retry_invalid", "专业结构修复仅允许明确的0或1", 422)
+    return {name: 1} if value else {}
+
+
+def supports_bounded_retry(core, kind):
+    """Trust only the capability snapshot pinned to this loaded HTTP method version."""
+    if kind not in {"plan", "verify"}:
+        return False
+    caps = getattr(core, "capabilities", {})
+    if not isinstance(caps, dict):
+        return False
+    features = caps.get("features")
+    policy = caps.get(kind + "_retry_policy")
+    feature = "bounded_plan_repair" if kind == "plan" else "bounded_verify_contract_repair"
+    stages = ["replan_plain", "replan_bound"] if kind == "plan" else ["verify_repair"]
+    return bool(
+        caps.get("schema_version") == "bioradar.professional.v1"
+        and caps.get("provider") == "biocheck"
+        and isinstance(caps.get("provider_version"), str)
+        and bool(caps["provider_version"])
+        and caps["provider_version"] == getattr(core, "provider_version", None)
+        and isinstance(features, list)
+        and all(isinstance(item, str) for item in features)
+        and feature in features
+        and isinstance(policy, dict)
+        and policy.get("argument") == "max_" + kind + "_retries"
+        and type(policy.get("default")) is int
+        and policy["default"] == 0
+        and type(policy.get("maximum")) is int
+        and policy["maximum"] == 1
+        and policy.get("stages") == stages
+        and type(policy.get("diagnostic_limit")) is int
+        and policy["diagnostic_limit"] == 8
+    )
+
+
+def _unsent_verification_budget(exc, max_verify_retries):
+    if max_verify_retries != 1 or exc.code not in {
+        "analysis_model_budget",
+        "analysis_token_budget",
+        "analysis_time_budget",
+        "analysis_tool_budget",
+        "model_input_budget",
+    }:
+        return False
+    return not isinstance(exc, ModelCallError) or exc.receipt.status == "not_sent"
+
+
+def _contract_call(core, operation, *args, **kwargs):
+    """Give local typed rejections the same safe codes as completed HTTP replies."""
+    try:
+        return getattr(core, operation)(*args, **kwargs)
+    except ValueError as exc:
+        for name, initial, exhausted in (
+            ("PlanReferenceError", "plan_reference_invalid", "plan_repair_exhausted"),
+            ("VerificationContractError", "verification_contract_invalid", "verification_repair_exhausted"),
+        ):
+            error_type = getattr(core, name, None)
+            if isinstance(error_type, type) and error_type is not ValueError and isinstance(exc, error_type):
+                code = exhausted if getattr(exc, "repair_attempted", 0) else initial
+                raise DomainError(code, "专业结构回执未通过契约；原稿与原回执保留，等待核验。", 502) from exc
+        raise
+
+
+def _callback(call, *, verify_target=None, allow_plan_repair=False):
+    if verify_target not in {None, "biocheck_check", "biocheck_recheck"}:
+        raise DomainError("biocheck_stage_invalid", "核验目标阶段不符合接入约定", 422)
     checks = 0
 
     def invoke(stage, instruction, payload, response_schema=None, *, call_id=None):
         nonlocal checks
         if stage == "verify":
             checks += 1
-            if checks > 2:
+            if checks > (1 if verify_target is not None else 2):
                 raise DomainError("biocheck_stage_invalid", "BioCheck 超过一次修订复查范围", 502)
-            target = "biocheck_check" if checks == 1 else "biocheck_recheck"
+            target = verify_target or ("biocheck_check" if checks == 1 else "biocheck_recheck")
+        elif stage == "verify_repair" and verify_target is not None:
+            target = (
+                "biocheck_verify_repair" if verify_target == "biocheck_check" else "biocheck_recheck_repair"
+            )
         else:
             target = _STAGES.get(stage)
+            if stage in {"replan_plain", "replan_bound"} and not allow_plan_repair:
+                target = None
         if target is None or not isinstance(instruction, str) or not isinstance(payload, dict):
             raise DomainError("biocheck_stage_invalid", "BioCheck 请求阶段不符合接入约定", 502)
         keywords = {"call_id": call_id} if call_id is not None else {}
@@ -276,7 +356,9 @@ def _result(packet, draft, review, initial, revision, version, **extra):
     }
 
 
-def _optional_repair(core, packet, draft, initial, invoke, repair):
+def _optional_repair(
+    core, packet, draft, initial, invoke, repair, *, max_verify_retries=0, recheck_invoke=None
+):
     if not repair or not initial.get("problem_units"):
         return draft, initial, None, {}
     if initial.get("verification_errors"):
@@ -293,15 +375,31 @@ def _optional_repair(core, packet, draft, initial, invoke, repair):
     try:
         revision = core.revise(copy.deepcopy(packet), initial, invoke)
         candidate = revision["draft"]
-        review = core.verify(copy.deepcopy(packet), candidate, invoke)
+        review = _contract_call(
+            core,
+            "verify",
+            copy.deepcopy(packet),
+            candidate,
+            recheck_invoke or invoke,
+            **_retry_kwargs(max_verify_retries, "max_verify_retries"),
+        )
         return candidate, review, revision, {}
     except DomainError as exc:
-        budget_stop = exc.code in {"analysis_model_budget", "analysis_token_budget", "analysis_time_budget"}
+        budget_stop = exc.code in {
+            "analysis_model_budget",
+            "analysis_token_budget",
+            "analysis_time_budget",
+        } or _unsent_verification_budget(exc, max_verify_retries)
         if isinstance(exc, ModelCallError):
             budget_stop = exc.receipt.status == "not_sent" and (
                 budget_stop or exc.code == "model_input_budget"
             )
-        if not budget_stop:
+        contract_stop = (
+            revision is not None
+            and not isinstance(exc, ModelCallError)
+            and exc.code in {"verification_contract_invalid", "verification_repair_exhausted"}
+        )
+        if not budget_stop and not contract_stop:
             raise
         # A revision without its own check cannot replace an already checked draft.
         return (
@@ -311,94 +409,187 @@ def _optional_repair(core, packet, draft, initial, invoke, repair):
             {
                 "repair_error_code": exc.code,
                 "repair_stopped_at": "biocheck_revise" if revision is None else "biocheck_recheck",
-                "repair_stop_reason": "可选修订或复核在请求发送前达到预算，已保留完成核验的初稿。",
+                "repair_stop_reason": (
+                    "修订稿核验结构未形成有效回执，已保留原核验稿，等待核验。"
+                    if contract_stop
+                    else "可选修订或复核在请求发送前达到预算，已保留完成核验的初稿。"
+                ),
                 "unverified_revision": revision,
             },
         )
 
 
-def check_biocheck(settings, packet, draft, call, *, repair=True, loaded=None):
+def check_biocheck(
+    settings, packet, draft, call, *, repair=True, loaded=None, max_verify_retries=0, verify_target=None
+):
     """Check this exact draft; one optional local revision is rechecked in full."""
     core, version = load_biocheck(settings) if loaded is None else loaded
     if core is None:
         return _unavailable(packet, draft, version=version)
-    invoke = _callback(call)
+    verify_options = _retry_kwargs(max_verify_retries, "max_verify_retries")
+    invoke = _callback(call, verify_target=(verify_target or "biocheck_check") if verify_options else None)
+    recheck_invoke = _callback(call, verify_target="biocheck_recheck") if verify_options else None
     try:
         try:
-            initial = core.verify(copy.deepcopy(packet), draft, invoke)
+            initial = _contract_call(core, "verify", copy.deepcopy(packet), draft, invoke, **verify_options)
         except ModelCallError as exc:
-            if exc.receipt.status != "failed" or exc.code not in {
-                "model_output_invalid", "model_output_truncated"
-            }:
+            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            if not budget_stop and (
+                exc.receipt.status != "failed"
+                or exc.code
+                not in {
+                    "model_output_invalid",
+                    "model_output_truncated",
+                }
+            ):
                 raise
             # The provider answered, but supplied no usable verification. Preserve
             # the exact draft as failed/unverified; never revise it from this error.
             return {
                 **_unavailable(packet, draft, version=version, status="failed"),
                 "error_code": exc.code,
-                "verification_error": "核验服务返回的内容无法使用；正文保留，等待核验。",
+                "verification_error": (
+                    "专业核验在发送前达到预算；已生成正文保留，核验未完成。"
+                    if budget_stop
+                    else "核验服务返回的内容无法使用；正文保留，等待核验。"
+                ),
+                **({"verification_stop_reason": "not_sent_budget"} if budget_stop else {}),
             }
         except DomainError as exc:
-            if exc.code != "method_input_invalid":
+            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            if not budget_stop and exc.code not in {
+                "method_input_invalid",
+                "verification_contract_invalid",
+                "verification_repair_exhausted",
+            }:
                 raise
             # A completed HTTP method rejection is a known failed verification,
             # unlike a missing/unknown transport response.
             return {
                 **_unavailable(packet, draft, version=version, status="failed"),
                 "error_code": exc.code,
-                "verification_error": "专业核验未接受本次回执结构；正文保留，等待核验。",
+                "verification_error": (
+                    "专业核验在发送前达到预算；已生成正文保留，核验未完成。"
+                    if budget_stop
+                    else "专业核验未接受本次回执结构；正文保留，等待核验。"
+                ),
+                **({"verification_stop_reason": "not_sent_budget"} if budget_stop else {}),
             }
-        draft, review, revision, repair_state = _optional_repair(core, packet, draft, initial, invoke, repair)
+        draft, review, revision, repair_state = _optional_repair(
+            core,
+            packet,
+            draft,
+            initial,
+            invoke,
+            repair,
+            max_verify_retries=max_verify_retries,
+            recheck_invoke=recheck_invoke,
+        )
         return _result(
-            packet, draft, review, initial, revision,
-            getattr(core, "provider_version", version), **repair_state
+            packet,
+            draft,
+            review,
+            initial,
+            revision,
+            getattr(core, "provider_version", version),
+            **repair_state,
         )
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         # Provider validation errors may include restricted source text.
         return _unavailable(packet, draft, version=version, status="failed")
 
 
-def run_biocheck(settings, packet, call, *, repair=True, loaded=None):
+def run_biocheck(
+    settings, packet, call, *, repair=True, loaded=None, max_plan_retries=0, max_verify_retries=0
+):
     """Compose using the upstream bound plan, verify, and revise at most once."""
     core, version = load_biocheck(settings) if loaded is None else loaded
     if core is None:
         return _unavailable(packet, version=version)
-    invoke = _callback(call)
+    plan_options = _retry_kwargs(max_plan_retries, "max_plan_retries")
+    verify_options = _retry_kwargs(max_verify_retries, "max_verify_retries")
+    invoke = _callback(
+        call,
+        verify_target="biocheck_check" if verify_options else None,
+        allow_plan_repair=bool(plan_options),
+    )
+    recheck_invoke = _callback(call, verify_target="biocheck_recheck") if verify_options else None
     draft = None
     try:
-        generated = core.generate(copy.deepcopy(packet), invoke, method="bound")
+        generated = _contract_call(
+            core, "generate", copy.deepcopy(packet), invoke, method="bound", **plan_options
+        )
         draft = generated["draft"]
         try:
-            initial = core.verify(copy.deepcopy(packet), draft, invoke)
+            initial = _contract_call(core, "verify", copy.deepcopy(packet), draft, invoke, **verify_options)
         except ModelCallError as exc:
-            if exc.receipt.status != "failed" or exc.code not in {
-                "model_output_invalid", "model_output_truncated"
-            }:
+            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            if not budget_stop and (
+                exc.receipt.status != "failed"
+                or exc.code
+                not in {
+                    "model_output_invalid",
+                    "model_output_truncated",
+                }
+            ):
                 raise
             # The provider answered, but supplied no usable verification. Preserve
             # the exact draft as failed/unverified; never revise it from this error.
             return {
                 **_unavailable(packet, draft, version=version, status="failed"),
                 "error_code": exc.code,
-                "verification_error": "核验服务返回的内容无法使用；正文保留，等待核验。",
+                "verification_error": (
+                    "专业核验在发送前达到预算；已生成正文保留，核验未完成。"
+                    if budget_stop
+                    else "核验服务返回的内容无法使用；正文保留，等待核验。"
+                ),
+                **({"verification_stop_reason": "not_sent_budget"} if budget_stop else {}),
             }
         except DomainError as exc:
-            if exc.code != "method_input_invalid":
+            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            if not budget_stop and exc.code not in {
+                "method_input_invalid",
+                "verification_contract_invalid",
+                "verification_repair_exhausted",
+            }:
                 raise
             # A completed HTTP method rejection is a known failed verification,
             # unlike a missing/unknown transport response.
             return {
                 **_unavailable(packet, draft, version=version, status="failed"),
                 "error_code": exc.code,
-                "verification_error": "专业核验未接受本次回执结构；正文保留，等待核验。",
+                "verification_error": (
+                    "专业核验在发送前达到预算；已生成正文保留，核验未完成。"
+                    if budget_stop
+                    else "专业核验未接受本次回执结构；正文保留，等待核验。"
+                ),
+                **({"verification_stop_reason": "not_sent_budget"} if budget_stop else {}),
             }
-        draft, review, revision, repair_state = _optional_repair(core, packet, draft, initial, invoke, repair)
+        draft, review, revision, repair_state = _optional_repair(
+            core,
+            packet,
+            draft,
+            initial,
+            invoke,
+            repair,
+            max_verify_retries=max_verify_retries,
+            recheck_invoke=recheck_invoke,
+        )
         return _result(
-            packet, draft, review, initial, revision,
-            getattr(core, "provider_version", version), generated=generated, **repair_state
+            packet,
+            draft,
+            review,
+            initial,
+            revision,
+            getattr(core, "provider_version", version),
+            generated=generated,
+            **repair_state,
         )
     except DomainError as exc:
-        known_failed = exc.code == "method_input_invalid" or (
+        known_failed = (
+            not isinstance(exc, ModelCallError)
+            and exc.code in {"method_input_invalid", "plan_reference_invalid", "plan_repair_exhausted"}
+        ) or (
             isinstance(exc, ModelCallError)
             and exc.receipt.status == "failed"
             and exc.code in {"model_output_invalid", "model_output_truncated"}
@@ -612,8 +803,12 @@ def _feedback_binding(packet, review, audit):
         if audit.get("original_status") is not None and audit["original_status"] != review.get("status"):
             errors.append({"kind": "audit_mismatch", "reason": "片段复核的原核验状态与当前回执不同。"})
         for key in (
-            "text_sha256", "review_sha256", "evidence_versions",
-            "evidence_catalog", "source_updates", "analysis_signature",
+            "text_sha256",
+            "review_sha256",
+            "evidence_versions",
+            "evidence_catalog",
+            "source_updates",
+            "analysis_signature",
         ):
             if key in audit and key in binding and audit[key] != binding[key]:
                 errors.append({"kind": "audit_mismatch", "reason": "片段复核不属于本稿、本核验或固定原件。"})
@@ -785,20 +980,38 @@ def revise_biocheck(settings, packet, review, call, *, audit=None, source_errors
 class _HTTPMethods:
     """Expose native method signatures; transport and durable hooks are supplied by the host."""
 
-    def __init__(self, execute, provider_version):
+    def __init__(self, execute, provider_version, *, capabilities=None):
         self.execute = execute
         self.provider_version = provider_version
+        self.capabilities = copy.deepcopy(capabilities) if isinstance(capabilities, dict) else {}
+        self.features = copy.deepcopy(self.capabilities.get("features", []))
+        self.plan_retry_policy = copy.deepcopy(self.capabilities.get("plan_retry_policy"))
+        self.verify_retry_policy = copy.deepcopy(self.capabilities.get("verify_retry_policy"))
 
     def _run(self, operation, arguments, call=None):
         response = self.execute(operation, arguments, call=call)
         self.provider_version = response["provider_version"]
         return response["result"]
 
-    def generate(self, packet, call, method="bound"):
-        return self._run("generate", {"packet": packet, "method": method}, call)
+    def _retry_options(self, kind, value):
+        options = _retry_kwargs(value, "max_" + kind + "_retries")
+        if options and not supports_bounded_retry(self, kind):
+            raise DomainError("biocheck_retry_unavailable", "固定专业方法未声明该有界结构修复", 422)
+        return options
 
-    def verify(self, packet, draft, call):
-        return self._run("verify", {"packet": packet, "draft": draft}, call)
+    def generate(self, packet, call, method="bound", *, max_plan_retries=0):
+        return self._run(
+            "generate",
+            {"packet": packet, "method": method, **self._retry_options("plan", max_plan_retries)},
+            call,
+        )
+
+    def verify(self, packet, draft, call, *, max_verify_retries=0):
+        return self._run(
+            "verify",
+            {"packet": packet, "draft": draft, **self._retry_options("verify", max_verify_retries)},
+            call,
+        )
 
     def revise(self, packet, review, call, *, audit=None, source_errors=()):
         return self._run(
@@ -816,6 +1029,6 @@ class _HTTPMethods:
         )
 
 
-def load_biocheck_http(execute, provider_version=None):
+def load_biocheck_http(execute, provider_version=None, *, capabilities=None):
     """Bind the host's operation executor; HTTP mode never falls back to a local import."""
-    return _HTTPMethods(execute, provider_version), provider_version
+    return _HTTPMethods(execute, provider_version, capabilities=capabilities), provider_version

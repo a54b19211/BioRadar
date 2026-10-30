@@ -144,6 +144,9 @@ class Model:
                     "decisive_evidence_keys": [first["evidence_key"]],
                 },
             }
+            schema = wire.get("response_format", {}).get("json_schema", {}).get("schema", {})
+            if {"warning_assessment", "competing_hypotheses"}.issubset(schema.get("properties", {})):
+                result.update(warning_assessment=None, competing_hypotheses=[])
         elif payload["task"] == "compare":
             result = {
                 "stance": "maintained",

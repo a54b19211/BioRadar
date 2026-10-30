@@ -472,6 +472,149 @@
       "title": "GenericReview",
       "type": "object"
     },
+    "TopicRiskReassessment": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/TopicRiskScopeStamp"
+        },
+        "decision": {
+          "enum": [
+            "unresolved",
+            "resolved_within_scope"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "decision_claim_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Decision Claim Id",
+          "type": "string"
+        },
+        "decision_statement": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Decision Statement",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "scope_control_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Scope Control Claim Ids",
+          "type": "array"
+        },
+        "opposing_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Opposing Claim Ids",
+          "type": "array"
+        },
+        "scope_coverage": {
+          "enum": [
+            "full_declared_scope",
+            "partial",
+            "unknown"
+          ],
+          "title": "Scope Coverage",
+          "type": "string"
+        },
+        "remaining_critical_gaps": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Remaining Critical Gaps",
+          "type": "array"
+        },
+        "conditions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "decision",
+        "decision_claim_id",
+        "decision_statement",
+        "supporting_claim_ids",
+        "scope_control_claim_ids",
+        "scope_coverage",
+        "reason"
+      ],
+      "title": "TopicRiskReassessment",
+      "type": "object"
+    },
+    "TopicRiskScopeStamp": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_id": {
+          "maxLength": 36,
+          "minLength": 1,
+          "title": "Topic Id",
+          "type": "string"
+        },
+        "scope_revision": {
+          "minimum": 1,
+          "title": "Scope Revision",
+          "type": "integer"
+        },
+        "observation_revision": {
+          "minimum": 0,
+          "title": "Observation Revision",
+          "type": "integer"
+        },
+        "definition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Definition Sha256",
+          "type": "string"
+        },
+        "risk_basis_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Risk Basis Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_id",
+        "scope_revision",
+        "observation_revision",
+        "definition_sha256",
+        "risk_basis_sha256"
+      ],
+      "title": "TopicRiskScopeStamp",
+      "type": "object"
+    },
     "VerifiedClaim": {
       "additionalProperties": false,
       "properties": {
@@ -796,6 +939,30 @@
       ],
       "default": null,
       "title": "Competing Hypotheses"
+    },
+    "assessment_binding": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assessment Binding"
+    },
+    "topic_risk_reassessment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TopicRiskReassessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "limitations": {
       "items": {

@@ -185,6 +185,9 @@ const reviewStatus: Record<string, string> = {
         <small>{{ humanDecision.created_at }} · {{ humanDecision.created_by }}</small>
       </details>
     </section>
+    <p v-if="analysis.result.assessment_binding?.status === 'unbound'" class="notice" role="status" aria-label="结构化判断引用未绑定">
+      系统记录：结构化研究判断未绑定本版命题；原稿与原判断保留，不作为已绑定评分或自动行动依据。
+    </p>
     <section v-if="analysis.result.warning_assessment" class="warning-assessment notice" aria-label="核实优先级与竞争解释">
       <h3>{{ warningLabels[analysis.result.warning_assessment.decision] || analysis.result.warning_assessment.decision }}</h3>
       <p>{{ analysis.result.warning_assessment.reason }}</p>

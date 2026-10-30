@@ -188,6 +188,14 @@ export interface ResearchCompetingHypothesis {
   discriminating_evidence_needed: string;
   untested_conditions: string[];
 }
+export interface ResearchAssessmentBinding {
+  status: "bound" | "unbound" | "not_provided";
+  scope: string;
+  can_use_bound_claim_refs: boolean;
+  unbound_claim_ids: string[];
+  issues: { path: (string | number)[]; reason: string; claim_id?: string }[];
+  qualification: string;
+}
 export interface ResearchReadingManifestItem {
   source_id: string;
   source_record_id: string;
@@ -200,12 +208,13 @@ export interface ResearchReadingManifestItem {
 }
 
 type OriginalResult = components["schemas"]["AnalysisResult"];
-export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluation" | "query_policy"> & {
+export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluation" | "query_policy" | "assessment_binding"> & {
   report?: ResearchReport | null;
   mechanism_evaluation?: ResearchMechanismEvaluation | null;
   query_policy?: QueryPolicyTrace | null;
   warning_assessment?: ResearchWarningAssessment | null;
   competing_hypotheses?: ResearchCompetingHypothesis[] | null;
+  assessment_binding?: ResearchAssessmentBinding | null;
   coverage_issues?: { check_id: string; source: string; status: "unknown" }[];
   reading_manifest?: ResearchReadingManifestItem[];
 };

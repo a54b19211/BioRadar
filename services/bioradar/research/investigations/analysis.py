@@ -16,12 +16,18 @@ from bioradar.research.investigations.analysis_models import (
     AnalysisPassage,
     AnalysisResult,
     AnalysisUpdate,
+    FinalResearchSynthesis,
     GenericReview,
     ModelReading,
     ModelReview,
     ModelSynthesis,
     VerifiedClaim,
     VerifiedEvidenceLink,
+)
+from bioradar.research.investigations.research_assessment import (
+    assessment_binding,
+    assessment_binding_note,
+    validate_claim_assessments,
 )
 from bioradar.research.mining.models import canonical_hash
 
@@ -125,8 +131,14 @@ def _model_fact_projection(item, *, compact=False):
     facts, locators = copy.deepcopy(facts), copy.deepcopy(locators)
     removed = []
     names = {
-        "body", "full_text", "fulltext", "text", "clean_text", "normalized_text",
-        "abstract", "abstract_text",
+        "body",
+        "full_text",
+        "fulltext",
+        "text",
+        "clean_text",
+        "normalized_text",
+        "abstract",
+        "abstract_text",
     }
     selected = item.get("text", "")
     for key, value in list(facts.items()):
@@ -138,7 +150,8 @@ def _model_fact_projection(item, *, compact=False):
         pointer = (locators.get(key) or {}).get("json_pointer", "")
         native_body = pointer.rsplit("/", 1)[-1] in names
         duplicate = selected and (
-            selected in value or value in selected
+            selected in value
+            or value in selected
             or any(p["text"] in value for p in item.get("passages", []) if len(p["text"]) >= 40)
         )
         if native_body or duplicate:
@@ -147,7 +160,8 @@ def _model_fact_projection(item, *, compact=False):
         facts.pop(key, None)
         locators.pop(key, None)
     return {
-        "facts": facts, "field_locators": locators,
+        "facts": facts,
+        "field_locators": locators,
         **({"omitted_text_projections": removed} if removed else {}),
     }
 
@@ -167,11 +181,16 @@ def model_evidence(evidence, *, include_source_context=False, evidence_time=None
             "record_flags": item.get("record_flags", []),
             **_model_fact_projection(item, compact=include_source_context),
             **(
-                {"source_context": context_at(
-                    item["source_context"], mode=temporal.get("mode", "current"),
-                    cutoff=temporal.get("cutoff"), text=item["text"],
-                )}
-                if include_source_context and item.get("source_context") is not None else {}
+                {
+                    "source_context": context_at(
+                        item["source_context"],
+                        mode=temporal.get("mode", "current"),
+                        cutoff=temporal.get("cutoff"),
+                        text=item["text"],
+                    )
+                }
+                if include_source_context and item.get("source_context") is not None
+                else {}
             ),
             "limitations": item.get("limitations", []),
         }
@@ -344,27 +363,7 @@ def validate_policy_reading(value, evidence, search_scope):
     for query in core["next_queries"]:
         query.pop("coverage_check_ids", None)
     validate_reading(core, evidence, search_scope)
-    claims = {claim.id: claim for claim in result.claims}
-    hypotheses = result.competing_hypotheses or []
-    if len({item.id for item in hypotheses}) != len(hypotheses):
-        raise DomainError("analysis_output_invalid", "竞争假设编号重复", 422)
-    assessments = list(hypotheses)
-    if result.warning_assessment is not None:
-        assessments.append(result.warning_assessment)
-    for item in assessments:
-        ids = item.supporting_claim_ids + item.opposing_claim_ids
-        if not set(ids).issubset(claims):
-            raise DomainError("analysis_output_invalid", "研究判断引用不存在的命题", 422)
-        if set(item.supporting_claim_ids) & set(item.opposing_claim_ids):
-            raise DomainError("analysis_output_invalid", "同一命题不能同时标为同一假设的支持与反证", 422)
-    warning = result.warning_assessment
-    if warning is not None and warning.decision == "alert":
-        if not warning.supporting_claim_ids or not any(
-            claims[key].evidence_links for key in warning.supporting_claim_ids
-        ):
-            raise DomainError("analysis_output_invalid", "预警判断须绑定实际固定原文命题", 422)
-        if not warning.critical_unknowns or not warning.next_actions:
-            raise DomainError("analysis_output_invalid", "预警判断须保留关键未知与核实动作", 422)
+    validate_claim_assessments(result, result.claims)
     return result
 
 
@@ -501,9 +500,9 @@ def normalize_policy_synthesis(raw):
     return normalized, adjustments
 
 
-def validate_synthesis(value, evidence, *, parent):
+def validate_synthesis(value, evidence, *, parent, schema=ModelSynthesis, topic_risk_scope=None):
     try:
-        result = ModelSynthesis.model_validate(value)
+        result = schema.model_validate(value)
     except ValidationError:
         raise DomainError("analysis_output_invalid", "模型当前稿结构不完整或格式无效", 422) from None
     verified = validate_claims(result.claims, evidence)
@@ -512,11 +511,19 @@ def validate_synthesis(value, evidence, *, parent):
     for alternative in result.explanations:
         if not set(alternative.for_claim_ids + alternative.against_claim_ids).issubset(claims):
             raise DomainError("analysis_output_invalid", "竞争解释指向不存在的本版命题", 422)
+    if isinstance(result, FinalResearchSynthesis):
+        validate_claim_assessments(
+            result, result.claims, error_code="analysis_assessment_invalid", topic_risk_scope=topic_risk_scope
+        )
     return result, verified
 
 
-def validated_result(value, check, evidence, *, parent, limitations):
-    result, verified = validate_synthesis(value, evidence, parent=parent)
+def validated_result(
+    value, check, evidence, *, parent, limitations, schema=ModelSynthesis, topic_risk_scope=None
+):
+    result, verified = validate_synthesis(
+        value, evidence, parent=parent, schema=schema, topic_risk_scope=topic_risk_scope
+    )
     keys, claims = {e["key"] for e in evidence}, {c.id for c in result.claims}
     try:
         review = ModelReview.model_validate(check)
@@ -541,6 +548,15 @@ def validated_result(value, check, evidence, *, parent, limitations):
         conditional_answer=result.conditional_answer,
         update=result.update,
         review=GenericReview.model_validate(review.model_dump(mode="json")),
+        **(
+            {
+                "warning_assessment": result.warning_assessment,
+                "competing_hypotheses": result.competing_hypotheses,
+                "topic_risk_reassessment": result.topic_risk_reassessment,
+            }
+            if isinstance(result, FinalResearchSynthesis)
+            else {}
+        ),
         limitations=[*limitations, "通用模型核验不等于专业审核或人工批准。"],
     )
 
@@ -580,7 +596,8 @@ def freeze_payload(
         "analysis_version": ANALYSIS_VERSION,
         "prompt_version": PROMPT_VERSION,
         "evidence": model_evidence(
-            evidence, include_source_context=bool(research_task_context(fixed_input)),
+            evidence,
+            include_source_context=bool(research_task_context(fixed_input)),
             evidence_time=fixed_input.get("evidence_time"),
         ),
         "search_scope": fixed_input["search_scope"],
@@ -834,6 +851,17 @@ def report_context(result, mechanism):
         for key in ("claims", "conditional_answer", "explanations", "gaps", "update")
         if key in result
     }
+    findings = {
+        key: copy.deepcopy(result[key])
+        for key in ("warning_assessment", "competing_hypotheses", "topic_risk_reassessment")
+        if key in result and result[key] is not None
+    }
+    if findings:
+        binding = assessment_binding(result)
+        if binding["status"] == "bound":
+            analysis.update(findings)
+        elif binding["status"] == "unbound":
+            analysis["assessment_binding"] = binding
     for claim in analysis.get("claims", []):
         for link in claim.get("evidence_links", []):
             for key in ("quote", "start", "end"):
@@ -899,8 +927,12 @@ def basis_hash(question, evidence, parent_id, model, revision, search_scope):
 
 
 def readable_result(result):
+    note = assessment_binding_note(result)
+    prefix = note + "\n" if note else ""
     if (result.get("report") or {}).get("final_text"):
-        return ("机器分析报告（专业方法或模型核验不等于人工批准）\n" + result["report"]["final_text"])[:7900]
+        return (
+            prefix + "机器分析报告（专业方法或模型核验不等于人工批准）\n" + result["report"]["final_text"]
+        )[:7900]
     answer = result["conditional_answer"]
     lines = [
         "机器分析草稿（未作专业审核，未签研究人员判断）",
@@ -909,7 +941,7 @@ def readable_result(result):
         "尚未解决：" + "；".join(answer["unknowns"]),
         "本版与前版：" + "；".join(result["update"]["reasons"]),
     ]
-    return "\n".join(lines)[:7900]
+    return (prefix + "\n".join(lines))[:7900]
 
 
 def source_excerpt(original, remaining, *, start=None, max_characters=6000):
@@ -975,7 +1007,8 @@ def source_excerpt(original, remaining, *, start=None, max_characters=6000):
         "source_length": len(source_text),
         **(
             {"source_context": copy.deepcopy(original["document_evidence"])}
-            if original.get("document_evidence") is not None else {}
+            if original.get("document_evidence") is not None
+            else {}
         ),
         "text_basis": "source_raw_content" if raw_basis else "source_clean_text",
         "facts": fields,
@@ -1062,10 +1095,7 @@ def analysis_budget(fixed, progress, now):
         elapsed = max(0, ((ended if ended >= resumed_at else now) - resumed_at).total_seconds())
     from bioradar.research.investigations.execution_budget import waiting_seconds
 
-    wait_progress = (
-        progress if not resumption
-        else {**progress, "started_at": clock_started.isoformat()}
-    )
+    wait_progress = progress if not resumption else {**progress, "started_at": clock_started.isoformat()}
     paused = waiting_seconds(fixed, wait_progress, now)
     display_end = ended if not resumption or ended >= clock_started else now
     display_paused = waiting_seconds(fixed, wait_progress, min(display_end, now))
@@ -1091,9 +1121,8 @@ def analysis_budget(fixed, progress, now):
             "budgeted_tokens": charged,
             "queries": len(progress.get("queries", [])),
             "elapsed_seconds": elapsed,
-            "remaining_seconds": limits["max_seconds"] - max(
-                0, (now - clock_started).total_seconds() - paused
-            ),
+            "remaining_seconds": limits["max_seconds"]
+            - max(0, (now - clock_started).total_seconds() - paused),
             **({"automatic_budget_wait_seconds": paused} if paused else {}),
             **({"original_elapsed_seconds": original_elapsed} if resumption else {}),
             "monetary_cost": None,

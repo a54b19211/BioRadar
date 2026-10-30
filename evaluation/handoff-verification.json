@@ -6420,5 +6420,149 @@
     },
     "deployment": "Only current isolated Radar branch modified. Live strict-D and social R2 workers remain on their frozen 5c8e420 code. No old failed record, monitor cursor, production service or upstream repo was changed.",
     "real_acceptance": "Coordinator will freeze this commit for fresh main R3 state. Existing R2 outcomes and model receipts remain separately versioned; targeted engineering checks do not establish scientific correctness."
+  },
+  "r4_bounded_retrieval_and_verified_topic_updates_20261031": {
+    "status": "engineering_reviewed_ready_for_r3_freeze",
+    "radar_base_commit": "4156e2fa5ed9a14aa58633637bd3074962abefde",
+    "branch": "codex/radar-kdd-20261030",
+    "scope": "BioRadar only; existing PostgreSQL/RQ; no migration; no production Radar deployment or main merge",
+    "used_by_native_checks": {
+      "BioCheck": {
+        "git": "c5591431d3f2da712a225e6f6b39a4ea7c1ebb1a",
+        "provider_version": "4b097ec6fe8c9cf31b17590fa3bc49a6f391b1679617801989bb6ea78fc25dcd"
+      },
+      "query-planner": {
+        "git": "a008894949f55c52c577150885bcc09be39cb5ac",
+        "policy_version": "1dbcecacae2463d51c63e11ce67e19a9fd2f026c75d6965692165722cb40532b",
+        "method_version": "kdd-information-gain-1.3"
+      }
+    },
+    "workspace_heads_observed_not_claimed_as_new_real_calls": {
+      "mechevidence": "5aa38a9b88910f9125c706b729895865068d98d6",
+      "data-factory": "0349160e565aa25bf837a4c6bcaa63dd9c044c6d",
+      "weknora": "c6e3166b6e26219a800f3bc7a23b50dd22fa9181"
+    },
+    "frozen_new_profiles": {
+      "initial_retrieval_version": "literal-language-budget-v2",
+      "automatic_initial_queries": 3,
+      "explicit_initial_queries": "preserved within the pre-existing input and total limits",
+      "pagination_version": "fabric-receipt-bound-pagination-v1",
+      "document_search_limit": 8,
+      "global_query_limit": 16,
+      "final_assessment_version": "bioradar-research-final-v1",
+      "professional_retry_version": "biocheck-contract-repair-v1",
+      "stop": "observed_checks_reading_pages_v3",
+      "legacy": "Existing frozen profiles, operation arguments and model receipts are not upgraded during recovery."
+    },
+    "delivered": [
+      "Fabric exact next_cursor and coverage.max_seq persist per actual page; same source/query/limit/scope; every page consumes existing quota.",
+      "Future final claims, warnings and hypotheses share one output namespace. Only unknown reference IDs can change in one bounded repair; other JSON remains exact.",
+      "New BioCheck opt-ins freeze from matching capabilities before operation preparation. Native plan/verify contract repair stages reuse host model ledger and budget.",
+      "Actual topic report packets and checked final text bind risk decisions to the current scope, observation and source permissions; API and automatic tick share adoption.",
+      "Failed execution, stale reading and unknown outcomes cannot resolve a topic. New unreviewed semantic atoms reopen risk; deletion/subset/repost alone does not.",
+      "Legacy dangling assessments are shown unbound outside unchanged report text; Markdown/JSON/UI keep the same final_text and verification meaning."
+    ],
+    "fault_results": {
+      "page_received_before_worker_exit": "actual PG recovery reused originals; zero repeated page GET",
+      "final_reference_repair_received_before_exit": "actual PG replay kept original bad response and exact corrected response; zero repeated repair call",
+      "professional_plan_verify_and_audit_received": "six native stage receipts replay with exhausted calls/time; zero new model invoke",
+      "topic_verify_audit_received_before_rq_child_exit": "same analysis and existing model receipts recovered; completed verify/audit not resent; only unfinished pure quality_feedback operation continued",
+      "model_and_weknora_sent_checkpoint_exceeds_deadline": "durable not_sent, zero POST on initial stop and recovery; checked prior draft preserved",
+      "scientific_status": "No forced PASS; valid negative judgments and nonempty verification issues are not contract-repair candidates."
+    },
+    "checks": [
+      {
+        "name": "required_boot",
+        "passed": 43,
+        "log": "r4-boot.log"
+      },
+      {
+        "name": "required_lint",
+        "exit_code": 0,
+        "log": "r4-lint.log"
+      },
+      {
+        "name": "actual_engine_contract",
+        "exit_code": 0,
+        "log": "r4-engine-contract.log"
+      },
+      {
+        "name": "required_contract_check",
+        "exit_code": 0,
+        "log": "r4-contract.log"
+      },
+      {
+        "name": "required_web_check",
+        "exit_code": 0,
+        "log": "r4-web-check.log"
+      },
+      {
+        "name": "host_pagination_and_professional_retry_budget",
+        "passed": 16,
+        "log": "r4-host-integration-v2.log"
+      },
+      {
+        "name": "actual_pg_final_claim_repair_and_strict_pagination",
+        "passed": 8,
+        "log": "r4-host-final-pg.log"
+      },
+      {
+        "name": "input_compatibility_and_durable_send_boundary",
+        "passed": 12,
+        "log": "r4-compat-send-boundary.log"
+      },
+      {
+        "name": "native_biocheck_adapter_and_existing_compatibility",
+        "passed": 145,
+        "log": "bounded-biocheck-adapter-regression.log"
+      },
+      {
+        "name": "assessment_projection_delivery_and_id_only_repair",
+        "passed": 43,
+        "log": "c-final-assessment-pure-final.log"
+      },
+      {
+        "name": "topic_risk_pure_final",
+        "passed": 24,
+        "log": "a-topic-risk-final-pure-v2.log"
+      },
+      {
+        "name": "topic_risk_actual_pg_rq_normal_automatic_and_received_recovery",
+        "passed": 23,
+        "log": "a-topic-risk-final-targeted-v1.log"
+      },
+      {
+        "name": "topic_risk_final_declared_scope_pg_rq",
+        "passed": 1,
+        "log": "a-topic-risk-final-pg-proof.log"
+      },
+      {
+        "name": "strict_pagination_checker",
+        "passed": 3,
+        "log": "b-pagination-checker-regression.log"
+      }
+    ],
+    "test_count_note": "Checks overlap; counts are per log and must not be added as distinct scientific cases.",
+    "nonauthor_reviews": [
+      "b-r4-host-risk-nonauthor-review.json",
+      "c-b-bounded-biocheck-nonauthor-review.json",
+      "c-a-topic-risk-service-nonauthor-review.json",
+      "a-c-final-assessment-nonauthor-review.json"
+    ],
+    "evidence_directory": "/tmp/bioradar-opus-20261031",
+    "archive_directory": "/home/zk_test/zk_projects/.bioradar-kdd-integration/acceptance-20261031/engineering/r4-bounded-retrieval-and-topic-updates",
+    "real_model_calls_this_batch": 0,
+    "real_research_evaluation": "Coordinator freezes a new R3 registry and executes real questions/materials separately. Prior R2 failures, source-time results and raw ledgers are retained.",
+    "retained_failures": [
+      "r4-pagination-regression.log: initial PG integration exposed null manual origin; corrected by current helper and validated in r4-host-final-pg.log.",
+      "r4-final-assessment-pg.log: test started before the concurrent strict repair helper was finalized; final saved-receipt case passes in r4-host-final-pg.log.",
+      "Upstream historical S4 has nonempty verification issues; it remains ineligible for format repair and is not claimed repaired by synthetic controls."
+    ],
+    "nonauthor_review_sha256": {
+      "b-r4-host-risk-nonauthor-review.json": "b332d24e783315028a6ea8d2a7d1370e96b7fc006c96a3f991e312a12f792464",
+      "c-b-bounded-biocheck-nonauthor-review.json": "775fc5cbec076c0ba115e7b40cb763d87647f4d99b905c4ff016290d86d9e710",
+      "c-a-topic-risk-service-nonauthor-review.json": "571b36b48530fd9488ddeaea9d1e2ca54d51ca8f1eb7ad4972cad3687de179ef",
+      "a-c-final-assessment-nonauthor-review.json": "01fe2437475e7d87732bd4d11f37c00bb2377cc1e0c2cf8cb4cc01f0e60d4624"
+    }
   }
 }

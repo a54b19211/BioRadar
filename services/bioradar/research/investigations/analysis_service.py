@@ -91,6 +91,13 @@ from bioradar.research.investigations.execution_budget import (
     reserve_automatic_call,
 )
 from bioradar.research.investigations.models import InvestigationEntryCreate
+from bioradar.research.investigations.research_assessment import (
+    assessment_repair_payload,
+    assessment_result_view,
+    claim_assessment_errors,
+    final_assessment_context,
+    synthesis_schema,
+)
 from bioradar.research.investigations.service import (
     InvestigationEntryRecord,
     InvestigationRecord,
@@ -372,7 +379,7 @@ class AnalysisService:
 
         progress = row.progress
         policy_view = cls._policy_view(row.fixed_input, progress)
-        result = copy.deepcopy(row.result) if row.result else None
+        result = assessment_result_view(row.result) if row.result else None
         if result is not None and policy_view is not None:
             # This read projection includes report HTTP receipts saved after retrieval.
             # The stored result, source text and original provider receipts stay immutable.
@@ -416,7 +423,8 @@ class AnalysisService:
                 ),
             },
             budget=analysis_budget(
-                row.fixed_input, progress,
+                row.fixed_input,
+                progress,
                 datetime.fromisoformat(progress["finished_at"])
                 if row.state in {"completed", "needs_review", "blocked", "failed"}
                 and progress.get("finished_at")
@@ -752,6 +760,10 @@ class AnalysisService:
             )
             if view.origin is not None:
                 policy["mining_origin"] = view.origin.model_dump(mode="json")
+        risk_scope = (origin or {}).get("topic_risk_scope")
+        if risk_scope is not None and policy.get("final_assessment_version"):
+            # A fresh observation/scope must not deduplicate to a previous risk decision.
+            policy["topic_risk_scope_sha256"] = canonical_hash(risk_scope)
         providers = self._provider_status(
             kdd=policy.get("schema_version") == "query-planner.external.v2",
             direction=policy.get("direction", "research"),
@@ -937,7 +949,8 @@ class AnalysisService:
                             ),
                             **(
                                 {"min_send_seconds": previous["model_parameters"]["min_send_seconds"]}
-                                if "min_send_seconds" in previous["model_parameters"] else {}
+                                if "min_send_seconds" in previous["model_parameters"]
+                                else {}
                             ),
                         },
                         previous["search_scope"],
@@ -1703,12 +1716,19 @@ class AnalysisService:
                 item.pop("record_ref", None)
                 item.pop("action_ids", None)
                 item.pop("query_action_ids", None)
-        reading_context = state.get("reading") or {}
+        findings = result if synthesis_schema(fixed) is not ModelSynthesis else state.get("reading") or {}
         research_findings = {
-            name: copy.deepcopy(reading_context[name])
-            for name in ("warning_assessment", "competing_hypotheses")
-            if reading_context.get(name)
+            name: copy.deepcopy(findings[name])
+            for name in ("warning_assessment", "competing_hypotheses", "topic_risk_reassessment")
+            if findings.get(name)
         }
+        if synthesis_schema(fixed) is not ModelSynthesis and (fixed.get("origin") or {}).get(
+            "topic_risk_scope"
+        ):
+            research_findings["topic_risk_scope"] = copy.deepcopy(fixed["origin"]["topic_risk_scope"])
+            research_findings["topic_risk_definition"] = copy.deepcopy(
+                fixed["origin"].get("topic_risk_definition")
+            )
         scope = {
             **copy.deepcopy(updates),
             **research_findings,
@@ -1957,20 +1977,52 @@ class AnalysisService:
                     raise DomainError(
                         "analysis_model_budget", "剩余调用不足以生成后核验，未发送生成请求", 422
                     )
+            if stage == "biocheck_plan_repair":
+                # Repair only an actually rejected plan; retain room to write and check it.
+                audit_reserved = progress.get("final_report_plan", {}).get("reserve_support_audit", False)
+                following = 2 + int(audit_reserved)
+                source = {k: payload[k] for k in ("question", "evidence", "assessment") if k in payload}
+                draft = progress.get("final_candidate", "")
+                maximum = parameters["max_input_bytes"]
+                write_input = min(
+                    maximum,
+                    len(json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode())
+                    + len(draft.encode())
+                    + 8192,
+                )
+                reserved = (
+                    write_input
+                    + verification_input_allowance(source, draft, maximum)
+                    + (support_audit_input_allowance(source, draft, maximum) if audit_reserved else 0)
+                    + 128 * following
+                )
+                if len(progress["calls"]) + 1 + following > parameters["max_calls"]:
+                    raise DomainError(
+                        "analysis_model_budget", "计划修复后已无生成和核验额度，未发送修复", 422
+                    )
             final_minimum = 3 + int(progress.get("final_report_plan", {}).get("reserve_support_audit", False))
             if stage == "biocheck_plan" and len(progress["calls"]) + final_minimum > parameters["max_calls"]:
                 raise DomainError(
                     "analysis_model_budget", "剩余调用不足以完成最终规划、生成、核验与所选片段复核", 422
                 )
-            if stage in {"biocheck_check", "biocheck_recheck"} and progress.get("final_report_plan", {}).get(
-                "reserve_support_audit"
-            ):
+            if stage in {
+                "biocheck_check",
+                "biocheck_recheck",
+                "biocheck_verify_repair",
+                "biocheck_recheck_repair",
+            } and progress.get("final_report_plan", {}).get("reserve_support_audit"):
                 reserved = (
                     support_audit_input_allowance(
                         payload, payload.get("draft", ""), parameters["max_input_bytes"]
                     )
                     + 128
                 )
+            if stage in {"biocheck_verify_repair", "biocheck_recheck_repair"}:
+                following = int(progress.get("final_report_plan", {}).get("reserve_support_audit", False))
+                if len(progress["calls"]) + 1 + following > parameters["max_calls"]:
+                    raise DomainError(
+                        "analysis_model_budget", "核验回执修复后已无片段复核额度，未发送修复", 422
+                    )
             output_cap = min(parameters["max_output_tokens"], remaining - input_upper - reserved)
             if output_cap < 128:
                 raise DomainError("analysis_token_budget", "剩余token预算不足以发送下一次有界请求", 422)
@@ -2374,7 +2426,7 @@ class AnalysisService:
             request_tokens = self._reading_payload_tokens(fixed, payload, PolicyReading)
         if compact_mode:
             following_payload = self._synthesis_payload(fixed, progress)
-            following_tokens = self._reading_payload_tokens(fixed, following_payload, ModelSynthesis)
+            following_tokens = self._reading_payload_tokens(fixed, following_payload, synthesis_schema(fixed))
         if (
             optional
             and saved is None
@@ -2418,8 +2470,17 @@ class AnalysisService:
 
             try:
                 reading = validated_policy_output(
-                    self, identifier, token, fixed, progress, raw, payload, key, declared.get("checks", []),
-                    optional=optional, following_tokens=following_tokens,
+                    self,
+                    identifier,
+                    token,
+                    fixed,
+                    progress,
+                    raw,
+                    payload,
+                    key,
+                    declared.get("checks", []),
+                    optional=optional,
+                    following_tokens=following_tokens,
                 )
             except DomainError as exc:
                 repair = progress.get("reading_repairs", {}).get(key, {})
@@ -2431,9 +2492,14 @@ class AnalysisService:
                     or exc.code == "analysis_finishing_budget_reserved"
                     or _known_optional_read_failure(failed)
                     or repair.get("status") == "invalid"
-                    and exc.code in {
-                        "analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid",
-                        "analysis_output_invalid", "analysis_unbound_claim", "analysis_query_invalid",
+                    and exc.code
+                    in {
+                        "analysis_reading_invalid",
+                        "analysis_reference_invalid",
+                        "analysis_passage_invalid",
+                        "analysis_output_invalid",
+                        "analysis_unbound_claim",
+                        "analysis_query_invalid",
                     }
                 )
                 if optional and previous is not None and known_stop:
@@ -2512,8 +2578,11 @@ class AnalysisService:
             self.engine.authorize_history_source(source)
 
     def _catalog_discovery_plan(self, fixed, progress, action):
-        """Rebuild the one-page fallback from committed empty searches before sending."""
-        from bioradar.research.investigations.query_policy import catalog_discovery_candidates
+        """Rebuild a directory/page action from its actual committed source receipts."""
+        from bioradar.research.investigations.query_policy import (
+            catalog_discovery_candidates,
+            pagination_candidates,
+        )
 
         observed = copy.deepcopy(progress)
         state = observed["query_policy"]
@@ -2523,18 +2592,22 @@ class AnalysisService:
         observed["queries"] = [
             query for query in observed["queries"] if query.get("action_id") != action["id"]
         ]
-        candidates = catalog_discovery_candidates(
-            fixed, observed, state.get("initial_plans", []), state.get("checks", [])
+        candidates = (
+            pagination_candidates(fixed, observed, state.get("checks", []))
+            if "cursor" in action["arguments"]
+            else catalog_discovery_candidates(
+                fixed, observed, state.get("initial_plans", []), state.get("checks", [])
+            )
         )
         for candidate in candidates:
             if candidate["id"] == action["id"] and candidate["arguments"] == action["arguments"]:
                 return copy.deepcopy(candidate["arguments"]["plan"])
         raise DomainError(
-            "analysis_query_invalid", "目录发现须在同来源全部关键词实际无命中后执行一次，请求未发送", 422
+            "analysis_query_invalid", "目录或续页必须来自本轮真实回执并保持原查询范围，请求未发送", 422
         )
 
     def _execute_policy_action(self, identifier, token, fixed, progress, action, step):
-        from bioradar.research.investigations.query_policy import semantic_key
+        from bioradar.research.investigations.query_policy import pagination_enabled, semantic_key
 
         limits = fixed.get("query_policy", {}).get("action_limits", {})
         if not any(q.get("action_id") == action["id"] for q in progress.get("queries", [])):
@@ -2561,13 +2634,16 @@ class AnalysisService:
         phase = arguments.get("phase", progress["query_policy"]["phase"])
         receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
         catalog_plan = None
-        if "catalog_discovery" in arguments and (receipt is None or receipt["status"] == "prepared"):
+        if ("catalog_discovery" in arguments or "cursor" in arguments) and (
+            receipt is None or receipt["status"] == "prepared"
+        ):
             if (
                 kind != "document_search"
                 or provider != "fabric"
-                or arguments["catalog_discovery"] is not True
+                or "catalog_discovery" in arguments
+                and arguments["catalog_discovery"] is not True
             ):
-                raise DomainError("analysis_query_invalid", "目录发现只接受明确的Fabric原件目录动作", 422)
+                raise DomainError("analysis_query_invalid", "目录与续页只接受明确的Fabric原件动作", 422)
             catalog_plan = self._catalog_discovery_plan(fixed, progress, action)
         if receipt is None:
             if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
@@ -2607,7 +2683,7 @@ class AnalysisService:
                 decision_step=step,
                 status="prepared",
                 scope="fabric_bounded_original_catalog_not_keyword_match"
-                if catalog_plan is not None
+                if arguments.get("catalog_discovery") is True
                 else "fixed_graph_background_not_research_evidence"
                 if provider == "fabric_graph"
                 else "weknora_candidates_bound_to_authorized_fabric_versions"
@@ -2707,9 +2783,12 @@ class AnalysisService:
                             terms=receipt["plan"]["terms"],
                             cutoff=cutoff,
                             mode=mode,
-                            limit=reading_limits(fixed)["search_limit"],
+                            limit=arguments.get("limit", reading_limits(fixed)["search_limit"]),
                             run_id=fixed.get("evidence_time", {}).get("run_id"),
                             catalog_discovery=arguments.get("catalog_discovery") is True,
+                            cursor=arguments.get("cursor"),
+                            max_seq=arguments.get("max_seq"),
+                            pagination=pagination_enabled(fixed),
                         )
                         if arguments.get("catalog_discovery") is True:
                             receipt["usage"] = {
@@ -2720,8 +2799,15 @@ class AnalysisService:
                             status="read" if found["items"] else "empty",
                             records=copy.deepcopy(found["items"]),
                             returned=len(found["items"]),
-                            has_more=found.get("next_cursor") is not None,
+                            has_more=bool(found.get("next_cursor")),
                         )
+                        if pagination_enabled(fixed):
+                            receipt["pagination"] = {
+                                "has_more": bool(found.get("next_cursor")),
+                                "next_cursor": found.get("next_cursor"),
+                                "max_seq": found["coverage"]["max_seq"],
+                                "page_number": arguments.get("page_number", 1),
+                            }
                     elif provider == "weknora":
                         from bioradar.adapters.weknora import search_candidates
 
@@ -3690,6 +3776,12 @@ class AnalysisService:
                 "repair": False,
                 "reserve_support_audit": True,
                 "basis": "quality_feedback_generation_then_independent_audit",
+                **(
+                    {"retry_policy_pending": True}
+                    if fixed.get("query_policy", {}).get("professional_retry_version")
+                    == "biocheck-contract-repair-v1"
+                    else {}
+                ),
             },
         )
         round_["activated"] = True
@@ -3737,11 +3829,60 @@ class AnalysisService:
 
             context = compact_query_context(self._reading_context(progress))
             queries = context["query_history"]
-        return freeze_payload(
+        payload = freeze_payload(
             "synthesize", fixed, progress["evidence"], queries=queries, query_context=context
         )
+        assessment = final_assessment_context(fixed)
+        if assessment:
+            payload["final_research_assessment"] = assessment
+        return payload
 
     def _normalize_synthesis(self, identifier, token, fixed, progress, raw, stage):
+        schema = synthesis_schema(fixed)
+        if schema is not ModelSynthesis:
+            risk_scope = (fixed.get("origin") or {}).get("topic_risk_scope")
+            try:
+                validate_synthesis(
+                    raw, progress["evidence"], parent=None, schema=schema, topic_risk_scope=risk_scope
+                )
+            except DomainError as exc:
+                errors = claim_assessment_errors(raw, topic_risk_scope=risk_scope)
+                if (
+                    exc.code not in {"analysis_output_invalid", "analysis_assessment_invalid"}
+                    or not errors
+                    or any(item["reason"] != "unknown_claim" for item in errors)
+                ):
+                    raise
+                round_ = progress.get("active_report_round", 0)
+                key = ("report-round:" + str(round_) + ":" if round_ else "") + stage
+                initial = next(c for c in progress["calls"] if c.get("call_key", c["stage"]) == key)
+                repaired, _ = self._call(
+                    identifier,
+                    token,
+                    stage,
+                    schema,
+                    fixed,
+                    progress,
+                    assessment_repair_payload(
+                        initial["payload"],
+                        raw,
+                        validation_error=exc.code,
+                        topic_risk_scope=risk_scope,
+                    ),
+                    call_key=stage + ":assessment-repair",
+                )
+                from bioradar.research.investigations.research_assessment import validate_assessment_repair
+
+                validate_assessment_repair(raw, repaired)
+                validate_synthesis(
+                    repaired,
+                    progress["evidence"],
+                    parent=None,
+                    schema=schema,
+                    topic_risk_scope=risk_scope,
+                )
+                return repaired
+            return raw
         if not (
             fixed.get("query_context_version") == "semantic-v2"
             and fixed.get("query_policy", {}).get("effective") == "query_planner"
@@ -3757,6 +3898,19 @@ class AnalysisService:
             self._checkpoint(identifier, token, progress)
         return normalized
 
+    @staticmethod
+    def _final_assessment_fields(parsed):
+        from bioradar.research.investigations.analysis_models import FinalResearchSynthesis
+
+        return (
+            {
+                name: getattr(parsed, name)
+                for name in ("warning_assessment", "competing_hypotheses", "topic_risk_reassessment")
+            }
+            if isinstance(parsed, FinalResearchSynthesis)
+            else {}
+        )
+
     def _quality_synthesis(self, identifier, token, fixed, progress):
         payload = self._synthesis_payload(fixed, progress)
         payload["quality_evidence_selection"] = {
@@ -3767,13 +3921,19 @@ class AnalysisService:
             identifier,
             token,
             "synthesize",
-            ModelSynthesis,
+            synthesis_schema(fixed),
             fixed,
             progress,
             payload,
         )
         raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
-        parsed, verified = validate_synthesis(raw, progress["evidence"], parent=None)
+        parsed, verified = validate_synthesis(
+            raw,
+            progress["evidence"],
+            parent=None,
+            schema=synthesis_schema(fixed),
+            topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+        )
         checked = AnalysisResult(
             claims=verified,
             explanations=parsed.explanations,
@@ -3785,6 +3945,7 @@ class AnalysisService:
                 claims=[],
                 overall_limitations=["补查后的结构化分析供最终成稿使用；正文须取得本轮独立核验及片段复核。"],
             ),
+            **self._final_assessment_fields(parsed),
             limitations=progress["limitations"],
         )
         return checked, raw
@@ -4007,11 +4168,13 @@ class AnalysisService:
                 parent = rounds[current["parent_index"]]
                 preserved = AnalysisResult.model_validate(parent["result"])
                 self._activate_report_round(identifier, token, fixed, progress, current)
+                self._freeze_report_retries(identifier, token, progress, loaded)
                 packet = build_packet(
                     fixed["question"],
                     current["evidence"],
                     self._report_context(fixed, progress, preserved.model_dump(mode="json"), freeze=True),
                 )
+                self._save_risk_report_packet(identifier, token, fixed, progress, packet)
                 try:
                     if "revision" not in current:
                         current["revision"] = revise_biocheck(
@@ -4039,11 +4202,14 @@ class AnalysisService:
                             self._shared_callback(identifier, token, fixed, progress),
                             repair=False,
                             loaded=loaded,
+                            max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
+                            verify_target="biocheck_recheck",
                         )
                         report.update(
                             revision=copy.deepcopy(revision),
                             professional_approval="not_reviewed",
                             structured_analysis_relation="source_draft",
+                            **self._risk_report_binding(fixed, progress),
                         )
                         candidate = preserved.model_copy(deep=True)
                         candidate.report = report
@@ -4113,6 +4279,48 @@ class AnalysisService:
         self._checkpoint(identifier, token, progress, fixed=fixed, result=checked.model_dump(mode="json"))
         return checked, progress
 
+    def _save_risk_report_packet(self, identifier, token, fixed, progress, packet):
+        """Keep the actual checked input once, outside the public report/export text."""
+        scope = (fixed.get("origin") or {}).get("topic_risk_scope")
+        if scope is None or synthesis_schema(fixed) is ModelSynthesis:
+            return
+        key = str(progress.get("active_report_round", 0))
+        packets = progress.setdefault("report_risk_packets", {})
+        previous = packets.get(key)
+        if previous is not None and canonical_hash(previous) != canonical_hash(packet):
+            raise DomainError("analysis_report_input_changed", "风险报告本轮固定材料已变化，未重用核验", 409)
+        if previous is None:
+            packets[key] = copy.deepcopy(packet)
+            self._checkpoint(identifier, token, progress)
+
+    @staticmethod
+    def _risk_report_binding(fixed, progress):
+        key = str(progress.get("active_report_round", 0))
+        packet = progress.get("report_risk_packets", {}).get(key)
+        scope = (fixed.get("origin") or {}).get("topic_risk_scope")
+        if packet is None or scope is None:
+            return {}
+        reassessment = packet.get("assessment", {}).get("radar_analysis", {}).get("topic_risk_reassessment")
+        return {
+            "topic_risk_binding": {
+                "scope": copy.deepcopy(scope),
+                "reassessment": copy.deepcopy(reassessment),
+                "report_round": int(key),
+                "packet_sha256": canonical_hash(packet),
+            }
+        }
+
+    def _freeze_report_retries(self, identifier, token, progress, loaded):
+        """Pin opt-in arguments before a professional operation is first prepared."""
+        from bioradar.adapters.biocheck import supports_bounded_retry
+
+        plan = progress["final_report_plan"]
+        if not plan.pop("retry_policy_pending", False):
+            return
+        plan["max_plan_retries"] = int(supports_bounded_retry(loaded[0], "plan"))
+        plan["max_verify_retries"] = int(supports_bounded_retry(loaded[0], "verify"))
+        self._checkpoint(identifier, token, progress)
+
     def _saved_final_report(self, identifier, token, fixed, progress, checked, raw):
         from bioradar.adapters.biocheck import (
             audit_biocheck_support,
@@ -4139,6 +4347,13 @@ class AnalysisService:
                 or other_calls + (5 if legacy else 6) <= fixed["model_parameters"]["max_calls"],
                 "reserve_support_audit": not legacy,
                 "basis": "existing_provider_stages" if legacy else "new_report_with_support_audit",
+                **(
+                    {"retry_policy_pending": True}
+                    if not legacy
+                    and fixed.get("query_policy", {}).get("professional_retry_version")
+                    == "biocheck-contract-repair-v1"
+                    else {}
+                ),
             }
         saved_report = progress.get("final_report") or any(
             item.get("result") for item in progress.get("report_rounds", [])
@@ -4155,14 +4370,18 @@ class AnalysisService:
         if report is None:
             context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
             packet = build_packet(fixed["question"], progress["evidence"], context)
+            self._save_risk_report_packet(identifier, token, fixed, progress, packet)
             loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
             self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
+            self._freeze_report_retries(identifier, token, progress, loaded)
             report = run_biocheck(
                 self.settings,
                 packet,
                 self._shared_callback(identifier, token, fixed, progress),
                 loaded=loaded,
                 repair=progress["final_report_plan"]["repair"],
+                max_plan_retries=progress["final_report_plan"].get("max_plan_retries", 0),
+                max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
             )
             progress["final_report"] = report
             self._checkpoint(identifier, token, progress)
@@ -4197,6 +4416,8 @@ class AnalysisService:
                 progress["evidence"],
                 parent=fixed.get("parent_result"),
                 limitations=progress["limitations"],
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
             )
             checked.review.checked_sections = [
                 "claims",
@@ -4214,6 +4435,7 @@ class AnalysisService:
             "text_sha256": hashlib.sha256(report["final_text"].encode()).hexdigest(),
             "structured_analysis_relation": "source_draft",
             "professional_approval": "not_reviewed",
+            **self._risk_report_binding(fixed, progress),
         }
         checked.report = report
         checked.mechanism_evaluation = progress.get("mechanism_evaluation")
@@ -4225,7 +4447,9 @@ class AnalysisService:
                 loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
                 self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
                 context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
-                packet = build_packet(fixed["question"], progress["evidence"], context)
+                packet = copy.deepcopy(
+                    progress.get("report_risk_packets", {}).get(str(progress.get("active_report_round", 0)))
+                ) or build_packet(fixed["question"], progress["evidence"], context)
             review = report.get("verification") or {}
             if "support_audit_plan" not in progress:
                 try:
@@ -4297,13 +4521,19 @@ class AnalysisService:
             identifier,
             token,
             "synthesize",
-            ModelSynthesis,
+            synthesis_schema(fixed),
             fixed,
             progress,
             self._synthesis_payload(fixed, progress),
         )
         raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
-        _, verified = validate_synthesis(raw, progress["evidence"], parent=None)
+        _, verified = validate_synthesis(
+            raw,
+            progress["evidence"],
+            parent=None,
+            schema=synthesis_schema(fixed),
+            topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+        )
         query_receipts = [{k: v for k, v in q.items() if k != "records"} for q in progress["queries"]]
         shared_final_check = (
             bool(fixed.get("providers", {}).get("biocheck", {}).get("available"))
@@ -4311,7 +4541,13 @@ class AnalysisService:
             and (fixed.get("parent_result") is None or not self._optional_budget(fixed, progress, 1))
         )
         if shared_final_check:
-            parsed, verified = validate_synthesis(raw, progress["evidence"], parent=None)
+            parsed, verified = validate_synthesis(
+                raw,
+                progress["evidence"],
+                parent=None,
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+            )
             checked = AnalysisResult(
                 claims=verified,
                 explanations=parsed.explanations,
@@ -4323,6 +4559,7 @@ class AnalysisService:
                     claims=[],
                     overall_limitations=["前期结构化分析未单独核验；最终正文的BioCheck结果另列report。"],
                 ),
+                **self._final_assessment_fields(parsed),
                 limitations=progress["limitations"],
             )
         else:
@@ -4348,6 +4585,8 @@ class AnalysisService:
                 progress["evidence"],
                 parent=None,
                 limitations=progress["limitations"],
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
             )
         has_parent = fixed.get("parent_result") is not None
         checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
@@ -4366,25 +4605,34 @@ class AnalysisService:
                 result=progress["initial_draft"],
             )
             try:
+                revision_payload = freeze_payload(
+                    "revise",
+                    fixed,
+                    progress["evidence"],
+                    synthesis=raw,
+                    review=reviewed,
+                    queries=query_receipts,
+                    verified_claims=checked.claims,
+                )
+                if final_assessment_context(fixed):
+                    revision_payload["final_research_assessment"] = final_assessment_context(fixed)
                 revised, progress = self._call(
                     identifier,
                     token,
                     "revise",
-                    ModelSynthesis,
+                    synthesis_schema(fixed),
                     fixed,
                     progress,
-                    freeze_payload(
-                        "revise",
-                        fixed,
-                        progress["evidence"],
-                        synthesis=raw,
-                        review=reviewed,
-                        queries=query_receipts,
-                        verified_claims=checked.claims,
-                    ),
+                    revision_payload,
                 )
                 revised = self._normalize_synthesis(identifier, token, fixed, progress, revised, "revise")
-                _, revised_verified = validate_synthesis(revised, progress["evidence"], parent=None)
+                _, revised_verified = validate_synthesis(
+                    revised,
+                    progress["evidence"],
+                    parent=None,
+                    schema=synthesis_schema(fixed),
+                    topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                )
                 rechecked, progress = self._call(
                     identifier,
                     token,
@@ -4407,6 +4655,8 @@ class AnalysisService:
                     progress["evidence"],
                     parent=None,
                     limitations=progress["limitations"],
+                    schema=synthesis_schema(fixed),
+                    topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
                 )
                 raw = revised
                 checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
@@ -4497,6 +4747,7 @@ class AnalysisService:
                 if (
                     fixed.get("query_policy", {}).get("research_contract_version")
                     == "bioradar-research-input-v1"
+                    and synthesis_schema(fixed) is ModelSynthesis
                 ):
                     reading_context = progress.get("query_policy", {}).get("reading") or {}
                     for name in ("warning_assessment", "competing_hypotheses"):
@@ -4545,10 +4796,9 @@ class AnalysisService:
                     return identifier
                 report_status = (result.get("report") or {}).get("status")
                 audit_status = ((result.get("report") or {}).get("support_audit") or {}).get("status")
-                if (
-                    progress.get("query_policy", {}).get("refresh_not_semantically_reviewed")
-                    or audit_status in {"REVIEW", "NOT_RUN"}
-                ):
+                if progress.get("query_policy", {}).get(
+                    "refresh_not_semantically_reviewed"
+                ) or audit_status in {"REVIEW", "NOT_RUN"}:
                     row.state = "needs_review"
                 elif report_status in {"PASS", "REVIEW", "FAIL", "failed"}:
                     row.state = "completed" if report_status == "PASS" else "needs_review"

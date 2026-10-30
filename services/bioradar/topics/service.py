@@ -41,6 +41,11 @@ from bioradar.topics.models import (
     TopicUpdate,
     TopicView,
 )
+from bioradar.topics.risk import (
+    TopicRiskReviewRequest,
+    assess_risk_reassessment,
+    risk_scope_stamp,
+)
 from bioradar.topics.tracking import tracking_view, update_tracking
 
 EVALUATION_LIMIT = 50000
@@ -229,7 +234,14 @@ class TopicService:
             .distinct()
         )
         allowed = self.engine.settings.engine_source_id_allowlist.get(row.definition["source_instance"], [])
-        for source in sources:
+        risk = (row.progress.get("_tracking") or {}).get("risk") or {}
+        risk_sources = {
+            source
+            for assessment in (risk.get("assessment"), risk.get("prior_resolution"))
+            if isinstance(assessment, dict)
+            for source in assessment.get("basis_source_ids", [])
+        }
+        for source in set(sources) | risk_sources:
             if source not in allowed:
                 raise DomainError("source_not_authorized", "专题依据当前未获来源许可", 403)
             self.engine.authorize_history_source(source)
@@ -403,6 +415,17 @@ class TopicService:
                     updated_at=now,
                     next_evaluation_at=now,
                 )
+                if row.progress.get("_tracking"):
+                    tracking = copy.deepcopy(row.progress["_tracking"])
+                    risk = tracking.get("risk") or {}
+                    if risk.get("assessment") or risk.get("status") == "resolved":
+                        tracking["risk"] = {
+                            "status": "unresolved" if definition["domain"] == "public_health" else "unknown",
+                            "critical_gaps": ["topic_scope_changed_requires_reassessment"],
+                            "basis_refs": [],
+                            "prior_resolution": copy.deepcopy(risk.get("assessment")),
+                        }
+                        row.progress = {"_tracking": tracking}
                 session.add(row)
                 session.flush()
                 return 200, self._view(session, row).model_dump(mode="json")
@@ -1206,6 +1229,147 @@ class TopicService:
         )
         return InvestigationService(self.engine).get(self.actor, saved["id"])
 
+    def _adopt_risk_review(self, session, actor, scope, evaluation, analysis_id):
+        from bioradar.research.investigations.analysis_service import InvestigationAnalysisRecord
+
+        state = copy.deepcopy(evaluation.followup)
+        if (
+            evaluation.scope_id != scope.id
+            or state.get("analysis_id") != analysis_id
+            or not state.get("investigation_id")
+        ):
+            raise DomainError("topic_risk_analysis_mismatch", "仅可采用该专题评价实际关联的分析", 409)
+        stored = session.get(InvestigationAnalysisRecord, analysis_id, with_for_update=True)
+        if (
+            stored is None
+            or stored.workspace_id != actor.workspace_id
+            or stored.is_demo != scope.is_demo
+            or stored.investigation_id != state["investigation_id"]
+        ):
+            raise DomainError("not_found", "未找到可访问的专题分析", 404)
+        progress = copy.deepcopy(scope.progress)
+        tracking = copy.deepcopy(progress.get("_tracking") or {})
+        expected = risk_scope_stamp(
+            scope.topic_id, scope.scope_revision, scope.observation_revision, scope.definition, tracking
+        )
+        analysis = {
+            "id": stored.id,
+            "state": stored.state,
+            "fixed_input": stored.fixed_input,
+            "result": stored.result,
+            "progress": stored.progress,
+        }
+        signature = canonical_hash(
+            [
+                expected,
+                stored.state,
+                stored.result,
+                stored.progress.get("report_risk_packets"),
+                stored.progress.get("professional_operations"),
+                (stored.progress.get("query_policy") or {}).get("refresh_not_semantically_reviewed"),
+            ]
+        )
+        prior = state.get("risk_review") or {}
+        if prior.get("input_sha256") == signature:
+            if prior.get("status") == "pending":
+                prior["last_checked_at"] = datetime.now(UTC).isoformat()
+                state["risk_review"] = prior
+                evaluation.followup = state
+            return prior
+        receipt = assess_risk_reassessment(analysis, expected_scope=expected)
+        receipt.update(
+            input_sha256=signature,
+            evaluated_at=datetime.now(UTC).isoformat(),
+            last_checked_at=datetime.now(UTC).isoformat(),
+        )
+        state["risk_review"] = receipt
+        evaluation.followup = state
+        if receipt["status"] == "accepted":
+            finding = receipt["reassessment"]
+            risk = copy.deepcopy(tracking.get("risk") or {})
+            risk.update(
+                status="resolved" if finding["decision"] == "resolved_within_scope" else "unresolved",
+                critical_gaps=finding["remaining_critical_gaps"],
+                conditions=finding["conditions"],
+                reason=finding["reason"],
+                scope=copy.deepcopy(expected),
+                basis_refs=receipt["basis_refs"],
+                assessment=copy.deepcopy(receipt),
+            )
+            tracking["risk"] = risk
+            # A resolved scope may cool normally; an unresolved finding keeps the minimum cadence.
+            if risk["status"] == "unresolved":
+                tracking["cadence_hours"] = 1
+            else:
+                tracking["cadence_hours"] = scope.definition["cadence_hours"]
+            due = datetime.now(UTC) + timedelta(hours=tracking["cadence_hours"])
+            tracking["next_due_at"] = due.isoformat()
+            progress["_tracking"] = tracking
+            scope.progress, scope.next_evaluation_at = progress, due
+            scope.control_revision += 1
+            scope.updated_at = datetime.now(UTC)
+        return receipt
+
+    def review_risk(self, actor, identifier, body: TopicRiskReviewRequest, key):
+        """The caller names an existing result; it cannot supply a risk decision."""
+        from bioradar.research.investigations.analysis_service import AnalysisService
+
+        with Session(self.engine.database) as session:
+            evaluation, scope = self._evaluation_row(session, actor, identifier, body.evaluation_id)
+            self._authorize_content(session, actor, scope)
+            state = copy.deepcopy(evaluation.followup)
+            if state.get("analysis_id") != body.analysis_id or not state.get("investigation_id"):
+                raise DomainError("topic_risk_analysis_mismatch", "分析不属于本次专题评价", 409)
+        # This normal read checks every analysis source permission, including supplementary evidence.
+        AnalysisService(self.engine, self.reader).get(actor, state["investigation_id"], body.analysis_id)
+
+        def mutate():
+            scope = self._scope(session, actor, identifier, lock=True)
+            self._authorize_content(session, actor, scope)
+            if scope.control_revision != body.expected_revision:
+                raise DomainError("revision_conflict", "专题控制状态已改变，请重新读取", 409)
+            evaluation = session.get(TopicEvaluationRecord, body.evaluation_id, with_for_update=True)
+            receipt = self._adopt_risk_review(session, actor, scope, evaluation, body.analysis_id)
+            return 200, {
+                "topic": self._view(session, scope).model_dump(mode="json"),
+                "assessment": receipt,
+            }
+
+        with Session(self.engine.database) as session, session.begin():
+            return self.engine._idempotent(
+                session,
+                actor,
+                "topic.risk-review:" + identifier,
+                key,
+                body.model_dump(mode="json"),
+                mutate,
+            )
+
+    def reconcile_risk(self, evaluation_id):
+        """Read the existing analysis only; never append, start, or resend a model call."""
+        from bioradar.research.investigations.analysis_service import AnalysisService
+
+        with Session(self.engine.database) as session:
+            evaluation = session.get(TopicEvaluationRecord, evaluation_id)
+            scope = session.get(TopicScopeRecord, evaluation.scope_id)
+            if not scope.is_current or scope.paused:
+                return
+            self._authorize_content(session, self.actor, scope)
+            state = copy.deepcopy(evaluation.followup)
+            if not state.get("analysis_id") or not state.get("topic_risk_scope"):
+                return
+            topic_id = scope.topic_id
+        AnalysisService(self.engine, self.reader).get(
+            self.actor, state["investigation_id"], state["analysis_id"]
+        )
+        with Session(self.engine.database) as session, session.begin():
+            scope = self._scope(session, self.actor, topic_id, lock=True)
+            if scope.paused:
+                return
+            self._authorize_content(session, self.actor, scope)
+            evaluation = session.get(TopicEvaluationRecord, evaluation_id, with_for_update=True)
+            return self._adopt_risk_review(session, self.actor, scope, evaluation, state["analysis_id"])
+
     def followup(self, evaluation_id, monitor):
         self._active_monitor = monitor
         self._followup_guard(evaluation_id)
@@ -1322,6 +1486,17 @@ class TopicService:
                     "body": AnalysisCreate(expected_revision=view.revision).model_dump(mode="json"),
                 }
                 state["analysis_intent"] = intent
+                if evaluation.definition.domain == "public_health":
+                    stamp = risk_scope_stamp(
+                        evaluation.topic_id,
+                        evaluation.scope_revision,
+                        evaluation.observation_revision,
+                        evaluation.definition.model_dump(mode="json"),
+                        evaluation.tracking,
+                    )
+                    if stamp:
+                        state["topic_risk_scope"] = stamp
+                        state["topic_risk_definition"] = evaluation.definition.model_dump(mode="json")
                 self._save_followup(evaluation_id, state)
             _, analysis = AnalysisService(self.engine, self.reader).start(
                 self.actor,
@@ -1332,6 +1507,14 @@ class TopicService:
                     "source": "topic",
                     "topic_id": evaluation.topic_id,
                     "evaluation_id": evaluation_id,
+                    **(
+                        {
+                            "topic_risk_scope": state["topic_risk_scope"],
+                            "topic_risk_definition": state["topic_risk_definition"],
+                        }
+                        if state.get("topic_risk_scope") and state.get("topic_risk_definition")
+                        else {}
+                    ),
                     "reservation_key": "monitor-dig:" + canonical_hash([lead_key, evaluation_id]),
                     "tracking": {
                         key: (evaluation.tracking or {}).get(key)
@@ -1570,6 +1753,28 @@ class TopicService:
             page["_upstream_health"] = health
             self.apply_page(scope_id, source, expected, page, now=now)
             self.evaluate(scope_id, now=now)
+            with Session(self.engine.database) as session:
+                risk_pending = session.scalar(
+                    select(TopicEvaluationRecord.id)
+                    .where(
+                        TopicEvaluationRecord.scope_id == scope_id,
+                        TopicEvaluationRecord.followup["analysis_id"].astext.is_not(None),
+                        TopicEvaluationRecord.followup["topic_risk_scope"].is_not(None),
+                        or_(
+                            TopicEvaluationRecord.followup["risk_review"]["status"].astext.is_(None),
+                            TopicEvaluationRecord.followup["risk_review"]["status"].astext == "pending",
+                        ),
+                    )
+                    .order_by(
+                        TopicEvaluationRecord.followup["risk_review"]["last_checked_at"]
+                        .astext.asc()
+                        .nullsfirst(),
+                        TopicEvaluationRecord.created_at,
+                    )
+                    .limit(1)
+                )
+            if risk_pending:
+                self.reconcile_risk(risk_pending)
             with Session(self.engine.database) as session:
                 pending = session.scalar(
                     select(TopicEvaluationRecord.id)
