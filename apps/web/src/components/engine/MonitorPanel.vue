@@ -6,8 +6,18 @@ import { EngineError, engineRequest, post } from "../../api/engine";
 import type { components } from "../../api/generated/engine";
 
 type Status = components["schemas"]["MonitorStatus"];
-type BatchList = components["schemas"]["MonitorBatchList"];
-type LeadList = components["schemas"]["MonitorLeadList"];
+type SelectionSummary = {
+  new_records: number; evaluated: number; selected: number; no_candidate: number; unknown: number;
+  methods?: { method_id: string; execution_status: string; processed_manifest_versions: number;
+    excluded_manifest_versions: number; truncated_count: number }[];
+  record_outcomes?: { source_record_id: string; version_id: string; outcome: string; reason: string }[];
+};
+type BatchList = Omit<components["schemas"]["MonitorBatchList"], "items"> & {
+  items: (components["schemas"]["MonitorBatchView"] & { selection_summary?: SelectionSummary | null })[];
+};
+type LeadList = Omit<components["schemas"]["MonitorLeadList"], "items"> & {
+  items: (components["schemas"]["MonitorLeadView"] & { importance_reason?: string | null; urgency_reason?: string | null })[];
+};
 const emit = defineEmits<{ openRun: [id: string]; unauthorized: [error: unknown] }>();
 const status = ref<Status | null>(null);
 const batches = ref<BatchList | null>(null);
@@ -22,12 +32,34 @@ const processLabels: Record<string, string> = {
   disabled: "配置未启用", paused: "已暂停", starting: "等待后台启动",
   running: "正在运行", stale: "后台心跳中断", not_connected: "数据服务未接通",
 };
+const methodStates: Record<string, string> = {
+  success: "成功执行", partial: "部分完成", failed: "执行失败", unsupported: "输入不支持",
+};
+const unknownReasons: Record<string, string> = {
+  not_in_frozen_computation_window: "未进入本次计算窗口",
+  method_receipts_not_available: "尚无实际方法回执",
+  record_excluded_by_method_preparation: "被方法的输入资格检查排除",
+  failed_unsupported_partial_or_missing_method_scope: "仍有方法失败、不支持、部分完成或缺少回执",
+  no_record_level_processing_receipt: "缺少能确认该版本已处理的回执",
+};
 const stateLabels: Record<string, string> = {
   idle: "等待新资料", accepted: "已接收", queued: "等待计算", investigating: "正在查证",
   completed: "本批完成", blocked: "需要处理", pending: "等待处理", investigated: "已完成本轮查证",
   deferred: "暂缓查证", paused: "已暂停", unavailable: "来源暂不可读", running: "正在处理",
   resource_blocked: "等待存储空间恢复", not_started: "尚未启动", stale: "心跳中断",
 };
+function unknownRecords(summary: unknown) {
+  if (!summary || typeof summary !== "object") return [];
+  const records = (summary as Record<string, unknown>).record_outcomes;
+  if (!Array.isArray(records)) return [];
+  return records.flatMap((value: unknown) => {
+    if (!value || typeof value !== "object") return [];
+    const record = value as Record<string, unknown>;
+    if (record.outcome !== "unknown" || typeof record.source_record_id !== "string"
+      || typeof record.version_id !== "string" || typeof record.reason !== "string") return [];
+    return [{ source_record_id: record.source_record_id, version_id: record.version_id, reason: record.reason }];
+  });
+}
 function time(value?: string | null) {
   return value ? new Date(value).toLocaleString("zh-CN", { hour12: false }) : "尚无记录";
 }
@@ -162,14 +194,17 @@ onUnmounted(() => { disposed = true; ++generation; clearTimeout(timer); });
         <article v-for="lead in leads?.items ?? []" :key="lead.id" class="monitor-item">
           <strong>{{ lead.title }}</strong>
           <p>
-            <ElTag v-if="lead.new_to_radar" size="small">本轮有新依据</ElTag>
-            <ElTag v-if="lead.needs_investigation" size="small">需要查证</ElTag>
+            <ElTag v-if="lead.new_to_radar" size="small">本轮首次发现的线索</ElTag>
+            <ElTag v-if="lead.needs_investigation" size="small">本轮规则选中查证</ElTag>
             <ElTag v-if="lead.urgency === 'immediate'" size="small" type="danger">需要及时核实</ElTag>
             <span>{{ stateLabels[lead.state] ?? "状态待核对" }}</span>
           </p>
           <p class="muted">本轮涉及 {{ lead.changed_support_versions }} 个支持资料版本。线索仍需研究人员核对。</p>
+          <p v-if="lead.importance_reason"><strong>为何值得查：</strong>{{ lead.importance_reason }}</p>
+          <p v-if="lead.urgency_reason"><strong>紧急度依据：</strong>{{ lead.urgency_reason }}</p>
+          <p v-if="lead.data_gaps.length" class="muted">仍缺：{{ lead.data_gaps.join("；") }}</p>
           <div class="monitor-actions">
-            <RouterLink v-if="lead.investigation_id" :to="{ path: '/investigations', query: { id: lead.investigation_id } }">查看调查与原文</RouterLink>
+            <RouterLink v-if="lead.investigation_id" :to="{ path: '/investigations', query: { id: lead.investigation_id } }">查看调查、实际策略与原文</RouterLink>
             <ElButton text @click="emit('openRun', lead.run_id)">查看计算依据</ElButton>
           </div>
         </article>
@@ -180,6 +215,30 @@ onUnmounted(() => { disposed = true; ++generation; clearTimeout(timer); });
         <article v-for="batch in batches?.items ?? []" :key="batch.id" class="monitor-item">
           <strong>{{ batch.source_id }} · {{ stateLabels[batch.state] ?? "状态待核对" }}</strong>
           <p>{{ batch.changed_versions }} 个变更版本；本次计算采用 {{ batch.window_records }} 条。{{ time(batch.updated_at) }}</p>
+          <p v-if="batch.selection_summary" class="muted">
+            新到雷达 {{ batch.selection_summary.new_records }} 条；
+            进入本轮计算窗口 {{ batch.selection_summary.evaluated }} 条，
+            选中 {{ batch.selection_summary.selected }} 条，
+            未选中 {{ batch.selection_summary.no_candidate }} 条，
+            尚未完成评价 {{ batch.selection_summary.unknown }} 条。
+          </p>
+          <p v-if="batch.selection_summary" class="muted">未选中仅说明本轮已完成方法的选择范围；新到资料、值得查证与紧急程度分别判断。</p>
+          <details v-if="batch.selection_summary && (batch.selection_summary.methods?.length || batch.selection_summary.unknown)">
+            <summary>本轮方法与未知范围</summary>
+            <p class="muted">进入窗口仅表示参与本轮计算；每种方法的实际处理情况分别保留。</p>
+            <ul>
+              <li v-for="method in batch.selection_summary.methods" :key="method.method_id">
+                {{ method.method_id }}：{{ methodStates[method.execution_status] ?? method.execution_status }}；
+                有明确处理凭据的本批版本 {{ method.processed_manifest_versions }} 个，
+                排除 {{ method.excluded_manifest_versions }} 个，截断诊断 {{ method.truncated_count }} 项。
+              </li>
+            </ul>
+            <ul>
+              <li v-for="record in unknownRecords(batch.selection_summary)" :key="record.source_record_id + record.version_id">
+                {{ record.source_record_id }}：{{ unknownReasons[record.reason] ?? record.reason }}
+              </li>
+            </ul>
+          </details>
           <p v-if="batch.error_code" class="error-panel">{{ batch.error_code }}</p>
           <ElButton v-if="batch.run_id" text @click="emit('openRun', batch.run_id)">查看这次计算</ElButton>
         </article>

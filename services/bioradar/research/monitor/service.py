@@ -408,6 +408,7 @@ class MonitorService:
                         next_after=p["next_after"],
                         max_seq=p["max_seq"],
                         changed_versions=len(p["manifest"]),
+                        selection_summary=p.get("selection_summary"),
                         window_records=len((p.get("snapshot") or {}).get("records", [])),
                         investigation_ids=p.get("investigation_ids", []),
                         error_code=row.error_code,
@@ -467,6 +468,9 @@ class MonitorService:
                         batch_id=row.batch_id,
                         new_to_radar=p.get("new_to_radar", False),
                         needs_investigation=True,
+                        importance=c.get("importance"),
+                        importance_reason=p.get("importance_reason"),
+                        urgency_reason=p.get("urgency_reason"),
                         urgency=c["urgency"],
                         changed_support_versions=len(p.get("changed_supports", [])),
                         error_code=p.get("error_code"),
@@ -789,6 +793,7 @@ class MonitorService:
             "investigation_ids": [],
             "selected_leads": [],
         }
+        payload["selection_summary"] = self._selection_summary(payload)
         with Session(self.engine.database) as session, session.begin():
             row = self._state(session, lock=True)
             self._guard(row)
@@ -818,6 +823,134 @@ class MonitorService:
             }
             row.source_progress = values
         return identifier
+
+    def _selection_summary(self, payload, result=None, selected_candidates=()):
+        """Partition this manifest only; successful method execution is not a global negative."""
+        manifest = payload["manifest"]
+        keys = [(item, self.reader.ref(item).version_key) for item in manifest]
+        snapshot = payload.get("snapshot")
+        window = {
+            EngineRecord.model_validate(record).record_ref.version_key
+            for record in (snapshot or {}).get("records", [])
+        }
+        selected = {
+            support.record_ref.version_key
+            for candidate in selected_candidates
+            for support in candidate.supports
+        }
+        methods, processed, excluded = [], set(), set()
+        outcomes = result.method_results if result is not None else ()
+        for method in outcomes:
+            omitted = {item.record_ref.version_key for item in method.excluded_records}
+            handled = {
+                support.record_ref.version_key
+                for candidate in method.candidates
+                for support in candidate.supports
+            }
+            successful = method.execution_status == "success" and not method.truncated_count
+            if not successful:
+                handled = set()
+            elif method.method_id in {"lexical_emergence", "text_topics"} and method.statistics.get(
+                "text_records"
+            ) == len(window):
+                handled.update(window)
+            handled.difference_update(omitted)
+            processed.update(handled)
+            excluded.update(omitted)
+            methods.append(
+                {
+                    "method_id": method.method_id,
+                    "execution_status": method.execution_status,
+                    "readiness": method.readiness,
+                    "processed_manifest_versions": sum(key in handled for _, key in keys),
+                    "excluded_manifest_versions": sum(key in omitted for _, key in keys),
+                    "truncated_count": method.truncated_count,
+                    "statistics": method.statistics,
+                    "reasons": list(method.reasons),
+                    "limitations": list(method.limitations),
+                }
+            )
+        expected = set(payload.get("policy", {}).get("method_ids", []))
+        complete_methods = (
+            bool(outcomes)
+            and expected <= {method.method_id for method in outcomes}
+            and all(
+                method.execution_status == "success" and not method.truncated_count for method in outcomes
+            )
+        )
+        rows = []
+        for item, key in keys:
+            if key in selected:
+                outcome, reason = "selected", "actual_selected_lead_supports_this_manifest_version"
+            elif key not in window:
+                outcome, reason = "unknown", "not_in_frozen_computation_window"
+            elif result is None:
+                outcome, reason = "unknown", "method_receipts_not_available"
+            elif key in excluded:
+                outcome, reason = "unknown", "record_excluded_by_method_preparation"
+            elif not complete_methods:
+                outcome, reason = "unknown", "failed_unsupported_partial_or_missing_method_scope"
+            elif key not in processed:
+                outcome, reason = "unknown", "no_record_level_processing_receipt"
+            else:
+                outcome, reason = "no_candidate", "processed_by_successful_methods_but_not_selected_this_run"
+            rows.append(
+                {
+                    "source_id": item["source_id"],
+                    "source_record_id": item["source_record_id"],
+                    "version_id": item["version_id"],
+                    "in_computation_window": key in window,
+                    "outcome": outcome,
+                    "reason": reason,
+                }
+            )
+        return {
+            "schema_version": "bioradar.monitor-selection.v1",
+            "scope": "this_batch_manifest_and_frozen_computation_window",
+            "new_records": len(manifest),
+            "evaluated": sum(row["in_computation_window"] for row in rows),
+            **{
+                name: sum(row["outcome"] == name for row in rows)
+                for name in ("selected", "no_candidate", "unknown")
+            },
+            "methods": methods,
+            "record_outcomes": rows,
+            "limitations": [
+                "new_records_are_published_versions_not_new_scientific_events",
+                "evaluated_means_in_computation_window_not_evaluated_by_every_method",
+                "no_candidate_means_not_selected_in_this_completed_method_scope_not_no_value",
+                "unproven_record_processing_and_incomplete_method_scope_remain_unknown",
+                *payload.get("limitations", []),
+            ],
+        }
+
+    def _lead_reasons(self, candidate, changed_supports, new_to_radar):
+        importance = {
+            "undetermined": "未确定",
+            "low": "低",
+            "medium": "中",
+            "high": "高",
+        }[candidate.importance]
+        urgency = {
+            "undetermined": "未确定",
+            "routine": "常规",
+            "soon": "尽快",
+            "immediate": "及时",
+        }[candidate.urgency]
+        versions = len({support.record_ref.version_key for support in changed_supports})
+        reasons = "；".join(candidate.reasons) or "本次方法未提供额外理由"
+        first = "本轮首次记录此线索；" if new_to_radar else "本轮更新已有线索；"
+        importance_reason = (
+            f"{first}实际涉及本批{versions}个新增或修订支持版本，选中继续查证。"
+            f"方法{candidate.method_id}标记的重要程度为{importance}（{candidate.importance}）。"
+            f"方法理由：{reasons}。选中仅表示继续调查，专业结论仍待核对。"
+        )
+        urgency_reason = (
+            f"方法{candidate.method_id}给定紧急度为{urgency}（{candidate.urgency}），"
+            f"依据为本批{versions}个固定支持版本。方法理由：{reasons}。"
+            "该时限用于安排排查，保留方法原有等级。"
+        )
+        return importance_reason, urgency_reason
 
     def _adopt_and_queue(self, identifier, payload):
         snapshot = NormalizedSnapshot.model_validate(payload["snapshot"]) if payload.get("snapshot") else None
@@ -897,7 +1030,10 @@ class MonitorService:
                 if prior and prior.state == "investigating" and prior.batch_id != identifier:
                     raise DomainError("monitor_lead_busy", "同一线索尚有未确认的保存步骤，先完成原批次", 409)
                 candidate_payload = item.model_dump(mode="json")
+                importance_reason, urgency_reason = self._lead_reasons(item, meaningful, prior is None)
                 body = {
+                    "importance_reason": importance_reason,
+                    "urgency_reason": urgency_reason,
                     "candidate": candidate_payload,
                     "changed_supports": [s.record_ref.model_dump(mode="json") for s in meaningful],
                     "new_to_radar": prior is None,
@@ -934,6 +1070,12 @@ class MonitorService:
                     )
                 selected.append(lead_id)
         payload["selected_leads"] = selected
+        with Session(self.engine.database) as session:
+            actual = [
+                Candidate.model_validate(lead.payload["candidate"])
+                for lead in session.scalars(select(MonitorLead).where(MonitorLead.id.in_(selected)))
+            ]
+        payload["selection_summary"] = self._selection_summary(payload, result, actual)
         self._save_batch(identifier, state="investigating", payload=payload)
 
     def _save_lead(self, identifier, *, payload=None, state=None, investigation_id=None):
@@ -1261,7 +1403,10 @@ class MonitorService:
         if view is None:
             request = InvestigationCreate(
                 title=candidate.title[:200],
-                question=candidate.next_questions[0],
+                question=(
+                    f"待调查线索（程序候选，尚未核实）：{candidate.title[:200]}\n"
+                    f"调查问题：{candidate.next_questions[0]}"
+                ),
                 questions=list(candidate.next_questions[:32]),
                 is_demo=self.settings.monitor_is_demo,
                 origin=InvestigationOriginCreate(
@@ -1571,6 +1716,8 @@ class MonitorService:
                 or run.result
                 and any(m.execution_status == "failed" for m in run.result.method_results)
             ):
+                payload["selection_summary"] = self._selection_summary(payload, run.result)
+                self._save_batch(identifier, payload=payload)
                 if run.state == "failed" and run.attempt < self.settings.engine_retry_limit:
                     key = "monitor-retry:" + identifier + ":" + str(run.attempt)
                     saved = self._saved_response("run.retry:" + run_id, key)

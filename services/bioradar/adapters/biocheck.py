@@ -353,6 +353,18 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
     def invoke(stage, instruction, payload):
         nonlocal callback_failure
         try:
+            assessment = packet.get("assessment")
+            if (
+                stage == "support_audit"
+                and isinstance(payload, dict)
+                and isinstance(assessment, dict)
+                and "research_scope" in assessment
+            ):
+                # Upstream audit sends only claims; keep the same frozen scope as full verification.
+                payload = copy.deepcopy(payload)
+                payload.setdefault("assessment", {})["research_scope"] = copy.deepcopy(
+                    assessment["research_scope"]
+                )
             return guarded_call(stage, instruction, payload)
         except Exception as exc:
             callback_failure = exc
@@ -437,3 +449,214 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
         if callback_failure is not None:
             raise
         return stopped("REVIEW", "biocheck_support_invalid", "所选片段复核输入或回执无效，需人工核对。")
+
+
+def _feedback_binding(packet, review, audit):
+    """Bind feedback to a saved draft and its currently fixed evidence, without semantic rechecking."""
+    draft = review.get("draft") if isinstance(review, dict) else None
+    binding = {
+        "provider": "biocheck",
+        "text_sha256": hashlib.sha256(draft.encode()).hexdigest() if isinstance(draft, str) else None,
+        "review_sha256": hashlib.sha256(
+            json.dumps(review, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode()
+        ).hexdigest(),
+        "evidence_versions": {
+            item["id"]: {
+                "version": item["version"],
+                "selected_text_sha256": hashlib.sha256(item["text"].encode()).hexdigest(),
+            }
+            for item in packet["evidence"]
+        },
+    }
+    errors = []
+    if not isinstance(draft, str) or not draft.strip():
+        errors.append({"kind": "verification_unavailable", "reason": "缺少已核验的固定正文。"})
+        return binding, errors
+    units = review.get("units", [])
+    identifiers = set()
+    for unit in units:
+        key, start, end = unit["unit_id"], unit["start"], unit["end"]
+        if (
+            key in identifiers
+            or type(start) is not int
+            or type(end) is not int
+            or not 0 <= start < end <= len(draft)
+            or draft[start:end] != unit["text"]
+        ):
+            errors.append({"kind": "verification_mismatch", "unit_id": key, "reason": "核验段落不属于本稿。"})
+        identifiers.add(key)
+        for claim in [*unit.get("claims", []), *unit.get("issues", [])]:
+            for reference in claim.get("evidence", []):
+                expected = binding["evidence_versions"].get(reference.get("evidence_id"))
+                if expected is None or reference.get("version") != expected["version"]:
+                    errors.append(
+                        {
+                            "kind": "source_mismatch",
+                            "unit_id": key,
+                            "reason": "核验所用原件与当前固定原件版本不同。",
+                        }
+                    )
+    if audit is not None:
+        if audit.get("original_status") is not None and audit["original_status"] != review.get("status"):
+            errors.append({"kind": "audit_mismatch", "reason": "片段复核的原核验状态与当前回执不同。"})
+        for key in ("text_sha256", "review_sha256", "evidence_versions"):
+            if key in audit and audit[key] != binding[key]:
+                errors.append({"kind": "audit_mismatch", "reason": "片段复核不属于本稿、本核验或固定原件。"})
+        if audit.get("error_code") and audit["error_code"] != "biocheck_support_no_targets":
+            errors.append(
+                {
+                    "kind": "audit_error",
+                    "error_code": audit["error_code"],
+                    "reason": audit.get("not_run_reason", "片段复核存在未解决错误。"),
+                }
+            )
+        elif audit.get("status") == "NOT_RUN" and support_audit_targets(review):
+            errors.append({"kind": "audit_not_run", "reason": "本稿存在支持片段目标，但片段复核尚未执行。"})
+    return binding, errors
+
+
+def quality_feedback_biocheck(settings, packet, review, *, audit=None, source_errors=(), loaded=None):
+    """Route saved verification and audit findings with zero model calls."""
+    core, version = load_biocheck(settings) if loaded is None else loaded
+    result = {
+        "provider": "biocheck",
+        "provider_version": version,
+        "machine_status": review.get("status") if isinstance(review, dict) else None,
+        "audit_status": audit.get("status") if isinstance(audit, dict) else "not_requested",
+        "evidence_gaps": [],
+        "repair_units": [],
+        "review_required": [],
+        "error_code": None,
+        "qualification": "已有核验与片段复核的机器反馈；缺口不是事实，修订仍须重新核验。",
+    }
+    try:
+        binding, errors = _feedback_binding(packet, review, audit)
+        result.update(binding)
+        if core is None or not callable(getattr(core, "quality_feedback", None)):
+            result.update(error_code="biocheck_feedback_unavailable")
+            result["review_required"].append(
+                {
+                    "kind": "feedback_unavailable",
+                    "reason": "当前共享方法未提供成稿质量反馈。",
+                }
+            )
+            return result
+        feedback = core.quality_feedback(
+            copy.deepcopy(review), copy.deepcopy(audit), source_errors=copy.deepcopy(tuple(source_errors))
+        )
+        if not isinstance(feedback, dict) or any(
+            not isinstance(feedback.get(key), list)
+            for key in ("evidence_gaps", "repair_units", "review_required")
+        ):
+            raise ValueError("invalid quality feedback")
+        result.update(copy.deepcopy(feedback))
+        result["review_required"].extend(errors)
+        if (source_errors or review.get("verification_errors")) and not result["review_required"]:
+            result["review_required"].append(
+                {
+                    "kind": "unresolved_input_error",
+                    "reason": "来源或原核验错误尚未解决，禁止自动修订。",
+                }
+            )
+        declared = {unit["unit_id"] for unit in review.get("units", [])}
+        if any(not isinstance(key, str) or key not in declared for key in result["repair_units"]) or len(
+            set(result["repair_units"])
+        ) != len(result["repair_units"]):
+            raise ValueError("invalid repair units")
+        if result["review_required"]:
+            result["repair_units"] = []
+        return result
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError, RecursionError):
+        result.update(error_code="biocheck_feedback_invalid", repair_units=[])
+        result["review_required"].append(
+            {
+                "kind": "feedback_invalid",
+                "reason": "质量反馈或其固定正文、原件绑定无效，保留待核。",
+            }
+        )
+        return result
+
+
+def revise_biocheck(settings, packet, review, call, *, audit=None, source_errors=(), loaded=None):
+    """Revise only method-approved units; the caller must durably save and verify any changed draft."""
+    loaded = load_biocheck(settings) if loaded is None else loaded
+    core, version = loaded
+    feedback = quality_feedback_biocheck(
+        settings, packet, review, audit=audit, source_errors=source_errors, loaded=loaded
+    )
+    original = review.get("draft") if isinstance(review, dict) else None
+    result = {
+        "provider": "biocheck",
+        "provider_version": version,
+        "draft": original,
+        "status": "blocked" if feedback["review_required"] else "not_changed",
+        "changed_units": [],
+        "feedback": feedback,
+        "needs_verification": False,
+        "verification": None,
+        "support_audit": None,
+        "error_code": feedback.get("error_code"),
+    }
+    if feedback["review_required"] or not feedback["repair_units"]:
+        result["reason"] = "没有已获允许的自动修订段落；保留原核验文字与补查或待核问题。"
+        return result
+    callback_failure = None
+    guarded_call = _callback(call)
+
+    def invoke(stage, instruction, payload):
+        nonlocal callback_failure
+        try:
+            return guarded_call(stage, instruction, payload)
+        except Exception as exc:
+            callback_failure = exc
+            raise
+
+    try:
+        revision = core.revise(
+            copy.deepcopy(packet),
+            copy.deepcopy(review),
+            invoke,
+            audit=copy.deepcopy(audit),
+            source_errors=copy.deepcopy(tuple(source_errors)),
+        )
+        candidate, changes = revision["draft"], revision["changed_units"]
+        if not isinstance(candidate, str) or not candidate.strip() or not isinstance(changes, list):
+            raise ValueError("invalid revised draft")
+        units = {unit["unit_id"]: unit for unit in review["units"]}
+        expected, seen, actual = original, set(), []
+        for change in changes:
+            key = change["unit_id"]
+            if key not in feedback["repair_units"] or key in seen:
+                raise ValueError("revision changed an unapproved unit")
+            unit = units[key]
+            if (
+                change["before"] != unit["text"]
+                or not isinstance(change["after"], str)
+                or not change["after"].strip()
+            ):
+                raise ValueError("revision before/after does not match the saved unit")
+            seen.add(key)
+            if change["before"] != change["after"]:
+                actual.append(copy.deepcopy(change))
+        for change in sorted(actual, key=lambda item: units[item["unit_id"]]["start"], reverse=True):
+            unit = units[change["unit_id"]]
+            expected = expected[: unit["start"]] + change["after"] + expected[unit["end"] :]
+        if candidate != expected:
+            raise ValueError("revision body does not match the declared changes")
+        if not actual or candidate == original:
+            result["reason"] = "修订回执没有产生实际文字改动，未记为修订成功。"
+            return result
+        result.update(
+            draft=candidate,
+            changed_units=actual,
+            status="changed",
+            needs_verification=True,
+            reason="新文字已产生，尚须整稿核验及本稿所选片段复核。",
+        )
+        return result
+    except (ValueError, TypeError, KeyError, IndexError, AttributeError, RecursionError):
+        if callback_failure is not None:
+            raise
+        result.update(status="failed", error_code="biocheck_revision_invalid")
+        result["reason"] = "修订回执未严格对应允许段落，保留原核验文字。"
+        return result

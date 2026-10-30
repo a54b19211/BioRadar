@@ -8,7 +8,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
-from bioradar.adapters.biocheck import audit_biocheck_support, build_packet, load_biocheck
+from bioradar.adapters.biocheck import (
+    audit_biocheck_support,
+    build_packet,
+    check_biocheck,
+    load_biocheck,
+    run_biocheck,
+)
 from bioradar.adapters.reasoning_model import ModelCallError, ModelCallReceipt
 from bioradar.api.config import Settings
 from bioradar.api.errors import DomainError
@@ -359,3 +365,125 @@ def test_old_method_without_audit_is_explicit_not_run(provider):
         settings, packet, review, lambda *_: pytest.fail("No audit method"), loaded=(object(), loaded[1])
     )
     assert result["status"] == "NOT_RUN" and result["error_code"] == "biocheck_support_unavailable"
+
+
+@pytest.mark.parametrize("with_scope", [False, True])
+def test_actual_method_keeps_frozen_scope_through_generation_each_check_and_audit(provider, with_scope):
+    settings, loaded, _ = provider
+    packet = data()
+    scope = {
+        "cutoff": "2026-10-30T00:00:00+00:00",
+        "source_ids": ["synthetic-source"],
+        "dimensions": [
+            {"dimension": "support", "status": "checked", "coverage_status": "unknown"},
+            {"dimension": "counterevidence", "status": "queried_no_results"},
+            {"dimension": "competition", "status": "source_failure"},
+            {"dimension": "patents", "status": "not_checked"},
+        ],
+        "queries": [
+            {"status": "empty", "source_id": "synthetic-source", "terms": ["counterexample"]},
+            {"status": "failed", "error_code": "history_source_unavailable"},
+            {"status": "unconfirmed", "cost": {"tool_calls": None}},
+        ],
+        "qualification": "SYNTHETIC actual process only; checked is not complete coverage.",
+    }
+    if with_scope:
+        packet["assessment"] = {"research_scope": copy.deepcopy(scope)}
+    before = copy.deepcopy(packet)
+    calls = []
+
+    def call(stage, instruction, payload):
+        calls.append((stage, instruction, copy.deepcopy(payload)))
+        if with_scope:
+            assert payload["assessment"]["research_scope"] == scope
+        else:
+            assert "assessment" not in payload
+        if stage == "biocheck_plan":
+            return {
+                "points": [
+                    {
+                        "intent": "SYNTHETIC effect",
+                        "evidence_ids": ["E1"],
+                        "binding": {},
+                        "support": [{"evidence_id": "E1", "segment_id": "S1"}],
+                    }
+                ]
+            }
+        if stage == "biocheck_write":
+            return {"draft": "A activates B [E1]."}
+        if stage == "biocheck_support_audit":
+            return supported(payload)
+        assert stage == "biocheck_check"
+        return {
+            "reviews": [
+                {
+                    "unit_id": "U1",
+                    "verdict": "supported",
+                    "issues": [],
+                    "claims": [
+                        {
+                            "kind": "fact",
+                            "span": "A activates B",
+                            "verdict": "supported",
+                            "evidence": [{"evidence_id": "E1", "segment_id": "S1"}],
+                        }
+                    ],
+                }
+            ],
+            "coverage": {"verdict": "complete", "reason": "SYNTHETIC single fact only."},
+        }
+
+    generated = run_biocheck(settings, packet, call, repair=False, loaded=loaded)
+    assert generated["status"] == "PASS"
+    for round_index in range(2):
+        result = (
+            generated
+            if round_index == 0
+            else check_biocheck(settings, packet, generated["final_text"], call, repair=False, loaded=loaded)
+        )
+        assert result["status"] == "PASS"
+        audit = audit_biocheck_support(settings, packet, result["verification"], call, loaded=loaded)
+        assert audit["status"] == "PASS"
+    assert [stage for stage, _, _ in calls] == [
+        "biocheck_plan",
+        "biocheck_write",
+        "biocheck_check",
+        "biocheck_support_audit",
+        "biocheck_check",
+        "biocheck_support_audit",
+    ]
+    # Compare the adapter handoff with the actual upstream audit request, including the prompt.
+    original = []
+    loaded[0].audit_support(
+        copy.deepcopy(packet),
+        copy.deepcopy(generated["verification"]),
+        lambda stage, instruction, payload: original.append((instruction, payload)) or supported(payload),
+    )
+    expected_payload = copy.deepcopy(original[0][1])
+    if with_scope:
+        expected_payload["assessment"] = {"research_scope": scope}
+    assert calls[-1][1:] == (original[0][0], expected_payload)
+    assert packet == before
+    if with_scope:
+        # Content PASS must not upgrade failed/unsearched/unknown research scope.
+        assert packet["assessment"]["research_scope"] == scope
+
+
+def test_scoped_audit_unknown_receipt_still_blocks_without_another_call(provider):
+    settings, loaded, _ = provider
+    packet = data()
+    packet["assessment"] = {"research_scope": [{"dimension": "patents", "status": "not_checked"}]}
+    review = verified(loaded[0], packet)
+    before = copy.deepcopy((packet, review))
+    failure = error("model_transport_unconfirmed", "unconfirmed")
+    calls = []
+
+    def stop(stage, instruction, payload):
+        calls.append(copy.deepcopy(payload))
+        assert payload["assessment"]["research_scope"] == packet["assessment"]["research_scope"]
+        raise failure
+
+    with pytest.raises(ModelCallError) as raised:
+        audit_biocheck_support(settings, packet, review, stop, loaded=loaded)
+    assert raised.value is failure
+    assert len(calls) == 1 and (packet, review) == before

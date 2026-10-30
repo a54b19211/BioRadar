@@ -104,7 +104,14 @@ def _source_kind(item, source_id, record_id):
         if isinstance(types, list)
         else set()
     )
-    if labels & {"review", "systematic review", "meta-analysis", "scoping review"}:
+    if labels & {
+        "review",
+        "review-article",
+        "review article",
+        "systematic review",
+        "meta-analysis",
+        "scoping review",
+    }:
         return "review", "fabric_publication_types"
     if source_id in {"reviewed_graph", "primekg_graph"}:
         return "graph", "fabric_graph_source"
@@ -116,6 +123,8 @@ def _source_kind(item, source_id, record_id):
         # succeeded. The upstream method separately checks experimental basis.
         return "primary", "original_trial_registration_not_experimental_result"
     if labels & {
+        "research-article",
+        "research article",
         "clinical trial",
         "randomized controlled trial",
         "controlled clinical trial",
@@ -209,6 +218,79 @@ def _identity_error_state(packet, version, error):
     }
 
 
+def mechanism_passage_bindings(packet, materials, *, assessment, radar_evidence=()):
+    """Bind the method's actual input passages to fixed text, without resegmenting it."""
+    fixed = {item["id"]: item for item in packet["evidence"]}
+    radar = {item.get("key", item.get("id")): item for item in radar_evidence}
+    requested = {}
+    for observation in assessment.get("evidence", []):
+        for reference in observation.get("references", []):
+            key = (reference.get("material_id"), reference.get("version"), reference.get("id"))
+            requested.setdefault(key, []).append(observation.get("id"))
+    bindings, errors = {}, []
+    for material in materials:
+        original = fixed.get(material.get("id"))
+        for passage in material.get("passages", []):
+            key = (material.get("id"), material.get("version"), passage.get("id"))
+            if key not in requested or key in bindings:
+                continue
+            start, end, quote = passage.get("start"), passage.get("end"), passage.get("text")
+            if (
+                original is None
+                or material.get("version") != original["version"]
+                or type(start) is not int
+                or type(end) is not int
+                or not isinstance(quote, str)
+                or not 0 <= start < end <= len(original["text"])
+                or original["text"][start:end] != quote
+            ):
+                errors.append({"id": key[2], "material_id": key[0], "reason": "fixed_passage_mismatch"})
+                continue
+            binding = {
+                "id": key[2],
+                "material_id": key[0],
+                "version": key[1],
+                "namespace": "mechevidence.materials.passages",
+                "quote": quote,
+                "start": start,
+                "end": end,
+                "offset_basis": "zero_based_half_open_selected_material_text",
+                "selected_text_sha256": hashlib.sha256(original["text"].encode()).hexdigest(),
+                "observation_ids": list(dict.fromkeys(requested[key])),
+                "provenance": "derived_from_confirmed_shared_callback_materials",
+            }
+            parent = radar.get(key[0])
+            if (
+                parent is not None
+                and parent.get("text") == original["text"]
+                and (parent.get("record_ref", {}).get("adopted_version") or parent.get("version")) == key[1]
+            ):
+                binding["radar_passages"] = [
+                    {
+                        "id": item["id"],
+                        "start": item["start"],
+                        "end": item["end"],
+                        "contains_reference": item["start"] <= start and item["end"] >= end,
+                    }
+                    for item in parent.get("passages", [])
+                    if item["start"] < end and item["end"] > start
+                ]
+            bindings[key] = binding
+    for key in requested:
+        if key not in bindings:
+            errors.append({"id": key[2], "material_id": key[0], "reason": "no_verified_input_passage"})
+    return {
+        "passage_bindings": list(bindings.values()),
+        "passage_binding_errors": errors,
+        "passage_namespace_qualification": (
+            "MechEvidence的materials.passages编号与Radar原文片段编号是独立命名空间，不能按大小写或编号互换。"
+            "本表仅从已确认共享回调的真实输入分段派生：quote/start/end对应同material/version的固定选段文字，"
+            "offset为该选段内从0起、右端不含的字符位置；不是整篇未选原文的坐标。"
+            "radar_passages仅列已给出的Radar片段包含或交叠关系；表中位置对应不证明机制成立或科学支持。"
+        ),
+    }
+
+
 def evaluate_mechanism(settings, packet, call, *, loaded=None):
     """Evaluate an explicit candidate; retain its strict schema on the common callback."""
     case, missing, classification = _case(packet)
@@ -247,9 +329,7 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
                 name in material and material[name] != identity.get(name)
                 for name in ("source_id", "record_id", "source_group", "url", "pmid", "doi")
             ):
-                return _state(
-                    packet, "needs_input", version=version, code="mech_evidence_material_mismatch"
-                )
+                return _state(packet, "needs_input", version=version, code="mech_evidence_material_mismatch")
             material.update(identity)
         validated = models.Case.model_validate(case)
     except identity_error as exc:
@@ -257,13 +337,18 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
     except (ValueError, TypeError, KeyError, AttributeError):
         return _state(packet, "needs_input", version=version, code="mech_evidence_input_invalid")
 
+    sent_materials = []
+
     def invoke(stage, instruction, payload, schema):
         target = _STAGES.get(stage)
         if target is None or not isinstance(schema, dict):
             raise DomainError("mech_evidence_stage_invalid", "机制评价阶段不符合接入约定", 502)
         # Runtime accepts this optional fourth argument and dispatches the original
         # method-owned JSON Schema through its existing strict model adapter.
-        return call(target, instruction, payload, schema)
+        materials = copy.deepcopy(payload.get("materials", []))
+        output = call(target, instruction, payload, schema)
+        sent_materials.extend(materials)
+        return output
 
     try:
         result = method.evaluate(validated, invoke)
@@ -282,6 +367,7 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
         return _state(packet, "failed", version=version, code="mech_evidence_result_invalid")
     return {
         **result,
+        **mechanism_passage_bindings(packet, sent_materials, assessment=result),
         "provider": "mech_evidence",
         "provider_version": version,
         "status": "completed",

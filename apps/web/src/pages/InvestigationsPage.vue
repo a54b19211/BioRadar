@@ -206,6 +206,7 @@ async function createInvestigation(submission: ResearchQuestionSubmission) {
     question: submission.question,
     is_demo: false,
     source_ids: submission.source_ids,
+    ...(submission.query_policy ? { query_policy: submission.query_policy } : {}),
     ...(submission.budget ? { budget: submission.budget } : {}),
   });
   if (!askIntent || askIntent.body !== body)

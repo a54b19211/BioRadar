@@ -31,6 +31,7 @@ const emit = defineEmits<{
 }>();
 const question = ref(props.initialQuestion ?? "");
 const selectedSources = ref<string[]>([]);
+const queryPolicy = ref<"" | "baseline" | "query_planner">("");
 const loadedOptions = ref<ResearchOptions | null>(null);
 const optionsLoading = ref(false);
 const error = ref("");
@@ -98,6 +99,7 @@ function submit() {
     question: question.value.trim(),
     source_ids: [...selectedSources.value],
     ...(Object.keys(limits).length ? { budget: limits } : {}),
+    ...(queryPolicy.value ? { query_policy: queryPolicy.value } : {}),
   });
 }
 
@@ -153,6 +155,14 @@ onUnmounted(() => {
         }}； 当前可补查 {{ available.retrieval_sources.length }} 类来源。
       </p>
     </div>
+    <label>
+      本轮查询策略
+      <ElSelect v-model="queryPolicy" :disabled="blocked">
+        <ElOption label="沿用当前研究策略" value="" />
+        <ElOption label="逐步查询策略" value="query_planner" />
+        <ElOption label="原有顺序基线" value="baseline" />
+      </ElSelect>
+    </label>
     <details class="research-budget-settings">
       <summary>本轮预算</summary>
       <p class="muted">

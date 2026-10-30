@@ -17,6 +17,7 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 import httpx
+from query_policy_assertions import assert_query_policy
 
 
 def canonical(value):
@@ -127,19 +128,28 @@ def historical_fixture(prefix):
 
 
 class Exercise:
-    def __init__(self, fabric_url, radar_url):
+    def __init__(self, fabric_url, radar_url, *, read_only_sources=False, policy=None, forbidden_versions=()):
         for url in (fabric_url, radar_url):
             if urlsplit(url).hostname not in {"127.0.0.1", "localhost", "::1"}:
                 raise ValueError("Use loopback test services; this script writes demonstration data")
+        self.read_only_sources = read_only_sources
+        self.policy = policy
+        self.forbidden_versions = set(forbidden_versions)
         self.fabric = httpx.Client(base_url=fabric_url, timeout=150, trust_env=False)
         self.radar = httpx.Client(base_url=radar_url, timeout=150, trust_env=False)
         self.read = {"Authorization": "Bearer " + os.environ["DATAFABRIC_HISTORY_READ_TOKEN"]}
-        self.admin = {"Authorization": "Bearer " + os.environ["DATAFABRIC_HISTORY_ADMIN_TOKEN"]}
+        self.admin = (
+            {"Authorization": "Bearer " + os.environ["DATAFABRIC_HISTORY_ADMIN_TOKEN"]}
+            if not read_only_sources
+            else {}
+        )
         self.user = {"Authorization": "Bearer " + os.environ["BIORADAR_ENGINE_DEV_CREDENTIAL"]}
         self.prefix = "DEMO-HISTORY-" + uuid4().hex[:12]
         self.checks = []
 
     def call(self, client, method, path, *, auth, body=None, params=None, key=None, expected=(200, 201)):
+        if self.read_only_sources and client is self.fabric and method not in {"GET", "HEAD"}:
+            raise AssertionError("existing-source mode only permits read-only Fabric requests")
         headers = dict(auth)
         if key:
             headers["Idempotency-Key"] = key
@@ -154,6 +164,47 @@ class Exercise:
         if not condition:
             raise AssertionError(name)
         self.checks.append(name)
+
+    def guard_existing(self):
+        from bioradar.api.config import Settings
+
+        settings = Settings()
+        database = urlsplit(settings.database_url.get_secret_value()).path.removeprefix("/")
+        self.check(
+            settings.environment == "test"
+            and database.startswith(("bioradar_query_", "bioradar_research_", "bioradar_semantic_")),
+            "client_uses_an_isolated_research_database",
+        )
+        runtime = (
+            self.call(
+                self.radar,
+                "GET",
+                "/api/engine/investigations/research-options",
+                auth=self.user,
+            )
+            .json()
+            .get("runtime", {})
+        )
+        self.check(
+            runtime.get("environment") == "test"
+            and runtime.get("database_name") == database
+            and runtime.get("workspace_id") == settings.engine_workspace_id,
+            "api_confirms_the_same_isolated_database_and_workspace_before_writes",
+        )
+
+    def wait_semantic(self, investigation_id, analysis_id):
+        deadline = time.monotonic() + 1900
+        while time.monotonic() < deadline:
+            view = self.call(
+                self.radar,
+                "GET",
+                f"/api/engine/investigations/{investigation_id}/analyses/{analysis_id}",
+                auth=self.user,
+            ).json()
+            if view["state"] in {"completed", "needs_review", "blocked", "failed"}:
+                return view
+            time.sleep(3)
+        raise TimeoutError("Inspect the existing analysis receipt before another attempt")
 
     def study(self, body, suffix):
         return self.call(
@@ -442,6 +493,110 @@ class Exercise:
             )
         return output
 
+    def existing(self, request):
+        self.guard_existing()
+        self.check(request.get("is_demo") is False, "existing_source_case_uses_real_records")
+        study = self.study({**request, "followup_queries": 0}, "-existing-study")
+        self.check(bool(study.get("investigation_id")), "fixed_study_saved_an_investigation")
+        prediction = {"prediction_hash": study["prediction_hash"], "predictions": study["predictions"]}
+        started = self.call(
+            self.radar,
+            "POST",
+            f"/api/engine/history/studies/{study['id']}/analyses",
+            auth=self.user,
+            key=self.prefix + "-existing-analysis",
+            body={"query_policy": self.policy},
+            expected=(200, 202),
+        ).json()
+        view = self.wait_semantic(started["investigation_id"], started["id"])
+        summary = assert_query_policy(view, expected_policy=self.policy)
+        self.check(
+            view["state"] in {"completed", "needs_review"}, "historical_semantic_analysis_saved_a_result"
+        )
+        scope = view["query_policy"].get("evidence_time", {})
+        self.check(
+            scope.get("mode") == study["request"]["mode"]
+            and datetime.fromisoformat(scope["cutoff"].replace("Z", "+00:00"))
+            == datetime.fromisoformat(study["cutoff"].replace("Z", "+00:00"))
+            and scope.get("study_id") == study["id"]
+            and scope.get("run_id") == study["request"].get("run_id"),
+            "policy_uses_the_frozen_study_mode_cutoff_and_manifest",
+        )
+        if view.get("parent_analysis_id"):
+            parent = self.call(
+                self.radar,
+                "GET",
+                f"/api/engine/investigations/{view['investigation_id']}/analyses/{view['parent_analysis_id']}",
+                auth=self.user,
+            ).json()
+            self.check(
+                (parent.get("query_policy") or {}).get("evidence_time") == scope,
+                "as_of_analysis_does_not_import_an_incompatible_current_parent",
+            )
+        originals = []
+        for evidence in view["evidence"]:
+            binding = evidence["history_binding"]
+            self.check(bool(binding), "historical_semantic_evidence_has_a_fixed_original")
+            record = self.call(
+                self.fabric,
+                "GET",
+                "/api/history/versions/" + binding["version_id"],
+                auth=self.read,
+                params={
+                    "source_id": binding["source_id"],
+                    "source_record_id": binding["source_record_id"],
+                    "is_demo": str(binding["is_demo"]).lower(),
+                    "mode": scope["mode"],
+                    "cutoff": scope["cutoff"],
+                },
+            ).json()
+            record = record.get("record", record)
+            self.check(record["record_kind"] != "outcome", "prediction_inputs_exclude_outcome_records")
+            self.check(
+                binding["version_id"] not in self.forbidden_versions, "known_future_version_was_not_used"
+            )
+            self.check(
+                record["version_id"] == binding["version_id"]
+                and hashlib.sha256(record["raw_content"].encode()).hexdigest() == binding["raw_sha256"],
+                "each_semantic_original_is_readable_under_the_same_as_of_boundary",
+            )
+            originals.append(binding["version_id"])
+        reread = self.call(
+            self.radar,
+            "GET",
+            f"/api/engine/history/studies/{study['id']}",
+            auth=self.user,
+        ).json()
+        self.check(
+            all(reread[key] == value for key, value in prediction.items()),
+            "modern_semantic_analysis_preserves_the_fixed_historical_prediction",
+        )
+        self.check(
+            any(item["id"] == view["id"] for item in reread.get("semantic_analyses", [])),
+            "study_links_to_the_actual_saved_semantic_analysis",
+        )
+        exported = self.call(
+            self.radar,
+            "GET",
+            f"/api/engine/investigations/{view['investigation_id']}/analyses/{view['id']}/export",
+            auth=self.user,
+        ).json()["analysis"]
+        self.check(
+            exported["query_policy"] == view["query_policy"] and exported["result"] == view["result"],
+            "historical_semantic_export_keeps_the_exact_saved_trace_and_result",
+        )
+        return {
+            "study_id": study["id"],
+            "analysis_id": view["id"],
+            "query_policy": summary,
+            "evidence_time": scope,
+            "version_ids": originals,
+            "scientific_review": "pending_independent_review",
+            "qualification": (
+                "Modern model with as-of source inputs; not a model deployed at the historical date."
+            ),
+        }
+
     def close(self):
         self.fabric.close()
         self.radar.close()
@@ -451,17 +606,40 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fabric-url", required=True)
     parser.add_argument("--radar-url", required=True)
-    parser.add_argument("--mode", choices=("demo", "public", "all"), default="all")
+    parser.add_argument("--mode", choices=("demo", "public", "all", "existing"), default="all")
     parser.add_argument("--output", type=Path, default=Path("artifacts/history-e2e.json"))
+    parser.add_argument(
+        "--request-file",
+        type=Path,
+        help="Existing source study request; never imports or fetches Fabric data",
+    )
+    parser.add_argument("--policy", choices=("baseline", "query_planner"))
+    parser.add_argument("--forbidden-version", action="append", default=[])
     args = parser.parse_args()
-    exercise = Exercise(args.fabric_url, args.radar_url)
+    if args.mode == "existing" and not args.request_file:
+        parser.error("--mode existing requires --request-file")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(descriptor)
+    exercise = Exercise(
+        args.fabric_url,
+        args.radar_url,
+        read_only_sources=args.mode == "existing",
+        policy=args.policy,
+        forbidden_versions=args.forbidden_version,
+    )
     result = {"started_at": datetime.now(UTC).isoformat(), "status": "running", "checks": exercise.checks}
     try:
+        if args.mode == "existing":
+            result["existing"] = exercise.existing(json.loads(args.request_file.read_text()))
         if args.mode in {"demo", "all"}:
             result["demo"] = exercise.demo()
         if args.mode in {"public", "all"}:
             result["public"] = exercise.public()
-        result["status"] = "passed"
+        result["status"] = "technical_checks_passed" if args.mode == "existing" else "passed"
+    except Exception as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
     finally:
         exercise.close()
         if result["status"] == "running":
@@ -469,7 +647,11 @@ def main():
         result["finished_at"] = datetime.now(UTC).isoformat()
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
-    print(f"PASS historical E2E: {len(exercise.checks)} checks; report {args.output}")
+    print(
+        json.dumps(
+            {"status": result["status"], "checks_passed": len(exercise.checks), "output": str(args.output)}
+        )
+    )
 
 
 if __name__ == "__main__":

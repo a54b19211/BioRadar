@@ -64,6 +64,24 @@ const queryLabels: Record<string, string> = {
   empty: "本次未查到", failed: "读取失败",
   sent: "正在检索", unavailable: "来源暂不可用", unconfirmed: "请求结果尚未确认",
 };
+function queryProvider(query: AnalysisView["queries"][number]) {
+  return query.provider === "weknora" ? "WeKnora 检索候选"
+    : ["graph", "fabric_graph"].includes(String(query.provider)) ? "图谱背景查询" : "Fabric 固定资料检索";
+}
+function querySource(query: AnalysisView["queries"][number]) {
+  const source = (query.plan as Record<string, unknown>).source_id;
+  return typeof source === "string" ? sourceLabels[source] || source : "来源见策略动作";
+}
+function queryTerms(query: AnalysisView["queries"][number]) {
+  const plan = query.plan as Record<string, unknown>;
+  if (Array.isArray(plan.terms)) return plan.terms.filter((value) => typeof value === "string").join(" + ");
+  if (typeof plan.query === "string") return plan.query;
+  return "图谱动作参数见本版策略轨迹";
+}
+function queryReason(query: AnalysisView["queries"][number]) {
+  const reason = (query.plan as Record<string, unknown>).reason;
+  return typeof reason === "string" ? reason : "查询目的见本版策略轨迹。";
+}
 function queryState(query: AnalysisView["queries"][number]) {
   if (query.provider === "weknora" && ["read", "empty"].includes(query.status)) {
     return query.candidates?.length ? "候选检索完成" : "本次未检索到候选";
@@ -209,6 +227,7 @@ async function startAnalysis(retryId?: string, submission?: ResearchQuestionSubm
     expected_revision: props.investigation.revision,
     question: submission?.question ?? selected.value?.question ?? props.investigation.question,
     source_ids: submission?.source_ids ?? selected.value?.search_scope ?? [],
+    query_policy: submission?.query_policy ?? selected.value?.query_policy?.requested ?? selected.value?.result?.query_policy?.requested ?? undefined,
     ...(requestedBudget ? { budget: requestedBudget } : {}),
     parent_analysis_id: (retryId ? selected.value?.parent_analysis_id : parent?.id) ?? null,
     material_entry_ids: [],
@@ -352,11 +371,11 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
       <details :open="['queued', 'running', 'blocked', 'failed'].includes(selected.state)" class="research-queries">
         <summary>实际检索与补查（{{ selected.queries.length }} 项）</summary>
         <article v-for="query in selected.queries" :key="[query.provider, query.phase, query.index].join(':')" class="investigation-entry">
-          <p><strong>{{ query.provider === "weknora" ? "WeKnora 检索候选" : "Fabric 固定资料检索" }}</strong>
-            <small class="muted"> · {{ query.phase === "initial" ? "初查" : "补查" }}<template v-if="query.provider !== 'weknora'"> · {{ sourceLabels[query.plan.source_id] || query.plan.source_id }}</template></small>
+          <p><strong>{{ queryProvider(query) }}</strong>
+            <small class="muted"> · {{ query.phase === "initial" ? "初查" : "补查" }}<template v-if="query.provider !== 'weknora'"> · {{ querySource(query) }}</template></small>
           </p>
-          <p>{{ query.plan.terms.join(" + ") }}</p>
-          <p>{{ query.plan.reason }}</p>
+          <p>{{ queryTerms(query) }}</p>
+          <p>{{ queryReason(query) }}</p>
           <p v-if="'expected_discrimination' in query.plan && query.plan.expected_discrimination">用于区分：{{ query.plan.expected_discrimination }}</p>
           <p class="muted">
             {{ queryState(query) }}

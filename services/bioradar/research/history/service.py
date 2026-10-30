@@ -124,6 +124,8 @@ class HistoryService:
         return row
 
     def _view(self, session, row):
+        from bioradar.research.history.analysis import semantic_summaries
+
         request = HistoryStudyCreate.model_validate(row.request)
         evaluation_rows = list(
             session.scalars(
@@ -156,6 +158,7 @@ class HistoryService:
             fact_summary=payload.get("fact_summary"),
             next_questions=payload.get("next_questions", []),
             limitations=payload.get("limitations", []),
+            semantic_analyses=semantic_summaries(session, row),
             evaluations=tuple(
                 {
                     "id": e.id,

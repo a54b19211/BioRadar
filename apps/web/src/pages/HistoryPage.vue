@@ -1,11 +1,15 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { ElButton, ElInput } from "element-plus";
+import { ElButton, ElInput, ElOption, ElSelect } from "element-plus";
 import EngineLogin from "../components/engine/EngineLogin.vue";
 import { engineRequest, EngineError } from "../api/engine";
 import type { components } from "../api/generated/engine";
 
-type Study = components["schemas"]["HistoryStudyView"];
+interface SemanticAnalysis {
+  id: string; investigation_id: string; state: string;
+  query_policy?: string | { effective?: string } | null; created_at: string;
+}
+type Study = components["schemas"]["HistoryStudyView"] & { semantic_analyses?: SemanticAnalysis[] };
 type Summary = Pick<Study, "id" | "title" | "is_demo" | "state" | "cutoff">;
 const authenticated = ref(false);
 const studies = ref<Summary[]>([]);
@@ -13,6 +17,7 @@ const selected = ref<Study | null>(null);
 const catalog = ref<unknown>(null);
 const error = ref("");
 const busy = ref(false);
+const semanticPolicy = ref<"baseline" | "query_planner">("query_planner");
 const uncertainWrite = ref("");
 const evaluationCutoff = ref("2019-01-01T00:00:00Z");
 const original = ref<unknown>(null);
@@ -119,6 +124,29 @@ async function write(action: "create" | "score") {
     }
   } finally { if (!disposed) busy.value = false; }
 }
+async function startSemantic() {
+  const study = selected.value;
+  if (!study || busy.value || uncertainWrite.value) return;
+  const token = generation, selection = selectionVersion;
+  const key = crypto.randomUUID();
+  busy.value = true; error.value = "";
+  try {
+    await engineRequest("/history/studies/" + study.id + "/analyses", {
+      method: "POST", body: JSON.stringify({ query_policy: semanticPolicy.value }),
+      headers: { "Idempotency-Key": key },
+    });
+    if (!disposed && token === generation && selection === selectionVersion) await open(study.id);
+  } catch (e) {
+    if (!disposed && token === generation && selection === selectionVersion) {
+      if (!(e instanceof EngineError && [401, 403, 409, 422].includes(e.status))) uncertainWrite.value = key;
+      fail(e);
+    }
+  } finally { if (!disposed) busy.value = false; }
+}
+function policyLabel(value: SemanticAnalysis["query_policy"]) {
+  const actual = typeof value === "string" ? value : value?.effective;
+  return actual === "query_planner" ? "逐步查询策略" : actual === "baseline" ? "原有顺序基线" : "实际策略见研究详情";
+}
 async function source(version: string, evaluationId?: string) {
   const id = selected.value?.id;
   if (!id) return;
@@ -180,7 +208,7 @@ onUnmounted(() => {disposed = true; ++generation; ++selectionVersion;});
           <p>{{ selected.is_demo ? '显式合成资料，不是医学效果验证' : '真实采用资料' }} · {{ stateLabel(selected.state) }}</p>
           <p>模式 {{ selected.request.mode }}；资料截止 {{ selected.cutoff }}；窗口 {{ selected.request.horizon_months }} 个月。</p>
           <p class="hash">固定预测 {{ selected.prediction_hash || '尚未形成，查看缺口' }}</p>
-          <p>WeKnora 未接通；专业评价未审阅。现代模型历史实验不等于当年已部署回放。</p>
+          <p>资料按本研究的截止时点读取；现代模型使用当前模型，不能视为当年实际发出的预警。专业判断仍需审阅。</p>
           <div class="table-scroll"><table>
             <thead><tr><th>单位</th><th>历史事件率/资格</th><th>训练谱系</th><th>边界</th><th>采用原件</th></tr></thead>
             <tbody><tr v-for="p in selected.predictions" :key="p.unit.unit_kind+':'+p.unit.unit_id">
@@ -193,6 +221,24 @@ onUnmounted(() => {disposed = true; ++generation; ++selectionVersion;});
           </table></div>
           <p v-if="!selected.predictions.length">未产生合资格项目预测；阅读查询记录和未知，不能当作零风险。</p>
           <RouterLink v-if="selected.investigation_id" :to="'/investigations?id='+selected.investigation_id">查看普通调查材料与待核问题</RouterLink>
+          <h3>按固定历史资料继续研究</h3>
+          <p>使用本研究保存的问题、模式、截止时点和原件范围，补查与报告另存为普通调查分析，固定预测继续保留。</p>
+          <label for="historical-query-policy">本次查询策略</label>
+          <ElSelect id="historical-query-policy" v-model="semanticPolicy" :disabled="busy">
+            <ElOption label="逐步查询策略" value="query_planner" />
+            <ElOption label="原有顺序基线" value="baseline" />
+          </ElSelect>
+          <ElButton :loading="busy" :disabled="busy || !selected.investigation_id || !!uncertainWrite" @click="startSemantic">
+            按本研究截止时点开展分析
+          </ElButton>
+          <ul v-if="selected.semantic_analyses?.length">
+            <li v-for="analysis in selected.semantic_analyses" :key="analysis.id">
+              <RouterLink :to="{ path: '/investigations', query: { id: analysis.investigation_id, analysis: analysis.id } }">
+                {{ policyLabel(analysis.query_policy) }} · {{ analysis.state }} · {{ analysis.created_at }}
+              </RouterLink>
+            </li>
+          </ul>
+          <p v-else class="muted">本研究尚无另存的语义分析。</p>
           <h3>独立后续评价</h3>
           <label for="evaluation-cutoff">仅读取该截止已可见结局</label>
           <ElInput id="evaluation-cutoff" v-model="evaluationCutoff" :disabled="busy" />

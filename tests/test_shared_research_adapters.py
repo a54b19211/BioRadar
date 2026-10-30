@@ -825,3 +825,21 @@ def test_optional_repair_input_error_requires_not_sent_receipt(installed_biochec
     with pytest.raises(DomainError) as failure:
         check_biocheck(installed_biocheck, packet(), "Checked original [e1]", call)
     assert failure.value is error
+
+
+@pytest.mark.parametrize(
+    ("types", "expected"),
+    [
+        (["Research Support, Non-U.S. Gov't", "research-article", "Journal Article"], "primary"),
+        (["research article"], "primary"),
+        (["research-article", "Review"], "review"),
+        (["research-article", "Meta-Analysis"], "review"),
+        (["review-article", "Journal Article"], "review"),
+        (["Journal Article"], None),
+    ],
+)
+def test_explicit_research_article_alias_does_not_promote_generic_articles(types, expected):
+    from bioradar.adapters.mech_evidence import _source_kind
+
+    kind, _ = _source_kind({"publication_types": {"pubType": types}}, "europe_pmc", "MED:39865264")
+    assert kind == expected

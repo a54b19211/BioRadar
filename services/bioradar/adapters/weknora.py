@@ -174,11 +174,28 @@ def _frontmatter(content):
 
 
 def _response(session, method, url, *, headers, budget, reads, payload=None):
+    maximum = budget.get("max_tool_calls")
+    if maximum is not None:
+        reader = budget.get("reader")
+        fabric_reads = max(0, getattr(reader, "requests_made", 0) - budget["reader_start"])
+        if reads.get("tool_requests", 0) + fabric_reads >= maximum:
+            raise DomainError("analysis_tool_budget", "候选复合请求达到固定工具预算", 422)
+        if reader is not None:
+            cap = (
+                getattr(reader, "requests_made", 0)
+                + maximum
+                - reads.get("tool_requests", 0)
+                - fabric_reads
+                - 1
+            )
+            previous_cap = getattr(reader, "max_requests", None)
+            reader.max_requests = cap if previous_cap is None else min(cap, previous_cap)
     remaining = budget["deadline"] - time.monotonic()
     if remaining <= 0 or budget["bytes"] >= MAX_RESPONSE_BYTES:
         raise DomainError("weknora_response_budget", "候选读取达到时间或字节预算", 422)
     if method == "GET":
         reads["knowledge_reads"] += 1
+    reads["tool_requests"] = reads.get("tool_requests", 0) + 1
     with session.stream(
         method,
         url,
@@ -417,6 +434,7 @@ def search_candidates(
     limit=3,
     client=None,
     timeout_seconds=None,
+    max_tool_calls=None,
 ):
     """One POST, no retry; callers persist the query receipt before any adoption."""
     if not isinstance(query, str) or not query.strip() or len(query) > 500:
@@ -435,7 +453,13 @@ def search_candidates(
     result = _envelope(query, "completed")
     owned = client is None
     session = client or httpx.Client(trust_env=False, follow_redirects=False)
-    budget = {"deadline": time.monotonic() + seconds, "bytes": 0}
+    budget = {
+        "deadline": time.monotonic() + seconds,
+        "bytes": 0,
+        "max_tool_calls": max_tool_calls,
+        "reader": reader,
+        "reader_start": getattr(reader, "requests_made", 0),
+    }
     try:
         try:
             status, raw = _response(

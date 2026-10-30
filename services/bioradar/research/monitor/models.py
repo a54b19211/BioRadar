@@ -104,6 +104,19 @@ class MonitorStatus(RuntimeModel):
     limitations: list[str]
 
 
+class MonitorSelectionSummary(RuntimeModel):
+    schema_version: Literal["bioradar.monitor-selection.v1"] = "bioradar.monitor-selection.v1"
+    scope: Literal["this_batch_manifest_and_frozen_computation_window"]
+    new_records: int = Field(ge=0)
+    evaluated: int = Field(ge=0)
+    selected: int = Field(ge=0)
+    no_candidate: int = Field(ge=0)
+    unknown: int = Field(ge=0)
+    methods: list[dict]
+    record_outcomes: list[dict]
+    limitations: list[str]
+
+
 class MonitorBatchView(RuntimeModel):
     id: str
     source_id: str
@@ -119,6 +132,7 @@ class MonitorBatchView(RuntimeModel):
     changed_versions: int
     window_records: int
     scope_complete: bool = False
+    selection_summary: MonitorSelectionSummary | None = None
     investigation_ids: list[str]
     error_code: str | None
     limitations: list[str]
@@ -135,6 +149,9 @@ class MonitorLeadView(RuntimeModel):
     batch_id: str
     new_to_radar: bool
     needs_investigation: bool
+    importance: Literal["undetermined", "low", "medium", "high"] | None = None
+    importance_reason: str | None = None
+    urgency_reason: str | None = None
     urgency: Literal["undetermined", "routine", "soon", "immediate"]
     changed_support_versions: int
     error_code: str | None = None

@@ -357,6 +357,7 @@ def create_engine_router(settings: Settings) -> APIRouter:
                         source_ids=body.source_ids,
                         initial_queries=body.initial_queries,
                         budget=body.budget,
+                        query_policy=body.query_policy,
                     ),
                     "ask-analysis:" + canonical_hash(idempotency_key),
                 )

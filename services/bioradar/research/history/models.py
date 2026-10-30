@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
+from bioradar.research.investigations.analysis_models import AnalysisBudget
 from bioradar.research.mining.models import FrozenModel, ProviderRef
 
 HISTORY_COMPUTE_VERSION = "bioradar-history-baseline-v0.2"
@@ -64,6 +65,11 @@ class HistoryStudyCreate(FrozenModel):
     @property
     def unit_kind(self) -> Literal["trial", "program"]:
         return "trial" if self.target == "trial_stoppage" else "program"
+
+
+class HistoryAnalysisCreate(FrozenModel):
+    query_policy: Literal["baseline", "query_planner"] | None = None
+    budget: AnalysisBudget | None = None
 
 
 class HistoryEvaluationCreate(FrozenModel):
@@ -213,6 +219,7 @@ class HistoryStudyView(HistoryStudySummary):
     next_questions: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
     evaluations: tuple[dict, ...] = ()
+    semantic_analyses: tuple[dict, ...] = ()
     professional_status: Literal["not_reviewed"] = "not_reviewed"
     model_regime: Literal["deterministic_historical_reconstruction"] = (
         "deterministic_historical_reconstruction"

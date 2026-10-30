@@ -38,7 +38,7 @@ function form(request) {
   };
   vm.createContext(context);
   vm.runInContext(script("apps/web/src/components/engine/ResearchQuestionForm.vue") +
-    "\nglobalThis.probe={question,selectedSources,budget,customBudget,loadedOptions,submit,loadOptions};", context);
+    "\nglobalThis.probe={question,selectedSources,queryPolicy,budget,customBudget,loadedOptions,submit,loadOptions};", context);
   return { ...context.probe, props, events, unmount: () => cleanups.forEach(fn => fn()) };
 }
 function investigation(id = "I") {
@@ -85,7 +85,7 @@ function analysisPanel(request) {
     "\nglobalThis.probe={startAnalysis,refresh,list,selected};", context);
   return { ...context.probe, props, events };
 }
-async function renderReport(status, genericState = "passed", calls = [], reportFields = {}) {
+async function renderReport(status, genericState = "passed", calls = [], reportFields = {}, resultFields = {}) {
   const relative = "apps/web/src/components/engine/MachineAnalysisResult.vue";
   const source = fs.readFileSync(path.join(root, relative), "utf8");
   const { descriptor } = compiler.parse(source, { filename: relative });
@@ -118,6 +118,7 @@ async function renderReport(status, genericState = "passed", calls = [], reportF
     claims: [], explanations: [], gaps: [], limitations: [],
     review: { status: genericState, claims: [], overall_limitations: [] },
     update: { stance: "initial", reasons: [], changed_claims: [] },
+    ...resultFields,
   };
   return renderToString(Vue.createSSRApp(context.exports.default, {
     analysis: { state: "completed", result, calls, evidence: [] },
@@ -145,11 +146,13 @@ async function main() {
   question.question.value = "  Follow this question  ";
   question.selectedSources.value = ["clinicaltrials"];
   question.customBudget.value = true;
+  question.queryPolicy.value = "query_planner";
   question.budget.value = { max_calls: 4 };
   question.submit();
   assert.equal(question.events[0][1].question, "Follow this question");
   assert.deepEqual(Array.from(question.events[0][1].source_ids), ["clinicaltrials"]);
   assert.equal(question.events[0][1].budget.max_calls, 4);
+  assert.equal(question.events[0][1].query_policy, "query_planner");
   question.props.initialQuestion = "Background refresh";
   assert.equal(question.question.value, "  Follow this question  ");
   question.unmount();
@@ -159,10 +162,11 @@ async function main() {
     lostWrites.push(options);
     throw new Error("Synthetic lost acceptance response");
   });
-  const submission = { question: "Synthetic question", source_ids: [] };
+  const submission = { question: "Synthetic question", source_ids: [], query_policy: "query_planner" };
   await lost.createInvestigation(submission);
   await lost.createInvestigation(submission);
   assert.equal(lostWrites.length, 2);
+  assert.equal(JSON.parse(lostWrites[0].body).query_policy, "query_planner");
   assert.equal(lostWrites[0].headers["Idempotency-Key"], lostWrites[1].headers["Idempotency-Key"]);
 
   const retained = page(async url => {
@@ -184,7 +188,7 @@ async function main() {
     return { id: "child", state: "queued", calls: [], queries: [] };
   });
   follow.list.value = { enabled: true, configured: true, items: [{ id: "parent", state: "completed", result_summary: "Old" }] };
-  follow.selected.value = { id: "parent", question: "Earlier question", result: { report: { final_text: "Old report" } }, search_scope: ["clinicaltrials"] };
+  follow.selected.value = { id: "parent", question: "Earlier question", result: { report: { final_text: "Old report" } }, search_scope: ["clinicaltrials"], query_policy: { requested: "query_planner" } };
   await follow.startAnalysis(undefined, { question: "New follow-up", source_ids: ["europe_pmc"], budget: { max_calls: 4 } });
   assert.equal(followWrites[0].question, "New follow-up");
   assert.equal(followWrites[0].parent_analysis_id, "parent");
@@ -192,6 +196,7 @@ async function main() {
   assert.equal(followWrites[0].auto_retrieve, true);
   assert.deepEqual(followWrites[0].source_ids, ["europe_pmc"]);
   assert.equal(followWrites[0].budget.max_calls, 4);
+  assert.equal(followWrites[0].query_policy, "query_planner");
 
   const retryWrites = [];
   let acceptRetry, retryAccepted = false;
@@ -201,7 +206,7 @@ async function main() {
     parent_analysis_id: "original-parent", search_scope: ["europe_pmc"],
     budget: { limits: { max_calls: 10, max_tokens: 50000, max_seconds: 600, max_queries: 3 } },
     result: { report: { final_text: "Preserved failed draft", status: "FAIL" } },
-    calls: [], queries: [],
+    calls: [], queries: [], query_policy: { requested: "baseline" },
   };
   const retry = analysisPanel(async (url, options) => {
     if (options?.method === "POST") {
@@ -227,6 +232,7 @@ async function main() {
   assert.deepEqual(retryWrites[0].body.source_ids, retainedDraft.search_scope);
   assert.deepEqual(retryWrites[0].body.budget, retainedDraft.budget.limits);
   assert.equal(retryWrites[0].body.expected_revision, 7);
+  assert.equal(retryWrites[0].body.query_policy, "baseline");
   assert.ok(retryWrites[0].headers["Idempotency-Key"]);
   retryAccepted = true; acceptRetry({ id: "new-attempt" }); await retryWork;
   assert.equal(retry.selected.value.id, "new-attempt");
@@ -250,6 +256,65 @@ async function main() {
   const reviewed = await renderReport("REVIEW", "needs_review", [{ stage: "check", status: "received" }]);
   assert.match(reviewed, /通用复核仍有待核问题/);
 
+  const gap = {
+    unit_id: "U2", claim_index: 1, kind: "material_absence",
+    span: "SYNTHETIC statement awaiting source evidence",
+    reason: { item: "SYNTHETIC missing experiment", material: "E1" },
+    action: "assess_need_for_retrieval",
+  };
+  const feedback = {
+    text_sha256: "current-body", evidence_gaps: [gap], repair_units: [],
+    review_required: [{ reason: "SYNTHETIC source receipt needs reconciliation" }],
+  };
+  const roundFields = {
+    text_sha256: "current-body", quality_feedback: feedback,
+    support_audit: { status: "PASS", checks: [] },
+    rounds: [
+      { index: 0, kind: "generation", status: "checked", quality_feedback: {
+        text_sha256: "previous-body", evidence_gaps: [{ reason: "SYNTHETIC earlier round issue" }],
+      }, unsearched_gaps: [] },
+      { index: 1, kind: "generation", status: "checked", quality_feedback: feedback,
+        feedback_stop_reason: "quality_feedback_round_limit", unsearched_gaps: [gap] },
+    ],
+  };
+  const feedbackReport = await renderReport("FAIL", "passed", [], roundFields, {
+    gaps: [{ id: "old-gap", question: "SYNTHETIC earlier structured gap", why_it_matters: "Earlier planning input" }],
+  });
+  assert.match(feedbackReport, /核验后反馈与未补齐问题/);
+  assert.match(feedbackReport, /反馈对应当前保存正文/);
+  assert.match(feedbackReport, /待补内容：SYNTHETIC missing experiment/);
+  assert.match(feedbackReport, /材料：E1/);
+  assert.match(feedbackReport, /SYNTHETIC source receipt needs reconciliation/);
+  assert.match(feedbackReport, /仍未补齐：1 项/);
+  assert.match(feedbackReport, /已达到核验后补查轮次上限/);
+  assert.match(feedbackReport, /报告生成前的结构化分析缺口/);
+  assert.match(feedbackReport, /报告核验未通过/);
+  assert.match(feedbackReport, /所列片段支持复核通过/);
+  assert.doesNotMatch(feedbackReport, /BioCheck 原核验通过/);
+  const printedFeedback = require("./check_query_policy_ui.cjs").printableText(feedbackReport);
+  assert.match(printedFeedback, /核验后反馈与未补齐问题/);
+  assert.match(printedFeedback, /SYNTHETIC missing experiment/);
+  assert.match(printedFeedback, /仍未补齐：1 项/);
+  assert.match(printedFeedback, /已达到核验后补查轮次上限/);
+  assert.doesNotMatch(printedFeedback, /核验后完整反馈回执/);
+  const roundOnly = await renderReport("REVIEW", "passed", [], {
+    ...roundFields, quality_feedback: undefined,
+    rounds: [{ index: 0, kind: "generation", status: "checked", quality_feedback: feedback,
+      unsearched_gaps: [gap], feedback_stop_reason: "budget_or_review_required" }],
+  });
+  assert.match(roundOnly, /反馈对应当前保存正文/);
+  assert.match(roundOnly, /预算条件不足或仍有需核对事项/);
+  const earlierFeedback = await renderReport("REVIEW", "passed", [], {
+    text_sha256: "current-body", quality_feedback: { ...feedback, text_sha256: "previous-body" },
+  });
+  assert.match(earlierFeedback, /这份反馈对应此前稿件/);
+  assert.doesNotMatch(earlierFeedback, /反馈对应当前保存正文/);
+  assert.match(review, /本版未保存核验后补查与修订反馈/);
+  const noReport = await renderReport("PASS", "needs_review", [], {}, { report: null });
+  assert.doesNotMatch(noReport, /核验后反馈与未补齐问题/);
+  assert.doesNotMatch(noReport, /BioCheck 原核验通过/);
+
+  await require("./check_query_policy_ui.cjs")();
   console.log(JSON.stringify({ status: "passed", checks: [
     "api_preserves_retained_investigation_receipt",
     "markdown_download_reads_exact_text",
@@ -263,6 +328,10 @@ async function main() {
     "review_report_is_not_presented_as_passed",
     "final_report_is_distinct_from_earlier_structured_analysis",
     "unexecuted_general_review_is_not_reported_as_a_failed_check",
+    "post_verification_feedback_and_round_stop_reasons_are_visible_and_printable",
+    "current_feedback_is_bound_to_the_saved_body_and_separate_from_old_structured_gaps",
+    "support_audit_pass_never_upgrades_whole_report_failure",
+    "missing_report_does_not_fabricate_professional_feedback",
   ] }));
 }
 module.exports = { renderReport };

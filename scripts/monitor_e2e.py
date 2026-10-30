@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
 from history_e2e import Exercise
+from query_policy_assertions import assert_query_policy
 
 
 class MonitorExercise(Exercise):
@@ -74,6 +76,111 @@ class MonitorExercise(Exercise):
                 "cutoff": datetime.now(UTC).isoformat(),
             },
         ).json()["items"]
+
+    def existing(self, sources, *, require_unselected=False):
+        self.guard_existing()
+        status = self.status()
+        selected_sources = [row for row in status["sources"] if row["source_id"] in sources]
+        self.check(
+            bool(selected_sources) and all(not row["is_demo"] for row in selected_sources),
+            "isolated_monitor_reads_the_explicit_real_source_scope",
+        )
+        self.check(status["enabled"] and not status["paused"], "existing_source_monitor_is_running")
+        batches = self.wait(
+            lambda: [
+                row
+                for row in self.batches()
+                if row["source_id"] in sources and not row["is_demo"] and row["state"] == "completed"
+            ],
+            "no completed real-source batch was produced by the existing background monitor",
+        )
+        selections = []
+        for batch in batches:
+            summary = batch.get("selection_summary")
+            self.check(
+                isinstance(summary, dict)
+                and all(
+                    isinstance(summary.get(key), int) and summary[key] >= 0
+                    for key in ("new_records", "evaluated", "selected", "no_candidate", "unknown")
+                ),
+                "automatic_batch_preserves_its_actual_selection_and_unselected_scope",
+            )
+            selections.append({"batch_id": batch["id"], **summary})
+        if require_unselected:
+            self.check(
+                any(row["no_candidate"] or row["unknown"] for row in selections),
+                "real_batch_includes_new_material_not_selected_or_not_evaluable_by_current_rules",
+            )
+        lead_list = self.call(
+            self.radar,
+            "GET",
+            "/api/engine/monitor/leads",
+            auth=self.user,
+            params={"limit": 100},
+        ).json()
+        batch_ids = {batch["id"] for batch in batches}
+        leads = [lead for lead in lead_list["items"] if lead["batch_id"] in batch_ids]
+        self.check(bool(leads), "real_source_batch_automatically_produced_an_investigation_lead")
+        analyses = []
+        for lead in leads:
+            self.check(
+                bool(lead.get("importance_reason")) and bool(lead.get("urgency_reason")),
+                "automatic_importance_and_urgency_have_saved_evidence_based_reasons",
+            )
+            self.check(bool(lead.get("investigation_id")), "selected_real_lead_has_an_actual_investigation")
+            investigation = self.call(
+                self.radar,
+                "GET",
+                "/api/engine/investigations/" + lead["investigation_id"],
+                auth=self.user,
+            ).json()
+            self.check(
+                investigation["judgment_count"] == 0, "automatic_source_path_does_not_forge_a_human_judgment"
+            )
+            listing = self.wait(
+                lambda: self.call(
+                    self.radar,
+                    "GET",
+                    f"/api/engine/investigations/{lead['investigation_id']}/analyses",
+                    auth=self.user,
+                ).json()["items"],
+                "automatic real-source lead did not enqueue any semantic analysis",
+            )
+            candidates = [item for item in listing if item["trigger"] == "monitor"]
+            self.check(bool(candidates), "monitor_trigger_uses_the_shared_semantic_execution_path")
+            analysis = self.wait_semantic(lead["investigation_id"], candidates[0]["id"])
+            summary = assert_query_policy(analysis, expected_policy=self.policy)
+            self.check(
+                analysis["state"] in {"completed", "needs_review"} and not analysis["is_demo"],
+                "automatic_query_policy_produced_a_saved_real_source_result",
+            )
+            for evidence in analysis["evidence"]:
+                original = self.call(
+                    self.radar,
+                    "GET",
+                    f"/api/engine/investigations/{analysis['investigation_id']}/analyses/{analysis['id']}"
+                    f"/evidence/{evidence['key']}",
+                    auth=self.user,
+                ).json()
+                self.check(
+                    original["evidence"]["record_ref"] == evidence["record_ref"]
+                    and original["normalized_text"][evidence["start"] : evidence["end"]] == evidence["text"],
+                    "automatic_policy_keeps_the_same_frozen_original_and_passage",
+                )
+            analyses.append({"lead_id": lead["id"], "analysis_id": analysis["id"], "query_policy": summary})
+        return {
+            "checks": self.checks,
+            "source_ids": sources,
+            "selection_summary": selections,
+            "leads": leads,
+            "analyses": analyses,
+            "engineering_status": "passed",
+            "scientific_review": "pending_independent_review",
+            "qualification": (
+                "Real existing source versions, read-only Fabric; "
+                "unselected means not selected by this run's rules."
+            ),
+        }
 
     def run(self, expected_database, expected_namespace):
         publication = self.call(self.fabric, "GET", "/api/history/publication/status", auth=self.read).json()
@@ -244,14 +351,46 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fabric-url", required=True)
     parser.add_argument("--radar-url", required=True)
-    parser.add_argument("--source-database", required=True)
-    parser.add_argument("--namespace", required=True)
+    parser.add_argument("--source-database")
+    parser.add_argument("--namespace")
+    parser.add_argument("--existing-only", action="store_true")
+    parser.add_argument("--source", action="append", default=[])
+    parser.add_argument("--policy", choices=("baseline", "query_planner"))
+    parser.add_argument("--require-unselected", action="store_true")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    exercise = MonitorExercise(args.fabric_url, args.radar_url)
-    result = exercise.run(args.source_database, args.namespace)
-    args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
-    print(json.dumps({"checks_passed": len(result["checks"]), "output": str(args.output)}))
+    if args.existing_only and not args.source:
+        parser.error("--existing-only requires explicit --source scope")
+    if not args.existing_only and (not args.source_database or not args.namespace):
+        parser.error("synthetic upload mode requires --source-database and --namespace")
+    args.output.parent.mkdir(parents=True, exist_ok=True)
+    descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    os.close(descriptor)
+    exercise = MonitorExercise(
+        args.fabric_url, args.radar_url, read_only_sources=args.existing_only, policy=args.policy
+    )
+    result = {"status": "running", "checks": exercise.checks, "started_at": datetime.now(UTC).isoformat()}
+    try:
+        result.update(
+            exercise.existing(args.source, require_unselected=args.require_unselected)
+            if args.existing_only
+            else exercise.run(args.source_database, args.namespace)
+        )
+        result["status"] = (
+            "technical_checks_passed" if args.existing_only else "synthetic_engineering_checks_passed"
+        )
+    except Exception as exc:
+        result.update(status="failed", error_type=type(exc).__name__)
+        raise
+    finally:
+        exercise.close()
+        result["finished_at"] = datetime.now(UTC).isoformat()
+        args.output.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n")
+    print(
+        json.dumps(
+            {"status": result["status"], "checks_passed": len(result["checks"]), "output": str(args.output)}
+        )
+    )
 
 
 if __name__ == "__main__":

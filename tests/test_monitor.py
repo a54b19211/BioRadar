@@ -196,6 +196,12 @@ def test_unattended_two_batches_persist_queries_and_restart_without_duplicate(ru
     view = InvestigationService(make().engine).get(
         make().actor, next(lead.investigation_id for lead in leads if lead.investigation_id)
     )
+    selected = next(lead for lead in leads if lead.investigation_id == view.id)
+    candidate = selected.payload["candidate"]
+    assert view.question == (
+        f"待调查线索（程序候选，尚未核实）：{candidate['title'][:200]}\n"
+        f"调查问题：{candidate['next_questions'][0]}"
+    )
     assert not any(e.kind == "judgment" for e in view.entries)
     assert all(e.payload.automation is not None for e in view.entries if e.kind in {"note", "material"})
     make().tick()  # New coordinator instance simulates a clean restart.
@@ -670,6 +676,10 @@ def test_long_document_budget_omits_only_feature_window_and_keeps_consuming(runt
         batch = session.scalar(select(MonitorBatch))
         assert batch.state == "completed" and batch.payload["snapshot"] is None
         assert batch.payload["manifest"][0]["version_id"] == source.records[0]["version_id"]
+        summary = batch.payload["selection_summary"]
+        assert summary["new_records"] == summary["unknown"] == 1
+        assert summary["evaluated"] == summary["selected"] == summary["no_candidate"] == 0
+        assert summary["record_outcomes"][0]["reason"] == "not_in_frozen_computation_window"
         assert (
             "whole_records_omitted_from_bounded_feature_window_versions_retained_at_source"
             in (batch.payload["limitations"])
@@ -902,3 +912,124 @@ def test_revoked_support_in_unfinished_batch_cannot_starve_other_source(runtime,
         assert (
             session.scalar(select(MonitorBatch).where(MonitorBatch.source_id == "third-source")) is not None
         )
+
+
+def _only_state_transition_policy(monkeypatch):
+    from bioradar.research.mining.models import MiningPolicy
+    from bioradar.research.monitor import service as monitor_service
+
+    class StateOnlyPolicy(MiningPolicy):
+        method_ids: tuple[str, ...] = ("state_transitions",)
+
+    monkeypatch.setattr(monitor_service, "MiningPolicy", StateOnlyPolicy)
+
+
+def test_selection_summary_new_version_is_not_automatically_worth_investigation(runtime, monkeypatch):
+    make, source, _ = runtime
+    _only_state_transition_policy(monkeypatch)
+    source.records = [record(1, "SYNTHETIC initial registration without an observed change.", seq=1)]
+    make().tick()
+    finish_pending(make)
+    make().tick()
+    monitor = make()
+    summary = monitor.batches(monitor.actor).items[0].selection_summary
+    assert summary.new_records == summary.evaluated == 1
+    assert summary.selected == summary.unknown == 0 and summary.no_candidate == 1
+    assert summary.methods[0]["execution_status"] == "success"
+    assert summary.methods[0]["processed_manifest_versions"] == 1
+    assert summary.record_outcomes[0]["outcome"] == "no_candidate"
+    assert not monitor.leads(monitor.actor).items
+
+
+@pytest.mark.parametrize("diagnostic", ["failed", "unsupported", "partial", "excluded"])
+def test_selection_summary_incomplete_or_excluded_method_scope_stays_unknown(
+    runtime, monkeypatch, diagnostic
+):
+    from bioradar.research.mining import runner
+    from bioradar.research.mining.models import ExcludedRecord, MethodResult
+
+    make, source, settings = runtime
+    _only_state_transition_policy(monkeypatch)
+    settings.engine_retry_limit = 1
+    source.records = [record(1, "SYNTHETIC scope diagnostic.", seq=1)]
+
+    def method(prepared):
+        return MethodResult(
+            method_id="state_transitions",
+            method_version=runner.METHODS["state_transitions"].version,
+            readiness="unsupported" if diagnostic == "unsupported" else "exploratory_only",
+            execution_status="success" if diagnostic == "excluded" else diagnostic,
+            reasons=("SYNTHETIC explicit method diagnostic",),
+            truncated_count=1 if diagnostic == "partial" else 0,
+            excluded_records=(
+                (
+                    ExcludedRecord(
+                        record_ref=prepared.records[0].record.record_ref, reason="SYNTHETIC excluded input"
+                    ),
+                )
+                if diagnostic == "excluded"
+                else ()
+            ),
+        )
+
+    monkeypatch.setitem(runner.IMPLEMENTATIONS, "state_transitions", method)
+    make().tick()
+    finish_pending(make)
+    make().tick()
+    monitor = make()
+    batch = monitor.batches(monitor.actor).items[0]
+    summary = batch.selection_summary
+    assert summary.new_records == summary.evaluated == summary.unknown == 1
+    assert summary.selected == summary.no_candidate == 0
+    assert summary.methods[0]["execution_status"] == ("success" if diagnostic == "excluded" else diagnostic)
+    if diagnostic == "failed":
+        assert batch.state == "blocked"
+    if diagnostic == "excluded":
+        assert summary.methods[0]["excluded_manifest_versions"] == 1
+    with Session(monitor.engine.database) as session:
+        stored = session.get(MonitorBatch, batch.id).payload["selection_summary"]
+        assert stored == summary.model_dump(mode="json")
+
+
+def test_selected_lead_keeps_actual_importance_urgency_and_legacy_unknown_scope(runtime):
+    from bioradar.research.mining.models import Candidate
+
+    make, source, _ = runtime
+    seeded(source)
+    make().tick()
+    finish_pending(make)
+    make().tick()
+    monitor = make()
+    batch = monitor.batches(monitor.actor).items[0]
+    summary = batch.selection_summary
+    leads = monitor.leads(monitor.actor).items
+    assert leads and summary.selected > 0
+    assert summary.selected + summary.no_candidate + summary.unknown == summary.new_records == 3
+    assert summary.evaluated == 3
+    assert any(method["execution_status"] == "success" for method in summary.methods)
+    with Session(monitor.engine.database) as session:
+        stored_batch = session.get(MonitorBatch, batch.id)
+        manifest = {monitor.reader.ref(item).version_key for item in stored_batch.payload["manifest"]}
+        selected = set()
+        for lead in leads:
+            row = session.get(MonitorLead, lead.id)
+            candidate = Candidate.model_validate(row.payload["candidate"])
+            selected.update(s.record_ref.version_key for s in candidate.supports)
+            assert lead.new_to_radar and lead.importance == candidate.importance
+            assert lead.urgency == candidate.urgency
+            assert candidate.importance in lead.importance_reason
+            assert candidate.urgency in lead.urgency_reason
+            assert "选中仅表示继续调查" in lead.importance_reason
+        assert summary.selected == len(manifest & selected)
+        old_payload = dict(stored_batch.payload)
+        old_payload.pop("selection_summary")
+        stored_batch.payload = old_payload
+        old_lead = session.get(MonitorLead, leads[0].id)
+        old_payload = dict(old_lead.payload)
+        old_payload.pop("importance_reason")
+        old_payload.pop("urgency_reason")
+        old_lead.payload = old_payload
+        session.commit()
+    assert monitor.batches(monitor.actor).items[0].selection_summary is None
+    old = next(lead for lead in monitor.leads(monitor.actor).items if lead.id == leads[0].id)
+    assert old.importance_reason is old.urgency_reason is None

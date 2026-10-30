@@ -522,6 +522,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/history/studies/{identifier}/analyses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Analyze */
+        post: operations["analyze_api_engine_history_studies__identifier__analyses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/history/studies/{identifier}/evaluations": {
         parameters: {
             query?: never;
@@ -793,6 +810,8 @@ export interface components {
             max_seconds?: number | null;
             /** Max Queries */
             max_queries?: number | null;
+            /** Max Tool Calls */
+            max_tool_calls?: number | null;
         };
         /** AnalysisCreate */
         AnalysisCreate: {
@@ -810,6 +829,8 @@ export interface components {
             /** Initial Queries */
             initial_queries?: components["schemas"]["InitialQuery"][];
             budget?: components["schemas"]["AnalysisBudget"] | null;
+            /** Query Policy */
+            query_policy?: ("baseline" | "query_planner") | null;
             /** Retry Of Analysis Id */
             retry_of_analysis_id?: string | null;
             /** Parent Analysis Id */
@@ -823,6 +844,13 @@ export interface components {
             key: string;
             /** Material Entry Id */
             material_entry_id: string | null;
+            material_context?: components["schemas"]["AnalysisMaterialContext"] | null;
+            /**
+             * Evidence Role
+             * @default source_material
+             * @enum {string}
+             */
+            evidence_role: "source_material" | "graph_background";
             /**
              * Text Basis
              * @default snapshot_normalized
@@ -906,6 +934,25 @@ export interface components {
              */
             unavailable_count: number;
         };
+        /** AnalysisMaterialContext */
+        AnalysisMaterialContext: {
+            /** Entry Id */
+            entry_id: string;
+            /**
+             * Stance
+             * @enum {string}
+             */
+            stance: "support" | "oppose" | "context";
+            /** Note */
+            note: string;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "user_supplied" | "machine_proposed";
+            /** Qualification */
+            qualification: string;
+        };
         /** AnalysisPassage */
         AnalysisPassage: {
             /** Id */
@@ -932,11 +979,32 @@ export interface components {
              * @default fabric
              * @enum {string}
              */
-            provider: "fabric" | "weknora";
+            provider: "fabric" | "weknora" | "graph" | "fabric_graph";
+            /**
+             * Kind
+             * @default document_search
+             */
+            kind: string;
+            /** Action Id */
+            action_id?: string | null;
+            /** Semantic Key */
+            semantic_key?: string | null;
+            /** Decision Step */
+            decision_step?: number | null;
+            /** Cost */
+            cost?: {
+                [key: string]: unknown;
+            } | null;
+            /** Graph Context */
+            graph_context?: {
+                [key: string]: unknown;
+            } | unknown[] | null;
             /** Plan */
-            plan: components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"];
+            plan: components["schemas"]["PolicyPlannedQuery"] | components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"] | {
+                [key: string]: unknown;
+            };
             /** Relaxed From */
-            relaxed_from?: components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"] | null;
+            relaxed_from?: components["schemas"]["PolicyPlannedQuery"] | components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"] | null;
             /** Relaxation Reason */
             relaxation_reason?: string | null;
             /**
@@ -1008,6 +1076,10 @@ export interface components {
             mechanism_evaluation?: {
                 [key: string]: unknown;
             } | null;
+            /** Query Policy */
+            query_policy?: {
+                [key: string]: unknown;
+            } | null;
             /** Limitations */
             limitations: string[];
         };
@@ -1028,7 +1100,7 @@ export interface components {
              * Trigger
              * @enum {string}
              */
-            trigger: "manual" | "monitor" | "topic" | "material_update";
+            trigger: "manual" | "monitor" | "topic" | "material_update" | "history";
             /**
              * Created At
              * Format: date-time
@@ -1086,7 +1158,7 @@ export interface components {
              * Trigger
              * @enum {string}
              */
-            trigger: "manual" | "monitor" | "topic" | "material_update";
+            trigger: "manual" | "monitor" | "topic" | "material_update" | "history";
             /**
              * Created At
              * Format: date-time
@@ -1146,6 +1218,10 @@ export interface components {
             providers?: {
                 [key: string]: unknown;
             };
+            /** Query Policy */
+            query_policy?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** Assessment */
         Assessment: {
@@ -2535,6 +2611,12 @@ export interface components {
              */
             reasons: string[];
         };
+        /** HistoryAnalysisCreate */
+        HistoryAnalysisCreate: {
+            /** Query Policy */
+            query_policy?: ("baseline" | "query_planner") | null;
+            budget?: components["schemas"]["AnalysisBudget"] | null;
+        };
         /** HistoryEvaluationCreate */
         HistoryEvaluationCreate: {
             /**
@@ -2819,6 +2901,13 @@ export interface components {
              * @default []
              */
             evaluations: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Semantic Analyses
+             * @default []
+             */
+            semantic_analyses: {
                 [key: string]: unknown;
             }[];
             /**
@@ -3706,6 +3795,7 @@ export interface components {
              * @default false
              */
             scope_complete: boolean;
+            selection_summary?: components["schemas"]["MonitorSelectionSummary"] | null;
             /** Investigation Ids */
             investigation_ids: string[];
             /** Error Code */
@@ -3757,6 +3847,12 @@ export interface components {
             new_to_radar: boolean;
             /** Needs Investigation */
             needs_investigation: boolean;
+            /** Importance */
+            importance?: ("undetermined" | "low" | "medium" | "high") | null;
+            /** Importance Reason */
+            importance_reason?: string | null;
+            /** Urgency Reason */
+            urgency_reason?: string | null;
             /**
              * Urgency
              * @enum {string}
@@ -3798,6 +3894,40 @@ export interface components {
             disk_paused?: boolean | null;
             /** Error Code */
             error_code?: string | null;
+        };
+        /** MonitorSelectionSummary */
+        MonitorSelectionSummary: {
+            /**
+             * Schema Version
+             * @default bioradar.monitor-selection.v1
+             * @constant
+             */
+            schema_version: "bioradar.monitor-selection.v1";
+            /**
+             * Scope
+             * @constant
+             */
+            scope: "this_batch_manifest_and_frozen_computation_window";
+            /** New Records */
+            new_records: number;
+            /** Evaluated */
+            evaluated: number;
+            /** Selected */
+            selected: number;
+            /** No Candidate */
+            no_candidate: number;
+            /** Unknown */
+            unknown: number;
+            /** Methods */
+            methods: {
+                [key: string]: unknown;
+            }[];
+            /** Record Outcomes */
+            record_outcomes: {
+                [key: string]: unknown;
+            }[];
+            /** Limitations */
+            limitations: string[];
         };
         /** MonitorSourceStatus */
         MonitorSourceStatus: {
@@ -3997,6 +4127,25 @@ export interface components {
             /** Expected Discrimination */
             expected_discrimination: string;
         };
+        /** PolicyPlannedQuery */
+        PolicyPlannedQuery: {
+            /** Gap Id */
+            gap_id: string;
+            /** Target Claim Id */
+            target_claim_id: string;
+            /** Source Id */
+            source_id: string;
+            /** Terms */
+            terms: string[];
+            /** Anchoring Evidence Keys */
+            anchoring_evidence_keys: string[];
+            /** Reason */
+            reason: string;
+            /** Expected Discrimination */
+            expected_discrimination: string;
+            /** Coverage Check Ids */
+            coverage_check_ids?: string[];
+        };
         /** ProjectTimeline */
         ProjectTimeline: {
             project_ref: components["schemas"]["ProviderRef"];
@@ -4072,6 +4221,8 @@ export interface components {
             /** Initial Queries */
             initial_queries?: components["schemas"]["InitialQuery"][];
             budget?: components["schemas"]["AnalysisBudget"] | null;
+            /** Query Policy */
+            query_policy?: ("baseline" | "query_planner") | null;
         };
         /** RecordIdentity */
         RecordIdentity: {
@@ -6357,6 +6508,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HistoryStudyView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    analyze_api_engine_history_studies__identifier__analyses_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HistoryAnalysisCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisView"];
                 };
             };
             /** @description Validation Error */

@@ -631,6 +631,19 @@
       "default": null,
       "title": "Mechanism Evaluation"
     },
+    "query_policy": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Query Policy"
+    },
     "limitations": {
       "items": {
         "type": "string"

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import PolicyTracePanel from "./PolicyTracePanel.vue";
 import type { ResearchAnalysisView, ResearchBudgetView, ResearchProvider } from "../../api/research";
 
 const props = defineProps<{ analysis: ResearchAnalysisView }>();
@@ -75,7 +76,7 @@ function providerState(value: ResearchProvider) {
 </script>
 
 <template>
-  <div class="research-progress no-print" aria-live="polite">
+  <div class="research-progress" aria-live="polite">
     <div class="research-current-stage">
       <strong>{{ currentStage }}</strong>
       <span v-if="analysis.progress?.waiting_reason && !['blocked', 'failed'].includes(analysis.state)">
@@ -94,7 +95,11 @@ function providerState(value: ResearchProvider) {
     </p>
     <p v-if="usage.unknown_usage_calls" class="muted">{{ usage.unknown_usage_calls }} 次调用尚无 token 用量回执，累计量暂不完整。</p>
     <p v-if="['queued', 'running'].includes(analysis.state)" class="muted" role="status">任务在后台继续执行；刷新或离开页面后，可从这项调查重新打开。</p>
-    <ol v-if="analysis.calls.length" class="research-stage-list">
+    <p v-if="['blocked', 'failed'].includes(analysis.state) && !analysis.result?.report?.final_text" class="notice">
+      本版尚未保存最终报告正文，不能视为报告核验已完成。
+      <template v-if="analysis.progress?.waiting_reason">阻断原因：{{ waitingReasons[analysis.progress.waiting_reason] || analysis.progress.waiting_reason }}。</template>
+    </p>
+    <ol v-if="analysis.calls.length" class="research-stage-list no-print">
       <li v-for="call in analysis.calls" :key="String(call.call_id || call.stage)">
         <strong>{{ stages[call.stage] || call.stage }}</strong>
         <span>{{ callStates[call.status] || call.status }}</span>
@@ -102,7 +107,8 @@ function providerState(value: ResearchProvider) {
         <span v-if="call.receipt?.elapsed_ms != null">{{ (call.receipt.elapsed_ms / 1000).toFixed(1) }} 秒</span>
       </li>
     </ol>
-    <details v-if="analysis.providers && Object.keys(analysis.providers).length">
+    <PolicyTracePanel :policy="analysis.query_policy ?? analysis.result?.query_policy" :queries="analysis.queries" />
+    <details v-if="analysis.providers && Object.keys(analysis.providers).length" class="no-print">
       <summary>本版共享服务状态</summary>
       <ul><li v-for="(value, name) in analysis.providers" :key="name">
         {{ providers[name] || name }}：{{ providerState(value) }}

@@ -11,11 +11,13 @@ from bioradar.research.engine.auth import DevelopmentAccess, EngineActor
 from bioradar.research.engine.routes import EngineRoute, IdempotencyKey
 from bioradar.research.engine.service import EngineService
 from bioradar.research.history.models import (
+    HistoryAnalysisCreate,
     HistoryEvaluationCreate,
     HistoryStudyCreate,
     HistoryStudyView,
 )
 from bioradar.research.history.service import HistoryService, history_reader
+from bioradar.research.investigations.analysis_models import AnalysisView
 
 
 def create_history_router(settings: Settings):
@@ -64,6 +66,21 @@ def create_history_router(settings: Settings):
         with history_reader(settings) as reader:
             runtime.reader = reader
             return runtime.get(actor, identifier)
+
+    @router.post("/studies/{identifier}/analyses", response_model=AnalysisView, status_code=202)
+    def analyze(
+        identifier: str,
+        body: HistoryAnalysisCreate,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor: EngineActor = Depends(access.require_actor),
+    ):
+        from bioradar.research.history.analysis import start_history_analysis
+
+        runtime = service(request)
+        with history_reader(settings) as reader:
+            runtime.reader = reader
+            return start_history_analysis(runtime, actor, identifier, body, idempotency_key)
 
     @router.post("/studies/{identifier}/evaluations", status_code=201)
     def evaluate(

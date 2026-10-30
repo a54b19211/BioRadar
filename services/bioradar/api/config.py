@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     data_fabric_url: str | None = None
     data_fabric_research_url: str | None = None
     data_fabric_history_read_token: SecretStr | None = None
+    data_fabric_graph_query_token: SecretStr | None = None
+    data_fabric_graph_query_url: str | None = None
 
     biocheck_project_dir: Path | None = None
     mech_evidence_project_dir: Path | None = None
@@ -72,12 +74,17 @@ class Settings(BaseSettings):
     semantic_llm_top_p: float = Field(default=1, gt=0, le=1, allow_inf_nan=False)
     semantic_llm_top_k: int | None = Field(default=None, ge=1, le=1000)
     analysis_search_source_ids: list[str] = Field(default_factory=list, max_length=8)
+    analysis_graph_source_ids: list[str] = Field(default_factory=lambda: ["primekg_graph"], max_length=8)
     analysis_manual_per_hour: int = Field(default=2, ge=0, le=100)
     analysis_auto_enabled: bool = False
-    analysis_max_calls: int = Field(default=16, ge=1, le=16)
+    analysis_max_calls: int = Field(default=16, ge=1, le=32)
     analysis_max_tokens: int = Field(default=262144, ge=1, le=10_000_000)
     analysis_max_seconds: int = Field(default=1800, ge=1, le=1800)
     analysis_max_queries: int = Field(default=6, ge=0, le=6)
+    analysis_max_tool_calls: int = Field(default=64, ge=1, le=256)
+    analysis_query_policy: Literal["baseline", "query_planner"] = "baseline"
+    query_planner_project_dir: Path | None = None
+    analysis_query_policy_max_steps: int = Field(default=12, ge=1, le=256)
 
     @model_validator(mode="after")
     def flash_thinking_sampling(self):
@@ -121,7 +128,7 @@ class Settings(BaseSettings):
     def model_identifier(cls, value: str | None) -> str | None:
         return value.strip() or None if value is not None else None
 
-    @field_validator("analysis_search_source_ids")
+    @field_validator("analysis_search_source_ids", "analysis_graph_source_ids")
     @classmethod
     def analysis_sources(cls, value: list[str]) -> list[str]:
         import re
@@ -130,7 +137,7 @@ class Settings(BaseSettings):
             raise ValueError("Analysis search requires explicit source identifiers")
         return sorted(set(value))
 
-    @field_validator("data_fabric_url", "data_fabric_research_url")
+    @field_validator("data_fabric_url", "data_fabric_research_url", "data_fabric_graph_query_url")
     @classmethod
     def local_fabric(cls, value: str | None) -> str | None:
         from urllib.parse import urlsplit

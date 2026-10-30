@@ -2228,6 +2228,77 @@
         }
       }
     },
+    "/api/engine/history/studies/{identifier}/analyses": {
+      "post": {
+        "tags": [
+          "Historical research"
+        ],
+        "summary": "Analyze",
+        "operationId": "analyze_api_engine_history_studies__identifier__analyses_post",
+        "security": [
+          {
+            "DevelopmentUserCredential": []
+          },
+          {
+            "DevelopmentUserSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "identifier",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Identifier"
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "title": "Idempotency-Key"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HistoryAnalysisCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisView"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/engine/history/studies/{identifier}/evaluations": {
       "post": {
         "tags": [
@@ -3194,6 +3265,19 @@
               }
             ],
             "title": "Max Queries"
+          },
+          "max_tool_calls": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 256.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Tool Calls"
           }
         },
         "additionalProperties": false,
@@ -3250,6 +3334,21 @@
                 "type": "null"
               }
             ]
+          },
+          "query_policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "baseline",
+                  "query_planner"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Policy"
           },
           "retry_of_analysis_id": {
             "anyOf": [
@@ -3309,6 +3408,25 @@
               }
             ],
             "title": "Material Entry Id"
+          },
+          "material_context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisMaterialContext"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "evidence_role": {
+            "type": "string",
+            "enum": [
+              "source_material",
+              "graph_background"
+            ],
+            "title": "Evidence Role",
+            "default": "source_material"
           },
           "text_basis": {
             "type": "string",
@@ -3550,6 +3668,50 @@
         ],
         "title": "AnalysisList"
       },
+      "AnalysisMaterialContext": {
+        "properties": {
+          "entry_id": {
+            "type": "string",
+            "title": "Entry Id"
+          },
+          "stance": {
+            "type": "string",
+            "enum": [
+              "support",
+              "oppose",
+              "context"
+            ],
+            "title": "Stance"
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 8000,
+            "title": "Note"
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "user_supplied",
+              "machine_proposed"
+            ],
+            "title": "Origin"
+          },
+          "qualification": {
+            "type": "string",
+            "title": "Qualification"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "entry_id",
+          "stance",
+          "note",
+          "origin",
+          "qualification"
+        ],
+        "title": "AnalysisMaterialContext"
+      },
       "AnalysisPassage": {
         "properties": {
           "id": {
@@ -3604,24 +3766,102 @@
             "type": "string",
             "enum": [
               "fabric",
-              "weknora"
+              "weknora",
+              "graph",
+              "fabric_graph"
             ],
             "title": "Provider",
             "default": "fabric"
           },
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "default": "document_search"
+          },
+          "action_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action Id"
+          },
+          "semantic_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Semantic Key"
+          },
+          "decision_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decision Step"
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          },
+          "graph_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Graph Context"
+          },
           "plan": {
             "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyPlannedQuery"
+              },
               {
                 "$ref": "#/components/schemas/PlannedQuery"
               },
               {
                 "$ref": "#/components/schemas/InitialQuery"
+              },
+              {
+                "additionalProperties": true,
+                "type": "object"
               }
             ],
             "title": "Plan"
           },
           "relaxed_from": {
             "anyOf": [
+              {
+                "$ref": "#/components/schemas/PolicyPlannedQuery"
+              },
               {
                 "$ref": "#/components/schemas/PlannedQuery"
               },
@@ -3809,6 +4049,18 @@
             ],
             "title": "Mechanism Evaluation"
           },
+          "query_policy": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Policy"
+          },
           "limitations": {
             "items": {
               "type": "string"
@@ -3869,7 +4121,8 @@
               "manual",
               "monitor",
               "topic",
-              "material_update"
+              "material_update",
+              "history"
             ],
             "title": "Trigger"
           },
@@ -4045,7 +4298,8 @@
               "manual",
               "monitor",
               "topic",
-              "material_update"
+              "material_update",
+              "history"
             ],
             "title": "Trigger"
           },
@@ -4203,6 +4457,18 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Providers"
+          },
+          "query_policy": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Policy"
           }
         },
         "additionalProperties": false,
@@ -8038,6 +8304,38 @@
         ],
         "title": "HistoricalUnit"
       },
+      "HistoryAnalysisCreate": {
+        "properties": {
+          "query_policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "baseline",
+                  "query_planner"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Policy"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnalysisBudget"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "HistoryAnalysisCreate"
+      },
       "HistoryEvaluationCreate": {
         "properties": {
           "cutoff": {
@@ -8575,6 +8873,15 @@
             },
             "type": "array",
             "title": "Evaluations",
+            "default": []
+          },
+          "semantic_analyses": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Semantic Analyses",
             "default": []
           },
           "professional_status": {
@@ -10744,6 +11051,16 @@
             "title": "Scope Complete",
             "default": false
           },
+          "selection_summary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MonitorSelectionSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "investigation_ids": {
             "items": {
               "type": "string"
@@ -10901,6 +11218,45 @@
             "type": "boolean",
             "title": "Needs Investigation"
           },
+          "importance": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "undetermined",
+                  "low",
+                  "medium",
+                  "high"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance"
+          },
+          "importance_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance Reason"
+          },
+          "urgency_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urgency Reason"
+          },
           "urgency": {
             "type": "string",
             "enum": [
@@ -11032,6 +11388,83 @@
           "publisher_state"
         ],
         "title": "MonitorPublicationStatus"
+      },
+      "MonitorSelectionSummary": {
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "bioradar.monitor-selection.v1",
+            "title": "Schema Version",
+            "default": "bioradar.monitor-selection.v1"
+          },
+          "scope": {
+            "type": "string",
+            "const": "this_batch_manifest_and_frozen_computation_window",
+            "title": "Scope"
+          },
+          "new_records": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "New Records"
+          },
+          "evaluated": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Evaluated"
+          },
+          "selected": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Selected"
+          },
+          "no_candidate": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "No Candidate"
+          },
+          "unknown": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Unknown"
+          },
+          "methods": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Methods"
+          },
+          "record_outcomes": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Record Outcomes"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Limitations"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "scope",
+          "new_records",
+          "evaluated",
+          "selected",
+          "no_candidate",
+          "unknown",
+          "methods",
+          "record_outcomes",
+          "limitations"
+        ],
+        "title": "MonitorSelectionSummary"
       },
       "MonitorSourceStatus": {
         "properties": {
@@ -11601,6 +12034,84 @@
         ],
         "title": "PlannedQuery"
       },
+      "PolicyPlannedQuery": {
+        "properties": {
+          "gap_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Gap Id"
+          },
+          "target_claim_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Target Claim Id"
+          },
+          "source_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "terms": {
+            "items": {
+              "type": "string",
+              "maxLength": 120,
+              "minLength": 2
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Terms"
+          },
+          "anchoring_evidence_keys": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 4,
+            "minItems": 1,
+            "title": "Anchoring Evidence Keys"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "expected_discrimination": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Expected Discrimination"
+          },
+          "coverage_check_ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 80,
+              "minLength": 1
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Coverage Check Ids"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "gap_id",
+          "target_claim_id",
+          "source_id",
+          "terms",
+          "anchoring_evidence_keys",
+          "reason",
+          "expected_discrimination"
+        ],
+        "title": "PolicyPlannedQuery"
+      },
       "ProjectTimeline": {
         "properties": {
           "project_ref": {
@@ -11817,6 +12328,21 @@
                 "type": "null"
               }
             ]
+          },
+          "query_policy": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "baseline",
+                  "query_planner"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Query Policy"
           }
         },
         "additionalProperties": false,

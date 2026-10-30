@@ -710,3 +710,170 @@ def test_new_budget_prioritizes_support_audit_over_optional_repair(runtime, data
     with Session(database) as session:
         plan = session.get(InvestigationAnalysisRecord, accepted["id"]).progress["final_report_plan"]
         assert plan["repair"] is False and plan["reserve_support_audit"] is True
+
+
+def test_material_update_append_automatically_runs_late_version_child_through_real_rq(
+    runtime, database, model_http, actual_queue, monkeypatch
+):
+    from hashlib import sha256
+
+    from bioradar.research.investigations.models import InvestigationEntryCreate
+    from bioradar.research.investigations.service import InvestigationService
+    from bioradar.research.mining.models import canonical_hash
+
+    make, actor, view, _, _, settings, adopted = runtime
+    factory, meter = model_http
+    connection, queue, drain = actual_queue
+    settings.biocheck_project_dir = None
+    settings.mech_evidence_project_dir = None
+
+    @wraps(analysis_service.execute_analysis)
+    def execute(identifier, input_hash):
+        database.dispose(close=False)
+        return factory().execute(identifier, input_hash)
+
+    monkeypatch.setattr(analysis_service, "execute_analysis", execute)
+    parent = start(runtime)
+    assert queue.count == 1
+    drain()
+    assert factory().get(actor, view["id"], parent["id"]).state == "completed"
+    with Session(database) as session:
+        row = session.get(InvestigationAnalysisRecord, parent["id"])
+        parent_frozen = copy.deepcopy((row.input_hash, row.fixed_input, row.result, row.progress["calls"]))
+        assert Job.fetch(row.rq_job_id, connection=connection).is_finished
+    snapshot = make().engine.get_snapshot(actor, adopted["id"]).snapshot
+    original = snapshot.records[0]
+    late_text = original.normalized_text + " SYNTHETIC late-version result is newly available."
+    late_hash = canonical_hash(late_text)
+    late_ref = original.record_ref.model_copy(
+        update={"adopted_version": late_hash, "content_hash": late_hash}
+    )
+    now = datetime.now(UTC)
+    late_record = type(original).model_validate(
+        {
+            **original.model_dump(mode="python"),
+            "record_ref": late_ref,
+            "evidence_refs": (late_ref,),
+            "document_hash": late_hash,
+            "normalized_text": late_text,
+            "normalized_text_hash": None,
+            "observed_at": now,
+        }
+    )
+    late_snapshot = snapshot.model_copy(
+        update={
+            "snapshot_id": "synthetic-late-version",
+            "observed_at": now,
+            "records": (late_record,),
+            "coverage": (snapshot.coverage[0].model_copy(update={"record_count": 1}),),
+        }
+    )
+    _, late_adopted = make().engine.adopt_snapshot(actor, late_snapshot, "synthetic-late-version-adopt")
+    investigations = InvestigationService(make().engine)
+    current = investigations.get(actor, view["id"])
+    investigations.append(
+        actor,
+        view["id"],
+        InvestigationEntryCreate.model_validate(
+            {
+                "expected_revision": current.revision,
+                "kind": "material",
+                "snapshot_id": late_adopted["id"],
+                "record_ref": late_ref.model_dump(mode="json"),
+                "stance": "context",
+                "text": "SYNTHETIC externally appended late source version.",
+            }
+        ),
+        "synthetic-material-update-append",
+    )
+    with Session(database) as session:
+        child = session.scalar(
+            select(InvestigationAnalysisRecord).where(
+                InvestigationAnalysisRecord.parent_analysis_id == parent["id"]
+            )
+        )
+        assert child is not None and child.trigger == "material_update" and child.state == "queued"
+        assert child.fixed_input["parent_result"] == parent_frozen[2]
+        assert any(
+            item["record_ref"]["object_id"] == late_ref.object_id
+            and item["record_ref"]["adopted_version"] == late_hash
+            for item in child.fixed_input["evidence"]
+        )
+        child_id, child_hash, child_job = child.id, child.input_hash, child.rq_job_id
+    assert (
+        late_ref.object_id == original.record_ref.object_id
+        and late_hash != original.record_ref.adopted_version
+    )
+    assert queue.count == 1
+    drain()
+    updated = factory().get(actor, view["id"], child_id)
+    assert updated.state == "completed", updated.error_code
+    assert updated.result.update.stance == "maintained"
+    assert any(
+        item.record_ref.adopted_version == late_hash and "late-version" in item.text
+        for item in updated.evidence
+    )
+    assert Job.fetch(child_job, connection=connection).is_finished
+    late_evidence = next(item for item in updated.evidence if item.record_ref.adopted_version == late_hash)
+    with Session(database) as session:
+        child = session.get(InvestigationAnalysisRecord, child_id)
+        compare = next(call for call in child.progress["calls"] if call["stage"] == "compare")
+        final_check = next(call for call in child.progress["calls"] if call["stage"] == "final_check")
+        from bioradar.research.investigations.analysis import previous_claims
+
+        assert compare["payload"]["comparison_target"] == previous_claims(parent_frozen[2])
+        for call in (compare, final_check):
+            shown = next(
+                item for item in call["payload"]["evidence"] if item["evidence_key"] == late_evidence.key
+            )
+            assert any("SYNTHETIC late-version result" in passage["text"] for passage in shown["passages"])
+        assert final_check["payload"]["draft_to_check"]["update"] == compare["output"]
+    for report in (parent_frozen[2].get("report") or {}, updated.result.report or {}):
+        assert report.get("status") == "unavailable"
+        assert report.get("error_code") == "biocheck_not_available" and report.get("verification") is None
+        assert report.get("final_text") and report.get("text_sha256")
+        assert report["text_sha256"] == sha256(report["final_text"].encode()).hexdigest()
+    with Session(database) as session:
+        row = session.get(InvestigationAnalysisRecord, parent["id"])
+        assert (row.input_hash, row.fixed_input, row.result, row.progress["calls"]) == parent_frozen
+        assert session.scalar(select(func.count()).select_from(InvestigationAnalysisRecord)) == 2
+    assert investigations.get(actor, view["id"]).judgment_count == 0
+    artifact = os.environ.get("BIORADAR_MATERIAL_UPDATE_ACCEPTANCE_ARTIFACT")
+    if artifact:
+        from pathlib import Path
+
+        from sqlalchemy import text
+
+        with database.connect() as connection:
+            schema = connection.scalar(text("SELECT current_schema()"))
+        assert schema.startswith("engine_test_")
+        Path(artifact).write_text(
+            json.dumps(
+                {
+                    "schema": schema,
+                    "parent_id": parent["id"],
+                    "parent_input_hash": parent_frozen[0],
+                    "parent_frozen_unchanged": True,
+                    "child_id": child_id,
+                    "child_input_hash": child_hash,
+                    "child_trigger": "material_update",
+                    "child_rq_job_finished": True,
+                    "source_object_id": late_ref.object_id,
+                    "old_adopted_version": original.record_ref.adopted_version,
+                    "late_adopted_version": late_hash,
+                    "late_version_in_child": True,
+                    "synthetic_http_stages": meter.stages,
+                    "manual_followup_used": False,
+                    "late_evidence_key_in_compare_and_final_check": late_evidence.key,
+                    "compare_contains_parent_claims": True,
+                    "final_check_update_equals_compare_output": True,
+                    "validation_scope": "structured_analysis_and_comparison_only_no_BioCheck_report",
+                    "nonempty_BioCheck_report_hash_validated": False,
+                    "parent_fallback_draft_sha256": parent_frozen[2]["report"]["text_sha256"],
+                    "child_fallback_draft_sha256": updated.result.report["text_sha256"],
+                    "fallback_hash_scope": "unverified source draft; unavailable provider",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )

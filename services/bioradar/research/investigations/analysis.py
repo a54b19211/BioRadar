@@ -3,7 +3,8 @@
 import copy
 import hashlib
 import json
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 
 from pydantic import ValidationError
 
@@ -56,6 +57,65 @@ facts 是字段上下文，不是可另造引文的文本；只有所选 passage
 每命题最多2个片段编号；若不同结果需要不同片段，拆成小命题或省略次要细节，不能揉成一个大结论。
 片段没有包含的事实不得写入该引用理由；解释、条件、引用理由及更新理由简洁，竞争解释最多2项。
 结论是有条件机器草稿，不签人工 judgment，不给未经标定的概率或综合分。只输出指定 JSON 对象。"""
+
+
+def material_context_identity(evidence):
+    """Keep source identity intact while binding nonempty material interpretation context."""
+    result = {}
+    for item in evidence:
+        fields = {}
+        if item.get("material_context"):
+            fields["material_context"] = copy.deepcopy(item["material_context"])
+        role = item.get("evidence_role", "source_material")
+        if role != "source_material":
+            fields["evidence_role"] = role
+        if fields:
+            result[canonical_hash(item["record_ref"])] = fields
+    return result
+
+
+def evidence_basis_identity(evidence):
+    contexts = material_context_identity(evidence)
+    return [
+        [item["record_ref"], item["text_sha256"]]
+        + (
+            [contexts[canonical_hash(item["record_ref"])]]
+            if canonical_hash(item["record_ref"]) in contexts
+            else []
+        )
+        for item in evidence
+    ]
+
+
+def material_context_payload(evidence):
+    """User interpretations and graph backgrounds are separate from the fixed source passages."""
+    contexts, graphs = [], []
+    for item in evidence:
+        binding = {
+            "evidence_key": item["key"],
+            "source_id": item["source_id"],
+            "record_ref": copy.deepcopy(item["record_ref"]),
+            "version": item["record_ref"].get("adopted_version"),
+        }
+        if item.get("material_context"):
+            contexts.append({**binding, **copy.deepcopy(item["material_context"])})
+        if item.get("evidence_role") == "graph_background":
+            graphs.append(
+                {
+                    **binding,
+                    "evidence_role": "graph_background",
+                    "qualification": (
+                        "固定图包是图谱背景与查询线索，不是独立研究，不能独立证明临床获益或因果机制。"
+                        "图中关系绑定的原件仍须按各自固定版本和原文证据核对，不把背景提升为原件结论。"
+                    ),
+                }
+            )
+    result = {}
+    if contexts:
+        result["material_contexts"] = contexts
+    if graphs:
+        result["graph_materials"] = graphs
+    return result
 
 
 def model_evidence(evidence):
@@ -171,6 +231,37 @@ def validate_claims(claims, evidence):
     return verified
 
 
+def parse_policy_reading(raw):
+    """Ignore only empty extra fields, retaining the immutable model receipt and paths."""
+    from bioradar.research.investigations.analysis_models import PolicyReading
+
+    try:
+        PolicyReading.model_validate(raw)
+        return raw, []
+    except ValidationError as exc:
+        errors = exc.errors()
+    if any(
+        item["type"] != "extra_forbidden" or not (item.get("input") is None or item.get("input") == "")
+        for item in errors
+    ):
+        raise DomainError("analysis_reading_invalid", "模型解读结构无效，原回执保留", 422)
+    normalized = copy.deepcopy(raw)
+    adjustments = []
+    for item in errors:
+        parent = normalized
+        for part in item["loc"][:-1]:
+            parent = parent[part]
+        value = parent.pop(item["loc"][-1])
+        adjustments.append(
+            {"path": list(item["loc"]), "ignored_value": value, "reason": "empty_undeclared_field"}
+        )
+    try:
+        PolicyReading.model_validate(normalized)
+    except ValidationError:
+        raise DomainError("analysis_reading_invalid", "空附加字段移除后仍不符合阅读结构", 422) from None
+    return normalized, adjustments
+
+
 def validate_reading(value, evidence, search_scope):
     try:
         result = ModelReading.model_validate(value)
@@ -237,6 +328,48 @@ def program_update(has_parent, *, review_passed=False):
     )
 
 
+def normalize_policy_synthesis(raw):
+    """Resolve only unique shortened claim references; preserve the saved response and prose."""
+    normalized = copy.deepcopy(raw)
+    adjustments = []
+    if not isinstance(normalized, dict):
+        return normalized, adjustments
+    claims = normalized.get("claims")
+    explanations = normalized.get("explanations")
+    if not isinstance(claims, list) or not isinstance(explanations, list):
+        return normalized, adjustments
+    claim_ids = {
+        claim["id"] for claim in claims if isinstance(claim, dict) and isinstance(claim.get("id"), str)
+    }
+    for explanation_index, explanation in enumerate(explanations):
+        if not isinstance(explanation, dict):
+            continue
+        for field in ("for_claim_ids", "against_claim_ids"):
+            references = explanation.get(field)
+            if not isinstance(references, list):
+                continue
+            for reference_index, reference in enumerate(references):
+                if (
+                    not isinstance(reference, str)
+                    or reference in claim_ids
+                    or re.fullmatch(r"C[1-9][0-9]*", reference) is None
+                ):
+                    continue
+                matches = [claim_id for claim_id in claim_ids if claim_id.startswith(reference + "_")]
+                if len(matches) != 1:
+                    continue
+                references[reference_index] = matches[0]
+                adjustments.append(
+                    {
+                        "path": ["explanations", explanation_index, field, reference_index],
+                        "from": reference,
+                        "to": matches[0],
+                        "reason": "unique_short_claim_reference",
+                    }
+                )
+    return normalized, adjustments
+
+
 def validate_synthesis(value, evidence, *, parent):
     try:
         result = ModelSynthesis.model_validate(value)
@@ -299,7 +432,15 @@ def previous_claims(parent):
 
 
 def freeze_payload(
-    stage, fixed_input, evidence, *, queries=None, synthesis=None, review=None, verified_claims=None
+    stage,
+    fixed_input,
+    evidence,
+    *,
+    queries=None,
+    synthesis=None,
+    review=None,
+    verified_claims=None,
+    query_context=None,
 ):
     payload = {
         "task": stage,
@@ -310,12 +451,49 @@ def freeze_payload(
         "evidence": model_evidence(evidence),
         "search_scope": fixed_input["search_scope"],
     }
+    if (
+        fixed_input.get("query_context_version") == "semantic-v2"
+        and fixed_input.get("query_policy", {}).get("effective") == "query_planner"
+    ):
+        payload.update(material_context_payload(evidence))
     if stage == "read_plan":
         payload["query_instruction"] = (
             "补查terms是必须同时满足的字面条件（AND），不是任选词。"
             "优先将问题或已读原件中辨识力强的研究对象词放第一项，通常单个对象词足够。"
             "不要仅按人群、试验类型或机制修饰词搜索而丢掉研究对象。"
         )
+    if stage == "read_plan" and query_context is not None:
+        from bioradar.research.investigations.query_policy import (
+            coverage_instruction,
+            mechanism_query_context,
+        )
+
+        payload["coverage_checks"] = copy.deepcopy(query_context.get("coverage_checks", []))
+        payload["query_history"] = copy.deepcopy(query_context.get("query_history", []))
+        payload["mechanism_query_context"] = mechanism_query_context(
+            query_context.get("mechanism_evaluation")
+        )
+        payload["coverage_instruction"] = coverage_instruction()
+        payload["query_history_qualification"] = (
+            "历史仅记录实际取证回执；规划理由和预计覆盖不是新增事实。"
+            "专业缺口须影响本轮查询规划，不能只留在报告背景。"
+        )
+    if stage in {"read_plan", "synthesize"}:
+        context = query_context or {}
+        quality_feedback = context.get("quality_feedback") or fixed_input.get("quality_feedback")
+        if quality_feedback is not None:
+            payload["quality_feedback"] = copy.deepcopy(quality_feedback)
+            payload["quality_feedback_qualification"] = (
+                "成稿核验和所选片段复核提出的机器缺口或待核问题，不是新增原始事实。"
+                "先检查已读原文能否解决，再规划必要补查；只按允许的repair_units修订。"
+            )
+        if query_context is not None:
+            payload["graph_context"] = copy.deepcopy(context.get("graph_context", []))
+            payload["graph_history"] = copy.deepcopy(context.get("graph_history", []))
+            payload["graph_context_qualification"] = (
+                "图谱关系只作为背景与下一查询线索，不是临床或机制支持证据；"
+                "覆盖判断仍须绑定当前可读原文，不得把图背景计为独立研究。"
+            )
     if stage in {"check", "revise", "recheck", "final_check"}:
         if verified_claims is None:
             raise ValueError("Current source-bound claims are required for citation inspection")
@@ -353,10 +531,28 @@ def freeze_payload(
         payload["queries"] = []
         for query in queries:
             # Planning reasons are unverified proposals, not additional source facts.
-            facts = {
-                "source_id": query["plan"]["source_id"],
-                "terms": query["plan"]["terms"],
-            }
+            plan = query.get("plan") or query.get("arguments") or {}
+            facts = {key: copy.deepcopy(plan[key]) for key in ("source_id", "terms") if key in plan}
+            if plan.get("operation"):
+                for key in (
+                    "provider",
+                    "operation",
+                    "name",
+                    "node_type",
+                    "node_source",
+                    "seed_id",
+                    "seed_ids",
+                    "binding",
+                    "relation_types",
+                    "direction",
+                    "limit",
+                    "max_depth",
+                    "max_nodes",
+                    "max_edges",
+                    "read_cutoff",
+                ):
+                    if key in plan:
+                        facts[key] = copy.deepcopy(plan[key])
             for key in (
                 "status",
                 "scope",
@@ -420,7 +616,7 @@ def relaxed_query_terms(question, terms):
 
 
 def compact_mechanism(mechanism):
-    """One source-free mechanism view for every downstream model request."""
+    """One mechanism view with fixed-reference locations for every downstream request."""
     assessment = None
     if isinstance(mechanism, dict):
         assessment = {
@@ -441,6 +637,9 @@ def compact_mechanism(mechanism):
                 "missing_fields",
                 "material_type_mapping",
                 "material_assessability",
+                "passage_bindings",
+                "passage_binding_errors",
+                "passage_namespace_qualification",
                 "independence",
                 "unresolved_counterevidence",
                 "witnesses",
@@ -468,6 +667,20 @@ def verification_input_allowance(payload, candidate, max_input_bytes):
     # Verify includes the draft and each paragraph once. Allow a report twice the
     # current rendered length; the actual subsequent request still uses the ledger.
     return min(max_input_bytes + 1024, source_bytes + 4 * draft_bytes + 8192)
+
+
+def support_audit_input_allowance(payload, candidate, max_input_bytes):
+    """Estimate the selected-claims audit, which does not receive full assessments.
+
+    Before verify returns, selected claims are unknown. Reserve the available
+    source text and the same draft/context margin, plus the actual frozen scope.
+    Actual encoded requests remain subject to the ledger's hard input/output cap.
+    """
+    basis = {"evidence": payload.get("evidence", [])}
+    assessment = payload.get("assessment") or {}
+    if "research_scope" in assessment:
+        basis["assessment"] = {"research_scope": assessment["research_scope"]}
+    return verification_input_allowance(basis, candidate, max_input_bytes)
 
 
 def report_context(result, mechanism):
@@ -520,7 +733,17 @@ def basis_hash(question, evidence, parent_id, model, revision, search_scope):
     return canonical_hash(
         {
             "question": question,
-            "evidence": [{k: v for k, v in e.items() if k != "material_entry_id"} for e in evidence],
+            "evidence": [
+                {
+                    **{
+                        k: v
+                        for k, v in item.items()
+                        if k not in {"material_entry_id", "material_context", "evidence_role"}
+                    },
+                    **material_context_identity([item]).get(canonical_hash(item["record_ref"]), {}),
+                }
+                for item in evidence
+            ],
             "parent_id": parent_id,
             "model": model,
             "model_revision": revision,
@@ -652,8 +875,46 @@ def analysis_budget(fixed, progress, now):
     started = progress.get("started_at")
     ended = datetime.fromisoformat(progress["finished_at"]) if progress.get("finished_at") else now
     elapsed = max(0, (ended - datetime.fromisoformat(started)).total_seconds()) if started else 0
+    original_elapsed = elapsed
+    clock_started = datetime.fromisoformat(started) if started else now
+    resumption = None
+    attempts = progress.get("execution_resumptions", [])
+    if attempts:
+        # Written only by an explicitly authorized operator recovery, never by a
+        # request body, model response or automatic retry. One bounded window.
+        if len(attempts) != 1 or not started:
+            raise DomainError("analysis_resumption_invalid", "修复续跑记录不完整，未延长期限", 409)
+        resumption = attempts[0]
+        try:
+            resumed_at = datetime.fromisoformat(resumption["started_at"])
+            seconds = resumption["max_seconds"]
+            valid = (
+                resumption["kind"] == "supervised_continuation"
+                and resumption["original_started_at"] == started
+                and bool(resumption["authorization"])
+                and type(seconds) is int
+                and 0 < seconds <= min(1800, limits["max_seconds"])
+                and resumed_at.tzinfo is not None
+                and resumed_at >= datetime.fromisoformat(started) + timedelta(seconds=limits["max_seconds"])
+                and resumed_at <= now
+            )
+        except (KeyError, TypeError, ValueError):
+            valid = False
+        if not valid:
+            raise DomainError("analysis_resumption_invalid", "修复续跑记录无效，未延长期限", 409)
+        limits = {**limits, "max_seconds": seconds}
+        clock_started = resumed_at
+        elapsed = max(0, ((ended if ended >= resumed_at else now) - resumed_at).total_seconds())
     return {
         "limits": limits,
+        **(
+            {
+                "execution_resumption": copy.deepcopy(resumption),
+                "original_limits": copy.deepcopy(fixed["budget"]),
+            }
+            if resumption
+            else {}
+        ),
         "usage": {
             "calls": calls,
             "total_tokens": None if unknown else total,
@@ -665,7 +926,264 @@ def analysis_budget(fixed, progress, now):
             "budgeted_tokens": charged,
             "queries": len(progress.get("queries", [])),
             "elapsed_seconds": elapsed,
+            "remaining_seconds": limits["max_seconds"] - max(0, (now - clock_started).total_seconds()),
+            **({"original_elapsed_seconds": original_elapsed} if resumption else {}),
             "monetary_cost": None,
             "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。",
         },
+    }
+
+
+def compact_query_context(context):
+    """Remove repeated transport data from optional reading input, retaining research obligations."""
+    from bioradar.research.investigations.query_policy import mechanism_query_context
+
+    result = copy.deepcopy(context)
+    mechanism = mechanism_query_context(context.get("mechanism_evaluation"))
+    if mechanism:
+        # Fixed observation references already identify their original material and version.
+        mechanism.pop("evidence_map", None)
+        mechanism.pop("observations", None)
+        mechanism.pop("opposing_observations", None)  # The complete claims/joins retain these IDs.
+    result["mechanism_evaluation"] = mechanism
+    gaps = mechanism.get("critical_gaps", [])
+    repeated_questions = {
+        "；".join(str(gap[key]) for key in ("reason", "missing_experiment") if gap.get(key)): index
+        for index, gap in enumerate(gaps)
+        if isinstance(gap, dict)
+    }
+    checks = []
+    for check in context.get("coverage_checks", []):
+        item = {
+            key: copy.deepcopy(check[key])
+            for key in ("id", "required", "status", "evidence_ids", "question")
+            if key in check
+        }
+        if check.get("question") in repeated_questions:
+            index = repeated_questions[check["question"]]
+            item["question"] = f"专业缺口见mechanism_query_context.critical_gaps[{index}]，含条件与待查实验。"
+            item["mechanism_gap_index"] = index
+        elif check.get("reason") and check.get("status") in {"passed", "failed"}:
+            item["reason"] = check["reason"]
+        checks.append(item)
+    result["coverage_checks"] = checks
+    receipts = []
+    for query in context.get("query_history", []):
+        plan = query.get("plan") or query.get("arguments") or {}
+        item = {
+            key: copy.deepcopy(query[key])
+            for key in (
+                "action_id",
+                "index",
+                "phase",
+                "kind",
+                "provider",
+                "status",
+                "returned",
+                "new_versions",
+                "has_more",
+                "error_code",
+                "evidence_keys",
+                "new_evidence_ids",
+                "cost",
+                "actual_cost",
+            )
+            if key in query
+        }
+        item["arguments"] = {
+            key: copy.deepcopy(plan[key])
+            for key in (
+                "provider",
+                "source_id",
+                "terms",
+                "query",
+                "operation",
+                "name",
+                "node_type",
+                "node_source",
+                "seed_ids",
+                "seed_id",
+                "binding",
+                "relation_types",
+                "direction",
+                "limit",
+                "max_depth",
+                "max_nodes",
+                "max_edges",
+                "read_cutoff",
+                "gap_id",
+                "target_claim_id",
+                "anchoring_evidence_keys",
+            )
+            if key in plan
+        }
+        receipts.append(item)
+    result["query_history"] = receipts
+    result["graph_context"] = _reading_graph_context(context.get("graph_context", []))
+    result["graph_history"] = []
+    return result
+
+
+def _reading_graph_context(contexts):
+    """Only an actual neighborhood is reading material; lookup/capture stay in tool receipts."""
+    results, seen = [], set()
+    for context in contexts or []:
+        if not isinstance(context, dict) or context.get("operation") in {"lookup", "capture"}:
+            continue
+        neighborhood = context.get("neighborhood") or {}
+        if not isinstance(neighborhood, dict):
+            continue
+        nodes = [
+            {
+                key: copy.deepcopy(node[key])
+                for key in (
+                    "id",
+                    "namespace",
+                    "name",
+                    "label",
+                    "display_name",
+                    "type",
+                    "node_type",
+                    "node_source",
+                    "entity_type",
+                    "aliases",
+                    "properties",
+                    "props",
+                    "binding_status",
+                    "unbound_reason",
+                )
+                if key in node
+            }
+            for node in neighborhood.get("nodes", [])
+        ]
+        edges = []
+        for edge in neighborhood.get("edges", []):
+            item = {
+                key: copy.deepcopy(edge[key])
+                for key in (
+                    "id",
+                    "source",
+                    "target",
+                    "relation_type",
+                    "directed",
+                    "relation_props",
+                    "valid_from",
+                    "valid_to",
+                    "binding_status",
+                    "unbound_reason",
+                )
+                if key in edge
+            }
+            item["evidence"] = [
+                {
+                    key: copy.deepcopy(reference[key])
+                    for key in (
+                        "id",
+                        "material_id",
+                        "version",
+                        "source_id",
+                        "source_record_id",
+                        "version_id",
+                        "raw_sha256",
+                        "passage_id",
+                        "record_ref",
+                        "history_binding",
+                    )
+                    if key in reference
+                }
+                for reference in edge.get("evidence", [])
+                if isinstance(reference, dict)
+            ]
+            edges.append(item)
+        if (
+            not nodes
+            and not edges
+            and not any(
+                neighborhood.get(name) for name in ("coverage", "seeds_found", "seeds_missing", "limitations")
+            )
+        ):
+            continue
+        nodes.sort(key=canonical_hash)
+        edges.sort(key=canonical_hash)
+        item = {
+            "operation": "neighbors",
+            "nodes": nodes,
+            "edges": edges,
+            "scope": {
+                key: copy.deepcopy(neighborhood[key])
+                for key in (
+                    "query",
+                    "direction",
+                    "depth",
+                    "limit",
+                    "max_nodes",
+                    "max_edges",
+                    "truncated",
+                    "has_more",
+                    "limitations",
+                    "relation_types",
+                )
+                if key in neighborhood
+            },
+            "qualification": "固定图背景与补查线索，不是独立临床或机制证据。",
+        }
+        for name in ("coverage", "seeds_found", "seeds_missing"):
+            if name in neighborhood:
+                item[name] = copy.deepcopy(neighborhood[name])
+        key = canonical_hash(item)
+        if key in seen:
+            continue
+        seen.add(key)
+        if "read_cutoff" in context:
+            item["read_cutoff"] = copy.deepcopy(context["read_cutoff"])
+        binding = context.get("binding") or {}
+        item["binding"] = {
+            name: copy.deepcopy(binding[name])
+            for name in (
+                "source_id",
+                "source_record_id",
+                "version_id",
+                "raw_sha256",
+                "first_seen_at",
+                "is_demo",
+            )
+            if name in binding
+        }
+        results.append(item)
+    return results
+
+
+def semantic_reading_state(evidence, context):
+    """Stable reading identity excludes tool receipts, graph manifests, clocks and duplicate copies."""
+    compact = compact_query_context(context)
+    mechanism = compact.get("mechanism_evaluation") or {}
+    professional = {
+        key: copy.deepcopy(mechanism[key])
+        for key in (
+            "mechanism",
+            "scope",
+            "overall",
+            "claims",
+            "joins",
+            "evidence",
+            "conflicts",
+            "critical_gaps",
+            "missing_experiment",
+            "unresolved_counterevidence",
+        )
+        if key in mechanism
+    }
+    feedback = compact.get("quality_feedback") or {}
+    return {
+        "evidence": [[item["key"], item.get("selection_hash"), item.get("text_sha256")] for item in evidence],
+        "professional": professional,
+        "quality": {
+            key: copy.deepcopy(feedback[key])
+            for key in ("evidence_gaps", "review_required", "repair_units")
+            if key in feedback
+        },
+        "neighborhoods": [
+            {key: value for key, value in item.items() if key not in {"binding", "read_cutoff"}}
+            for item in compact["graph_context"]
+        ],
     }

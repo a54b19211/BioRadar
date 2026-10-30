@@ -1,4 +1,5 @@
 import type { components } from "./generated/engine";
+import type { QueryPolicyTrace } from "./queryPolicy";
 
 export interface ResearchBudget {
   max_calls?: number;
@@ -31,6 +32,7 @@ export interface ResearchQuestionSubmission {
   question: string;
   source_ids: string[];
   budget?: ResearchBudget;
+  query_policy?: "baseline" | "query_planner";
 }
 
 export interface ResearchProgress {
@@ -84,7 +86,35 @@ export interface ResearchSupportAudit {
   [key: string]: unknown;
 }
 
+export interface ResearchQualityFeedback {
+  text_sha256?: string;
+  evidence_gaps?: unknown[];
+  repair_units?: string[];
+  review_required?: unknown[];
+  qualification?: string;
+  error_code?: string | null;
+  [key: string]: unknown;
+}
+
+export interface ResearchReportRound {
+  index?: number;
+  kind?: string;
+  status?: string;
+  quality_feedback?: ResearchQualityFeedback | null;
+  unsearched_gaps?: unknown[];
+  feedback_stop_reason?: string | null;
+  repair_stop_reason?: string | null;
+  error_code?: string | null;
+  report?: ResearchReport | null;
+}
+
 export interface ResearchReport {
+  text_sha256?: string;
+  quality_feedback?: ResearchQualityFeedback | null;
+  unsearched_gaps?: unknown[];
+  feedback_stop_reason?: string | null;
+  repair_stop_reason?: string | null;
+  rounds?: ResearchReportRound[];
   final_text: string;
   status: string;
   provider?: string;
@@ -111,9 +141,10 @@ export interface ResearchMechanismEvaluation {
 }
 
 type OriginalResult = components["schemas"]["AnalysisResult"];
-export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluation"> & {
+export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluation" | "query_policy"> & {
   report?: ResearchReport | null;
   mechanism_evaluation?: ResearchMechanismEvaluation | null;
+  query_policy?: QueryPolicyTrace | null;
 };
 
 export interface ResearchCall {
@@ -136,7 +167,7 @@ export interface ResearchCall {
 type OriginalView = components["schemas"]["AnalysisView"];
 export type ResearchAnalysisView = Omit<
   OriginalView,
-  "result" | "initial_draft" | "progress" | "budget" | "providers" | "calls"
+  "result" | "initial_draft" | "progress" | "budget" | "providers" | "calls" | "query_policy"
 > & {
   result: ResearchResult | null;
   initial_draft?: ResearchResult | null;
@@ -144,6 +175,7 @@ export type ResearchAnalysisView = Omit<
   progress?: ResearchProgress;
   budget?: ResearchBudgetView;
   providers?: Record<string, ResearchProvider>;
+  query_policy?: QueryPolicyTrace | null;
 };
 
 export type ResearchAnalysisList = components["schemas"]["AnalysisList"] &

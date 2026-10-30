@@ -58,6 +58,20 @@
           ],
           "default": null,
           "title": "Max Queries"
+        },
+        "max_tool_calls": {
+          "anyOf": [
+            {
+              "maximum": 256,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Tool Calls"
         }
       },
       "title": "AnalysisBudget",
@@ -151,6 +165,22 @@
         }
       ],
       "default": null
+    },
+    "query_policy": {
+      "anyOf": [
+        {
+          "enum": [
+            "baseline",
+            "query_planner"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Query Policy"
     },
     "retry_of_analysis_id": {
       "anyOf": [

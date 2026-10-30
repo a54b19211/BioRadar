@@ -203,7 +203,7 @@ onUnmounted(() => {
             query: { id: evaluation.investigation_id },
           }"
           class="text-link"
-          >查看调查、补查和判断 →</RouterLink
+          >查看本次调查、查询策略与依据 →</RouterLink
         >
       </div>
     </section>

@@ -7,6 +7,87 @@ type View = ResearchAnalysisView;
 const props = defineProps<{ analysis: View }>();
 const genericReviewRan = computed(() => props.analysis.calls.some(call => ["check", "recheck", "final_check"].includes(call.stage) && call.status === "received"));
 const emit = defineEmits<{ source: [key: string] }>();
+function object(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+function list(value: unknown): unknown[] { return Array.isArray(value) ? value : []; }
+function text(value: unknown) { return typeof value === "string" ? value : ""; }
+const savedReport = computed(() => props.analysis.result?.report);
+const feedbackRounds = computed(() => list(savedReport.value?.rounds).map(object));
+const savedFeedback = computed(() => {
+  const direct = object(savedReport.value?.quality_feedback);
+  if (Object.keys(direct).length) return direct;
+  const digest = savedReport.value?.text_sha256;
+  return [...feedbackRounds.value].reverse().map(round => object(round.quality_feedback))
+    .find(feedback => digest && feedback.text_sha256 === digest) ?? {};
+});
+const hasFeedback = computed(() => Object.keys(savedFeedback.value).length > 0);
+const feedbackBinding = computed(() => {
+  const digest = text(savedFeedback.value.text_sha256);
+  return !digest || !savedReport.value?.text_sha256 ? "unrecorded"
+    : digest === savedReport.value.text_sha256 ? "current" : "earlier";
+});
+const feedbackGaps = computed(() => list(savedFeedback.value.evidence_gaps));
+const repairUnits = computed(() => list(savedFeedback.value.repair_units).filter((value): value is string => typeof value === "string"));
+const reviewRequired = computed(() => list(savedFeedback.value.review_required));
+const unsearchedGaps = computed(() => {
+  if (Array.isArray(savedReport.value?.unsearched_gaps)) return savedReport.value.unsearched_gaps;
+  const digest = savedReport.value?.text_sha256;
+  const current = [...feedbackRounds.value].reverse().find(round =>
+    digest && (object(round.quality_feedback).text_sha256 === digest || object(round.report).text_sha256 === digest));
+  return list(current?.unsearched_gaps);
+});
+const separateUnsearched = computed(() => JSON.stringify(unsearchedGaps.value) !== JSON.stringify(feedbackGaps.value));
+const feedbackReasons: Record<string, string> = {
+  budget_or_review_required: "预算条件不足或仍有需核对事项；回执未进一步拆分原因。",
+  quality_feedback_round_limit: "已达到核验后补查轮次上限。",
+  baseline_fixed_sequence: "本版采用固定查询顺序，核验反馈未开启额外补查。",
+  no_new_material_after_actual_queries: "实际补查后没有取得可用于新版成稿的新资料或原文选择。",
+  analysis_model_budget: "模型调用次数预算已用尽。",
+  analysis_token_budget: "模型 token 预算不足。",
+  analysis_time_budget: "本轮时间预算已用尽。",
+  analysis_query_budget: "查询次数预算已用尽。",
+  analysis_tool_budget: "来源请求预算已用尽。",
+  model_input_budget: "输入超过限制，请求未发送。",
+};
+const feedbackKinds: Record<string, string> = {
+  evidence_selection: "需重选或补查原文",
+  missing_support: "缺少支持",
+  material_absence: "已读材料未提供",
+};
+const feedbackActions: Record<string, string> = {
+  reselect_or_retrieve: "重选原文或补查",
+  check_existing_then_retrieve: "先检查已读原文，再决定补查",
+  assess_need_for_retrieval: "评估是否需要补查",
+  retrieve: "补查资料",
+};
+const roundStates: Record<string, string> = {
+  checked: "已完成本轮处理", running: "处理中", stopped_budget: "预算中止，保留此前正文",
+  not_changed: "未形成修改稿", verification_needs_review: "修改稿核验仍待核对",
+};
+function feedbackReason(value: unknown) { return feedbackReasons[text(value)] || text(value); }
+function feedbackText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value == null) return "未记录具体原因";
+  if (Array.isArray(value)) return value.map(feedbackText).join("；");
+  if (typeof value !== "object") return String(value);
+  const labels: Record<string, string> = { item: "待补内容", material: "材料", reason: "原因", error_code: "错误", source_id: "来源" };
+  return Object.entries(object(value)).map(([key, item]) => (labels[key] || key) + "：" + feedbackText(item)).join("；");
+}
+function feedbackLocation(value: unknown) {
+  const item = object(value);
+  return [text(item.unit_id), typeof item.claim_index === "number" ? "陈述 " + (item.claim_index + 1) : "",
+    feedbackKinds[text(item.kind)] || text(item.kind)].filter(Boolean).join(" · ");
+}
+function feedbackSpan(value: unknown) { return text(object(value).span); }
+function feedbackItemReason(value: unknown) {
+  const item = object(value);
+  return feedbackText(item.reason ?? value);
+}
+function feedbackAction(value: unknown) {
+  const action = text(object(value).action);
+  return feedbackActions[action] || action;
+}
 const reportStatus: Record<string, string> = {
   PASS: "BioCheck 原核验通过", REVIEW: "报告待核", FAIL: "报告核验未通过",
   UNAVAILABLE: "核验服务暂不可用", FAILED: "报告核验未完成",
@@ -104,6 +185,72 @@ const reviewStatus: Record<string, string> = {
           <pre class="source-text">{{ JSON.stringify(supportAudit, null, 2) }}</pre>
         </details>
       </div>
+      <section class="report-feedback" aria-label="核验后反馈与未补齐问题">
+        <h4>核验后反馈与未补齐问题</h4>
+        <p class="muted">以下为机器核验反馈，须回原件核对；问题清单不等于事实、修订完成或证据覆盖已满足。</p>
+        <template v-if="hasFeedback">
+          <p v-if="feedbackBinding === 'current'" class="muted">反馈对应当前保存正文，已按正文哈希核对。</p>
+          <p v-else-if="feedbackBinding === 'earlier'" class="notice">这份反馈对应此前稿件，不用于判定当前正文；原反馈保留供核对。</p>
+          <p v-else class="notice">反馈与当前正文的对应哈希未记录，不能确认适用于当前稿。</p>
+          <p class="feedback-counts">核验指出需补查或重选原文 {{ feedbackGaps.length }} 项；
+            可修订单元 {{ repairUnits.length }} 项；需先核对的问题 {{ reviewRequired.length }} 项。
+          </p>
+          <p v-if="savedFeedback.error_code" class="notice">反馈处理状态：{{ feedbackReason(savedFeedback.error_code) }}</p>
+          <template v-if="feedbackGaps.length">
+            <h5>核验后提出的补查与原文选择问题</h5>
+            <ol class="feedback-items">
+              <li v-for="(item, index) in feedbackGaps" :key="index">
+                <p v-if="feedbackLocation(item)"><strong>{{ feedbackLocation(item) }}</strong></p>
+                <blockquote v-if="feedbackSpan(item)">{{ feedbackSpan(item) }}</blockquote>
+                <p>{{ feedbackItemReason(item) }}</p>
+                <p v-if="feedbackAction(item)" class="muted">建议处理：{{ feedbackAction(item) }}</p>
+              </li>
+            </ol>
+          </template>
+          <p v-if="repairUnits.length">可修订单元：{{ repairUnits.join("、") }}。这是处理建议，不代表已修改。</p>
+          <template v-if="reviewRequired.length">
+            <h5>需先核对的问题</h5>
+            <ul><li v-for="(item, index) in reviewRequired" :key="index">{{ feedbackItemReason(item) }}</li></ul>
+          </template>
+          <p v-if="unsearchedGaps.length" class="notice"><strong>仍未补齐：{{ unsearchedGaps.length }} 项。</strong>
+            <template v-if="!separateUnsearched">具体问题见上方核验反馈。</template>
+          </p>
+          <ul v-if="unsearchedGaps.length && separateUnsearched">
+            <li v-for="(item, index) in unsearchedGaps" :key="index">
+              {{ feedbackLocation(item) }}：{{ feedbackItemReason(item) }}
+            </li>
+          </ul>
+        </template>
+        <p v-else class="muted">本版未保存核验后补查与修订反馈，不能从缺少记录推断问题已经解决。</p>
+        <p v-if="savedReport?.feedback_stop_reason">补查停止原因：{{ feedbackReason(savedReport.feedback_stop_reason) }}</p>
+        <p v-if="savedReport?.repair_stop_reason">修订停止原因：{{ feedbackReason(savedReport.repair_stop_reason) }}</p>
+        <div v-if="feedbackRounds.length" class="feedback-rounds">
+          <h5>各轮处理与停止原因</h5>
+          <article v-for="(round, index) in feedbackRounds" :key="index" class="feedback-round">
+            <p><strong>第 {{ typeof round.index === "number" ? round.index + 1 : index + 1 }} 轮 ·
+              {{ round.kind === "repair" ? "局部修订" : round.kind === "generation" ? "成稿" : round.kind }}</strong>
+              · {{ roundStates[text(round.status)] || text(round.status) }}
+            </p>
+            <p>反馈缺口 {{ list(object(round.quality_feedback).evidence_gaps).length }} 项；
+              保存的未补齐清单 {{ list(round.unsearched_gaps).length }} 项。</p>
+            <p v-if="round.feedback_stop_reason"><strong>补查停止原因：</strong>{{ feedbackReason(round.feedback_stop_reason) }}</p>
+            <p v-if="round.repair_stop_reason"><strong>修订停止原因：</strong>{{ feedbackReason(round.repair_stop_reason) }}</p>
+            <p v-if="round.error_code" class="notice">处理未完成：{{ feedbackReason(round.error_code) }}</p>
+            <details v-if="list(round.unsearched_gaps).length" class="no-print">
+              <summary>该轮保存的未补齐问题</summary>
+              <ul><li v-for="(item, itemIndex) in list(round.unsearched_gaps)" :key="itemIndex">
+                {{ feedbackLocation(item) }}：{{ feedbackItemReason(item) }}
+              </li></ul>
+            </details>
+          </article>
+        </div>
+        <p v-else-if="hasFeedback && !savedReport?.feedback_stop_reason && !savedReport?.repair_stop_reason" class="muted">
+          本版未保存核验后停止处理的独立原因，不能仅从反馈推断已补查或已修订。
+        </p>
+        <details v-if="hasFeedback" class="no-print">
+          <summary>核验后完整反馈回执</summary><pre class="source-text">{{ JSON.stringify(savedFeedback, null, 2) }}</pre>
+        </details>
+      </section>
     </section>
     <section v-if="analysis.result.mechanism_evaluation && analysis.result.mechanism_evaluation.status !== 'not_requested'" class="mechanism-summary">
       <h3>机制证据评价</h3>
@@ -185,7 +332,7 @@ const reviewStatus: Record<string, string> = {
     </ul>
 
     <template v-if="analysis.result.gaps.length">
-      <h3>仍值得补查的问题</h3>
+      <h3>{{ analysis.result.report ? "报告生成前的结构化分析缺口" : "结构化分析中仍待补查的问题" }}</h3>
       <article v-for="item in analysis.result.gaps" :key="item.id" class="investigation-entry">
         <p>{{ item.question }}</p><p class="muted">{{ item.why_it_matters }}</p>
       </article>
@@ -232,4 +379,9 @@ const reviewStatus: Record<string, string> = {
 .analysis-citation { margin: .8rem 0; padding-left: .8rem; border-left: 3px solid var(--el-border-color); }
 .analysis-citation blockquote { margin: .5rem 0; white-space: pre-wrap; line-height: 1.65; }
 .machine-result details { margin: 1rem 0; }
+.report-feedback { margin-top: 22px; border-top: 1px solid var(--el-border-color); padding-top: 4px; }
+.feedback-items { padding-left: 24px; }
+.feedback-items blockquote { margin: .4rem 0; padding-left: .8rem; border-left: 3px solid var(--el-border-color); }
+.feedback-items p, .feedback-round p { margin: .4rem 0; }
+.feedback-round { padding: .3rem 0; border-top: 1px solid var(--el-border-color-lighter); }
 </style>

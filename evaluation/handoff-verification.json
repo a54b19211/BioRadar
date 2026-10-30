@@ -491,15 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-29T17:52:01.873045+00:00",
-    "status": "targeted_faults_and_integration_readback_verified",
-    "details": "research_coordination_20261030",
-    "application_version": "0.5.0",
+    "checked_at": "2026-10-30T07:41:54.881707+00:00",
+    "status": "isolated_engineering_verified_scientific_review_required",
+    "details": "query_policy_integration_20261030",
     "source_roots": {
-      "radar": "/home/zk_test/zk_projects/BioRadar"
+      "radar": "/home/zk_test/zk_projects/.bioradar-query-integration/radar"
     },
-    "scope": "Current-code targeted faults and identity/support adapters verified; preserved paid real first/follow-up read back without new generation; live WeKnora binding checked independently.",
-    "deployment_evidence": "/tmp/bioradar-coordination-20261030/deployment.json"
+    "scope": "Isolated real first/follow-up/automatic reports plus targeted PostgreSQL/RQ/HTTP and browser readback; scientific and incomplete scopes retained.",
+    "deployment_evidence": "No production deployment claimed by this verification."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -4498,5 +4497,168 @@
     "runtime_confirmation": "Deployment is independently recorded in deployment_evidence after the source commit; prior 88190c8 deployment is not evidence for this patch.",
     "checked_at": "2026-10-29T17:52:01.873045+00:00",
     "status": "targeted_faults_and_integration_readback_verified"
+  },
+  "query_policy_integration_20261030": {
+    "status": "isolated_engineering_verified_scientific_review_required",
+    "branch": "codex/radar-query-integration-20261030",
+    "source_root": "/home/zk_test/zk_projects/.bioradar-query-integration/radar",
+    "base_commit": "8d8ae481fd51eaf6161d7b8084945f4f595bc048",
+    "deployment": "Integration branch only; coordinating maintainer owns production promotion.",
+    "upstream_versions": {
+      "query_planner": {
+        "commit": "a2e35be3c16d181610f33eda313097b387f95671",
+        "method_sha256": "933c8e0400eb96e4808db995e4c2cee40b5dcdd25026467fd44e27a88849f697",
+        "training_status": "heuristic_untrained"
+      },
+      "mech_evidence": {
+        "commit": "bc0bf45733b3c3aca1486b7c63eab6047e82ee1b",
+        "method_sha256": "a1064fb8ea37a578e92db85c687ae85ce9c32034b31a900bf5590b34df325095"
+      },
+      "biocheck": {
+        "commit": "91c821362ed7b3e21932ae4e9910edd0ef3551cf",
+        "method_sha256": "680df9e258bdf33c80e4c54b66a9b81d0100a984ca1b22792e83952e7387ba70",
+        "qualification": "Reviewed isolated candidate; original main not changed by this Radar task."
+      },
+      "fabric": {
+        "commit": "b4f103af6eaf1b6427353bd62ee7e262173348af",
+        "qualification": "Isolated candidate used during these runs; production promotion separately coordinated."
+      }
+    },
+    "real_source_scope": {
+      "initial_records": 105,
+      "clinicaltrials": 6,
+      "europe_pmc": 99,
+      "manifest": "/tmp/bioradar-integration-20261030/real-materials-initial-receipt.json",
+      "qualification": "Original identities and versions retained. Test adoption times are actual, not backdated public history."
+    },
+    "first_question": {
+      "analysis_id": "e1130858-0cb0-4c4c-b17f-05086eec7e7a",
+      "state": "needs_review",
+      "calls": 9,
+      "tokens": 268881,
+      "report": "FAIL",
+      "support_audit": "REVIEW",
+      "mechanism": "not_requested",
+      "original_trace": "Preserved failed terminal-decision trace from the pre-fix recovery; not counted as a trace pass.",
+      "artifact": "/tmp/bioradar-integration-20261030/normal-live.json",
+      "browser": "/tmp/bioradar-integration-20261030/browser-normal-feedback.json"
+    },
+    "baseline": {
+      "analysis_id": "1322555a-2565-4b15-a09f-d5218cabe1c2",
+      "calls": 7,
+      "tokens": 166848,
+      "report": "FAIL",
+      "support_audit": "REVIEW",
+      "artifact": "/tmp/bioradar-integration-20261030/baseline-first-acceptance.json",
+      "qualification": "Same initial 105 versions and total budget. Exploratory comparison; no established improvement or trained method claim."
+    },
+    "automatic": {
+      "analysis_id": "e3a0f691-35c7-4d62-9c05-45231fe1acb9",
+      "calls": 12,
+      "tokens": 233781,
+      "report": "FAIL",
+      "support_audit": "PASS",
+      "artifact": "/tmp/bioradar-integration-20261030/monitor-final-readback.json",
+      "browser": "/tmp/bioradar-integration-20261030/browser-auto-feedback.json",
+      "qualification": "One real unattended monitor trigger via RQ. A stock phrase lead, not proven important new science. Later candidate-title context fix tested separately."
+    },
+    "followup": {
+      "analysis_id": "8a6629cd-c424-4dad-b9c7-d741afa5dbf4",
+      "state": "needs_review",
+      "calls": 9,
+      "tokens": 279830,
+      "report": "FAIL",
+      "support_audit": "NOT_RUN",
+      "support_audit_reason": "biocheck_verification_errors",
+      "mechanism_execution": "completed",
+      "mechanism_overall": "insufficient",
+      "fixed_materials": 6,
+      "additional_queries": 0,
+      "query_policy_status": "insufficient",
+      "stop_reason": "no_legal_action",
+      "text_sha256": "eac519b05ba1e5eef681e7cb570ebd37d00b7cab2bc090e2f71e4686d16dfab1",
+      "integrity": "/tmp/bioradar-integration-20261030/followup-final-integrity.json",
+      "browser": "/tmp/bioradar-integration-20261030/browser-followup-integrity.json",
+      "qualification": "Citation/scope contracts failed: fact supports mixed whole_source (permitted only for source_absence), so core rejected the support list; U5/6 used only whole_source. Raw-to-core replay matched saved verification, not a Radar mapping loss. FAIL also includes six REF citation consistency conflicts, not six medical factual refutations. No automatic revision or support-audit POST. Database/API/DOM/Markdown/JSON same body; integrity and independent AI reading are not scientific approval.",
+      "supervised_continuation": {
+        "count": 1,
+        "started_at": "2026-10-30T07:08:33.370164+00:00",
+        "deadline": "2026-10-30T07:38:33.370164+00:00",
+        "total_max_calls": 24,
+        "total_max_tokens": 524288,
+        "initial_received": 6,
+        "initial_tokens": 159739,
+        "same_window_reserve_fix_received": 7,
+        "same_window_reserve_fix_tokens": 191895,
+        "original_receipts_reused_unchanged": true,
+        "record": "/tmp/bioradar-integration-20261030/followup-supervised-continuation.json",
+        "qualification": "Explicitly authorized once after original deadline. Original time, failed state, cumulative calls/tokens retained; no second continuation."
+      }
+    },
+    "history": {
+      "real_study": "35f328f1-23f2-4cdb-9d92-8c9d1638138a",
+      "real_status": "unsupported",
+      "real_predictions": 0,
+      "real_artifact": "/tmp/bioradar-integration-20261030/historical-fixed-input-check.json",
+      "controlled_pg_rq": "/tmp/bioradar-integration-20261030/history-query-rq-acceptance.json",
+      "qualification": "Real old-cutoff version exclusion and fixed records verified. Controlled HTTP/RQ fixtures test execution and outcome isolation, not ten-year predictive accuracy."
+    },
+    "material_update": {
+      "controlled_pg_rq": "/tmp/bioradar-integration-20261030/material-update-rq-acceptance.json",
+      "qualification": "Controlled real PostgreSQL/RQ append creates material_update child and preserves parent. Local model fixtures, zero paid calls; parent fallback text is not BioCheck approval. Deferred real review adoption independently retained."
+    },
+    "checks": {
+      "boot": {
+        "result": "43 passed",
+        "log": "/tmp/bioradar-integration-20261030/final-boot.log"
+      },
+      "engine_contract": {
+        "result": "46 paths, 11 schemas; material_context and evidence_role exported",
+        "log": "/tmp/bioradar-integration-20261030/final-engine-contract.log"
+      },
+      "contract_check": {
+        "result": "passed",
+        "log": "/tmp/bioradar-integration-20261030/final-contract-check.log"
+      },
+      "lint": {
+        "result": "passed",
+        "log": "/tmp/bioradar-integration-20261030/final-lint.log"
+      },
+      "web_check": {
+        "result": "generation, type check and build passed; existing bundle size warning retained",
+        "log": "/tmp/bioradar-integration-20261030/final-web-check.log"
+      },
+      "budget_delta": {
+        "result": "2 passed, 0 skipped; pure reserve and real isolated PG replay",
+        "log": "/tmp/bioradar-integration-20261030/final-budget-delta-regression.log",
+        "actual_payload": "/tmp/bioradar-integration-20261030/final-budget-delta-probe.json"
+      },
+      "faults": {
+        "qualification": "Targeted existing database/RQ checks cover duplicate delivery, received replay, missing report checkpoint, optional budget/time stops and uncertain calls. No duplicate paid replay used for testing.",
+        "recovery_tests": "tests/test_research_recovery_faults.py",
+        "query_runtime_tests": "tests/test_query_policy_runtime.py"
+      }
+    },
+    "review": {
+      "model": "GPT-6.1 SOL",
+      "effort": "max",
+      "status": "Non-author policy/runtime/graph/UI reviews completed; budget delta independently approved by coordinating review; new reserve test separately reviewed.",
+      "qualification": "Code and machine reviews do not constitute expert scientific approval."
+    },
+    "retained_failures": [
+      "/tmp/bioradar-integration-20261030/first-real-budget-stop.json",
+      "/tmp/bioradar-integration-20261030/normal-real-failed-receipts.json",
+      "/tmp/bioradar-integration-20261030/manual-resume-acceptance.json",
+      "/tmp/bioradar-integration-20261030/followup-failed-receipts.json",
+      "/tmp/bioradar-integration-20261030/followup-supervised-original.json",
+      "/tmp/bioradar-integration-20261030/followup-write-reserve-original.json"
+    ],
+    "remaining_work": [
+      "Professional expert review of scientific claims and missed counterevidence.",
+      "Expand authorized sources and qualified historical snapshots before predicting outcomes.",
+      "Train and independently compare query selection; current policy remains untrained.",
+      "Complete upstream graph disambiguation, provenance and effective-time coverage."
+    ],
+    "checked_at": "2026-10-30T07:41:54.881707+00:00"
   }
 }

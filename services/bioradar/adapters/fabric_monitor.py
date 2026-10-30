@@ -353,7 +353,9 @@ def search_records(reader, *, source_id, is_demo, term):
     return {**page, "source_id": source_id, "is_demo": is_demo, "coverage": coverage}
 
 
-def search_analysis_records(reader, *, source_id, is_demo, terms, cutoff, limit=3):
+def search_analysis_records(
+    reader, *, source_id, is_demo, terms, cutoff, limit=3, mode="current", run_id=None
+):
     """One source's adopted versions; the research service supplies its authorized source scope."""
     from bioradar.api.errors import DomainError
 
@@ -369,17 +371,20 @@ def search_analysis_records(reader, *, source_id, is_demo, terms, cutoff, limit=
         or not isinstance(cutoff, datetime)
         or cutoff.tzinfo is None
         or cutoff.utcoffset() is None
+        or mode not in {"current", "operational_replay", "public_history_reconstruction"}
     ):
         raise DomainError("invalid_analysis_query", "请提供受限来源、明确检索词和时点", 422)
     terms = sorted(set(term.strip() for term in terms))
     params = [
         ("source_id", source_id),
         ("is_demo", str(is_demo).lower()),
-        ("mode", "current"),
+        ("mode", mode),
         ("cutoff", cutoff.isoformat()),
         ("limit", limit),
         *(("terms", term) for term in terms),
     ]
+    if run_id is not None:
+        params.append(("run_id", run_id))
     page = reader._get("/api/history/records", params)
     if (
         not isinstance(page, dict)
@@ -393,7 +398,7 @@ def search_analysis_records(reader, *, source_id, is_demo, terms, cutoff, limit=
         raise history_error()
     identities = set()
     for record in page["items"]:
-        validate_record(record, source_id, is_demo, "current", cutoff)
+        validate_record(record, source_id, is_demo, mode, cutoff)
         identity = (record["source_record_id"], record["version_id"])
         if identity in identities:
             raise history_error()

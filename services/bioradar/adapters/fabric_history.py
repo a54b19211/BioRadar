@@ -183,19 +183,22 @@ class FabricHistoryReader:
         self.bytes_read = 0
         self.records_read = 0
         self.requests_made = 0
+        self.max_requests = None
 
     def _get(self, path, params=None, *, request_seconds=20):
         if time.monotonic() >= self.deadline or self.bytes_read >= self.max_bytes:
             raise DomainError("history_read_budget", "历史读取达到时间或字节预算", 422)
+        if self.max_requests is not None and self.requests_made >= self.max_requests:
+            raise DomainError("analysis_tool_budget", "本轮来源读取达到固定请求预算", 422)
         try:
             remaining = self.max_bytes - self.bytes_read
+            self.requests_made += 1
             with self.client.stream(
                 "GET",
                 path,
                 params=params,
                 timeout=min(request_seconds, max(0.1, self.deadline - time.monotonic())),
             ) as response:
-                self.requests_made += 1
                 if response.status_code in {401, 403, 404}:
                     raise DomainError("history_source_not_accessible", "来源或版本当前不可读取", 403)
                 if not response.is_success:

@@ -20,6 +20,7 @@ class AnalysisBudget(RuntimeModel):
     max_tokens: int | None = Field(default=None, ge=128, le=10_000_000)
     max_seconds: int | None = Field(default=None, ge=5, le=86400)
     max_queries: int | None = Field(default=None, ge=0, le=32)
+    max_tool_calls: int | None = Field(default=None, ge=1, le=256)
 
 
 class InitialQuery(RuntimeModel):
@@ -40,6 +41,7 @@ class QuestionAsk(RuntimeModel):
     source_ids: list[str] = Field(default_factory=list, max_length=8)
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
+    query_policy: Literal["baseline", "query_planner"] | None = None
 
 
 class AnalysisCreate(RuntimeModel):
@@ -49,6 +51,7 @@ class AnalysisCreate(RuntimeModel):
     source_ids: list[str] = Field(default_factory=list, max_length=8)
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
+    query_policy: Literal["baseline", "query_planner"] | None = None
     retry_of_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     parent_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     material_entry_ids: list[str] = Field(default_factory=list, max_length=10)
@@ -95,10 +98,21 @@ class PlannedQuery(RuntimeModel):
     expected_discrimination: Text
 
 
+class PolicyPlannedQuery(PlannedQuery):
+    coverage_check_ids: list[LocalId] = Field(default_factory=list, max_length=8)
+
+
 class ConditionalAnswer(RuntimeModel):
     answer: str = Field(min_length=1, max_length=4000)
     conditions: list[Text] = Field(max_length=12)
     unknowns: list[Text] = Field(max_length=12)
+
+
+class CoverageCheck(RuntimeModel):
+    id: LocalId
+    status: Literal["passed", "failed", "unknown"] = "unknown"
+    evidence_ids: list[LocalId] = Field(default_factory=list, max_length=10)
+    reason: str = Field(default="", max_length=2000)
 
 
 class ModelReading(RuntimeModel):
@@ -108,6 +122,11 @@ class ModelReading(RuntimeModel):
     gaps: list[EvidenceGap] = Field(max_length=4)
     next_queries: list[PlannedQuery] = Field(max_length=2)
     conditional_answer: ConditionalAnswer
+
+
+class PolicyReading(ModelReading):
+    coverage_checks: list[CoverageCheck] = Field(default_factory=list, max_length=64)
+    next_queries: list[PolicyPlannedQuery] = Field(max_length=2)
 
 
 class ClaimUpdate(RuntimeModel):
@@ -182,9 +201,19 @@ class AnalysisPassage(RuntimeModel):
     end: int = Field(ge=1)
 
 
+class AnalysisMaterialContext(RuntimeModel):
+    entry_id: str
+    stance: Literal["support", "oppose", "context"]
+    note: str = Field(max_length=8000)
+    origin: Literal["user_supplied", "machine_proposed"]
+    qualification: str
+
+
 class AnalysisEvidence(RuntimeModel):
     key: str
     material_entry_id: str | None
+    material_context: AnalysisMaterialContext | None = None
+    evidence_role: Literal["source_material", "graph_background"] = "source_material"
     text_basis: Literal["snapshot_normalized", "source_clean_text", "source_raw_content"] = (
         "snapshot_normalized"
     )
@@ -245,15 +274,22 @@ class AnalysisResult(RuntimeModel):
     professional_status: Literal["not_reviewed"] = "not_reviewed"
     report: dict | None = None
     mechanism_evaluation: dict | None = None
+    query_policy: dict | None = None
     limitations: list[str]
 
 
 class AnalysisQueryReceipt(RuntimeModel):
     index: int
     phase: Literal["initial", "followup"] = "followup"
-    provider: Literal["fabric", "weknora"] = "fabric"
-    plan: PlannedQuery | InitialQuery
-    relaxed_from: PlannedQuery | InitialQuery | None = None
+    provider: Literal["fabric", "weknora", "graph", "fabric_graph"] = "fabric"
+    kind: str = "document_search"
+    action_id: str | None = None
+    semantic_key: str | None = None
+    decision_step: int | None = None
+    cost: dict | None = None
+    graph_context: dict | list | None = None
+    plan: PolicyPlannedQuery | PlannedQuery | InitialQuery | dict
+    relaxed_from: PolicyPlannedQuery | PlannedQuery | InitialQuery | None = None
     relaxation_reason: Text | None = None
     status: Literal["prepared", "sent", "read", "empty", "failed", "unavailable", "unconfirmed"]
     scope: str = "fabric_current_adopted_versions_not_the_web"
@@ -271,7 +307,7 @@ class AnalysisSummary(RuntimeModel):
     investigation_id: str
     parent_analysis_id: str | None
     state: State
-    trigger: Literal["manual", "monitor", "topic", "material_update"]
+    trigger: Literal["manual", "monitor", "topic", "material_update", "history"]
     created_at: datetime
     completed_at: datetime | None
     question: str
@@ -298,6 +334,7 @@ class AnalysisView(AnalysisSummary):
     progress: dict = Field(default_factory=dict)
     budget: dict = Field(default_factory=dict)
     providers: dict = Field(default_factory=dict)
+    query_policy: dict | None = None
 
 
 class AnalysisList(RuntimeModel):
