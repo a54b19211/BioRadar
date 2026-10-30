@@ -55,6 +55,7 @@ class Source:
         self.calls = []
         self.fail_sources = set()
         self.enabled = {"fixture-source"}
+        self.include_collection_sequence = False
 
     def handler(self, request):
         path, params = request.url.path, request.url.params
@@ -122,7 +123,10 @@ class Source:
                     "schema_version": "datafabric.history.collection.v1",
                     "items": found[:3],
                     "next_cursor": "more" if len(found) > 3 else None,
-                    "coverage": {"complete": False, "scope_description": "SYNTHETIC adopted records"},
+                    "coverage": {
+                        "complete": False, "scope_description": "SYNTHETIC adopted records",
+                        **({"max_seq": maximum} if self.include_collection_sequence else {}),
+                    },
                     "excluded_counts": {},
                 },
             )

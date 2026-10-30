@@ -27,7 +27,8 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
     directory = os.environ.get("BIORADAR_QUERY_PLANNER_TEST_PROJECT_DIR")
     if not directory:
         pytest.skip("Needs installed query-planner for actual research execution")
-    make, actor, view, _, model, settings, _ = runtime
+    make, actor, view, source, model, settings, _ = runtime
+    source.include_collection_sequence = True
     settings.query_planner_project_dir = Path(directory)
     settings.analysis_query_policy = "query_planner"
     settings.analysis_kdd_enabled = True
@@ -40,9 +41,12 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
         if payload["task"] != "read_plan":
             return
         reads += 1
-        if case == "received_recovery" and reads == 1 or case == "invalid_optional" and reads >= 2:
+        # Calculations may cause a legitimate reread before a new source arrives.
+        # Inject this fault only after actual additional material was adopted.
+        new_material = case == "invalid_optional" and len(payload["evidence"]) > 1
+        if case == "received_recovery" and reads == 1 or new_material:
             value["claims"][0]["evidence_links"][0]["passage_id"] = "SYNTHETIC-missing-passage"
-        if case == "received_recovery" or reads >= 2:
+        if case == "received_recovery" or new_material:
             value["next_queries"] = []
             value["gaps"] = []
 
@@ -79,7 +83,10 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
         def observe(identifier, token, progress, **kwargs):
             checkpoint(identifier, token, progress, **kwargs)
             state = progress.get("query_policy", {})
-            if case == "invalid_optional" and state.get("reading") and not prior:
+            if (
+                case == "invalid_optional" and state.get("reading")
+                and not state.get("refresh_not_semantically_reviewed")
+            ):
                 prior.update(
                     reading=copy.deepcopy(state["reading"]), fingerprint=state["reading_evidence_hash"]
                 )
@@ -105,9 +112,9 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
         service.execute(accepted["id"], accepted["input_hash"])
         result = make().get(actor, view["id"], accepted["id"])
         assert result.state in {"completed", "needs_review"}, result.model_dump(mode="json")
-        assert posts.count("repair_structured_reading") == 1
         with Session(database) as session:
             saved = copy.deepcopy(session.get(InvestigationAnalysisRecord, accepted["id"]).progress)
+        assert posts.count("repair_structured_reading") == 1
         repair = next(iter(saved["reading_repairs"].values()))
         invalid_call = next(c for c in saved["calls"] if c.get("call_key") == repair["original_call_key"])
         assert invalid_call["status"] == "received"
