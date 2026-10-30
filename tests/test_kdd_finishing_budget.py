@@ -19,6 +19,7 @@ from bioradar.adapters.reasoning_model import (
 )
 from bioradar.api.config import Settings
 from bioradar.api.errors import DomainError
+from bioradar.research.investigations.analysis import generation_input_allowances
 from bioradar.research.investigations.analysis_models import PROMPT_VERSION, ModelSynthesis
 from bioradar.research.investigations.analysis_service import AnalysisService
 
@@ -256,7 +257,7 @@ def test_stage_shaped_reserve_admits_normal_synthesis_and_complete_native_tail(
         "biocheck_check",
         "biocheck_support_audit",
     ]
-    assert sum(size + 128 for _, size, _ in sent[1:]) <= reserve
+    assert sum(size + 1024 + 128 for _, size, _ in sent[1:]) <= reserve
     assert all(cap == 32768 for _, _, cap in sent)
     assert fixed == fixed_before
 
@@ -291,3 +292,51 @@ def test_actual_call_still_enforces_encoded_input_limit_with_not_sent_receipt(mo
         service._call("synthetic", "unused-lock", "synthesize", ModelSynthesis, fixed, progress, payload)
     assert error.value.code == "model_input_budget" and error.value.receipt.status == "not_sent"
     assert progress["calls"][-1]["receipt"]["request_sha256"] is None
+
+
+@pytest.mark.parametrize("text_style", ["tiny", "escaped", "representative"])
+def test_generation_reserve_covers_native_encoded_inputs_and_ignores_only_host_mapping(
+    local_biocheck, monkeypatch, text_style
+):
+    service, fixed, progress = state("pipeline")
+    if text_style != "representative":
+        text = "SYNTHETIC source statement."
+        if text_style == "escaped":
+            text += ' \\"Quoted\\\" paths C:\\\\folder\\\\record.\\n中文限定条件。' * 80
+        progress["evidence"][0]["text"] = text
+    packet = build_packet(fixed["question"], progress["evidence"])
+    original = copy.deepcopy(packet)
+    packet["evidence_map"]["E1"]["host_provenance"] = {
+        "qualification": "SYNTHETIC host-only metadata",
+        "history": ["SYNTHETIC fixed source origin " + str(index) for index in range(1000)],
+    }
+    core, _ = local_biocheck
+    assert core.packet_input(packet) == core.packet_input(original)
+    before = copy.deepcopy(packet)
+    assert generation_input_allowances(
+        service.settings, packet, "", fixed["model_parameters"]["max_input_bytes"]
+    ) == generation_input_allowances(
+        service.settings, original, "", fixed["model_parameters"]["max_input_bytes"]
+    )
+    allowances = generation_input_allowances(
+        service.settings, packet, "", fixed["model_parameters"]["max_input_bytes"]
+    )
+    monkeypatch.setattr(httpx.Client, "send", lambda *a, **k: pytest.fail("No model HTTP is allowed"))
+    stages = []
+
+    def callback(stage, instruction, payload, schema=None):
+        if stage in {"biocheck_plan", "biocheck_write"}:
+            assert "evidence_map" not in payload
+            encoded = encode_request(
+                service.settings, stage=stage, system_prompt=instruction,
+                payload=payload, response_schema=schema or {"type": "object"},
+            )
+            kind = "plan" if stage == "biocheck_plan" else "write"
+            assert len(encoded) + 1024 <= allowances[kind]
+            stages.append(stage)
+        return response(stage)
+
+    report = run_biocheck(None, packet, callback, repair=False, loaded=local_biocheck)
+    assert report["status"] == "PASS"
+    assert stages == ["biocheck_plan", "biocheck_write"]
+    assert packet == before  # Neither accounting nor native generation removes durable provenance.

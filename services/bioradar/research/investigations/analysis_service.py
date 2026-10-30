@@ -45,6 +45,7 @@ from bioradar.research.investigations.analysis import (
     evidence_basis_identity,
     freeze_passages,
     freeze_payload,
+    generation_input_allowances,
     material_context_identity,
     material_context_payload,
     needs_revision,
@@ -1776,8 +1777,7 @@ class AnalysisService:
         context["research_scope"] = {key: value for key, value in scope.items() if key != "analysis_results"}
         return context
 
-    @staticmethod
-    def _final_token_allowance(fixed, progress):
+    def _final_token_allowance(self, fixed, progress):
         final_calls = (
             4
             if fixed.get("providers", {}).get("biocheck", {}).get("available")
@@ -1808,13 +1808,12 @@ class AnalysisService:
                 # Finishing stages do not all resend the verifier's expanded input.
                 # These estimates use current materials/draft; each send still enforces
                 # its complete encoded input and the remaining hard task budget.
-                packet_bytes = len(json.dumps(packet, ensure_ascii=False, separators=(",", ":")).encode())
-                draft_bytes = len(draft.encode())
-                plan_input = min(maximum, packet_bytes + 4096)
-                write_input = min(maximum, packet_bytes + draft_bytes + 8192)
+                generation = generation_input_allowances(self.settings, packet, draft, maximum)
                 verify_input = verification_input_allowance(packet, draft, maximum)
                 audit_input = support_audit_input_allowance(packet, draft, maximum)
-                return plan_input + write_input + verify_input + audit_input + 128 * final_calls
+                return (
+                    generation["plan"] + generation["write"] + verify_input + audit_input + 128 * final_calls
+                )
             return final_calls * (verification_input_allowance(packet, draft, maximum) + 128)
         return final_calls * (min(fixed["model_parameters"]["max_input_bytes"], source_bytes + 4096) + 128)
 

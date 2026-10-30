@@ -820,6 +820,27 @@ def compact_mechanism(mechanism):
     return assessment
 
 
+def generation_input_allowances(settings, packet, candidate, max_input_bytes):
+    """Forecast native generation inputs, with real transport encoding and bounded margins."""
+    from bioradar.adapters.reasoning_model import encode_request
+
+    # BioCheck packet_input excludes evidence_map from every model prompt. The
+    # complete packet and mapping remain untouched in RPC and durable receipts.
+    source = {key: packet[key] for key in ("question", "evidence", "assessment") if key in packet}
+    encoded = {
+        stage: len(encode_request(
+            settings, stage=stage, system_prompt="", payload=source, response_schema={"type": "object"},
+        ))
+        for stage in ("biocheck_plan", "biocheck_write")
+    }
+    # Margins cover native instructions/segmentation and the not-yet-generated plan.
+    # This forecast is not billed usage; each actual send keeps its own hard limits.
+    return {
+        "plan": min(max_input_bytes, encoded["biocheck_plan"] + 8192) + 1024,
+        "write": min(max_input_bytes, encoded["biocheck_write"] + len(candidate.encode()) + 16384) + 1024,
+    }
+
+
 def verification_input_allowance(payload, candidate, max_input_bytes):
     """Reserve from this packet and draft, with room for a longer report and unit framing."""
     source = {key: payload[key] for key in ("question", "evidence", "assessment") if key in payload}
