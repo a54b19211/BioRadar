@@ -644,7 +644,8 @@ def _candidate(plan, provider, phase, index, fixed, checks, reading):
 def _receipt_matches(query, candidate):
     arguments = candidate["arguments"]
     return (
-        query.get("provider", "fabric") == arguments["provider"]
+        query.get("kind", "document_search") == candidate["kind"]
+        and query.get("provider", "fabric") == arguments["provider"]
         and query.get("phase", "followup") == arguments["phase"]
         and query["index"] == arguments["index"]
     )
@@ -656,7 +657,9 @@ def _indices(plans, phase, queries, fixed):
     previous = [
         query
         for query in queries
-        if query.get("phase", "followup") == phase and query.get("provider", "fabric") == "fabric"
+        if query.get("kind", "document_search") == "document_search"
+        and query.get("phase", "followup") == phase
+        and query.get("provider", "fabric") == "fabric"
     ]
     next_index = max((query["index"] for query in previous), default=-1) + 1
     result = []
@@ -712,7 +715,8 @@ def _relaxation_candidate(fixed, progress, plans, phase, checks, reading, origin
         candidate = _candidate(relaxed, "fabric", phase, index, fixed, checks, reading)
         key = semantic_key(candidate["kind"], candidate["arguments"])
         if any(
-            query.get("provider", "fabric") == "fabric"
+            query.get("kind", "document_search") == "document_search"
+            and query.get("provider", "fabric") == "fabric"
             and semantic_key(
                 "document_search",
                 _action_arguments(

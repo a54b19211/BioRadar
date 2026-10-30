@@ -10,7 +10,45 @@ from bioradar.research.investigations.execution_budget import reading_limits
 from bioradar.research.mining.models import canonical_hash
 
 
-def validated_policy_output(service, identifier, token, fixed, progress, raw, payload, key, declared):
+def _reference_feedback(raw, payload):
+    """Describe rejected links using only IDs actually supplied in the original model request."""
+    allowed = {
+        item["evidence_key"]: [passage["id"] for passage in item["passages"]] for item in payload["evidence"]
+    }
+    errors = []
+    for claim_index, claim in enumerate(raw.get("claims", [])):
+        for link_index, link in enumerate(claim.get("evidence_links", [])):
+            permitted = allowed.get(link["evidence_key"], [])
+            if link["passage_id"] not in permitted:
+                errors.append(
+                    {
+                        "path": ["claims", claim_index, "evidence_links", link_index],
+                        "claim_id": claim["id"],
+                        "evidence_key": link["evidence_key"],
+                        "passage_id": link["passage_id"],
+                        "reason": "unknown_evidence"
+                        if link["evidence_key"] not in allowed
+                        else "unknown_passage",
+                        "allowed_passage_ids": permitted,
+                    }
+                )
+    return errors, allowed
+
+
+def validated_policy_output(
+    service,
+    identifier,
+    token,
+    fixed,
+    progress,
+    raw,
+    payload,
+    key,
+    declared,
+    *,
+    optional=False,
+    following_tokens=0,
+):
     from bioradar.research.investigations.analysis import parse_policy_reading, validate_policy_reading
     from bioradar.research.investigations.query_policy import normalize_policy_coverage
 
@@ -24,7 +62,8 @@ def validated_policy_output(service, identifier, token, fixed, progress, raw, pa
         result = parse(raw)
     except DomainError as exc:
         if (
-            exc.code != "analysis_reading_invalid"
+            exc.code
+            not in {"analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid"}
             or fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1"
         ):
             raise
@@ -39,6 +78,10 @@ def validated_policy_output(service, identifier, token, fixed, progress, raw, pa
                 "status": "prepared",
             },
         )
+        if exc.code in {"analysis_reference_invalid", "analysis_passage_invalid"}:
+            errors, allowed = _reference_feedback(raw, payload)
+            entry.setdefault("reference_errors", errors)
+            entry.setdefault("allowed_reference_ids", allowed)
         service._checkpoint(identifier, token, progress)
         repair_payload = {
             "task": "repair_structured_reading",
@@ -51,26 +94,84 @@ def validated_policy_output(service, identifier, token, fixed, progress, raw, pa
                 "不能靠删除矛盾或更正来规避格式错误。"
             ),
         }
-        repaired, _ = service._call(
-            identifier,
-            token,
-            "read_plan_repair",
-            PolicyReading,
-            fixed,
-            progress,
-            repair_payload,
-            call_key=entry["repair_call_key"],
+        if "reference_errors" in entry:
+            repair_payload.update(
+                reference_errors=copy.deepcopy(entry["reference_errors"]),
+                allowed_reference_ids=copy.deepcopy(entry["allowed_reference_ids"]),
+            )
+            repair_payload["instruction"] += (
+                "本次错误链接和合法编号已列出。片段编号是原样标识，不能按自然段自行增加p002等编号，"
+                "也不能仅凭编号相近换链接。逐条重读同一材料后选择确实支持该命题的已有片段；"
+                "找不到支持时保留不确定或撤回该项支持，并明确缺口。"
+            )
+        saved = next(
+            (call for call in progress["calls"] if call.get("call_key") == entry["repair_call_key"]), None
         )
         try:
-            result = parse(repaired)
-        except DomainError:
-            entry["status"] = "invalid"
+            if entry["status"] == "not_sent" and saved is None:
+                raise DomainError(entry["repair_error_code"], "本次有界修复已停止，原解读与回执保留", 409)
+            if (
+                optional
+                and saved is None
+                and not service._optional_budget(
+                    fixed,
+                    progress,
+                    1,
+                    following=1,
+                    request_tokens=(
+                        service._reading_payload_tokens(fixed, repair_payload, PolicyReading)
+                        - 128
+                        + fixed["model_parameters"]["max_output_tokens"]
+                    ),
+                    following_tokens=following_tokens,
+                )
+            ):
+                raise DomainError(
+                    "analysis_finishing_budget_reserved", "剩余额度用于交付已有解读，未发送可选引用修复", 409
+                )
+            repaired, _ = service._call(
+                identifier,
+                token,
+                "read_plan_repair",
+                PolicyReading,
+                fixed,
+                progress,
+                repair_payload,
+                call_key=entry["repair_call_key"],
+                **(
+                    {"reserve_tokens": following_tokens + service._final_token_allowance(fixed, progress)}
+                    if optional
+                    else {}
+                ),
+            )
+        except DomainError as failure:
+            saved = next(
+                (call for call in progress["calls"] if call.get("call_key") == entry["repair_call_key"]), None
+            )
+            entry["status"] = (
+                "unconfirmed"
+                if saved is not None and saved["status"] in {"sent", "unconfirmed"}
+                else "not_sent"
+                if service._report_budget_stop(failure)
+                or failure.code == "analysis_finishing_budget_reserved"
+                else "failed"
+            )
+            entry["repair_error_code"] = failure.code
+            if saved is not None:
+                entry["repair_call_id"] = saved["call_id"]
             service._checkpoint(identifier, token, progress)
             raise
-        entry["status"] = "validated"
         entry["repair_call_id"] = next(
             c["call_id"] for c in progress["calls"] if c.get("call_key") == entry["repair_call_key"]
         )
+        try:
+            result = parse(repaired)
+        except DomainError as failure:
+            entry["status"] = "invalid"
+            entry["repair_error_code"] = failure.code
+            service._checkpoint(identifier, token, progress)
+            raise
+        entry["status"] = "validated"
     reading, adjustments, issues = result
     if adjustments:
         progress.setdefault("model_output_adjustments", {})[key] = adjustments

@@ -8907,6 +8907,11 @@
             "type": "object",
             "title": "External Ids"
           },
+          "properties": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Properties"
+          },
           "identity_status": {
             "type": "string",
             "enum": [

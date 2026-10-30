@@ -6,6 +6,7 @@ import json
 import math
 import secrets
 import time
+import traceback
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -2415,14 +2416,36 @@ class AnalysisService:
         if external:
             from bioradar.research.investigations.reading_execution import validated_policy_output
 
-            reading = validated_policy_output(
-                self, identifier, token, fixed, progress, raw, payload, key, declared.get("checks", [])
-            )
+            try:
+                reading = validated_policy_output(
+                    self, identifier, token, fixed, progress, raw, payload, key, declared.get("checks", []),
+                    optional=optional, following_tokens=following_tokens,
+                )
+            except DomainError as exc:
+                repair = progress.get("reading_repairs", {}).get(key, {})
+                failed = next(
+                    (c for c in progress["calls"] if c.get("call_key") == repair.get("repair_call_key")), None
+                )
+                known_stop = (
+                    self._report_budget_stop(exc)
+                    or exc.code == "analysis_finishing_budget_reserved"
+                    or _known_optional_read_failure(failed)
+                    or repair.get("status") == "invalid"
+                    and exc.code in {
+                        "analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid",
+                        "analysis_output_invalid", "analysis_unbound_claim", "analysis_query_invalid",
+                    }
+                )
+                if optional and previous is not None and known_stop:
+                    return retain_previous(exc.code, failed)
+                raise
         else:
             reading = validate_reading(raw, progress["evidence"], fixed["search_scope"])
         state["reading_kind"] = "policy" if external else "baseline"
         state["reading"] = reading.model_dump(mode="json")
         state["reading_evidence_hash"] = fingerprint
+        state.pop("refresh_stopped_reason", None)
+        state.pop("refresh_not_semantically_reviewed", None)
         current = {e["key"] for e in progress["evidence"]}
         checks, seen_checks = [], set()
         declared_ids = {item["id"] for item in declared.get("checks", [])}
@@ -4522,7 +4545,10 @@ class AnalysisService:
                     return identifier
                 report_status = (result.get("report") or {}).get("status")
                 audit_status = ((result.get("report") or {}).get("support_audit") or {}).get("status")
-                if audit_status in {"REVIEW", "NOT_RUN"}:
+                if (
+                    progress.get("query_policy", {}).get("refresh_not_semantically_reviewed")
+                    or audit_status in {"REVIEW", "NOT_RUN"}
+                ):
                     row.state = "needs_review"
                 elif report_status in {"PASS", "REVIEW", "FAIL", "failed"}:
                     row.state = "completed" if report_status == "PASS" else "needs_review"
@@ -4557,6 +4583,18 @@ class AnalysisService:
             ) from None
         except Exception as exc:
             code = exc.code if isinstance(exc, DomainError) else "analysis_execution_failed"
+            if not isinstance(exc, DomainError):
+                progress["execution_diagnostic"] = {
+                    "exception_type": type(exc).__name__,
+                    "frames": [
+                        {
+                            "file": frame.f_code.co_filename.rsplit("/", 1)[-1],
+                            "function": frame.f_code.co_name,
+                            "line": line,
+                        }
+                        for frame, line in traceback.walk_tb(exc.__traceback__)
+                    ][-16:],
+                }
             self._sync_query_receipts(progress)
             if fixed.get("execution_version") == "query-step-v1":
                 policy_state = progress.setdefault("query_policy", {})

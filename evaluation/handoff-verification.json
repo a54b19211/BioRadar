@@ -491,14 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-30T18:56:59.328425+00:00",
-    "status": "isolated_patch_reviewed_ready_for_fresh_R2",
-    "details": "r2_connectivity_fixes_20261031",
+    "checked_at": "2026-10-30T19:36:53.048974+00:00",
+    "status": "isolated_runtime_repairs_reviewed_ready_for_fresh_main_R3",
+    "details": "r3_runtime_protocol_fixes_20261031",
     "source_roots": {
       "radar": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar"
     },
-    "scope": "Configured demo namespace, language alternatives, bounded original catalog and durable recovery verified. R2 real outcomes are recorded separately.",
-    "deployment_evidence": "Same isolated Radar branch only; no production/main merge, no upstream edits, no restored 4022 source copy."
+    "scope": "Bounded reference repair, graph metadata event consumption, typed receipts and safe diagnostics verified with existing PG/RQ and zero new commercial-model calls.",
+    "deployment_evidence": "Only current isolated Radar branch modified. Live strict-D and social R2 workers remain on their frozen 5c8e420 code. No old failed record, monitor cursor, production service or upstream repo was changed."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -6299,5 +6299,126 @@
       "scope": "This change verifies runtime connectivity and bounded recovery with actual PostgreSQL/RQ and synthetic HTTP/model responses. New real research outcomes belong to separate R2 records."
     },
     "deployment": "Same isolated Radar branch only; no production/main merge, no upstream edits, no restored 4022 source copy."
+  },
+  "r3_runtime_protocol_fixes_20261031": {
+    "checked_at": "2026-10-30T19:36:53.048974+00:00",
+    "status": "isolated_runtime_repairs_reviewed_ready_for_fresh_main_R3",
+    "branch": "codex/radar-kdd-20261030",
+    "code_root": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar",
+    "base_commit": "5c8e420529c9251cbea80a0e10c9716dac5ec81f",
+    "evidence_archive": "/home/zk_test/zk_projects/.bioradar-kdd-integration/acceptance-20261031/engineering/r3-runtime",
+    "confirmed_failures_preserved": [
+      {
+        "analysis_id": "ff4f2470-84de-4eec-93bc-579f5b0601cc",
+        "code": "analysis_passage_invalid",
+        "cause": "Model invented p002 although both complete supplied materials only exposed p001; original received outputs and paid usage are unchanged."
+      },
+      {
+        "source_id": "reviewed_graph",
+        "cause": "Published node properties were valid upstream metadata but absent from Radar GraphNode; unhandled schema error left source idle and cursor zero."
+      },
+      {
+        "analysis_id": "787c585c-9be3-43eb-9a0d-0e2078f36313",
+        "code": "analysis_execution_failed",
+        "cause": "Keyword index construction treated document_read as document_search and required nonexistent terms."
+      }
+    ],
+    "changes": [
+      "Reuse one recorded read_plan_repair for structural or reference-identifier errors, with original request/output and exact allowed IDs; never remap a rejected reference in host code.",
+      "Repair output passes full original validation. Optional known failure or unsent budget stop keeps the prior reading/fingerprint, new materials and rejected links, and makes the overall investigation needs_review.",
+      "Received repair responses replay before budget checks; unknown transport remains blocked and is never automatically resent.",
+      "Accept original graph properties as metadata without identity/relation promotion; read pending graph hints with_candidates; malformed graph becomes a visible source failure without acknowledgement.",
+      "Keyword indexing, relaxation deduplication and receipt matching respect action kind; all typed history remains intact, legacy search receipts remain readable.",
+      "Unexpected exceptions save only bounded internal type/file/function/line diagnostics; no exception messages, source lines, locals or credentials enter that diagnostic or public view."
+    ],
+    "targeted_checks": {
+      "reading_repair_and_existing_optional": {
+        "passed": 11,
+        "skipped": 0,
+        "log": "reference-repair-pure.log"
+      },
+      "reading_repair_native_pg": {
+        "passed": 2,
+        "skipped": 0,
+        "log": "reference-repair-pg-final.log"
+      },
+      "initial_pg_check": {
+        "passed": 1,
+        "failed": 1,
+        "log": "reference-repair-pg.log",
+        "qualification": "Test originally injected a bad reference into every reading, including a later distinct read of new calculation results. Final test injects only the targeted initial read, requires one repair POST, distinct later call keys and actual new analysis_results."
+      },
+      "graph_native_pg_rq": {
+        "passed": 4,
+        "skipped": 0,
+        "log": "r2-graph-monitor-regression.log"
+      },
+      "mixed_action_and_safe_diagnostic": {
+        "passed": 40,
+        "skipped": 0,
+        "log": "typed-query-receipts-regression.log"
+      },
+      "real_saved_D_pure_replay": {
+        "record": "r3-typed-query-real-replay.json",
+        "build_policy_context": "returned",
+        "extend_context": "returned",
+        "history_count": 10,
+        "original_progress_unchanged": true,
+        "new_model_calls": 0,
+        "new_http_calls": 0,
+        "database_access": "none"
+      },
+      "real_reference_input_audit": {
+        "record": "c-passage-repair-input-audit.json",
+        "qualification": "Only supplied IDs, text lengths and hashes; no raw message package in source control."
+      },
+      "counting": "Sets overlap; do not sum them into unique tests or scientific successes."
+    },
+    "required_checks": [
+      {
+        "command": "make test CARD=BOOT",
+        "passed": 43,
+        "log": "r3-boot.log"
+      },
+      {
+        "command": "make lint",
+        "exit_code": 0,
+        "log": "r3-required-lint.log"
+      },
+      {
+        "command": "make engine-contract",
+        "exit_code": 0,
+        "log": "r2-graph-engine-contract.log"
+      },
+      {
+        "command": "make contract-check",
+        "exit_code": 0,
+        "log": "r2-graph-contract-check.log"
+      },
+      {
+        "command": "make web-check",
+        "exit_code": 0,
+        "log": "r2-graph-web-check.log"
+      }
+    ],
+    "cross_review": {
+      "status": "accepted_by_two_nonauthor_GPT_6_1_SOL_reviews",
+      "records": [
+        "c-r2-reference-repair-nonauthor-review.json",
+        "c-r2-graph-nonauthor-review.json",
+        "c-r3-typed-query-nonauthor-review.json",
+        "r2-graph-monitor-handoff.json",
+        "b-r3-reading-typed-nonauthor-review.json"
+      ]
+    },
+    "data_handling": {
+      "committed_regressions": "Generic SYNTHETIC documents, graph shape and recovery behavior only.",
+      "private_replay_location": "/tmp/bioradar-opus-20261031",
+      "raw_materials_committed": false,
+      "private_expected_answers_read": false,
+      "cleanup": "Temporary real input snapshots remain with the coordinator's experiment files for post-experiment cleanup."
+    },
+    "deployment": "Only current isolated Radar branch modified. Live strict-D and social R2 workers remain on their frozen 5c8e420 code. No old failed record, monitor cursor, production service or upstream repo was changed.",
+    "real_acceptance": "Coordinator will freeze this commit for fresh main R3 state. Existing R2 outcomes and model receipts remain separately versioned; targeted engineering checks do not establish scientific correctness."
   }
 }

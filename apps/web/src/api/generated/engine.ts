@@ -2870,6 +2870,10 @@ export interface components {
             external_ids?: {
                 [key: string]: unknown;
             };
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
             /**
              * Identity Status
              * @enum {string}

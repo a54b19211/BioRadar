@@ -375,6 +375,11 @@
           "title": "External Ids",
           "type": "object"
         },
+        "properties": {
+          "type": "object",
+          "additionalProperties": true,
+          "title": "Properties"
+        },
         "identity_status": {
           "enum": [
             "confirmed",

@@ -62,7 +62,7 @@ def read_graph_version(reader, request, cutoff, *, version_id=None):
     return record, bundle
 
 
-def read_neighborhood(reader, record, bundle, request, cutoff):
+def read_neighborhood(reader, record, bundle, request, cutoff, *, review_scope=None):
     params = {
         "source_id": request.source_id,
         "source_record_id": request.source_record_id,
@@ -76,8 +76,9 @@ def read_neighborhood(reader, record, bundle, request, cutoff):
         "max_nodes": request.max_nodes,
         "max_edges": request.max_edges,
     }
-    if getattr(request, "review_scope", None):
-        params["review_scope"] = request.review_scope
+    selected_scope = review_scope if review_scope is not None else getattr(request, "review_scope", None)
+    if selected_scope:
+        params["review_scope"] = selected_scope
     value = reader._get("/api/history/graph/" + request.graph_version_id + "/neighborhood", params)
     try:
         return validate_neighborhood(bundle, GraphNeighborhood.model_validate(value), record, request)

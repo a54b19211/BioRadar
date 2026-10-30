@@ -114,6 +114,8 @@ class GraphNode(GraphIdentity):
     name: str = Field(min_length=1, max_length=1000)
     aliases: tuple[str, ...] = ()
     external_ids: dict[str, Any] = Field(default_factory=dict)
+    # Provider metadata is not identity review, binding proof or a scientific conclusion.
+    properties: dict[str, Any] = Field(default_factory=dict, exclude_if=lambda value: not value)
     identity_status: Literal["confirmed", "rule_confirmed", "unresolved", "background"]
     identity_review_basis: str | None = None
     identity_rule: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)

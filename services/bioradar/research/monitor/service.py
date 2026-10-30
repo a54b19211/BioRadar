@@ -7,6 +7,7 @@ from collections import defaultdict, deque
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
+from pydantic import ValidationError
 from sqlalchemy import func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -540,7 +541,12 @@ class MonitorService:
         )
         from bioradar.research.investigations.graph import GraphBundle, GraphInvestigationCreate
 
-        bundle = GraphBundle.model_validate_json(record["raw_content"])
+        try:
+            bundle = GraphBundle.model_validate_json(record["raw_content"])
+        except ValidationError:
+            raise DomainError(
+                "monitor_graph_bundle_invalid", "已发布图包不符合固定图契约，保留原游标待核", 502
+            ) from None
         if not bundle.nodes:
             return [], ["empty_published_graph"]
         request = GraphInvestigationCreate(
@@ -556,7 +562,9 @@ class MonitorService:
             search_clinicaltrials=False,
         )
         cutoff = datetime.now(UTC)
-        neighborhood = read_neighborhood(self.reader, record, bundle, request, cutoff)
+        neighborhood = read_neighborhood(
+            self.reader, record, bundle, request, cutoff, review_scope="with_candidates"
+        )
         documents, seen = [], set()
         for edge in neighborhood.edges:
             for evidence in edge.evidence:
@@ -814,7 +822,9 @@ class MonitorService:
                         old[identity(item)] = item
                         if item.record_ref.version_key != record.record_ref.version_key:
                             attached.add(item.record_ref.identity_key)
-                except DomainError:
+                except DomainError as exc:
+                    if exc.code == "monitor_graph_bundle_invalid":
+                        raise
                     gaps.append("graph_projection_unavailable_text_monitoring_continues")
             evidence = [r for r in evidence if r["source_record_id"] != native]
             evidence.append(evidence_row(self.reader, value))
