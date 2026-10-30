@@ -487,6 +487,13 @@ def freeze_payload(
                 "成稿核验和所选片段复核提出的机器缺口或待核问题，不是新增原始事实。"
                 "先检查已读原文能否解决，再规划必要补查；只按允许的repair_units修订。"
             )
+        if context.get("analysis_results"):
+            payload["analysis_results"] = copy.deepcopy(context["analysis_results"])
+            payload["analysis_results_qualification"] = (
+                "这是程序对固定成员的实际计算。逐项保留方法、成员范围、单位、期间与分母；"
+                "不得把检索文档数或候选数改称独立研究、药物项目、总体发生率或因果。"
+                "结果可引用其analysis id及output路径，不要伪称是某篇原文直接报告的数字。"
+            )
         if query_context is not None:
             payload["graph_context"] = copy.deepcopy(context.get("graph_context", []))
             payload["graph_history"] = copy.deepcopy(context.get("graph_history", []))
@@ -1182,6 +1189,11 @@ def semantic_reading_state(evidence, context):
             for key in ("evidence_gaps", "review_required", "repair_units")
             if key in feedback
         },
+        **(
+            {"analysis_results": copy.deepcopy(compact["analysis_results"])}
+            if compact.get("analysis_results")
+            else {}
+        ),
         "neighborhoods": [
             {key: value for key, value in item.items() if key not in {"binding", "read_cutoff"}}
             for item in compact["graph_context"]

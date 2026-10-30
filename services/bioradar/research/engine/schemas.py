@@ -6,7 +6,13 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, SecretStr
 
 from bioradar.research.decision.models import DecisionInput, DecisionPolicy, DecisionResult
-from bioradar.research.mining.models import MethodResult, MiningPolicy, MiningResult, NormalizedSnapshot
+from bioradar.research.mining.models import (
+    KddPolicy,
+    MethodResult,
+    MiningPolicy,
+    MiningResult,
+    NormalizedSnapshot,
+)
 
 
 class RuntimeModel(BaseModel):
@@ -59,7 +65,7 @@ class SnapshotList(RuntimeModel):
 
 class RunCreate(RuntimeModel):
     snapshot_id: str = Field(min_length=1, max_length=36)
-    policy: MiningPolicy
+    policy: KddPolicy | MiningPolicy
 
 
 class RunAction(RuntimeModel):
@@ -104,7 +110,7 @@ class RunView(RuntimeModel):
     snapshot_id: str
     input_hash: str
     original_policy: dict[str, JsonValue]
-    policy: MiningPolicy | None = Field(
+    policy: KddPolicy | MiningPolicy | None = Field(
         description="Current schema view only; original_policy is the frozen input"
     )
     policy_view_status: Literal["current", "historical_requires_new_run"]

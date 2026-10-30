@@ -6,13 +6,14 @@ import EngineLogin from "../components/engine/EngineLogin.vue";
 import CandidateDetail from "../components/engine/CandidateDetail.vue";
 import SnapshotComparison from "../components/engine/SnapshotComparison.vue";
 import MonitorPanel from "../components/engine/MonitorPanel.vue";
+import KddRunSummary from "../components/engine/KddRunSummary.vue";
+import { allCandidates, candidateDecision, candidateEvaluation, kddDirections, kddLabel, methodLabel, makeKddPolicy, text, type KddDirection } from "../api/kdd";
 import {
   engineRequest,
   EngineError,
   post,
   type Candidate,
   type FeedbackView,
-  type MiningPolicy,
   type RunView,
   type SnapshotSummary,
 } from "../api/engine";
@@ -27,6 +28,8 @@ const selectedSnapshot = ref("");
 const selectedRun = ref<RunView | null>(null);
 const selectedCandidate = ref<Candidate | null>(null);
 const filter = ref("");
+const candidateScope = ref<"selected" | "all">("selected");
+const direction = ref<KddDirection | "legacy">("research");
 const methodLabels = ref<Record<string, string>>({});
 const busy = ref(false);
 const loggingOut = ref(false);
@@ -52,7 +55,7 @@ function currentSession(epoch: number) {
   return !disposed && epoch === sessionEpoch;
 }
 const candidates = computed(() =>
-  (selectedRun.value?.result?.candidates ?? []).filter(
+  (candidateScope.value === "all" ? allCandidates(selectedRun.value?.result) : selectedRun.value?.result?.candidates ?? []).filter(
     (c) =>
       !filter.value ||
       `${c.title} ${c.method_id}`
@@ -61,6 +64,12 @@ const candidates = computed(() =>
   ),
 );
 const methods = computed(() => selectedRun.value?.result?.method_results ?? []);
+const generatedCandidates = computed(() => allCandidates(selectedRun.value?.result));
+const selectedCandidateCanCreate = computed(() => Boolean(selectedRun.value?.result?.candidates.some(item => item.candidate_key === selectedCandidate.value?.candidate_key)));
+function selectionLabel(key: string) {
+  const decision = candidateDecision(selectedRun.value?.result, key);
+  return decision ? kddLabel(text(decision.decision)) : "逐项筛选理由未记录";
+}
 const selectedData = computed(() =>
   snapshots.value.find((s) => s.id === selectedSnapshot.value),
 );
@@ -190,7 +199,7 @@ async function analyze() {
   busy.value = true;
   error.value = "";
   try {
-    const policy: MiningPolicy = JSON.parse(policyText.value);
+    const policy = makeKddPolicy(JSON.parse(policyText.value), direction.value);
     const run = await post<RunView>("/runs", {
       snapshot_id: selectedSnapshot.value,
       policy,
@@ -277,7 +286,19 @@ async function logout() {
     }
   }
 }
-onMounted(refresh);
+onMounted(async () => {
+  const query = new URLSearchParams(window.location.search);
+  const requestedRun = query.get("run");
+  const requestedCandidate = query.get("candidate");
+  await refresh();
+  if (!disposed && authenticated.value && requestedRun) {
+    await openRun(requestedRun);
+    if (!disposed && selectedRun.value?.id === requestedRun && requestedCandidate) {
+      candidateScope.value = "all";
+      selectedCandidate.value = generatedCandidates.value.find(item => item.candidate_key === requestedCandidate) ?? null;
+    }
+  }
+});
 onUnmounted(() => {
   disposed = true;
   ++sessionEpoch;
@@ -324,6 +345,12 @@ onUnmounted(() => {
         />
       </div>
       <div class="analysis-controls">
+        <label class="kdd-direction">分析方向
+          <select v-model="direction" aria-label="分析方向">
+            <option v-for="(label, value) in kddDirections" :key="value" :value="value">{{ label }}</option>
+            <option value="legacy">原有方法（固定行为）</option>
+          </select>
+        </label>
         <ElSelect
           v-model="selectedSnapshot"
           aria-label="选择采用资料"
@@ -445,6 +472,16 @@ onUnmounted(() => {
           <p v-if="selectedRun.error" class="error-panel">
             {{ selectedRun.error.message }}
           </p>
+          <KddRunSummary v-if="selectedRun.result" :result="selectedRun.result" :policy="selectedRun.original_policy" :method-labels="methodLabels" />
+          <div v-if="selectedRun.result" class="candidate-scope">
+            <label>显示范围
+              <select v-model="candidateScope" aria-label="候选显示范围">
+                <option value="selected">本轮入选（{{ selectedRun.result.candidates.length }}）</option>
+                <option value="all">全部算法候选（{{ generatedCandidates.length }}）</option>
+              </select>
+            </label>
+            <p class="muted">可抽查未入选依据与筛选理由。容量暂缓、相同依据暂缓和价值条件未通过分别保留。</p>
+          </div>
           <p v-if="selectedRun.result" class="muted">
             {{ runnable }} /
             {{ methods.length }} 个方法实际计算。结果为候选，尚未经过专业核验。
@@ -460,7 +497,7 @@ onUnmounted(() => {
                 :type="candidate.kind === 'data_quality' ? 'warning' : 'info'"
                 >{{ kindLabels[candidate.kind] }}</ElTag
               ><span>{{
-                methodLabels[candidate.method_id] ?? candidate.method_id
+                methodLabel(candidate.method_id, methodLabels)
               }}</span
               ><ElTag
                 v-if="candidate.urgency === 'immediate'"
@@ -478,6 +515,7 @@ onUnmounted(() => {
               </button>
             </h3>
             <p>{{ explainCode(candidate.reasons[0] ?? "") }}</p>
+            <p class="muted">{{ selectionLabel(candidate.candidate_key) }}</p>
             <div class="candidate-bottom">
               <span>{{ candidate.supports.length }} 条贡献资料 · 待核实</span
               ><ElButton
@@ -520,7 +558,7 @@ onUnmounted(() => {
           >
             <summary>
               <span>{{
-                methodLabels[method.method_id] ?? method.method_id
+                methodLabel(method.method_id, methodLabels)
               }}</span
               ><ElTag
                 size="small"
@@ -567,6 +605,9 @@ onUnmounted(() => {
     <CandidateDetail
       :candidate="selectedCandidate"
       :feedback="selectedRun?.feedback"
+      :pattern-evaluation="candidateEvaluation(selectedRun?.result, selectedCandidate?.candidate_key)"
+      :selection-decision="candidateDecision(selectedRun?.result, selectedCandidate?.candidate_key)"
+      :investigation-allowed="selectedCandidateCanCreate"
       :run-id="selectedRun?.id ?? ''"
       :snapshot-id="selectedRun?.snapshot_id ?? ''"
       :result-hash="selectedRun?.result?.result_hash ?? ''"
@@ -575,3 +616,9 @@ onUnmounted(() => {
     />
   </template>
 </template>
+
+<style scoped>
+.kdd-direction, .candidate-scope label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.kdd-direction select, .candidate-scope select { max-width: 100%; border: 1px solid var(--line, #dce5e9); background: var(--el-bg-color, #fff); border-radius: 5px; padding: 8px; color: inherit; }
+.candidate-scope { margin: 12px 0; }
+</style>

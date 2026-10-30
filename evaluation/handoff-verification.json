@@ -491,14 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-30T07:41:54.881707+00:00",
+    "checked_at": "2026-10-30T14:26:23.657523+00:00",
     "status": "isolated_engineering_verified_scientific_review_required",
-    "details": "query_policy_integration_20261030",
+    "details": "multi_domain_kdd_20261030",
     "source_roots": {
-      "radar": "/home/zk_test/zk_projects/.bioradar-query-integration/radar"
+      "radar": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar"
     },
-    "scope": "Isolated real first/follow-up/automatic reports plus targeted PostgreSQL/RQ/HTTP and browser readback; scientific and incomplete scopes retained.",
-    "deployment_evidence": "No production deployment claimed by this verification."
+    "scope": "Four-domain fixed data computation; real first questions/follow-up and automatic WHO parent-to-child report; actual SEC newly comparable periods selected into a source-bound investigation; targeted recovery, accounting and delivery checks. Scientific failures and unknown requests are preserved.",
+    "deployment_evidence": "All implementation and acceptance changes are in the isolated zktest worktree. Production main, production database and Fabric branch were not merged or switched. Coordinator performs final packaging/deployment separately."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -4660,5 +4660,1434 @@
       "Complete upstream graph disambiguation, provenance and effective-time coverage."
     ],
     "checked_at": "2026-10-30T07:41:54.881707+00:00"
+  },
+  "multi_domain_kdd_20261030": {
+    "schema_version": "bioradar.handoff.multi-domain-kdd.v1",
+    "status": "isolated_engineering_verified_scientific_review_required",
+    "recorded_at": "2026-10-30T14:10:43.313005+00:00",
+    "scope": "Four-domain KDD, native professional HTTP adapters, existing PG/RQ workflow, source/version-bound scope and readonly cost projections. Machine workflow outcomes are not scientific prediction grades.",
+    "checkout": {
+      "branch": "codex/radar-kdd-20261030",
+      "base_commit": "3f8c93f80387578f2bf35730d616a3767ac9c8ee",
+      "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar",
+      "delivery_commit_receipt": "/tmp/bioradar-kdd-20261030/final-delivery.json"
+    },
+    "preservation": {
+      "historical_handoff_entries_unchanged": true,
+      "existing_latest_verification_pointer_unchanged": false,
+      "new_platform_or_queue_added": false,
+      "live_production_main_modified_by_this_handoff": false,
+      "previous_latest_verification_preserved_in_this_entry": true
+    },
+    "components": {
+      "actual_checkout_commits": {
+        "radar": {
+          "checkout": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar",
+          "checkout_commit": "3f8c93f80387578f2bf35730d616a3767ac9c8ee"
+        },
+        "biocheck": {
+          "checkout": "/home/zk_test/zk_projects/.bioradar-kdd-integration/biocheck",
+          "checkout_commit": "2280ce44f2d11abf0590d7fd33193808ee5df327",
+          "provider_version": "ca44a676f6f2e0c03471c9eb6f25e2615a6679af94b3054179f05a19ee1361b9",
+          "systemd_unit": "bioradar-biocheck.service",
+          "checkout_scope": "native_HTTP_service_source_checkout",
+          "provider_version_scope": "HTTP_provider_hash_frozen_by_actual_response_separate_from_git_commit"
+        },
+        "mech_evidence": {
+          "checkout": "/home/zk_test/zk_projects/.bioradar-kdd-integration/mechevidence",
+          "checkout_commit": "4351f0f3176bf60a7d9a74a3782b1ccb2a9ebb94",
+          "provider_version": "a20a320ccc1b9306e480bf53a6d9b955e1634ee8a62c813748b0db899fd53967",
+          "systemd_unit": "bioradar-mechevidence.service",
+          "checkout_scope": "native_HTTP_service_source_checkout",
+          "provider_version_scope": "HTTP_provider_hash_frozen_by_actual_response_separate_from_git_commit"
+        },
+        "weknora": {
+          "checkout": "/home/zk_test/zk_projects/.bioradar-kdd-integration/weknora",
+          "checkout_commit": "83e4a260e373c7229a98f083450fc7fd94175002",
+          "provider_version": "weknora-kdd-v1",
+          "systemd_unit": "bioradar-weknora-kdd.service",
+          "checkout_scope": "integration_wrapper_checkout",
+          "provider_version_scope": "wrapper_HTTP_contract_label",
+          "actual_retrieval_execution": [
+            {
+              "action_id": "followup-weknora-0-0e6d4fd9129471f0",
+              "upstream_source_commit": "6f2c2955f549d721a36e50b1e39ad81bc545b63a",
+              "upstream_image": "sha256:68eaa73c728af5319146919d5c455a590787876c31fc4d1d114e7556ac69db26",
+              "index_version": "48e1feea188f91632906b889948087f893b618361279119da4cb38d596d6b512"
+            }
+          ],
+          "actual_retrieval_execution_evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/final-automatic-child-outcome.json",
+            "sha256": "6ebc4fad21543ce40dd09f3123a1273ca88942f6fb57b5c3fec7055e3091afe9",
+            "json_pointer": "/actual_provider_versions/weknora"
+          }
+        },
+        "query_planner": {
+          "checkout": "/home/zk_test/zk_projects/.bioradar-kdd-integration/query-planner",
+          "checkout_commit": "4602ec15fbfab4a195194f1c6e93a5950f24ad68",
+          "policy_version": "0fc15626504a96c438ae31fd5eb7400448094cd382bb313421ea8ca70f377cf4",
+          "schema_version": "query-planner.external.v2"
+        },
+        "data_factory": {
+          "checkout": "/home/zk_test/zk_projects/.bioradar-kdd-integration/data-factory",
+          "checkout_commit": "ec488080a9f16ce9c437ffb9753e0257045dc6d6"
+        },
+        "fabric": {
+          "checkout": "/home/zk_test/zk_projects/.datafabric-maintenance/20261030-kdd",
+          "checkout_commit": "ec40c96daf34782842e261a049f9f7f6675cc408"
+        }
+      },
+      "services": [
+        {
+          "component": "mechevidence",
+          "unit": "bioradar-mechevidence.service",
+          "unit_sha256": "6aa817008f4882d063da6405259029201bc64b47ae8e73f3c8a8d808679dfcc7",
+          "recorded_state": {
+            "ActiveState": "active",
+            "SubState": "running",
+            "ExecMainStatus": "0"
+          }
+        },
+        {
+          "component": "biocheck",
+          "unit": "bioradar-biocheck.service",
+          "unit_sha256": "b923b424cc414cd1b68f9f1d9c529a59bc330f0d5d33c1ac5c79513cdb24dc0b",
+          "recorded_state": {
+            "ActiveState": "active",
+            "SubState": "running",
+            "ExecMainStatus": "0"
+          }
+        },
+        {
+          "component": "weknora-kdd",
+          "unit": "bioradar-weknora-kdd.service",
+          "unit_sha256": "60f6e5aa9719a142a55178a9f1deae45a24dfbe22ec411c54b6dda98f7d94050",
+          "recorded_state": {
+            "ActiveState": "active",
+            "SubState": "running",
+            "ExecMainStatus": "0"
+          }
+        }
+      ],
+      "activation_evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/component-service-activation.json",
+        "sha256": "2b832be97eeaa28b813c28c8576cde89efb9a50a81756f1e01d3b8c9235c9843"
+      },
+      "version_registry_evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/integration-services.json",
+        "sha256": "e47a5f6c48fc9923ae1531ed4cf54685b472921de660796b5a2dd109a85c1402"
+      },
+      "professional_rpc_contract": {
+        "path": "/tmp/bioradar-kdd-20261030/professional-service-contract.json",
+        "sha256": "647e88b08c2ec90ae81d7a6a46f4d7202e37a6f62565eff993e86d977a266b83"
+      },
+      "qualification": "Service states and versions are recorded observations. Secrets, credentials, authorization permits, headers and private runtime settings are excluded."
+    },
+    "four_full_fixed_cohorts": {
+      "status": "four_completed_normal_HTTP_adoption_and_RQ_runs",
+      "activity": "explicit_fixed_cohort_HTTP_adoption_and_RQ_not_automatic_monitor_replacement",
+      "paid_model_calls_requested": false,
+      "evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+        "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494"
+      },
+      "cohorts": {
+        "pipeline": {
+          "source_id": "clinicaltrials",
+          "input_record_count": 12,
+          "qualified_count": 43,
+          "snapshot_id": "14c1824e-976c-41a2-89a3-ca48b2b6aaa0",
+          "snapshot_hash": "fce0fed2b702e0a7076edf1fd181c0318107d8de48230c2b2ce7ab9da9be0856",
+          "run_id": "ba93ab4d-af9e-45f8-8674-02b48402a7e1",
+          "run_state": "completed",
+          "run_input_hash": "513e0c29da8c95876a794b5491cd6f9b4759649d3e35e6fc2f5915d94318ab1c",
+          "result_hash": "8f432fafc759e2951dd75f6dc62bc3cd2ea6bc5041a8bc11d8196aced10cf131",
+          "server_method_versions": null,
+          "method_versions_match_expected": true,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/pipeline"
+          },
+          "original_version_manifest": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/pipeline/original_versions"
+          },
+          "result": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-pipeline.result.json",
+            "sha256": "305949d47b68ea5688a21b52bab2165dc3743c1065d54dc98e616c63aa9ee9da"
+          }
+        },
+        "research": {
+          "source_id": "europe_pmc",
+          "input_record_count": 10,
+          "qualified_count": 7,
+          "snapshot_id": "a3f203a9-744c-438c-a9a6-cfa3ab9ce137",
+          "snapshot_hash": "c0b6b79fa85718f5998988eaf43c65c37a8527764f263d4c8c83209f82ea05aa",
+          "run_id": "6f59e6e3-c5f1-4f25-9727-3389b0e06c89",
+          "run_state": "completed",
+          "run_input_hash": "6265277d118d371c12d00d99922bd933a3a140fc1bc2c2fe7c0d062917c81613",
+          "result_hash": "3107ad02227362cf534ea3696b04df59a8f14c713170e97bbf93720a3fa2414e",
+          "server_method_versions": null,
+          "method_versions_match_expected": true,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/research"
+          },
+          "original_version_manifest": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/research/original_versions"
+          },
+          "result": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-research.result.json",
+            "sha256": "a042a09931efdeffe02780d406800ca7db3f57539385c07c2e215fa14c772b20"
+          }
+        },
+        "business": {
+          "source_id": "sec_companyfacts",
+          "input_record_count": 5,
+          "qualified_count": 466,
+          "snapshot_id": "27752670-c44b-4941-81d1-6954943deb3f",
+          "snapshot_hash": "cb2cd4ae454b894e760552f50da4c3db58b6eed438cc97e277e24acbc8013209",
+          "run_id": "c667b8ee-2786-4344-a72e-91d2436ab0e0",
+          "run_state": "completed",
+          "run_input_hash": "8c70d0f9e7a4860e20f818ac4417ad914610d52051d247c42bacb927dda22557",
+          "result_hash": "edf4f6a282446188c45187114ef66a035b569e9aac45ab1411b7b1ef21759b13",
+          "server_method_versions": null,
+          "method_versions_match_expected": true,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/business"
+          },
+          "original_version_manifest": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/business/original_versions"
+          },
+          "result": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-business.result.json",
+            "sha256": "3631e9919e61262c76b8019714ec8d002f7b956ba775d5a27051faa94d24fa46"
+          }
+        },
+        "public_health": {
+          "source_id": "who_don",
+          "input_record_count": 8,
+          "qualified_count": 8,
+          "snapshot_id": "a3d470b7-b5dc-4cb5-b759-bdc5e050686e",
+          "snapshot_hash": "facc0246c05ba2498b072747902f3cc53e4b0e9cdc08276cf4e4e7c0752983cc",
+          "run_id": "41f6712a-d284-46b9-80d1-73ec47ad8b29",
+          "run_state": "completed",
+          "run_input_hash": "acd78daff9694f0c42b5be9169e1de365d6d2bcfb8238e9e546f040111c25bde",
+          "result_hash": "8f6f9d2bb5521c68c3e2581a3fdd99e13d2fb474f2503ab49fd22e11f951c610",
+          "server_method_versions": null,
+          "method_versions_match_expected": true,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/public_health"
+          },
+          "original_version_manifest": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-runs.json",
+            "sha256": "23d7acc5f0646e6dfe745559f1abced483c01c56d4e0c95eaabe16a1cbabc494",
+            "json_pointer": "/cohorts/public_health/original_versions"
+          },
+          "result": {
+            "path": "/tmp/bioradar-kdd-20261030/full-fixed-cohort-public_health.result.json",
+            "sha256": "9bbf6b147503073002d7a45fcc72c74ceab68a999ae4b78c50ec5320b19b6b52"
+          }
+        }
+      },
+      "qualification": "Qualified counts are domain-specific analysis units; they are not source-document populations, independent study counts, cases or forecasting accuracy. These explicit fixed-cohort runs are separate from monitor incremental runs."
+    },
+    "public_task_outcomes": {
+      "observed_at": "2026-10-30T13:14:14.020604+00:00",
+      "counts": {
+        "original_public_tasks": 12,
+        "already_approved_followups": 2,
+        "observed_tasks": 14,
+        "state_counts": {
+          "blocked": 2,
+          "needs_review": 12
+        },
+        "delivered_drafts": 12,
+        "unconfirmed_no_completed_report": 2,
+        "report_status_counts": {
+          "no_report": 2,
+          "REVIEW": 1,
+          "FAIL": 7,
+          "failed": 4
+        }
+      },
+      "tasks": [
+        {
+          "task_id": "pipeline-01",
+          "direction": "pipeline",
+          "investigation_id": "e898d9b9-37b4-49c4-9953-d235a011115a",
+          "analysis_id": "6811a4e9-ec0b-4d3f-986e-90257f4ddb92",
+          "parent_analysis_id": null,
+          "state": "blocked",
+          "error_code": "model_transport_unconfirmed",
+          "input_hash": "6067c645e92bf1d1c6a3c521051ef4971f281f03d23862aebd794ce3393c0579",
+          "outcome": "blocked_unconfirmed_no_completed_report",
+          "report": {
+            "status": null,
+            "error_code": null,
+            "generation_error": null,
+            "has_body": false
+          }
+        },
+        {
+          "task_id": "pipeline-02",
+          "direction": "pipeline",
+          "investigation_id": "987d9cae-00be-4f58-a278-8d3b68f37eca",
+          "analysis_id": "9db58e96-4c0c-4882-a21c-3ed3de10c0d1",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "70f9fe1355a83b6349de08b615b6ff50154b8ab88a2d2b5b6b1096c68667f78b",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "REVIEW",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "pipeline-03",
+          "direction": "pipeline",
+          "investigation_id": "5fe8789e-f5fa-4bc5-8b88-c76302df05b3",
+          "analysis_id": "6f23f52f-6b73-4c57-a0d8-94bc665c4640",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "808712971b8a64b8d1fc7172736995dc9f6a55d7c23e9b328c199149fc860d3a",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "research-01",
+          "direction": "research",
+          "investigation_id": "7e815f78-d2a6-466f-a509-43d9b01631f6",
+          "analysis_id": "69c04407-3597-465a-a4f3-dcb0d9b6b2e7",
+          "parent_analysis_id": null,
+          "state": "blocked",
+          "error_code": "model_transport_unconfirmed",
+          "input_hash": "03d7eb2a619f1138760dfdde4ad71d4136c9214186a14e78c30fea4564ef3eab",
+          "outcome": "blocked_unconfirmed_no_completed_report",
+          "report": {
+            "status": null,
+            "error_code": null,
+            "generation_error": null,
+            "has_body": false
+          }
+        },
+        {
+          "task_id": "research-02",
+          "direction": "research",
+          "investigation_id": "0d3b1e22-b16f-40c5-be39-6fa266e3d343",
+          "analysis_id": "83cd8213-dad4-4719-a568-d7d8a9adb039",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "b52bcb71e9031dfd087548bb4aa95973efd78b00dee21e7172c34b3a3370be02",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "failed",
+            "error_code": "model_output_invalid",
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "research-03",
+          "direction": "research",
+          "investigation_id": "79e9e542-6e1e-4e14-ae1a-a69ff3e3ffc7",
+          "analysis_id": "4b546e75-818a-469e-9d62-ed52dd9881a7",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "167083ec60fa05866322444aabd45646a191a2cce5134ec8b15dc002204191db",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "business-01",
+          "direction": "business",
+          "investigation_id": "54b177a3-4098-4203-b763-c0784b4079b6",
+          "analysis_id": "30165bfd-eb72-41be-9823-e733e84140c2",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "e5090237df193b79c75b4ce370dde00c9e9082fd9bb1ec453a9c522fd0b6c6da",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "failed",
+            "error_code": "model_output_truncated",
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "business-02",
+          "direction": "business",
+          "investigation_id": "75b59295-66c2-4eb6-a2ad-66d69abc103a",
+          "analysis_id": "352d7f38-8bdc-4981-b6db-9252f8a4d3f0",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "5ac1139f786abb0f81a55109858563e7e43948a318292ac90c9ec4c1d4a6848a",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "failed",
+            "error_code": "method_input_invalid",
+            "generation_error": "专业报告生成未完成；保留已有分析草稿，尚未经过正文核验。",
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "business-03",
+          "direction": "business",
+          "investigation_id": "2645d009-58ca-4418-8a9d-6aa92130fbb6",
+          "analysis_id": "b0b4a9de-b94b-4352-b375-910622453184",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "84ca212cf820ddc4fa7b7e47c8c14033d90dda1c92d63616c38222e880557b1d",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "public_health-01",
+          "direction": "public_health",
+          "investigation_id": "fce45867-2173-4c78-899f-f51a347231ed",
+          "analysis_id": "7af5f453-71ca-47cc-980c-6c2814e76233",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "fe84ad6453b087272162c8f1599b2db26263637ee19ae3628835602114bd381d",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "public_health-02",
+          "direction": "public_health",
+          "investigation_id": "abb2c17d-0494-45aa-8a3c-39ab8094b3c3",
+          "analysis_id": "67d66ad8-ce91-4b7f-8d20-d1e103b2830e",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "20ad0ae53c14e9bc3f887c5f10412392b8ca1a6feddb684e150d6e33c2013d26",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "public_health-03",
+          "direction": "public_health",
+          "investigation_id": "e5ddfdc5-af41-46c3-b580-deb12ac20bfc",
+          "analysis_id": "70e378a4-e312-450c-9e8f-1ec142792b41",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "91b39a6a1699963061170e6e15d0bb9862e9902b769826b9d1ee036c2ada0cf4",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "explicit-mechanism",
+          "direction": "research",
+          "investigation_id": "28aed6d8-dbd0-447b-aeb8-d6ca92b1b8d3",
+          "analysis_id": "cb6e2286-114b-4fb3-ad32-a9709d0f96bd",
+          "parent_analysis_id": null,
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "dad34a288879e8b396ef9b8e6ded061ea4a0da2f9c89739406aa73a8f7cc2faa",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "failed",
+            "error_code": "model_output_invalid",
+            "generation_error": "专业报告生成未完成；保留已有分析草稿，尚未经过正文核验。",
+            "has_body": true
+          }
+        },
+        {
+          "task_id": "business-time-followup",
+          "direction": "business",
+          "investigation_id": "54b177a3-4098-4203-b763-c0784b4079b6",
+          "analysis_id": "ff0b9c10-758f-4fc0-89cb-552519e478f4",
+          "parent_analysis_id": "30165bfd-eb72-41be-9823-e733e84140c2",
+          "state": "needs_review",
+          "error_code": null,
+          "input_hash": "ba9ba5acc8bd40c9cf948988e1b9373b92cbdfc30efc862fe399c50696e2346e",
+          "outcome": "draft_delivered_for_review",
+          "report": {
+            "status": "FAIL",
+            "error_code": null,
+            "generation_error": null,
+            "has_body": true
+          }
+        }
+      ],
+      "evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/final-public-outcomes.json",
+        "sha256": "ec50d77f764a791ea02b60b11dd5dedd9a139cbf66a63196617a26685157f2eb"
+      },
+      "scientific_outcome_grades_assigned": false,
+      "private_oracle_accessed": false,
+      "qualification": "Engineering integrity, source scope, model outcome, report verification, support audit and scientific correctness are separate. needs_review/FAIL/REVIEW/failed/NOT_RUN and unknown outcomes are retained; no report is claimed fully approved.",
+      "business_followup_limit": "The ff0b follow-up body changed, but ran before the prior-report-context fix; successful scientific correction is not established.",
+      "final_current_outcomes_evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/final-public-outcomes.json",
+        "sha256": "3edee2bd5a7d32161f28ec20dbc505f97f41552c7bcc83daae8ee69505da9df7"
+      }
+    },
+    "professional_transport_and_recovery": {
+      "native_model_client_in_service": false,
+      "existing_host_call_ledger_reused": true,
+      "received_replay": "Saved received model and RPC exchanges replay before new-work reserves; exact operation/provider/version/arguments binding is retained.",
+      "unknown": "Sent or unconfirmed model outcomes remain blocked and are not automatically resent. HTTP outcome uncertainty and model uncertainty are tracked separately.",
+      "send_boundary": "Durable sent intent is followed by an updated deadline and minimum useful call-window check; definitely uninvoked requests become durable not_sent. Optional rereading requires the normal full output cap and preserves a previous valid reading on known failures.",
+      "regressions": [
+        {
+          "scope": "durable sent boundary",
+          "recorded_passed": 3,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/sent-boundary-nonregression.log",
+            "sha256": "0221e194a6e3e0590f5c4c44fdabd43c8abf5e502bbc489bf3fc076e819cd9e8"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "minimum useful send window and optional full-output reading",
+          "recorded_passed": 15,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/minimum-window-optional-reading-regression.log",
+            "sha256": "63b765189845c3e611e89a8a55a5d07513e2981de234d4531fbcbd9c04276834"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "minimum window after sent checkpoint",
+          "recorded_passed": 1,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/minimum-window-post-checkpoint-regression.log",
+            "sha256": "ed47765861f07a6835d3b0b1e2e35e69fa06b5c2f2620916cd957ec3b34a1874"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "stage-specific complete finishing reserve",
+          "recorded_passed": 4,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/stage-specific-finishing-budget-regression.log",
+            "sha256": "ddbd0712af33e863d4366889aff9628df09ba730f737868ac9a237842c8813ae"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "completed RPC exchange recovery across status checkpoint",
+          "recorded_passed": 2,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/completed-mechanism-rpc-exchange-checkpoint-regression.log",
+            "sha256": "46691f0acb16840e1c31aa0bb3bd9e4a182effa01a5dbc0aa1a9dedb09b75d1b"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "nullable saved professional usage recovery",
+          "recorded_passed": 3,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/nullable-professional-recovery-regression.log",
+            "sha256": "bcfa2cbe4f8573daa5dc15b4e75bfb9f6220e5d380e9ebf270f94c94d8b82924"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "actual professional HTTP budget",
+          "recorded_passed": 8,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/professional-http-budget.log",
+            "sha256": "619349d90a8237cdb16f1df8a1b879c05882232cae5cf4f3d4a517453beae178"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "WeKnora known failure versus transport unknown",
+          "recorded_passed": 4,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/weknora-http-failure-regression.log",
+            "sha256": "7eb3878804a36e397b690b06959940424d4b86de20af5b47bb0c6c60a9b2f3a3"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "strict native SEC financial projection",
+          "recorded_passed": 16,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/sec-financial-projection-regression.log",
+            "sha256": "915abf6e3013302ef73970c963eb3c6ab123954f7590724a18abe0f03b651f65"
+          },
+          "paid_model_calls": 0
+        },
+        {
+          "scope": "legacy received-response accounting basis",
+          "recorded_passed": 5,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/professional-http-legacy-response-basis-regression.log",
+            "sha256": "f26b3d1461943957a6e5ece6f91fe82e4f17f8ae6d2231baea91204c9830a090"
+          },
+          "paid_model_calls": 0
+        }
+      ],
+      "native_http_saved_receipt_replay": [
+        {
+          "path": "/tmp/bioradar-kdd-20261030/mech-http-host-replay.json",
+          "sha256": "e865bdf8cbe7575b785aac21667f242858a3936110064ecf7d382ab14c8804c7"
+        },
+        {
+          "path": "/tmp/bioradar-kdd-20261030/biocheck-http-host-replay.json",
+          "sha256": "41261df36b246600ec44864248803b4ccc7afe2270f179006f2fb82425d7408d"
+        }
+      ],
+      "unknown_preserved_analysis_ids": [
+        "6811a4e9-ec0b-4d3f-986e-90257f4ddb92",
+        "69c04407-3597-465a-a4f3-dcb0d9b6b2e7"
+      ],
+      "qualification": "Native replay and fault regression evidence uses saved received outputs or explicitly synthetic protocol data and starts no new paid model call; it is separate from the actual paid public task outcomes."
+    },
+    "actual_tool_accounting": {
+      "safe_api_path": "query_policy.professional_http_ledger",
+      "projection_fields": [
+        "operation_id",
+        "provider",
+        "operation",
+        "action_id",
+        "exchange_index",
+        "http_attempted_indices",
+        "attempts",
+        "outcome",
+        "known_tool_calls",
+        "reserved_tool_calls",
+        "accounting_basis",
+        "response_received"
+      ],
+      "strict_identity": "known_total = preparation_tool_calls + route_action_tool_calls + non_route_professional_tool_calls; non-route professional requests are summed directly for action_id=null, without residual inference or double counting route Mech calls.",
+      "unknown_accounting": "HTTP unknown/reserved amounts and unknown model token usage remain separate; monetary cost is not fabricated.",
+      "legacy_received_response": "With empty attempted indices, a validated saved received response and positive integral attempts prove one known HTTP attempt; additional attempts remain reserved. Original indices and stored ledger data are not changed.",
+      "who01": {
+        "analysis_id": "7af5f453-71ca-47cc-980c-6c2814e76233",
+        "fixed_progress_result_unchanged": true,
+        "known_total_tool_calls": 21,
+        "recorded_known_tool_calls": 15,
+        "preparation_tool_calls": 8,
+        "route_action_tool_calls": 7,
+        "non_route_professional_tool_calls": 6,
+        "reserved_tool_calls": 0,
+        "accounting_basis": "legacy_received_response",
+        "attempted_indices_not_backfilled": true,
+        "evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/professional-http-ledger-response-basis-final/who01-audit.json",
+          "sha256": "9ab5e7c3c423d1f3d7d5f84dcbf7f7c5e7e960721878e6b1eea11efe8d3395df"
+        }
+      },
+      "fourteen_public_task_reconciliation": {
+        "path": "/tmp/bioradar-kdd-20261030/final-public-cost-accounting-after-response-basis.json",
+        "sha256": "9f6230c48b32a63a2b0b1b31201a60fad3af7ada450f3321714518f1f89aeecc"
+      },
+      "prior_thirteen_unchanged_checks": {
+        "path": "/tmp/bioradar-kdd-20261030/final-public-cost-accounting-after-ledger.json",
+        "sha256": "0eb4d534ffa69b56c06c326c301b91e3df7352515cb44e121b6afb2d6a506e58"
+      },
+      "older_known_gap": {
+        "analysis_id_prefix": "9db58e96",
+        "code": "legacy_weknora_http_attempt_unaccounted",
+        "description": "A known historical WeKnora HTTP error was recorded as zero tool cost before the accounting fix. The projection reports this data-quality gap rather than fabricating a balancing request or changing the stored receipt."
+      }
+    },
+    "continuous_monitor": {
+      "readback_observed_at": "2026-10-30T13:14:29.871122+00:00",
+      "evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/continuous-monitor-updates-readback.json",
+        "sha256": "15149b7e342345fdb8048201a9e173bf5014d1dcce4660b5d1271cbe1e8aaaa8"
+      },
+      "stable_configuration": {
+        "path": "/tmp/bioradar-kdd-20261030/automatic-update-stable-monitor.json",
+        "sha256": "52e4e427ff7bac49b44a0b4d71c6ef75ceceef52542993b3d2f1ed98212457c2"
+      },
+      "increments": {
+        "public_health": {
+          "source_id": "who_don",
+          "previous_observed_cursor": 8,
+          "current_observed_cursor": 39,
+          "current_source_context_count": 31,
+          "batch_id": "a7fa3df4-0874-4c2f-87b9-4793a9d80858",
+          "run_id": "a534eb6d-f68d-4882-94c3-25f4b07f7dbf",
+          "snapshot_id": "2ca234c6-c5b0-4567-8185-9be8248d92f1",
+          "snapshot_hash": "43fa79c83b3974394075c24dd718d2f7f8d209a096e46dde5baea053e9951da0",
+          "run_state": "completed",
+          "result_hash": "3f675a962869a3ab5c1a1b0b7612d13957a1181abfe13b533316deef05a75a7f",
+          "method_versions": {
+            "__engine_compute__": "bioradar-mining-compute-v0.3",
+            "public_health_metric_change": "source-bound-period-change-v2",
+            "public_health_notifications": "native-notice-publication-v1"
+          },
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/continuous-monitor-updates-readback.json",
+            "sha256": "15149b7e342345fdb8048201a9e173bf5014d1dcce4660b5d1271cbe1e8aaaa8",
+            "json_pointer": "/batches/0"
+          },
+          "original_version_manifest": {
+            "path": "/tmp/bioradar-kdd-20261030/continuous-monitor-updates-readback.json",
+            "sha256": "15149b7e342345fdb8048201a9e173bf5014d1dcce4660b5d1271cbe1e8aaaa8",
+            "json_pointer": "/batches/0/manifest"
+          },
+          "qualification": "Cursor values count source changes, not documents, events, patients or disease incidence. This incremental run is separate from the earlier full fixed cohort."
+        },
+        "business": {
+          "source_id": "sec_companyfacts",
+          "previous_observed_cursor": 5,
+          "current_observed_cursor": 6,
+          "current_source_context_count": 2,
+          "batch_id": "9a846c8e-f41a-4484-8c79-a92ceb74b371",
+          "run_id": "1b9b6a5b-6f2c-4335-a512-f55c71bd3460",
+          "snapshot_id": "81a19145-a6c0-4754-a2e0-357c00046628",
+          "snapshot_hash": "5de0bdaa458e0012145d1e5b1dabf0acb4bbba4d5326e3caeca297ef56a3e7da",
+          "run_state": "completed",
+          "result_hash": "47c4cc95fd0e8a532d10c35f91a2834920e5f44c8413fecd146ce2b496d82672",
+          "method_versions": {
+            "__engine_compute__": "bioradar-mining-compute-v0.3",
+            "business_metric_change": "source-bound-period-change-v2"
+          },
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/continuous-monitor-updates-readback.json",
+            "sha256": "15149b7e342345fdb8048201a9e173bf5014d1dcce4660b5d1271cbe1e8aaaa8",
+            "json_pointer": "/batches/2"
+          },
+          "original_version_manifest": {
+            "path": "/tmp/bioradar-kdd-20261030/continuous-monitor-updates-readback.json",
+            "sha256": "15149b7e342345fdb8048201a9e173bf5014d1dcce4660b5d1271cbe1e8aaaa8",
+            "json_pointer": "/batches/2/manifest"
+          },
+          "qualification": "Cursor values count source changes, not documents, events, patients or disease incidence. This incremental run is separate from the earlier full fixed cohort."
+        }
+      },
+      "scope_limits": [
+        "WHO cursor 8 to 39 represents eight earlier projection-version updates plus 23 added notices, with 31 current source contexts; it is not an increase in disease incidence.",
+        "SEC cursor 5 to 6 incremental adoption has two current source contexts and is not the earlier full-five-record, four-company cohort.",
+        "WHO3a98 used eight v0.2 originals whose text SHA values match prior originals; report changes from 9 to 31 notices and 9 to 39 units reflect scope/method changes."
+      ],
+      "final_runtime": {
+        "observed_at": "2026-10-30T14:24:30.212768+00:00",
+        "read_only": true,
+        "model_requests": 0,
+        "workspace": "bioradar-kdd-20261030",
+        "configuration": {
+          "BIORADAR_MONITOR_ENABLED": "true",
+          "BIORADAR_ANALYSIS_AUTO_ENABLED": "true",
+          "BIORADAR_SEMANTIC_LLM_ENABLED": "true",
+          "BIORADAR_ANALYSIS_MANUAL_PER_HOUR": "2",
+          "BIORADAR_MONITOR_HOURLY_INVESTIGATIONS": "1",
+          "BIORADAR_MONITOR_INVESTIGATIONS_PER_BATCH": "1"
+        },
+        "processes": {
+          "api": {
+            "pid": 450085,
+            "alive": true,
+            "module": "uvicorn",
+            "normal_loop": true
+          },
+          "worker": {
+            "pid": 450086,
+            "alive": true,
+            "module": "bioradar.ops.worker",
+            "normal_loop": true
+          },
+          "worker2": {
+            "pid": 450087,
+            "alive": true,
+            "module": "bioradar.ops.worker",
+            "normal_loop": true
+          },
+          "monitor": {
+            "pid": 467481,
+            "alive": true,
+            "module": "bioradar.ops.monitor",
+            "normal_loop": true
+          }
+        },
+        "monitor": {
+          "paused": false,
+          "heartbeat_at": "2026-10-30T14:24:27.447203+00:00"
+        },
+        "active_analyses": [
+          {
+            "id": "a19f9cb6-ac55-4ec7-a8f4-e07b634b5ea7",
+            "state": "queued",
+            "trigger": "material_update",
+            "budget_pending": true,
+            "direction": "pipeline",
+            "calls": 0
+          },
+          {
+            "id": "4d93f19d-386e-49c0-bfd2-4e6543e31361",
+            "state": "queued",
+            "trigger": "material_update",
+            "budget_pending": true,
+            "direction": "business",
+            "calls": 0
+          },
+          {
+            "id": "c3af07b8-8427-4b77-a9a5-b6827350a3a5",
+            "state": "queued",
+            "trigger": "material_update",
+            "budget_pending": true,
+            "direction": "business",
+            "calls": 0
+          },
+          {
+            "id": "d6dafe21-c26a-4730-859a-bb41041b5ed4",
+            "state": "running",
+            "trigger": "material_update",
+            "budget_pending": false,
+            "direction": "research",
+            "calls": 1
+          },
+          {
+            "id": "768d3067-fd74-498f-8622-a2b3cb5e32bf",
+            "state": "running",
+            "trigger": "material_update",
+            "budget_pending": false,
+            "direction": "research",
+            "calls": 1
+          },
+          {
+            "id": "7b481f2f-90d7-4e20-85cf-74e01a4022f8",
+            "state": "queued",
+            "trigger": "material_update",
+            "budget_pending": true,
+            "direction": "pipeline",
+            "calls": 0
+          }
+        ],
+        "unknown_originals": [
+          {
+            "id": "6811a4e9-ec0b-4d3f-986e-90257f4ddb92",
+            "state": "blocked",
+            "calls": 4,
+            "error_code": "model_transport_unconfirmed"
+          },
+          {
+            "id": "69c04407-3597-465a-a4f3-dcb0d9b6b2e7",
+            "state": "blocked",
+            "calls": 6,
+            "error_code": "model_transport_unconfirmed"
+          }
+        ],
+        "component_user_services": {
+          "bioradar-mechevidence.service": "active",
+          "bioradar-biocheck.service": "active",
+          "bioradar-weknora-kdd.service": "active"
+        }
+      },
+      "final_runtime_evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/final-runtime-readback.json",
+        "sha256": "65629f51fd1562cc70b8afb4e3dc0e065248aa903ad29a5fceaee58551cffb11"
+      },
+      "final_monitor_reload": {
+        "path": "/tmp/bioradar-kdd-20261030/monitor-final-sec-priority-reload.json",
+        "sha256": "53341d01dbc5287381cb65d14b878ddab2770005653d5bcee75af914c4e48ffd"
+      },
+      "sec_incremental_priority": {
+        "status": "verified_ordinary_api_rq_and_investigation",
+        "trigger": "explicit_recalculation_with_previously_adopted_prior_version",
+        "new_collection": false,
+        "model_requests": 0,
+        "missing_prior_baseline_precheck": {
+          "path": "/tmp/bioradar-kdd-20261030/sec-incremental-baseline-readback.json",
+          "sha256": "74fabb3f9793a2933130e0f9a3861dade90348be4c56d2367db7bf5a2dd60ae0"
+        },
+        "adoption": {
+          "path": "/tmp/bioradar-kdd-20261030/sec-three-version-snapshot-api.json",
+          "sha256": "7de8f1328e4c7b87eef3860e56e7a8fcc1a4fefe6d7f708627cd994d37a8150c"
+        },
+        "run_request": {
+          "path": "/tmp/bioradar-kdd-20261030/sec-three-version-run-api.json",
+          "sha256": "cb2ccede29e9c52d1cbbba43c3d029a9b09e352c3f87d66a999857dbe3e09768"
+        },
+        "run_readback": {
+          "path": "/tmp/bioradar-kdd-20261030/sec-three-version-run-view.json",
+          "sha256": "78ea1978ca3ba136b8bc87c411b9d1f219b3a6b7f66999c6fe0f8b4651f694d1"
+        },
+        "selection_comparison": {
+          "path": "/tmp/bioradar-kdd-20261030/sec-three-version-selection-diff.json",
+          "sha256": "c67159f0341f51953db4fd48fc8278004e4b9a96bfc58d3fb1af08eba4a73d33"
+        },
+        "snapshot_id": "5f184d22-eecb-47b3-bcb6-db394cce5c63",
+        "run_id": "7b292a6f-062f-41fa-99ca-c883d17092fb",
+        "result_hash": "16781cbb8ef0fddae503652e49f29ff439a87a01c25d0f5e7034216461de060e",
+        "full_candidate_count": 170,
+        "qualified_unit_count": 178,
+        "classifications": {
+          "historical_stock": 49,
+          "existing_fixed_period": 119,
+          "new_period": 2
+        },
+        "selected_candidates": [
+          "fc8033550587b9e77de954c9c21fb3821d5370ffb1f2f914decb8bf6238be8fa",
+          "6f814f6ad87a736bff145e424a29a2afa0e8bb9dfe7cc2b1b056b5f9a7125745"
+        ],
+        "old_result_unchanged": true,
+        "scientific_candidates_values_eligibility_and_units_unchanged": true,
+        "investigation_id": "d3ed3583-4d99-4e62-840e-2986be170db7",
+        "investigation_evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/sec-new-period-investigation-final.json",
+          "sha256": "e493684748632eec9a05f18c24b23b922baa5fc0e8b4df265164522dafea39bb"
+        },
+        "investigation_material_count": 2,
+        "additional_analysis_started": false,
+        "qualification": "The original two-record monitor window lacked the earlier Gilead fixed version. This explicitly adopted three-version snapshot combines that window with the real prior Gilead version from the previously adopted full business cohort. It is not a new collection or an unmodified automatic batch. Two qualified new periods gained limited investigation capacity; all old candidates and numeric assessments remain saved. Research approval and causal explanations are still pending."
+      }
+    },
+    "automatic_material_updates": {
+      "admission_snapshot": {
+        "observed_at": "2026-10-30T13:24:56.961928+00:00",
+        "new_material_update_requests": 11,
+        "admitted_count": 5,
+        "budget_pending_count": 6,
+        "admitted_analysis_ids": [
+          "3a98db8f-1979-426c-973c-dbb1b3539baf",
+          "3a0a88c1-7511-43fc-9f61-ba5090bf6db5",
+          "5d755ed1-d761-4c08-acb2-b3d627e101df",
+          "3c6f45b3-3a9d-4b08-b569-ae663a33f8ab",
+          "2a0e2705-acda-46aa-9759-71802ddaa24e"
+        ],
+        "budget_pending_analysis_ids": [
+          "83d091f3-f602-4dbd-b8b8-73ab452ffb05",
+          "8e92bd74-8cad-4b65-9f0e-9e4693d4f3a5",
+          "53908ac9-e233-4ff0-912d-b80307dc3fac",
+          "d18dd1b0-4a4b-48a6-8801-55711aa50699",
+          "44ba5d0c-1fb7-4074-ba7b-2eda0c451bff",
+          "6496e434-c61a-43f4-acb6-4f87476971ec"
+        ],
+        "manual_hour_limit": 2,
+        "evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/automatic-admission-accounting.json",
+          "sha256": "38d642f3f9d3d1e5a2e183206b41b905e0fe8f3007caa2a522af4ffb5a20db27"
+        },
+        "qualification": "This timestamped admission snapshot excludes the later ordinary monitor clue 41f7822d and the separately documented operator correction of six unsent requests."
+      },
+      "who_parent_to_child": {
+        "analysis_id": "3a98db8f-1979-426c-973c-dbb1b3539baf",
+        "parent_analysis_id": "67d66ad8-ce91-4b7f-8d20-d1e103b2830e",
+        "investigation_id": "abb2c17d-0494-45aa-8a3c-39ab8094b3c3",
+        "state": "needs_review",
+        "error_code": null,
+        "input_hash": "9ba10e0baa0eba0a43cf8dc9b4032bf49996410b1774b38665631f388a4ae53d",
+        "model_status_counts": {
+          "received": 5,
+          "failed": 1
+        },
+        "report": {
+          "status": "failed",
+          "error_code": "model_output_truncated",
+          "text_sha256": "b61293a3d5d27a235f2c7b6f1b419138d051c83af6c70f57e72c3400605a5d55",
+          "has_body": true
+        },
+        "qualification": "Actual automatic update workflow and retained output, not successful scientific correction or full report approval. Failed verification and audit REVIEW remain separate; no new paid task was submitted.",
+        "evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/final-automatic-child-outcome.json",
+          "sha256": "6ebc4fad21543ce40dd09f3123a1273ca88942f6fb57b5c3fec7055e3091afe9"
+        },
+        "parent_report_body_sha256": "6e8d2bfdea622376bdf3fd18008a0236546e2331ecbddc6f28de5703f2505eae",
+        "actual_transmitted_prior_report_stages": [
+          "biocheck_plan",
+          "biocheck_write",
+          "biocheck_check"
+        ],
+        "actual_request_pointer": "$.assessment.research_scope.prior_report",
+        "actual_parent_request_audit": {
+          "path": "/tmp/bioradar-kdd-20261030/automatic-who-child-readback.json",
+          "sha256": "94ea81ce073825e39a09777540473767a65a939d8a61dd65977c0af4faea8d40"
+        },
+        "three_who_parent_fixed_result_calls_and_note_unchanged": true,
+        "prior_FAIL_is_context_not_new_evidence": true,
+        "actual_provider_versions": {
+          "biocheck": {
+            "provider": "biocheck",
+            "provider_version": "ca44a676f6f2e0c03471c9eb6f25e2615a6679af94b3054179f05a19ee1361b9",
+            "status": "failed"
+          },
+          "mech_evidence": {
+            "provider": "mech_evidence",
+            "provider_version": null,
+            "status": "not_requested"
+          }
+        },
+        "post_scope_projection_evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/final-automatic-child-outcome-after-scope.json",
+          "sha256": "cdd2415e6cbf26a1a388e5aaca224aa6d0ce07227f0f0a0b455097f0f6e6d3b4"
+        },
+        "body_scope_database_export_integrity": {
+          "path": "/tmp/bioradar-kdd-20261030/automatic-child-final-text-integrity-after-scope.json",
+          "sha256": "323838a9ed2032580eb975073072549cd2860abd59b8311ed88a190d56f7451a"
+        },
+        "fixed_version_scope": {
+          "fixed": 66,
+          "read": 5,
+          "unread": 61,
+          "old_model_scope_preserved": true,
+          "system_read_projection_updated": true
+        },
+        "scope_closure": {
+          "path": "/tmp/bioradar-kdd-20261030/fixed-source-scope-closure.json",
+          "sha256": "49fda7480bcf231db3792519b243fa285709668a258a0a67a67a18922fbe0d18"
+        }
+      },
+      "independent_research_material_update": {
+        "analysis_id": "2a0e2705-acda-46aa-9759-71802ddaa24e",
+        "parent_analysis_id": null,
+        "parent_result": null,
+        "qualification": "A new independently executed material_update-triggered run. It is not evidence of parent-report-to-new-report correction. MED:1655255 clean_text/facts/raw JSON object are unchanged and only serialization SHA changed; this is not new scientific evidence. The earlier 69c unknown call remains preserved.",
+        "evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/automatic-who-child-readback.json",
+          "sha256": "94ea81ce073825e39a09777540473767a65a939d8a61dd65977c0af4faea8d40",
+          "json_pointer": "/new_analyses"
+        }
+      },
+      "unsent_direction_scope_correction": {
+        "status": "completed_operator_correction_of_known_unsent_requests",
+        "scientific_validation_claimed": false,
+        "purpose": "Replace six verified unsent broad-scope/wrong-direction pending requests through the existing AnalysisService.start(defer_on_budget=True); retain original fixed inputs and receipts, block superseded originals and record linked replacements. This does not replay unknown calls.",
+        "non_author_review": "accepted_read_only_no_concrete_issue",
+        "script": {
+          "path": "/tmp/bioradar-kdd-20261030/replace-unsent-automatic-requests.py",
+          "sha256": "5da02cef602b8eca2d9e67a452776b29467c0e2de315887354d9bb6487e0c2bc"
+        },
+        "inspection": {
+          "path": "/tmp/bioradar-kdd-20261030/automatic-pending-direction-inspection.json",
+          "sha256": "78e954877d5f81e6e0f9567003ff7336aa3529f3fc55b3b26d7cc35f7f3eed1e"
+        },
+        "observed_receipt_at": "2026-10-30T14:08:07.695777+00:00",
+        "recorded_replacement_count": 6,
+        "model_requests_from_script": 0,
+        "evidence": {
+          "path": "/tmp/bioradar-kdd-20261030/automatic-pending-replacement.json",
+          "sha256": "e20649c59bc16e55e6c4737ba42240908680206420c764c5e40bb67be516a23d"
+        },
+        "replacements": [
+          {
+            "old_analysis_id": "53908ac9-e233-4ff0-912d-b80307dc3fac",
+            "new_analysis_id": "768d3067-fd74-498f-8622-a2b3cb5e32bf",
+            "old_state": "blocked",
+            "new_state": "queued",
+            "pending_budget": true,
+            "direction": "research",
+            "old_fixed_unchanged": true,
+            "old_calls": 0,
+            "new_calls": 0
+          },
+          {
+            "old_analysis_id": "d18dd1b0-4a4b-48a6-8801-55711aa50699",
+            "new_analysis_id": "d6dafe21-c26a-4730-859a-bb41041b5ed4",
+            "old_state": "blocked",
+            "new_state": "queued",
+            "pending_budget": true,
+            "direction": "research",
+            "old_fixed_unchanged": true,
+            "old_calls": 0,
+            "new_calls": 0
+          },
+          {
+            "old_analysis_id": "83d091f3-f602-4dbd-b8b8-73ab452ffb05",
+            "new_analysis_id": "7b481f2f-90d7-4e20-85cf-74e01a4022f8",
+            "old_state": "blocked",
+            "new_state": "queued",
+            "pending_budget": true,
+            "direction": "pipeline",
+            "old_fixed_unchanged": true,
+            "old_calls": 0,
+            "new_calls": 0
+          },
+          {
+            "old_analysis_id": "8e92bd74-8cad-4b65-9f0e-9e4693d4f3a5",
+            "new_analysis_id": "a19f9cb6-ac55-4ec7-a8f4-e07b634b5ea7",
+            "old_state": "blocked",
+            "new_state": "queued",
+            "pending_budget": true,
+            "direction": "pipeline",
+            "old_fixed_unchanged": true,
+            "old_calls": 0,
+            "new_calls": 0
+          },
+          {
+            "old_analysis_id": "44ba5d0c-1fb7-4074-ba7b-2eda0c451bff",
+            "new_analysis_id": "4d93f19d-386e-49c0-bfd2-4e6543e31361",
+            "old_state": "blocked",
+            "new_state": "queued",
+            "pending_budget": true,
+            "direction": "business",
+            "old_fixed_unchanged": true,
+            "old_calls": 0,
+            "new_calls": 0
+          },
+          {
+            "old_analysis_id": "6496e434-c61a-43f4-acb6-4f87476971ec",
+            "new_analysis_id": "c3af07b8-8427-4b77-a9a5-b6827350a3a5",
+            "old_state": "blocked",
+            "new_state": "queued",
+            "pending_budget": true,
+            "direction": "business",
+            "old_fixed_unchanged": true,
+            "old_calls": 0,
+            "new_calls": 0
+          }
+        ],
+        "direction_counts": {
+          "research": 2,
+          "pipeline": 2,
+          "business": 2
+        },
+        "all_replacements_queued_and_manual_budget_pending": true,
+        "automatic_acceptance_case": false
+      }
+    },
+    "recorded_required_checks": {
+      "checks": [
+        {
+          "command": "make lint",
+          "returncode": 0,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/final-make-lint.log",
+            "sha256": "4d4a3f4db51fc00d550fed1a88e3c56c0455155023d3c8f6e370c0e0bcb94c05"
+          }
+        },
+        {
+          "command": "make contract-check",
+          "returncode": 0,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/final-make-contract-check.log",
+            "sha256": "acce2b1a026c0bc8533df7a1c01c4ee3606fceb80f127898ffa3f3b776b10958"
+          }
+        },
+        {
+          "command": "make test CARD=BOOT",
+          "returncode": 0,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/final-make-boot.log",
+            "sha256": "89d698afe0df3cb470863324b45bed0f8d489775a97fbba31db1c94b26de7237"
+          },
+          "passed": 43,
+          "skipped": 0,
+          "deselected": 988
+        },
+        {
+          "command": "make web-check",
+          "returncode": 0,
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/final-make-web-check.log",
+            "sha256": "0f767fcfae73bf1c221bbaae7868604d80b79f5c5254d59382aae9bdab70fb9f"
+          },
+          "chain": [
+            "npm ci",
+            "generate",
+            "vue-tsc --noEmit",
+            "vite build"
+          ]
+        }
+      ],
+      "qualification": "Full required commands previously completed. After the final affected source/contract changes, lint, contract-check and BOOT were rerun and passed; Node22 generation, typecheck and build passed. No unrelated or paid matrix was repeated.",
+      "final_affected_checks": {
+        "started_at": "2026-10-30T14:17:57.360766+00:00",
+        "reason": "Final required affected checks after SEC contract/selection and fixed source scope changes",
+        "checks": [
+          {
+            "check": "lint",
+            "returncode": 0,
+            "log": "/tmp/bioradar-kdd-20261030/release-lint.log"
+          },
+          {
+            "check": "contract-check",
+            "returncode": 0,
+            "log": "/tmp/bioradar-kdd-20261030/release-contract-check.log"
+          },
+          {
+            "check": "boot",
+            "returncode": 0,
+            "log": "/tmp/bioradar-kdd-20261030/release-boot.log"
+          }
+        ],
+        "completed_at": "2026-10-30T14:18:02.060805+00:00"
+      },
+      "final_affected_check_evidence": [
+        {
+          "path": "/tmp/bioradar-kdd-20261030/release-lint.log",
+          "sha256": "1ec01ec9eba58541491f64057bcfb455ded09900bfbda4d11206606fc98118f8"
+        },
+        {
+          "path": "/tmp/bioradar-kdd-20261030/release-contract-check.log",
+          "sha256": "f753cfe77c034eefae726fd486ede727defb13647f20d6925e48369e82ce0285"
+        },
+        {
+          "path": "/tmp/bioradar-kdd-20261030/release-boot.log",
+          "sha256": "dbaf0d2443e30612334eb1c0f43568f6f2e98d11cfe53dc413db7f14f88285dd"
+        }
+      ],
+      "final_boot": {
+        "passed": 43,
+        "skipped": 0,
+        "deselected": 1007
+      },
+      "latest_web_generation_typecheck_build": {
+        "path": "/tmp/bioradar-kdd-20261030/incremental-sec-web-node22.json",
+        "sha256": "fa2a5e2c77c49fca0a70cee9b54e70cc8884888a557653c1cbb091cd3b4aaa1e"
+      }
+    },
+    "non_author_reviews": {
+      "existing_review_artifact": {
+        "path": "/tmp/bioradar-kdd-20261030/policy-design-final-reviews.json",
+        "sha256": "8243b5a36a7227cd17d7ec43dc0a44e2ebc0b8ab4bdd5df83f31dd441cc03b8f"
+      },
+      "scientific_delta_evidence": {
+        "path": "/tmp/bioradar-kdd-20261030/kdd-scientific-delta-verification.json",
+        "sha256": "c35386b410e478fbc0da71558312f24743be00bff586458911b88ae8a23187cf"
+      },
+      "recorded_decisions": [
+        {
+          "scope": "professional._completed_mechanism_rpc and optional reserve bypass",
+          "decision": "accepted",
+          "basis": "Only exact frozen provider/current action/phase/ordinal/canonical case+computation refs completed response skips new-work reserve; original loader and execution validation retained."
+        },
+        {
+          "scope": "professional.http_ledger; AnalysisService._policy_budget/_policy_view/_view; assertions.assert_professional_http_accounting",
+          "decision": "accepted",
+          "basis": "Ten allowed identity/count fields only; preparation+route+nonroute known/reserved reconcile without route duplication; HTTP/model unknown states separated; copied read projection does not update row."
+        },
+        {
+          "scope": "AnalysisService._report_context prior_report lines1532-1545",
+          "decision": "accepted",
+          "basis": "New external semantic-v2 scope only; frozen earlier scopes/earlier report calls return first; actual fixed parent full text/sha/status retained and qualified as comparison context, not source evidence."
+        },
+        {
+          "scope": "kdd.material_scope/scope_markdown and focused query-hit/known-failure tests",
+          "decision": "accepted",
+          "basis": "Successful version/rawsha-bound unread hits deduplicate by native version, do not synthesize grant/adoption or count as source failure; system metadata stays outside verified final_text."
+        }
+      ],
+      "latest_session_narrow_reviews": [
+        {
+          "scope": "legacy received-response proof accounting and strict equality checker",
+          "reviewer": "radar_policy_design",
+          "decision": "accepted",
+          "evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/professional-http-ledger-response-basis-final/who01-audit.json",
+            "sha256": "9ab5e7c3c423d1f3d7d5f84dcbf7f7c5e7e960721878e6b1eea11efe8d3395df"
+          }
+        },
+        {
+          "scope": "WHO v4 model projection",
+          "reviewer": "radar_runtime_integration",
+          "decision": "accepted",
+          "basis": "Selected full index, all method calculation basis/statistics/limits/gaps/requirements and exact full-result paths retained; large per-candidate detail is explicitly sampled, not reselected. No new scientific aggregation or budget increase.",
+          "native_contract_evidence": {
+            "path": "/tmp/bioradar-kdd-20261030/who-v4-native-biocheck-validation.json",
+            "sha256": "94cfd35d99bd97f66bdcba1f4a3b5769c64e4c1a9af4661d83b8deabbea5d87c"
+          }
+        },
+        {
+          "scope": "SEC qualified earlier-fixed-period review priority",
+          "reviewer": "radar_runtime_integration",
+          "decision": "accepted_after_two_specific_blocker_corrections",
+          "basis": "The prior acceptance was superseded by concrete metric-version identity and fairness-order findings. Both are now corrected: metric_version remains in series identity, eligible true new_period alone activates new ordering, and the new fairness bucket preserves urgency/new_period/importance while the default path remains the original two keys. Source-bound qualification, value eligibility, scores and complete method results remain unchanged.",
+          "previous_decision": "accepted",
+          "resolved_blockers": [
+            "Keep metric_version in the fixed-prior series identity so different extraction/method versions cannot provide a comparable baseline.",
+            "Enable the new ordering only when a true new_period exists and retain urgency/new_period/importance in fairness buckets; default ranking uses the unchanged original two-key buckets."
+          ],
+          "counterexamples": [
+            {
+              "test": "test_changed_metric_definition_cannot_borrow_prior_version_period_baseline",
+              "proves": "Different metric definitions yield missing_prior_fixed_version_baseline and no new priority."
+            },
+            {
+              "test": "test_no_new_period_mapping_keeps_original_high_importance_fair_buckets",
+              "proves": "Without a mapped new period the selected high/high candidates exactly match the old ordering, without the lower-importance earlier method displacing them."
+            }
+          ],
+          "recorded_regression": {
+            "evidence": {
+              "path": "/tmp/bioradar-kdd-20261030/incremental-priority-regression.log",
+              "sha256": "9395bc77f95a7d7edb52e441943f1d0c79587ef27e4c3a23356f1590122ffd52"
+            },
+            "passed": 3,
+            "skipped": 0,
+            "new_model_calls": 0
+          },
+          "review_method": "Read frozen source, exact two counterexamples and their recorded run only; no matrix rerun or paid call."
+        },
+        {
+          "scope": "six known-unsent pending request correction script",
+          "reviewer": "radar_runtime_integration",
+          "decision": "accepted_read_only",
+          "basis": "Locked zero-call/zero-query/no-lease/no-result checks; immutable old input retained; original dispatch disabled, replacement source/direction and pending/zero-call checks, linked operator audit. No unknown call replay."
+        },
+        {
+          "scope": "fixed snapshot source version/read scope projection",
+          "reviewer": "radar_runtime_integration",
+          "decision": "accepted",
+          "basis": "ensure_artifacts checkpoints the full fixed snapshot version references outside current-head computation artifacts. Legacy GET reads only the already-authorized frozen snapshot references and passes them into the view without updating the row. material_scope counts the native source/id/version union and actual reads, deduplicates grant aliases, and retains superseded originals as unread. Existing saved report scopes and prior BioCheck inputs return unchanged; only newly built model projections omit query action bookkeeping.",
+          "counterexample": "test_full_fixed_versions_include_superseded_inputs_without_rewriting_saved_model_scope",
+          "recorded_regression": {
+            "evidence": {
+              "path": "/tmp/bioradar-kdd-20261030/fixed-source-scope-pure.log",
+              "sha256": "f4f55167db917b3678dbb0eb40556e6c1a94f05103c1810575b74102cb3d0e29"
+            },
+            "passed": 2,
+            "skipped": 0,
+            "qualification": "The same log retains an earlier lint failure; final corrected lint/diff evidence is recorded separately."
+          },
+          "final_lint_and_diff": {
+            "path": "/tmp/bioradar-kdd-20261030/fixed-source-scope-lint-final.log",
+            "sha256": "d77382b083bbc40a9e0d41b7c303b3c806ab162bd7e22d704326815bde3e7af6"
+          },
+          "runtime_api_count_change_claimed": false,
+          "scientific_algorithm_or_saved_report_body_changed": false,
+          "new_model_calls": 0
+        }
+      ],
+      "reviewed_source_sha256": {
+        "professional_runtime": [
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/adapters/professional_rpc.py",
+            "sha256": "6cbae40398a52a4704ded182e8b197c8647a738dcaae5a265accdb6d403c2004"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/investigations/professional.py",
+            "sha256": "3b81eabad5897f07f064779f90daad77eddb5fb3b76ca5da23a40b0077ccf335"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/investigations/analysis_service.py",
+            "sha256": "8e5cfcfb9c888afe8c9d48998171466c76fad44fda8a04c395f0780797ff6138"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/scripts/query_policy_assertions.py",
+            "sha256": "6e0dc648464ad3fcba2028fe5b41417a8854dd6167dfe6e5218d67ddeea6005b"
+          }
+        ],
+        "sec_incremental_priority": [
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/mining/incremental.py",
+            "sha256": "353e67a05196428fb89d97bc82d17fc12501f3c3e4475b5a77d4dc523e2948a6"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/mining/evaluation.py",
+            "sha256": "71d9cc0dbab1372158782c9b244c6d902d41bef73bddb89a1f2869e323618a43"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/mining/runner.py",
+            "sha256": "7894aafc9895cfb31e8bef346efb63b1fd59f7dd1f19ce278873bbb5b60f4f89"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/mining/models.py",
+            "sha256": "eaeee30da352d6e18e90c4570401a1a9df0a7cf375f115459979f7e8fa2e49ec"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/monitor/service.py",
+            "sha256": "7cf1625c7adb8475d2232ca41a5de6b8149eaa1538b3887e987ff6fda506c4ac"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/tests/test_kdd_incremental_priority.py",
+            "sha256": "6c63f4e10a5689c93b47cf7f576debbeeb44b50311f10cb1a7028c9c29212b9d"
+          }
+        ],
+        "who_model_projection": [
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/investigations/kdd.py",
+            "sha256": "344122c87017515dc486106e817ca996a27d482217be615aa42634686b1742a4"
+          }
+        ],
+        "fixed_source_version_scope_projection": [
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/investigations/kdd.py",
+            "sha256": "2d32a19d9b3590fd126d4b8d329448a824c9b1587a96f6976598c5291194ddb4"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/services/bioradar/research/investigations/analysis_service.py",
+            "sha256": "925254b435a47291856f7f61f936b106384e4f042bead263f2ee47b4667c5ddf"
+          },
+          {
+            "path": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar/tests/test_material_scope_query_hits.py",
+            "sha256": "4ee2e18ff3e638965763b28af01ba6bdb8b8f1b45c0dcbc3870df139a0eb6724"
+          }
+        ]
+      },
+      "qualification": "Non-author engineering and scientific-boundary review is not independent scientific outcome grading."
+    },
+    "remaining_coordinator_work": [],
+    "scientific_limitations": [
+      "KDD descriptive patterns, relevance or review priority do not prove causal effect, trial failure, successful mechanism or future events.",
+      "Native registration records are not automatically confirmed drug projects; partial conditions and fixed versions are deduplicated with strict time ordering.",
+      "Research evidence balance without explicit shared claim/intervention and reviewed independent study mappings remains unsupported rather than pooled as independent positive/negative evidence.",
+      "Metric comparisons preserve source/subject/unit/reporting scope and actual half-open date interval basis; missing denominators do not yield inferred rates.",
+      "Public-health notice counts describe only adopted publication scope; missing month precision, disease/region mapping or epidemiological denominators remain explicit.",
+      "Reports with FAIL, REVIEW, failed, unknown or NOT_RUN are retained in those states; no complete scientific approval or predictive score is inferred."
+    ],
+    "updated_at": "2026-10-30T14:26:23.657523+00:00",
+    "completed_at": "2026-10-30T14:26:23.657523+00:00",
+    "previous_latest_verification": {
+      "checked_at": "2026-10-30T07:41:54.881707+00:00",
+      "status": "isolated_engineering_verified_scientific_review_required",
+      "details": "query_policy_integration_20261030",
+      "source_roots": {
+        "radar": "/home/zk_test/zk_projects/.bioradar-query-integration/radar"
+      },
+      "scope": "Isolated real first/follow-up/automatic reports plus targeted PostgreSQL/RQ/HTTP and browser readback; scientific and incomplete scopes retained.",
+      "deployment_evidence": "No production deployment claimed by this verification."
+    },
+    "deployment_boundary": "All implementation and acceptance changes are in the isolated zktest worktree. Production main, production database and Fabric branch were not merged or switched. Coordinator performs final packaging/deployment separately.",
+    "documentation": {
+      "path": "/tmp/bioradar-kdd-20261030/final-four-doc-facts.json",
+      "sha256": "25a7dcd78626ea4bc317e1777f8db7281dffe3b8d098bd49d7c522df97554c3b",
+      "files": [
+        "README.md",
+        "docs/开发说明.md",
+        "docs/开发分工.md",
+        "docs/接口说明.md",
+        "docs/资产盘点.md"
+      ]
+    }
   }
 }

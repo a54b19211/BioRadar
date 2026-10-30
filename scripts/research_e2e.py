@@ -38,6 +38,61 @@ DEFAULT_FOLLOWUP = (
 )
 
 
+def expected_report_markdown(view):
+    """System scope is outside the unchanged verified body; v1 stays byte-for-byte exact."""
+    body = view["result"]["report"]["final_text"]
+    scope = (view.get("progress") or {}).get("material_scope")
+    if scope is None:
+        return body
+    assert isinstance(scope, dict), "invalid material scope"
+    assert all(
+        type(scope.get(key)) is int and scope[key] >= 0
+        for key in ("fixed_version_count", "read_version_count")
+    ), "invalid material scope counts"
+    assert scope["read_version_count"] <= scope["fixed_version_count"], "read count exceeds fixed scope"
+    assert scope.get("read_scope") == "selected_passages_not_full_documents", "unknown reading scope"
+    assert isinstance(scope.get("unread_versions"), list), "missing unread versions"
+    assert isinstance(scope.get("source_failures"), list), "missing source failures"
+    lines = [
+        "## 本轮资料范围（系统记录）",
+        "",
+        f"固定资料 {scope['fixed_version_count']} 个版本；"
+        f"研判实际读取其中 {scope['read_version_count']} 个版本的选定片段。",
+        "这些数字不是全文阅读量、独立研究数或全领域覆盖率。",
+    ]
+    if scope["unread_versions"]:
+        labels = []
+        for item in scope["unread_versions"]:
+            assert all(
+                isinstance(item.get(key), str) and item[key]
+                for key in ("source_id", "source_record_id", "version_id")
+            ), "invalid unread version identity"
+            labels.append(item["source_id"] + ":" + item["source_record_id"])
+        lines.append("未进入本轮原文片段：" + "；".join(labels) + "。")
+    unread_hits = [item for item in scope["unread_versions"] if item.get("query_hit")]
+    if unread_hits:
+        labels = []
+        for item in unread_hits:
+            label = item["source_id"] + ":" + item["source_record_id"]
+            reason = item.get("adoption_stop_reason")
+            if reason:
+                description = "本轮原文片段容量已满" if reason == "analysis_evidence_budget" else reason
+                label += "（" + description + "；" + reason + "）"
+            labels.append(label)
+        lines.append("成功补查命中但未读：" + "；".join(labels) + "。")
+    if scope["source_failures"]:
+        labels = []
+        for item in scope["source_failures"]:
+            assert isinstance(item.get("status"), str) and item["status"], "invalid source failure"
+            labels.append(
+                (item.get("source_id") or item.get("provider") or "")
+                + ":"
+                + (item.get("error_code") or item["status"])
+            )
+        lines.append("补查未完成：" + "；".join(labels) + "。")
+    return "\n".join(lines) + "\n\n---\n\n" + body
+
+
 def read_resume(path):
     prior = json.loads(path.read_text())
     created = prior.get("created", {}) if isinstance(prior, dict) else {}
@@ -120,9 +175,11 @@ class ResearchExercise:
         settings = Settings()
         database = urlsplit(settings.database_url.get_secret_value()).path
         if settings.environment != "test" or not database.startswith(
-            ("/bioradar_research_", "/bioradar_query_")
+            ("/bioradar_research_", "/bioradar_query_", "/bioradar_kdd_")
         ):
-            raise ValueError("Use an isolated bioradar_research_* or bioradar_query_* acceptance database")
+            raise ValueError(
+                "Use an isolated bioradar_research_*, bioradar_query_* or bioradar_kdd_* acceptance database"
+            )
         if urlsplit(url).hostname not in {"localhost", "127.0.0.1"}:
             raise ValueError("Use the local acceptance API")
         self.prior_state = prior
@@ -202,12 +259,15 @@ class ResearchExercise:
             time.sleep(3)
         raise TimeoutError("Read the saved analysis before attempting another run")
 
-    def check_report(self, view):
+    def check_report(self, view, *, require_search=True):
         policy_summary = assert_query_policy(view, expected_policy=self.policy)
         self.state.setdefault("policy_traces", {})[view["id"]] = policy_summary
         self.check(True, "receipt_driven_query_policy_trace_is_complete")
         self.check(bool(view["evidence"]), "retrieved_and_adopted_real_evidence")
-        self.check(any(query["status"] == "read" for query in view["queries"]), "real_search_completed")
+        if require_search:
+            self.check(any(query["status"] == "read" for query in view["queries"]), "real_search_completed")
+        else:
+            self.check(True, "fixed_material_report_does_not_require_a_new_query")
         self.check(
             any(call.get("receipt", {}).get("status") == "completed" for call in view["calls"]),
             "real_model_receipts_saved",
@@ -247,9 +307,17 @@ class ResearchExercise:
         )
         path = f"/api/engine/investigations/{view['investigation_id']}/analyses/{view['id']}/export"
         exported = self.call("GET", path + "?format=markdown").text
-        self.check(exported == report["final_text"], "markdown_is_exact_saved_report")
+        self.check(
+            exported == expected_report_markdown(view),
+            "markdown_is_exact_system_scope_and_saved_report",
+        )
         exported_json = self.call("GET", path).json()["analysis"]
         self.check(exported_json["result"] == result, "json_export_is_same_saved_result")
+        self.check(
+            (exported_json.get("progress") or {}).get("material_scope")
+            == (view.get("progress") or {}).get("material_scope"),
+            "json_export_preserves_exact_material_scope",
+        )
         self.check(
             exported_json.get("query_policy") == view["query_policy"], "export_preserves_exact_policy_trace"
         )

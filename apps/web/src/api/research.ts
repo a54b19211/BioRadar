@@ -35,7 +35,28 @@ export interface ResearchQuestionSubmission {
   query_policy?: "baseline" | "query_planner";
 }
 
+export interface ResearchMaterialScope {
+  fixed_version_count: number;
+  read_version_count: number;
+  read_scope: "selected_passages_not_full_documents";
+  unread_versions: {
+    source_id: string;
+    source_record_id: string;
+    version_id: string;
+    query_hit?: boolean;
+    adoption_stop_reason?: string | null;
+  }[];
+  source_failures: {
+    provider?: string | null;
+    source_id?: string | null;
+    status: string;
+    error_code?: string | null;
+  }[];
+  qualification: string;
+}
+
 export interface ResearchProgress {
+  material_scope?: ResearchMaterialScope | null;
   stage?: string;
   started_at?: string | null;
   updated_at?: string | null;
@@ -109,6 +130,9 @@ export interface ResearchReportRound {
 }
 
 export interface ResearchReport {
+  generation_error?: string | null;
+  verification_error?: string | null;
+  error_code?: string | null;
   text_sha256?: string;
   quality_feedback?: ResearchQualityFeedback | null;
   unsearched_gaps?: unknown[];

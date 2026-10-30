@@ -44,6 +44,8 @@ def snapshot_hash(snapshot: NormalizedSnapshot) -> str:
     # Precise compatibility for the nullable provenance facet introduced after
     # the first adopted v1 snapshot. Non-null facet evidence always changes hash.
     for record in value["records"]:
+        if not record.get("metric_observations"):
+            record.pop("metric_observations", None)
         if record["labels"].get("provenance") is None:
             record["labels"].pop("provenance", None)
     value["coverage"] = sorted(value["coverage"], key=canonical_hash)

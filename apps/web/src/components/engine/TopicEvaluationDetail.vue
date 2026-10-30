@@ -3,6 +3,7 @@ import { onUnmounted, ref } from "vue";
 import { ElButton } from "element-plus";
 import { engineRequest } from "../../api/engine";
 import { topicGapLabel } from "../../api/topicLabels";
+import { facts, readable } from "../../api/kdd";
 import type { components } from "../../api/generated/engine";
 
 type Evaluation = components["schemas"]["TopicEvaluation"];
@@ -143,6 +144,7 @@ onUnmounted(() => {
           </dd>
         </div>
       </dl>
+      <p class="muted">本版进入计算 {{ evaluation.coverage.evaluated_records }} 条；特征不足 {{ evaluation.coverage.limited_feature_records }} 条。进入窗口表示参与计算，不表示所有方法均适用。</p>
       <p
         v-if="!evaluation.coverage.original_source_coverage_known"
         class="notice"
@@ -171,8 +173,12 @@ onUnmounted(() => {
             {{ question }}
           </li>
         </ul>
+        <p class="muted"><strong>适用资格：</strong>{{ readable(signal.qualification) }}</p>
+        <dl v-if="facts(signal.details).length" class="coverage-grid">
+          <div v-for="item in facts(signal.details)" :key="item.key"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></div>
+        </dl>
         <details>
-          <summary>计算依据</summary>
+          <summary>原始计算字段与证据编号</summary>
           <p>
             用于该线索的材料单位：{{
               signal.support_units

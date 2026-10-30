@@ -10,7 +10,9 @@ from bioradar.api.errors import DomainError
 from bioradar.research.engine.auth import DevelopmentAccess
 from bioradar.research.investigations.graph import GraphBundle, GraphNeighborhood, validate_neighborhood
 from bioradar.research.mining.models import (
+    GraphHint,
     MiningEntity,
+    ProviderRef,
     Relation,
     SectionProvenance,
     SnapshotCoverage,
@@ -33,6 +35,7 @@ def graph_reader(settings):
             max_records=24,
             max_bytes=8_000_000,
             max_seconds=60,
+            source_instance=settings.data_fabric_source_instance,
         )
 
 
@@ -379,3 +382,87 @@ def list_graph_packages(reader, *, source_id, is_demo, cutoff, limit=20, cursor=
         )
     except (KeyError, TypeError, ValueError):
         raise history_error() from None
+
+
+def project_graph_hints(reader, graph_record, bundle, *, engine_record=None, documents=(), neighborhood=None):
+    """Project actual fixed graph claims for followup without promoting review status."""
+    bundle = GraphBundle.model_validate(bundle)
+    if engine_record is None:
+        snapshot = reader.snapshot(
+            {
+                "items": [graph_record],
+                "source_id": graph_record["source_id"],
+                "is_demo": graph_record["is_demo"],
+                "coverage": {},
+            }
+        )
+        if snapshot is None:
+            raise history_error()
+        engine_record = snapshot.records[0]
+    graph_ref = reader.ref(graph_record)
+    if engine_record.record_ref.version_key != graph_ref.version_key:
+        raise history_error()
+    nodes = {node.key: node for node in (neighborhood.nodes if neighborhood else bundle.nodes)}
+    edges = neighborhood.edges if neighborhood else bundle.edges
+    originals = {
+        (value["source_id"], value["source_record_id"], value["version_id"]): value for value in documents
+    }
+    hints, attached = [], {ref.version_key: ref for ref in engine_record.evidence_refs}
+    for edge in edges:
+        subject, target = nodes[edge.source.key], nodes[edge.target.key]
+        terms = []
+        for node in (subject, target):
+            literals = [value for value in node.external_ids.values() if isinstance(value, str)] or [
+                node.name
+            ]
+            for literal in literals:
+                if 2 <= len(literal.strip()) <= 120 and literal not in terms:
+                    terms.append(literal)
+        references = []
+        for citation in edge.evidence:
+            document = originals.get(citation.key)
+            if document and document["raw_sha256"] == citation.raw_sha256:
+                text, locator = document["clean_text"], citation.locator
+                if locator.end <= len(text) and text[locator.start : locator.end] == citation.quote:
+                    ref = reader.ref(document)
+                    references.append(ref)
+                    attached[ref.version_key] = ref
+        hint_ref = ProviderRef.model_validate(
+            {
+                **graph_ref.model_dump(mode="json"),
+                "object_type": "graph_relation_hint",
+                "object_id": canonical_hash([bundle.namespace, edge.id]),
+            }
+        )
+        hints.append(
+            GraphHint(
+                hint_ref=hint_ref,
+                subject_id=subject.wire,
+                subject_label=subject.name,
+                relation_type=edge.relation_type,
+                object_id=target.wire,
+                object_label=target.name,
+                identity_statuses=(subject.identity_status, target.identity_status),
+                review_status=edge.review.status,
+                declared_binding_status=edge.binding_status,
+                originals_validated=bool(edge.evidence) and len(references) == len(edge.evidence),
+                query_terms=tuple(terms[:6]),
+                evidence_refs=tuple(references),
+                scope_description=bundle.scope_description,
+                selection_truncated=bundle.selection_truncated
+                or bool(neighborhood and neighborhood.coverage.truncated),
+                provenance=SectionProvenance(
+                    schema_version="datafabric.graph.hint.v1",
+                    provider_ref=graph_ref,
+                    available_at=time_upper(
+                        graph_record.get("received_at") or graph_record.get("first_seen_at")
+                    ),
+                ),
+            )
+        )
+    return engine_record.model_copy(
+        update={
+            "graph_hints": tuple(hints),
+            "evidence_refs": tuple(attached[key] for key in sorted(attached)),
+        }
+    )

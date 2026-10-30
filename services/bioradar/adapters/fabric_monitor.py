@@ -90,7 +90,7 @@ def expression(value):
     )
 
 
-def project_record(reader, record, *, as_of, bootstrap=False):
+def project_record(reader, record, *, as_of, bootstrap=False, kdd=False):
     """Native registration identity is not a drug/program or independent-study claim."""
     collection = {
         "items": [record],
@@ -117,7 +117,12 @@ def project_record(reader, record, *, as_of, bootstrap=False):
         flags.add("retracted")
     clean = record["clean_text"]
     for field in ("summary", "brief_summary", "abstract"):
-        if record["source_id"] != "who_don" and isinstance(facts.get(field), str) and facts[field].strip():
+        if (
+            not kdd
+            and record["source_id"] != "who_don"
+            and isinstance(facts.get(field), str)
+            and facts[field].strip()
+        ):
             clean = facts[field]
             break
     provenance = SectionProvenance(
@@ -217,7 +222,7 @@ def project_record(reader, record, *, as_of, bootstrap=False):
                 provenance=provenance,
             )
         )
-    return result.model_copy(
+    projected = result.model_copy(
         update={
             "ingestion_mode": "fixture"
             if record["is_demo"]
@@ -239,6 +244,9 @@ def project_record(reader, record, *, as_of, bootstrap=False):
             },
         }
     )
+    from bioradar.adapters.fabric_kdd import enrich_record
+
+    return enrich_record(reader, record, projected, as_of=as_of)
 
 
 def build_snapshot(records, *, is_demo, as_of, omitted=0):

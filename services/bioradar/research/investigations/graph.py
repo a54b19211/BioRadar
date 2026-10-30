@@ -104,13 +104,20 @@ class GraphEvidence(GraphDocumentRef):
     locator: GraphLocator
 
 
+class GraphFieldEvidence(GraphDocumentRef):
+    json_pointer: str = Field(min_length=1, max_length=2000, pattern=r"^/")
+    value: Any
+
+
 class GraphNode(GraphIdentity):
     entity_type: str = Field(min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=1000)
     aliases: tuple[str, ...] = ()
     external_ids: dict[str, Any] = Field(default_factory=dict)
-    identity_status: Literal["confirmed", "unresolved", "background"]
+    identity_status: Literal["confirmed", "rule_confirmed", "unresolved", "background"]
     identity_review_basis: str | None = None
+    identity_rule: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
+    field_evidence: tuple[GraphFieldEvidence, ...] = Field(default=(), exclude_if=lambda value: not value)
     review: GraphReview
     mention_ids: tuple[str, ...] = ()
     evidence: tuple[GraphEvidence, ...] = ()
@@ -130,6 +137,7 @@ class GraphEdge(FrozenModel):
     evidence: tuple[GraphEvidence, ...] = ()
     source_doc_uuid: str | None = None
     unbound_reason: str | None = None
+    field_evidence: tuple[GraphFieldEvidence, ...] = Field(default=(), exclude_if=lambda value: not value)
 
     @field_validator("directed", mode="before")
     @classmethod
@@ -153,7 +161,9 @@ class GraphBundle(FrozenModel):
     namespace: TextId
     is_demo: bool
     title: str = Field(min_length=1, max_length=1000)
-    origin: Literal["legacy_reviewed_export", "primekg_current_capture", "explicit_demo"]
+    origin: Literal[
+        "legacy_reviewed_export", "primekg_current_capture", "source_field_projection", "explicit_demo"
+    ]
     scope_description: str = Field(min_length=1, max_length=4000)
     selected_document_uuids: tuple[str, ...] = ()
     scope_record_ids: tuple[str, ...] = ()
@@ -183,13 +193,28 @@ class GraphBundle(FrozenModel):
                 node.review.status != "approved" or not node.identity_review_basis
             ):
                 raise ValueError("confirmed graph identity requires the provider review basis")
+            if node.identity_status == "rule_confirmed":
+                rule = node.identity_rule or {}
+                if (
+                    self.origin != "source_field_projection"
+                    or node.review.status != "rule_confirmed"
+                    or not rule.get("method_version")
+                    or rule.get("namespace") != node.namespace
+                    or rule.get("value") != node.id
+                    or not node.identity_review_basis
+                ):
+                    raise ValueError("rule-confirmed identity requires an explicit native-field rule")
+                basis = GraphFieldEvidence.model_validate(rule.get("basis"))
+                bound = documents.get(basis.key)
+                if bound is None or bound.raw_sha256 != basis.raw_sha256 or basis.value != node.id:
+                    raise ValueError("native identity rule is not bound to its fixed source value")
         for edge in self.edges:
             if edge.source.key not in nodes or edge.target.key not in nodes:
                 raise ValueError("edge endpoint outside the fixed graph package")
-            if edge.binding_status == "bound" and not edge.evidence:
+            if edge.binding_status == "bound" and not edge.evidence and not edge.field_evidence:
                 raise ValueError("bound relationship lacks a document quotation")
         for owner in (*self.nodes, *self.edges):
-            for evidence in owner.evidence:
+            for evidence in (*owner.evidence, *owner.field_evidence):
                 bound = documents.get(evidence.key)
                 if bound is None or bound.raw_sha256 != evidence.raw_sha256:
                     raise ValueError("relationship evidence is not a declared document version")
@@ -734,7 +759,9 @@ def run_graph_investigation(engine, actor, reader, request, *, execution_id, cli
     )
     report["qualification_gaps"].extend((*bundle.limitations, *neighborhood.limitations))
     if bundle.graph_kind == "background":
-        report["qualification_gaps"].append("background_graph_is_received_context_not_external_past_proof_or_document_evidence")
+        report["qualification_gaps"].append(
+            "background_graph_is_received_context_not_external_past_proof_or_document_evidence"
+        )
     if any(node.identity_status != "confirmed" for node in neighborhood.nodes):
         report["qualification_gaps"].append("unconfirmed_or_background_graph_identities")
     if any(edge.binding_status != "bound" for edge in neighborhood.edges):

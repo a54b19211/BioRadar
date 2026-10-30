@@ -113,6 +113,8 @@ const canStart = computed(() =>
   props.investigation.status === "open" && !props.busy && !props.loading && !writing.value &&
   !list.value.items.some((item) => ["queued", "running"].includes(item.state)),
 );
+const materialScope = computed(() => selected.value?.progress?.material_scope ?? null);
+const unreadQueryHits = computed(() => materialScope.value?.unread_versions.filter(item => item.query_hit) ?? []);
 const researchOptions = computed<ResearchOptions | null>(() => list.value ? {
   enabled: list.value.enabled,
   configured: list.value.configured,
@@ -329,6 +331,10 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
         <ElButton v-if="!readOnly && list?.items.length" :loading="writing" :disabled="!canStart" @click="startAnalysis()">按当前材料更新</ElButton>
       </div>
     </div>
+    <p v-if="investigation.origin" class="muted">
+      本调查源自一条固定计算候选；模式依据、价值筛选和审阅容量在原计算中保留。
+      <RouterLink :to="{ path: '/radar', query: { run: investigation.origin.run_id, candidate: investigation.origin.candidate_key } }">返回该模式与本轮筛选</RouterLink>
+    </p>
     <p v-if="error" class="error-panel no-print" role="alert">{{ error }}</p>
     <p v-if="list && (!list.enabled || !list.configured)" class="notice">
       {{ unavailableLabels[list.unavailable_reason || ""] || list.unavailable_reason || "研究模型当前不可用；已有材料和报告仍可阅读。" }}
@@ -363,6 +369,33 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
         <details v-if="selected.error_code"><summary>查看停止代码</summary><small>{{ selected.error_code }}</small></details>
         <ElButton v-if="!readOnly" class="no-print" :loading="writing" :disabled="!canStart" @click="startAnalysis(selected.id)">重新研究</ElButton>
       </div>
+      <section v-if="materialScope" class="material-scope notice" aria-label="本轮资料阅读范围">
+        <h3>本轮资料范围（系统记录）</h3>
+        <p><strong>固定资料 {{ materialScope.fixed_version_count }} 个版本；实际读取其中 {{ materialScope.read_version_count }} 个版本的选定片段。</strong></p>
+        <p class="material-scope-counts">未进入本轮原文片段：{{ materialScope.unread_versions.length }} 个版本；补查未完成：{{ materialScope.source_failures.length }} 次。</p>
+        <p>这些数字不是全文阅读量、独立研究数或全领域覆盖率。未读材料与失败补查不代表没有相关证据。</p>
+        <p v-if="unreadQueryHits.length" class="material-scope-counts">
+          成功补查命中但未读：{{ unreadQueryHits.length }} 个固定版本。
+          <span v-if="unreadQueryHits.some(item => item.adoption_stop_reason === 'analysis_evidence_budget')">本轮原文片段容量已满，这些命中未进入已读证据。</span>
+        </p>
+        <p v-if="materialScope.qualification" class="muted">{{ materialScope.qualification }}</p>
+        <details v-if="materialScope.unread_versions.length || materialScope.source_failures.length" class="no-print">
+          <summary>查看未读版本与未完成补查</summary>
+          <ul v-if="materialScope.unread_versions.length">
+            <li v-for="item in materialScope.unread_versions" :key="[item.source_id, item.source_record_id, item.version_id].join(':')">
+              未进入原文片段 · {{ sourceLabels[item.source_id] || item.source_id }} · {{ item.source_record_id }} · 固定版本 {{ item.version_id }}
+              <span v-if="item.query_hit"> · 成功补查命中，尚未进入已读片段</span>
+              <small v-if="item.adoption_stop_reason"> · {{ item.adoption_stop_reason === 'analysis_evidence_budget' ? '本轮原文片段容量已满' : item.adoption_stop_reason }}</small>
+            </li>
+          </ul>
+          <ul v-if="materialScope.source_failures.length">
+            <li v-for="(item, index) in materialScope.source_failures" :key="index">
+              补查未完成 · {{ sourceLabels[item.source_id || ''] || item.source_id || item.provider || '来源未记录' }}
+              · {{ queryLabels[item.status] || item.status }}<template v-if="item.error_code"> · {{ item.error_code }}</template>
+            </li>
+          </ul>
+        </details>
+      </section>
       <MachineAnalysisResult :analysis="selected" @source="readSource" />
       <details v-if="selected.initial_draft" :open="!selected.result" class="initial-draft">
         <summary>修订前的分析与发现的问题</summary>
@@ -447,6 +480,9 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
 .analysis-history .history-item { max-width: 100%; width: auto; }
 .analysis-history .history-item small { display: block; margin-top: .2rem; }
 .research-queries { margin: 18px 0; }
+.material-scope { margin: 20px 0; border-inline-start: 4px solid #a56414; break-inside: avoid; }
+.material-scope h3 { margin-top: 0; }
+.material-scope-counts { font-weight: 600; }
 .machine-analysis-panel > .research-question-form { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--el-border-color); }
 @media print { .machine-analysis-panel { border: 0; box-shadow: none; } }
 </style>

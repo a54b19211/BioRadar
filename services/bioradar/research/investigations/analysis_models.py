@@ -42,6 +42,9 @@ class QuestionAsk(RuntimeModel):
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
     query_policy: Literal["baseline", "query_planner"] | None = None
+    kdd_direction: Literal["research", "pipeline", "business", "public_health"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
 
 
 class AnalysisCreate(RuntimeModel):
@@ -52,6 +55,9 @@ class AnalysisCreate(RuntimeModel):
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
     query_policy: Literal["baseline", "query_planner"] | None = None
+    kdd_direction: Literal["research", "pipeline", "business", "public_health"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     retry_of_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     parent_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     material_entry_ids: list[str] = Field(default_factory=list, max_length=10)
@@ -281,13 +287,15 @@ class AnalysisResult(RuntimeModel):
 class AnalysisQueryReceipt(RuntimeModel):
     index: int
     phase: Literal["initial", "followup"] = "followup"
-    provider: Literal["fabric", "weknora", "graph", "fabric_graph"] = "fabric"
+    provider: Literal["fabric", "weknora", "graph", "fabric_graph", "radar", "professional"] = "fabric"
     kind: str = "document_search"
     action_id: str | None = None
     semantic_key: str | None = None
     decision_step: int | None = None
     cost: dict | None = None
     graph_context: dict | list | None = None
+    artifact_refs: list[dict] = Field(default_factory=list, exclude_if=lambda value: not value)
+    check_updates: list[dict] = Field(default_factory=list, exclude_if=lambda value: not value)
     plan: PolicyPlannedQuery | PlannedQuery | InitialQuery | dict
     relaxed_from: PolicyPlannedQuery | PlannedQuery | InitialQuery | None = None
     relaxation_reason: Text | None = None

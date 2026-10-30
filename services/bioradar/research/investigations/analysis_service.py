@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import math
 import secrets
 import time
 from datetime import UTC, datetime, timedelta
@@ -62,6 +63,7 @@ from bioradar.research.investigations.analysis import (
 from bioradar.research.investigations.analysis_models import (
     ANALYSIS_VERSION,
     PROMPT_VERSION,
+    AnalysisBudget,
     AnalysisCreate,
     AnalysisEvidence,
     AnalysisEvidenceRead,
@@ -120,6 +122,41 @@ def execution_seconds(fixed_input):
     parameters = fixed_input["model_parameters"]
     return parameters.get(
         "job_timeout_seconds", max(240, parameters.get("max_calls", 3) * parameters["timeout_seconds"] + 60)
+    )
+
+
+def minimum_send_seconds(fixed, progress, stage):
+    """Freeze a floor, then respect observed latency of this same report stage."""
+    timeout = fixed["model_parameters"]["timeout_seconds"]
+    floor = fixed["model_parameters"].get("min_send_seconds", min(60, timeout))
+    aliases = {"biocheck_recheck": "biocheck_check", "recheck": "check"}
+    target = aliases.get(stage, stage)
+    observed = [
+        math.ceil((call.get("receipt") or {}).get("elapsed_ms", 0) / 1000)
+        for call in progress.get("calls", [])
+        if call.get("status") == "received" and aliases.get(call["stage"], call["stage"]) == target
+    ]
+    return min(timeout, max(1, floor, *observed))
+
+
+def _known_optional_read_failure(call):
+    receipt = (call or {}).get("receipt") or {}
+    if (call or {}).get("status") != "failed":
+        return False
+    if receipt.get("status") == "not_sent":
+        return receipt.get("error_code") in {
+            "analysis_model_budget",
+            "analysis_token_budget",
+            "analysis_time_budget",
+            "analysis_query_budget",
+            "analysis_tool_budget",
+            "model_input_budget",
+        }
+    return (
+        receipt.get("status") == "failed"
+        and receipt.get("http_status") == 200
+        and receipt.get("error_code")
+        in {"model_output_truncated", "model_output_invalid", "model_protocol_error"}
     )
 
 
@@ -269,15 +306,31 @@ class AnalysisService:
                 limits[name] = value
         return limits
 
-    def _provider_status(self):
-        from bioradar.adapters.biocheck import provider_status as biocheck_status
-        from bioradar.adapters.mech_evidence import provider_status as mechanism_status
+    def _provider_status(self, *, kdd=False):
         from bioradar.adapters.weknora import provider_status as retrieval_status
+        from bioradar.research.investigations.professional import provider_status
 
+        retrieval = retrieval_status(self.settings)
+        if kdd:
+            ready = bool(
+                self.settings.weknora_kdd_url
+                and self.settings.weknora_kdd_token
+                and self.settings.weknora_kdd_knowledge_base_id
+            )
+            retrieval = {
+                "provider": "weknora",
+                "configured": ready,
+                "available": ready,
+                "status": "configured_not_observed" if ready else "not_configured",
+                "transport": "kdd_fixed_identity",
+                "service_endpoint": self.settings.weknora_kdd_url,
+                "knowledge_base_id": self.settings.weknora_kdd_knowledge_base_id,
+                "qualification": "配置就绪；本轮实际命中、原件绑定和索引覆盖见查询回执。",
+            }
         return {
-            "biocheck": biocheck_status(self.settings),
-            "mech_evidence": mechanism_status(self.settings),
-            "weknora": retrieval_status(self.settings),
+            "biocheck": provider_status(self.settings, "biocheck"),
+            "mech_evidence": provider_status(self.settings, "mech_evidence"),
+            "weknora": retrieval,
         }
 
     @staticmethod
@@ -300,8 +353,16 @@ class AnalysisService:
         )
 
     @classmethod
-    def _view(cls, row):
+    def _view(cls, row, *, fixed_version_refs=None):
+        from bioradar.research.investigations.kdd import material_scope
+
         progress = row.progress
+        policy_view = cls._policy_view(row.fixed_input, progress)
+        result = copy.deepcopy(row.result) if row.result else None
+        if result is not None and policy_view is not None:
+            # This read projection includes report HTTP receipts saved after retrieval.
+            # The stored result, source text and original provider receipts stay immutable.
+            result["query_policy"] = copy.deepcopy(policy_view)
         return AnalysisView(
             **cls._summary(row).model_dump(),
             is_demo=row.is_demo,
@@ -314,7 +375,7 @@ class AnalysisService:
                 {k: v for k, v in call.items() if k not in {"payload", "output"}}
                 for call in progress["calls"]
             ],
-            result=AnalysisResult.model_validate(row.result) if row.result else None,
+            result=AnalysisResult.model_validate(result) if result else None,
             initial_draft=progress.get("initial_draft"),
             limitations=progress.get("limitations", row.fixed_input["limitations"]),
             note_entry_id=row.note_entry_id,
@@ -324,10 +385,22 @@ class AnalysisService:
                 "updated_at": progress.get("updated_at"),
                 "waiting_reason": row.error_code,
                 "model_output_adjustments": copy.deepcopy(progress.get("model_output_adjustments", {})),
+                **(
+                    {
+                        "material_scope": material_scope(
+                            row.fixed_input, progress, fixed_version_refs=fixed_version_refs
+                        )
+                    }
+                    if (
+                        row.fixed_input.get("query_policy", {}).get("schema_version")
+                        == "query-planner.external.v2"
+                    )
+                    else {}
+                ),
             },
             budget=analysis_budget(row.fixed_input, progress, datetime.now(UTC)),
             providers=progress.get("providers", row.fixed_input.get("providers", {})),
-            query_policy=cls._policy_view(row.fixed_input, progress),
+            query_policy=policy_view,
         )
 
     def get(self, actor, investigation_id, identifier):
@@ -335,7 +408,19 @@ class AnalysisService:
             row = self._row(session, actor, identifier)
             if row.investigation_id != investigation_id:
                 raise DomainError("not_found", "机器分析不属于本调查", 404)
-            return self._view(row)
+            fixed_version_refs = None
+            if (
+                row.fixed_input.get("query_policy", {}).get("schema_version") == "query-planner.external.v2"
+                and "kdd_source_version_refs" not in row.progress
+            ):
+                # Old completed rows keep their saved model inputs. Only this read
+                # projection gets the full, authorized frozen snapshot identities.
+                fixed_version_refs = [
+                    record["record_ref"]
+                    for snapshot_id in row.fixed_input.get("snapshot_ids", [])
+                    for record in self.engine._snapshot(session, actor, snapshot_id).payload["records"]
+                ]
+            return self._view(row, fixed_version_refs=fixed_version_refs)
 
     def list(self, actor, investigation_id, *, cursor=None, limit=20):
         from bioradar.adapters.reasoning_model import model_status
@@ -519,16 +604,26 @@ class AnalysisService:
             )
             if latest is None or latest.fixed_input.get("evidence_time", {}).get("study_id"):
                 return None
-            question = latest.fixed_input["question"]
             parent_id = parent.id if parent else None
+            basis = copy.deepcopy((parent or latest).fixed_input)
+            question = basis["question"]
         view = InvestigationService(self.engine).get(self.actor, investigation_id)
         if view.status != "open":
             return None
+        prior_policy = basis.get("query_policy") or {}
+        requested_budget = basis.get("requested_budget")
         body = AnalysisCreate(
-            expected_revision=view.revision, parent_analysis_id=parent_id, question=question
+            expected_revision=view.revision,
+            parent_analysis_id=parent_id,
+            question=question,
+            auto_retrieve=bool(basis.get("retrieval", {}).get("auto_retrieve")),
+            source_ids=sorted(set(basis.get("search_scope", [])) | set(basis.get("graph_scope", []))),
+            query_policy=prior_policy.get("requested") or prior_policy.get("effective"),
+            kdd_direction=basis.get("requested_direction") or prior_policy.get("direction"),
+            budget=AnalysisBudget.model_validate(requested_budget) if requested_budget is not None else None,
         )
         key = "analysis-material-update:" + canonical_hash(
-            [investigation_id, parent_id, view.revision, question]
+            ["inherited-request-v2", investigation_id, parent_id, body.model_dump(mode="json")]
         )
         return self.start(self.actor, investigation_id, body, key, defer_on_budget=True)[1]["id"]
 
@@ -593,10 +688,19 @@ class AnalysisService:
         if body.initial_queries and not body.auto_retrieve:
             raise DomainError("analysis_query_invalid", "初始查询须启用自动取资料", 422)
         budget = self._budget_limits(body.budget)
-        providers = self._provider_status()
+        providers = self._provider_status(kdd=policy.get("schema_version") == "query-planner.external.v2")
         if len(body.initial_queries) > min(2, budget["max_queries"]):
             raise DomainError("analysis_query_budget", "初始查询最多两项，且不得超过本次查询预算", 422)
         question = body.question or view.question
+        if policy.get("schema_version") == "query-planner.external.v2":
+            from bioradar.research.investigations.kdd import direction_for
+
+            policy["direction"] = direction_for(question, getattr(body, "kdd_direction", None))
+            policy["direction_basis"] = (
+                "explicit" if getattr(body, "kdd_direction", None) else "question_rule"
+            )
+            if view.origin is not None:
+                policy["mining_origin"] = view.origin.model_dump(mode="json")
         retrieval = {
             "auto_retrieve": body.auto_retrieve,
             "initial_queries": [q.model_dump(mode="json") for q in body.initial_queries],
@@ -697,6 +801,9 @@ class AnalysisService:
                 admitted = {canonical_hash(e["record_ref"]) for e in inherited.progress.get("evidence", [])}
                 evidence = [e for e in evidence if canonical_hash(e["record_ref"]) in admitted]
             parameters = model_parameters(self.settings)
+            parameters["min_send_seconds"] = min(
+                self.settings.analysis_min_call_seconds, parameters["timeout_seconds"]
+            )
             transport_parameters = {
                 key: value for key, value in parameters.items() if key not in {"model", "model_revision"}
             }
@@ -817,6 +924,8 @@ class AnalysisService:
                 "question": question,
                 "retrieval": retrieval,
                 "budget": budget,
+                "requested_budget": body.budget.model_dump(exclude_none=True) if body.budget else None,
+                "requested_direction": body.kdd_direction,
                 "providers": providers,
                 "basis_signature": signature,
                 "as_of": evidence_time["cutoff"],
@@ -833,6 +942,11 @@ class AnalysisService:
                 "graph_scope": graph_scope,
                 "parent_result": copy.deepcopy(parent.result) if parent else None,
                 "origin": copy.deepcopy(origin),
+                **(
+                    {"kdd_origin": copy.deepcopy(policy.get("mining_origin"))}
+                    if policy.get("schema_version") == "query-planner.external.v2"
+                    else {}
+                ),
                 "model": parameters["model"],
                 "model_revision": parameters["model_revision"],
                 "model_parameters": {
@@ -1291,6 +1405,14 @@ class AnalysisService:
                     "error_code": receipt.get("error_code"),
                     "evidence_ids": list(receipt.get("evidence_keys", [])),
                     "cost": copy.deepcopy(receipt.get("cost")),
+                    **(
+                        {
+                            "new_artifact_refs": copy.deepcopy(receipt.get("artifact_refs", [])),
+                            "check_updates": copy.deepcopy(receipt.get("check_updates", [])),
+                        }
+                        if receipt.get("kind") in {"dataset_prepare", "analysis_run", "professional_assess"}
+                        else {}
+                    ),
                 }
 
     def _checkpoint(self, identifier, token, progress, *, fixed=None, result=None):
@@ -1359,7 +1481,13 @@ class AnalysisService:
         round_key = str(progress.get("active_report_round", 0))
         saved = progress.get("report_research_scopes", {})
         if round_key in saved:
-            context["research_scope"] = copy.deepcopy(saved[round_key])
+            context["research_scope"] = {
+                key: copy.deepcopy(value)
+                for key, value in saved[round_key].items()
+                if key != "analysis_results"
+            }
+            if "analysis_results" in saved[round_key]:
+                context["analysis_results"] = copy.deepcopy(saved[round_key]["analysis_results"])
             return context
         prefix = "report-round:" + round_key + ":" if round_key != "0" else ""
         if any(
@@ -1402,7 +1530,19 @@ class AnalysisService:
             }
             for q in compact["query_history"]
         ]
+        from bioradar.research.investigations.kdd import material_scope
+
+        reading_scope = material_scope(fixed, progress)
+        if reading_scope is not None:
+            reading_scope = copy.deepcopy(reading_scope)
+            for item in reading_scope["unread_versions"]:
+                # source/id/version already bind the entry; omit repeated transport
+                # identity and action bookkeeping only from the model projection.
+                item.pop("record_ref", None)
+                item.pop("action_ids", None)
+                item.pop("query_action_ids", None)
         scope = {
+            **({"material_scope": reading_scope} if reading_scope is not None else {}),
             "source_ids": list(fixed.get("search_scope", [])),
             "graph_source_ids": list(fixed.get("graph_scope", [])),
             "evidence_time": copy.deepcopy(fixed.get("evidence_time", {})),
@@ -1423,9 +1563,26 @@ class AnalysisService:
                 "has_more表示仍有未读结果。图谱只作背景，未查资料不能解释为不存在。"
             ),
         }
+        prior = (fixed.get("parent_result") or {}).get("report") or {}
+        prior_text = prior.get("final_text")
+        if isinstance(prior_text, str) and prior_text.strip():
+            scope["prior_report"] = {
+                "text": prior_text,
+                "text_sha256": hashlib.sha256(prior_text.encode()).hexdigest(),
+                "verification_status": prior.get("status"),
+                "professional_approval": prior.get("professional_approval", "not_reviewed"),
+                "identity_basis": "fixed_input.parent_result.report",
+                "qualification": (
+                    "这是父版实际保存的机器报告，仅供核对旧稿表达、年份和判断变化，"
+                    "不是新的原始证据；旧稿错误须按本轮原件纠正，待核状态不能升级为事实。"
+                ),
+            }
+        if compact.get("analysis_results"):
+            scope["analysis_results"] = copy.deepcopy(compact["analysis_results"])
+            context["analysis_results"] = copy.deepcopy(compact["analysis_results"])
         if freeze:
             progress.setdefault("report_research_scopes", {})[round_key] = copy.deepcopy(scope)
-        context["research_scope"] = scope
+        context["research_scope"] = {key: value for key, value in scope.items() if key != "analysis_results"}
         return context
 
     @staticmethod
@@ -1455,10 +1612,19 @@ class AnalysisService:
                 [reading.get("conditional_answer", {}).get("answer", "")]
                 + [claim["text"] for claim in reading.get("claims", [])]
             )
-            return final_calls * (
-                verification_input_allowance(packet, draft, fixed["model_parameters"]["max_input_bytes"])
-                + 128
-            )
+            maximum = fixed["model_parameters"]["max_input_bytes"]
+            if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2":
+                # Finishing stages do not all resend the verifier's expanded input.
+                # These estimates use current materials/draft; each send still enforces
+                # its complete encoded input and the remaining hard task budget.
+                packet_bytes = len(json.dumps(packet, ensure_ascii=False, separators=(",", ":")).encode())
+                draft_bytes = len(draft.encode())
+                plan_input = min(maximum, packet_bytes + 4096)
+                write_input = min(maximum, packet_bytes + draft_bytes + 8192)
+                verify_input = verification_input_allowance(packet, draft, maximum)
+                audit_input = support_audit_input_allowance(packet, draft, maximum)
+                return plan_input + write_input + verify_input + audit_input + 128 * final_calls
+            return final_calls * (verification_input_allowance(packet, draft, maximum) + 128)
         return final_calls * (min(fixed["model_parameters"]["max_input_bytes"], source_bytes + 4096) + 128)
 
     def _optional_budget(self, fixed, progress, calls, *, following=0, request_tokens=0, following_tokens=0):
@@ -1473,6 +1639,29 @@ class AnalysisService:
             and (budget["limits"]["max_tokens"] or 10_000_000) - budget["usage"]["budgeted_tokens"]
             >= self._final_token_allowance(fixed, progress) + request_tokens + following_tokens
         )
+
+    def _not_sent_call(self, identifier, token, fixed, progress, call, code, message, *, started_at=None):
+        from bioradar.adapters.reasoning_model import ModelCallError, ModelCallReceipt
+
+        now = datetime.now(UTC)
+        started = started_at or now
+        receipt = ModelCallReceipt(
+            call_id=call["call_id"],
+            stage=call["stage"],
+            input_hash=call["input_hash"],
+            prompt_version=call["prompt_version"],
+            requested_model=fixed["model"],
+            configured_model_revision=fixed["model_revision"],
+            status="not_sent",
+            error_code=code,
+            started_at=started,
+            completed_at=now,
+            elapsed_ms=max(0, round((now - started).total_seconds() * 1000)),
+            max_output_tokens=call["model_parameters"]["max_output_tokens"],
+        )
+        call["status"], call["receipt"] = "failed", receipt.model_dump(mode="json")
+        self._checkpoint(identifier, token, progress)
+        raise ModelCallError(code, message, receipt, 409)
 
     def _call(
         self,
@@ -1586,7 +1775,8 @@ class AnalysisService:
                     support_audit_input_allowance(
                         payload, progress.get("final_candidate", ""), parameters["max_input_bytes"]
                     )
-                    if following_calls == 2 else 0
+                    if following_calls == 2
+                    else 0
                 )
                 # Reserve each remaining stage's own input and minimum output.
                 # Its full output allowance is recomputed from actual receipts;
@@ -1627,16 +1817,31 @@ class AnalysisService:
                 "prompt_version": fixed["prompt_version"],
                 "model_parameters": parameters,
                 "token_upper_bound": input_upper + output_cap,
+                **(
+                    {"action_id": progress["active_professional_action"]}
+                    if progress.get("active_professional_action")
+                    else {}
+                ),
             }
             progress["calls"].append(call)
             progress["stage"] = stage
             self._checkpoint(identifier, token, progress)
-        self._guard(identifier, token, check_deadline=True)
+        self._guard(identifier, token)
         invoke = self.model_call or complete_json
         budget = analysis_budget(fixed, progress, datetime.now(UTC))
         seconds_left = budget["usage"]["remaining_seconds"]
-        if seconds_left < 1:
-            raise DomainError("analysis_time_budget", "剩余总时间不足以发送请求，未调用模型", 409)
+        required_seconds = minimum_send_seconds(fixed, progress, stage)
+        call["required_send_seconds"] = required_seconds
+        if seconds_left < required_seconds:
+            self._not_sent_call(
+                identifier,
+                token,
+                fixed,
+                progress,
+                call,
+                "analysis_time_budget",
+                "剩余总时间不足本阶段固定及已观察到的发送窗口，模型请求未发送",
+            )
         call["model_parameters"]["timeout_seconds"] = min(
             call["model_parameters"]["timeout_seconds"], max(1, int(seconds_left))
         )
@@ -1656,25 +1861,16 @@ class AnalysisService:
         now = datetime.now(UTC)
         budget = analysis_budget(fixed, progress, now)
         seconds_left = budget["usage"]["remaining_seconds"]
-        if seconds_left < 1:
-            receipt = ModelCallReceipt(
-                call_id=call["call_id"],
-                stage=stage,
-                input_hash=call["input_hash"],
-                prompt_version=call["prompt_version"],
-                requested_model=fixed["model"],
-                configured_model_revision=fixed["model_revision"],
-                status="not_sent",
-                error_code="analysis_time_budget",
+        if seconds_left < required_seconds:
+            self._not_sent_call(
+                identifier,
+                token,
+                fixed,
+                progress,
+                call,
+                "analysis_time_budget",
+                "发送意图保存后剩余时间不足本阶段必要窗口，模型请求未发送",
                 started_at=intent_at,
-                completed_at=now,
-                elapsed_ms=max(0, round((now - intent_at).total_seconds() * 1000)),
-                max_output_tokens=call["model_parameters"]["max_output_tokens"],
-            )
-            call["status"], call["receipt"] = "failed", receipt.model_dump(mode="json")
-            self._checkpoint(identifier, token, progress)
-            raise ModelCallError(
-                "analysis_time_budget", "发送意图保存后时间预算已耗尽，模型请求未发送", receipt, 409
             )
         # Timeout is a transport cap, not part of encode_request's wire body. Keep
         # the durable intent/hash stable and record the tighter actual cap separately.
@@ -1715,6 +1911,23 @@ class AnalysisService:
 
     @staticmethod
     def _policy_budget(fixed, progress):
+        from bioradar.research.investigations.professional import http_ledger
+
+        ledger = http_ledger(progress)
+        by_action = {}
+        for item in ledger:
+            if item["action_id"] is not None:
+                by_action[item["action_id"]] = by_action.get(item["action_id"], 0) + item["known_tool_calls"]
+        route_calls = sum(
+            cost["tool_calls"]
+            if cost.get("tool_calls") is not None
+            else by_action.get(query.get("action_id"), 0)
+            if query.get("provider") == "professional"
+            else 0
+            for query in progress.get("queries", [])
+            for cost in [query.get("cost") or {}]
+        )
+        non_route_calls = sum(item["known_tool_calls"] for item in ledger if item["action_id"] is None)
         limits = fixed.get("budget", {})
         usage = progress.get("tool_usage", {})
         uncertain = [
@@ -1722,22 +1935,46 @@ class AnalysisService:
             for q in progress.get("queries", [])
             if q["status"] in {"sent", "unconfirmed"} and (q.get("cost") or {}).get("tool_calls") is None
         ]
-        reserved = sum((q.get("cost") or {}).get("reserved_tool_calls", 1) for q in uncertain)
-        known = usage.get("tool_calls", 0)
+        reserved = sum(
+            (q.get("cost") or {}).get("reserved_tool_calls", 1)
+            for q in uncertain
+            if q.get("provider") != "professional"
+        ) + (
+            sum(item["reserved_tool_calls"] for item in ledger)
+            if ledger
+            else usage.get("professional_reserved_tool_calls", 0)
+        )
+        # Keep the stored aggregate visible; this projection uses disjoint actual
+        # receipts and legacy response evidence without filling any attempt index.
+        known = usage.get("preparation_tool_calls", 0) + route_calls + non_route_calls
+        unmeasured = sum(
+            item["outcome"] == "received" and item["accounting_basis"] == "unmeasured_attempts"
+            for item in ledger
+        )
         return {
             "limits": {
                 "tool_calls": limits.get("max_tool_calls", 64),
                 "queries": limits.get("max_queries", 6),
             },
             "usage": {
-                "tool_calls": None if uncertain else known,
+                "tool_calls": None if uncertain or reserved or unmeasured else known,
                 "known_tool_calls": known,
+                "recorded_known_tool_calls": usage.get("tool_calls", 0),
+                "unmeasured_professional_http_exchanges": unmeasured,
                 "unknown_tool_calls": len(uncertain),
                 "reserved_tool_calls": reserved,
                 "budgeted_tool_calls": known + reserved,
                 "queries": len(progress.get("queries", [])),
                 "relation_access": usage.get("relation_access", 0),
                 "preparation_tool_calls": usage.get("preparation_tool_calls", 0),
+                "route_action_tool_calls": route_calls,
+                "non_route_professional_tool_calls": non_route_calls,
+                "professional_http_unknown_outcomes": sum(
+                    item["attempts"] > 0 and item["outcome"] in {"sent", "unknown"} for item in ledger
+                ),
+                "model_unconfirmed_calls": sum(
+                    call.get("status") in {"sent", "unconfirmed"} for call in progress.get("calls", [])
+                ),
             },
             "remaining": {
                 "tool_calls": max(0, limits.get("max_tool_calls", 64) - known - reserved),
@@ -1749,6 +1986,8 @@ class AnalysisService:
     def _policy_view(cls, fixed, progress):
         if fixed.get("execution_version") != "query-step-v1":
             return None
+        from bioradar.research.investigations.professional import http_ledger
+
         state = progress.get("query_policy", {})
         return {
             **copy.deepcopy(fixed.get("query_policy", {})),
@@ -1761,6 +2000,47 @@ class AnalysisService:
             "phase_transitions": copy.deepcopy(state.get("phase_transitions", [])),
             "pending_action": copy.deepcopy(state.get("pending_action")),
             "budget": cls._policy_budget(fixed, progress),
+            "professional_http_ledger": http_ledger(progress),
+            "data_quality": [
+                {
+                    "code": "legacy_weknora_http_attempt_unaccounted",
+                    "action_id": query.get("action_id"),
+                    "query_index": index,
+                    "error_code": query["error_code"],
+                    "recorded_tool_calls": 0,
+                    "qualification": "旧回执确认HTTP错误但记录请求次数为0；保留原账，未推算或补写费用。",
+                }
+                for index, query in enumerate(progress.get("queries", []))
+                if query.get("provider") == "weknora"
+                and query.get("error_code") == "weknora_kdd_http_error"
+                and (query.get("cost") or {}).get("tool_calls") == 0
+            ]
+            + [
+                {
+                    "code": "legacy_professional_http_attempt_indices_missing",
+                    "operation_id": item["operation_id"],
+                    "exchange_index": item["exchange_index"],
+                    "known_tool_calls": item["known_tool_calls"],
+                    "reserved_tool_calls": item["reserved_tool_calls"],
+                    "accounting_basis": item["accounting_basis"],
+                    "qualification": (
+                        "旧HTTP回执缺尝试索引；已有有效响应仅确认1次，其余未测尝试保守预留，未补写索引。"
+                        if item["accounting_basis"] == "legacy_received_response"
+                        else "旧接收标记缺可用响应或有效尝试计数，未推算已知次数；只对确定的尝试数保守预留。"
+                    ),
+                }
+                for item in http_ledger(progress)
+                if item["outcome"] == "received" and item["accounting_basis"] != "http_attempted_indices"
+            ],
+            **(
+                {
+                    "artifacts": copy.deepcopy(progress.get("kdd_artifacts", [])),
+                    "artifact_results": copy.deepcopy(progress.get("kdd_results", {})),
+                    "execution": copy.deepcopy(progress.get("kdd_execution", [])),
+                }
+                if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2"
+                else {}
+            ),
         }
 
     def _tool_start(self, fixed, progress, *, reserve=0):
@@ -1789,6 +2069,8 @@ class AnalysisService:
 
     @staticmethod
     def _reading_context(progress):
+        from bioradar.research.investigations.kdd import analysis_results
+
         state = progress["query_policy"]
         return {
             "coverage_checks": state.get("checks", []),
@@ -1796,6 +2078,7 @@ class AnalysisService:
             "mechanism_evaluation": progress.get("mechanism_evaluation"),
             "quality_feedback": state.get("quality_feedback"),
             "graph_context": progress.get("graph_context", []),
+            **({"analysis_results": analysis_results(progress)} if progress.get("kdd_results") else {}),
         }
 
     def _reading_payload_tokens(self, fixed, payload, schema):
@@ -1860,14 +2143,62 @@ class AnalysisService:
             context = compact_query_context(context)
         key = "policy-read:" + fingerprint if external else "read_plan"
         saved = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == key), None)
+
+        def retain_previous(reason, failed=None):
+            state["refresh_stopped_reason"] = reason
+            state["refresh_not_semantically_reviewed"] = True
+            if failed is not None:
+                entry = {
+                    "call_key": failed.get("call_key", failed["stage"]),
+                    "call_id": failed["call_id"],
+                    "error_code": (failed.get("receipt") or {}).get("error_code"),
+                    "receipt_status": (failed.get("receipt") or {}).get("status"),
+                    "http_status": (failed.get("receipt") or {}).get("http_status"),
+                    "finish_reason": (failed.get("receipt") or {}).get("finish_reason"),
+                }
+                failures = state.setdefault("optional_read_failures", [])
+                if entry not in failures:
+                    failures.append(entry)
+            note = (
+                "可选语义重读未执行或未形成有效新解读，保留上一已校验解读；"
+                "补查回执和新增专业缺口未因此自动视为已覆盖。"
+            )
+            if note not in progress.setdefault("limitations", []):
+                progress["limitations"].append(note)
+            self._checkpoint(identifier, token, progress)
+            return False
+
+        if optional and previous is not None and _known_optional_read_failure(saved):
+            return retain_previous((saved.get("receipt") or {})["error_code"], saved)
+        if (
+            optional
+            and previous is not None
+            and saved is not None
+            and saved["status"] == "prepared"
+            and saved["model_parameters"]["max_output_tokens"]
+            < fixed["model_parameters"]["max_output_tokens"]
+        ):
+            try:
+                self._not_sent_call(
+                    identifier,
+                    token,
+                    fixed,
+                    progress,
+                    saved,
+                    "analysis_token_budget",
+                    "已准备的可选重读不足正常输出额度，保留原解读且未发送请求",
+                )
+            except DomainError as exc:
+                return retain_previous(exc.code, saved)
         payload = (
             freeze_payload("read_plan", fixed, progress["evidence"], query_context=context)
             if external
             else freeze_payload("read_plan", fixed, progress["evidence"])
         )
         request_tokens = following_tokens = 0
-        if compact_mode:
+        if compact_mode or optional:
             request_tokens = self._reading_payload_tokens(fixed, payload, PolicyReading)
+        if compact_mode:
             following_payload = self._synthesis_payload(fixed, progress)
             following_tokens = self._reading_payload_tokens(fixed, following_payload, ModelSynthesis)
         if (
@@ -1878,13 +2209,11 @@ class AnalysisService:
                 progress,
                 1,
                 following=1,
-                request_tokens=request_tokens,
+                request_tokens=request_tokens - 128 + fixed["model_parameters"]["max_output_tokens"],
                 following_tokens=following_tokens,
             )
         ):
-            state["refresh_stopped_reason"] = "analysis_finishing_budget_reserved"
-            self._checkpoint(identifier, token, progress)
-            return False
+            return retain_previous("analysis_finishing_budget_reserved")
         try:
             raw, progress = self._call(
                 identifier,
@@ -1902,11 +2231,14 @@ class AnalysisService:
                 ),
             )
         except DomainError as exc:
-            if not optional or previous is None or not self._report_budget_stop(exc):
+            failed = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == key), None)
+            if (
+                not optional
+                or previous is None
+                or not (self._report_budget_stop(exc) or _known_optional_read_failure(failed))
+            ):
                 raise
-            state["refresh_stopped_reason"] = exc.code
-            self._checkpoint(identifier, token, progress)
-            return False
+            return retain_previous(exc.code, failed)
         if external:
             from bioradar.research.investigations.analysis import parse_policy_reading
 
@@ -1986,6 +2318,10 @@ class AnalysisService:
     def _execute_policy_action(self, identifier, token, fixed, progress, action, step):
         from bioradar.research.investigations.query_policy import semantic_key
 
+        if action["kind"] in {"dataset_prepare", "analysis_run", "professional_assess"}:
+            from bioradar.research.investigations.kdd import execute_action
+
+            return execute_action(self, identifier, token, fixed, progress, action, step)
         arguments, kind = action["arguments"], action["kind"]
         provider = arguments.get("provider", "graph" if kind != "document_search" else "fabric")
         phase = arguments.get("phase", progress["query_policy"]["phase"])
@@ -2137,6 +2473,11 @@ class AnalysisService:
                     elif provider == "weknora":
                         from bioradar.adapters.weknora import search_candidates
 
+                        kdd_arguments = {}
+                        if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2":
+                            from bioradar.adapters.weknora_kdd import search_candidates
+
+                            kdd_arguments["direction"] = fixed["query_policy"]["direction"]
                         found = search_candidates(
                             self.settings,
                             " ".join(receipt["plan"]["terms"]),
@@ -2148,6 +2489,7 @@ class AnalysisService:
                             limit=3,
                             timeout_seconds=seconds,
                             max_tool_calls=tool_allowance,
+                            **kdd_arguments,
                         )
                         extra = found.get("tool_requests", 0)
                         receipt.update(
@@ -2248,19 +2590,46 @@ class AnalysisService:
                 if message not in progress["limitations"]:
                     progress["limitations"].append(message)
                 break
-            entry = self._adopt_original(
-                identifier,
-                token,
-                fixed,
-                progress,
-                original,
-                "policy:" + canonical_hash([action["id"], ref]),
-            )
+            try:
+                entry = self._adopt_original(
+                    identifier,
+                    token,
+                    fixed,
+                    progress,
+                    original,
+                    "policy:" + canonical_hash([action["id"], ref]),
+                )
+            except DomainError as exc:
+                if exc.code != "analysis_evidence_budget":
+                    raise
+                # The search succeeded; keep its returned versions as unread hits.
+                # A full excerpt budget must not discard the reading already saved.
+                receipt["usage"] = dict(receipt.get("usage") or {})
+                receipt["usage"]["adoption_stop_reason"] = exc.code
+                message = "本轮原文片段容量已满；补查命中保留为未读资料，未作为已读证据。"
+                if message not in progress["limitations"]:
+                    progress["limitations"].append(message)
+                self._checkpoint(identifier, token, progress, fixed=fixed)
+                break
             progress["evidence"].append(entry)
             receipt["new_versions"] += 1
             receipt["evidence_keys"].append(entry["key"])
             self._checkpoint(identifier, token, progress, fixed=fixed)
         return receipt
+
+    def _after_policy_mechanism(self, identifier, token, fixed, progress, reading):
+        if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2":
+            progress.setdefault(
+                "mechanism_evaluation",
+                {
+                    "provider": "mech_evidence",
+                    "status": "not_requested",
+                    "error_code": "professional_capability_not_selected",
+                },
+            )
+            self._checkpoint(identifier, token, progress)
+            return progress
+        return self._mechanism(identifier, token, fixed, progress, reading)
 
     def _policy_research(self, identifier, token, fixed, progress):
         from bioradar.research.investigations.query_policy import (
@@ -2288,7 +2657,7 @@ class AnalysisService:
             state.update(status=terminal["decision"], reason=terminal.get("reason"))
             self._checkpoint(identifier, token, progress)
             reading = self._saved_policy_reading(state)
-            progress = self._mechanism(identifier, token, fixed, progress, reading)
+            progress = self._after_policy_mechanism(identifier, token, fixed, progress, reading)
             return reading, progress
         if "initial_plans" not in state:
             plans = fixed.get("retrieval", {}).get("initial_queries", [])
@@ -2324,6 +2693,11 @@ class AnalysisService:
                     "error_code": receipt.get("error_code"),
                     "evidence_ids": list(receipt.get("evidence_keys", [])),
                     "cost": copy.deepcopy(receipt.get("cost")),
+                    **(
+                        {"new_artifact_refs": copy.deepcopy(receipt["artifact_refs"])}
+                        if receipt.get("artifact_refs")
+                        else {}
+                    ),
                 }
                 if receipt["status"] not in {"sent", "unconfirmed"}:
                     state["pending_action"] = None
@@ -2334,7 +2708,7 @@ class AnalysisService:
                     )
             reading = self._saved_policy_reading(state) if state.get("reading") else None
             if state.get("status") in {"complete", "insufficient"} and reading is not None:
-                progress = self._mechanism(identifier, token, fixed, progress, reading)
+                progress = self._after_policy_mechanism(identifier, token, fixed, progress, reading)
                 return reading, progress
             if not external and reading is not None and state["phase"] == "initial":
                 state["phase"] = "followup"
@@ -2345,6 +2719,9 @@ class AnalysisService:
                 raise DomainError(
                     "analysis_query_outcome_unconfirmed", "研究动作尚无确定回执，未继续规划", 409
                 )
+            from bioradar.research.investigations.kdd import ensure_artifacts, extend_context
+
+            ensure_artifacts(self, identifier, token, fixed, progress)
             if external and progress["evidence"]:
                 fingerprint = canonical_hash(
                     [
@@ -2368,11 +2745,15 @@ class AnalysisService:
                     reading = self._saved_policy_reading(state) if state.get("reading") else None
                 if reading is not None:
                     state["phase"] = "followup"
-                    if reading.mechanism_candidate and fixed.get("providers", {}).get(
-                        "mech_evidence", {}
-                    ).get("available"):
+                    if (
+                        fixed["query_policy"].get("schema_version") != "query-planner.external.v2"
+                        and reading.mechanism_candidate
+                        and fixed.get("providers", {}).get("mech_evidence", {}).get("available")
+                    ):
                         if "mechanism_evaluation" not in progress:
-                            progress = self._mechanism(identifier, token, fixed, progress, reading)
+                            progress = self._after_policy_mechanism(
+                                identifier, token, fixed, progress, reading
+                            )
                             self._policy_reading(identifier, token, fixed, progress, optional=True)
                             reading = self._saved_policy_reading(state)
             phase = state["phase"]
@@ -2416,6 +2797,9 @@ class AnalysisService:
                 provider_status=progress.get("providers", fixed.get("providers", {})),
                 graph_candidates=graph_candidates,
             )
+            context = extend_context(
+                fixed, progress, context, reading.model_dump(mode="json") if reading else None
+            )
             state["checks"] = copy.deepcopy(context.get("checks", state.get("checks", [])))
             if state["budget"]["remaining"]["queries"] == 0 or state.get("refresh_stopped_reason"):
                 context["candidates"] = []
@@ -2452,6 +2836,23 @@ class AnalysisService:
                         "evidence_ids": list(actual[1].get("evidence_keys", []))
                         if actual is not None
                         else item.get("evidence_ids", item.get("new_evidence_ids", [])),
+                        **(
+                            {
+                                "new_artifact_refs": copy.deepcopy(
+                                    actual[1].get("artifact_refs", [])
+                                    if actual
+                                    else item.get("new_artifact_refs", [])
+                                ),
+                                "check_updates": copy.deepcopy(
+                                    actual[1].get("check_updates", [])
+                                    if actual
+                                    else item.get("check_updates", [])
+                                ),
+                            }
+                            if fixed.get("query_policy", {}).get("schema_version")
+                            == "query-planner.external.v2"
+                            else {}
+                        ),
                     }
                 )
             choice = copy.deepcopy(choice)
@@ -2475,6 +2876,8 @@ class AnalysisService:
                 self._policy_reading(identifier, token, fixed, progress)
                 continue
             choice["step"] = len(state["decisions"])
+            if context.get("schema_version") == "query-planner.external.v2":
+                choice["policy_request"] = copy.deepcopy(context)
             choice.setdefault("state_summary", {})["observed_history"] = observed
             choice["receipt"] = None
             state["decisions"].append(choice)
@@ -2494,7 +2897,7 @@ class AnalysisService:
         if not state.get("reading"):
             self._policy_reading(identifier, token, fixed, progress)
         reading = self._saved_policy_reading(state)
-        progress = self._mechanism(identifier, token, fixed, progress, reading)
+        progress = self._after_policy_mechanism(identifier, token, fixed, progress, reading)
         return reading, progress
 
     def _initial_retrieval(self, identifier, token, fixed, progress):
@@ -2883,7 +3286,7 @@ class AnalysisService:
         return InvestigationService(self.engine).get(self.actor, saved["id"])
 
     def _shared_callback(self, identifier, token, fixed, progress):
-        def call(stage, instruction, payload, response_schema=None):
+        def call(stage, instruction, payload, response_schema=None, *, call_id=None):
             output, _ = self._call(
                 identifier,
                 token,
@@ -2893,7 +3296,7 @@ class AnalysisService:
                 progress,
                 payload,
                 system_prompt=instruction,
-                call_key=stage,
+                call_key=call_id or stage,
             )
             return output
 
@@ -2920,83 +3323,15 @@ class AnalysisService:
         progress["providers"] = providers
         self._checkpoint(identifier, token, progress)
 
+    def _load_professional(self, identifier, token, fixed, progress, name):
+        from bioradar.research.investigations.professional import load_provider
+
+        return load_provider(self, identifier, token, fixed, progress, name)
+
     def _mechanism(self, identifier, token, fixed, progress, reading):
-        from bioradar.adapters.biocheck import build_packet
-        from bioradar.adapters.mech_evidence import evaluate_mechanism, load_mech_evidence
+        from bioradar.research.investigations.professional import mechanism
 
-        if "mechanism_evaluation" not in progress:
-            self._guard(identifier, token)
-            progress["stage"] = "mechanism_evaluation"
-            self._checkpoint(identifier, token, progress)
-            packet = build_packet(
-                fixed["question"],
-                progress["evidence"],
-                {
-                    "mechanism": reading.mechanism_candidate,
-                    "qualification": "machine_proposed_candidate_not_source_fact",
-                },
-            )
-            if (
-                reading.mechanism_candidate
-                and fixed.get("providers", {}).get("mech_evidence", {}).get("available")
-                and not self._optional_budget(fixed, progress, 3, following=1)
-            ):
-                assessment = {
-                    "provider": "mech_evidence",
-                    "status": "skipped_budget",
-                    "error_code": "analysis_model_budget",
-                }
-            else:
-                try:
-                    loaded = load_mech_evidence(self.settings)
-                    self._use_provider(identifier, token, fixed, progress, "mech_evidence", loaded[-1])
-                    assessment = evaluate_mechanism(
-                        self.settings,
-                        packet,
-                        self._shared_callback(identifier, token, fixed, progress),
-                        loaded=loaded,
-                    )
-                except DomainError as exc:
-                    if exc.code not in {"analysis_model_budget", "analysis_token_budget"}:
-                        raise
-                    assessment = {
-                        "provider": "mech_evidence",
-                        "status": "skipped_budget",
-                        "error_code": exc.code,
-                    }
-
-            progress["mechanism_evaluation"] = assessment
-            self._checkpoint(identifier, token, progress)
-        assessment = progress["mechanism_evaluation"]
-        if (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
-            and assessment.get("status") == "completed"
-            and "passage_bindings" not in assessment
-        ):
-            from bioradar.adapters.mech_evidence import mechanism_passage_bindings
-
-            local = next(
-                (
-                    c
-                    for c in progress["calls"]
-                    if c["stage"] == "mech_local_review" and c["status"] == "received"
-                ),
-                None,
-            )
-            if local is not None:
-                packet = build_packet(fixed["question"], progress["evidence"])
-                assessment.update(
-                    mechanism_passage_bindings(
-                        packet,
-                        local["payload"]["materials"],
-                        assessment=assessment,
-                        radar_evidence=progress["evidence"],
-                    )
-                )
-        fixed["mechanism_evaluation"] = progress["mechanism_evaluation"]
-        self._checkpoint(identifier, token, progress, fixed=fixed)
-        return progress
+        return mechanism(self, identifier, token, fixed, progress, reading)
 
     @staticmethod
     def _report_budget_stop(exc):
@@ -3181,11 +3516,10 @@ class AnalysisService:
         self._checkpoint(identifier, token, progress, fixed=fixed)
 
     def _final_report(self, identifier, token, fixed, progress, checked, raw):
-        from bioradar.adapters.biocheck import load_biocheck
 
         if fixed.get("execution_version") != "query-step-v1":
             return self._saved_final_report(identifier, token, fixed, progress, checked, raw)
-        loaded = load_biocheck(self.settings)
+        loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
         if not callable(getattr(loaded[0], "quality_feedback", None)):
             # An older professional module retains its saved bounded repair behavior.
             return self._saved_final_report(identifier, token, fixed, progress, checked, raw)
@@ -3484,7 +3818,6 @@ class AnalysisService:
         from bioradar.adapters.biocheck import (
             audit_biocheck_support,
             build_packet,
-            load_biocheck,
             run_biocheck,
             support_audit_targets,
         )
@@ -3508,13 +3841,22 @@ class AnalysisService:
                 "reserve_support_audit": not legacy,
                 "basis": "existing_provider_stages" if legacy else "new_report_with_support_audit",
             }
-        self._checkpoint(identifier, token, progress, fixed=fixed)
+        saved_report = progress.get("final_report") or any(
+            item.get("result") for item in progress.get("report_rounds", [])
+        )
+        self._checkpoint(
+            identifier,
+            token,
+            progress,
+            fixed=fixed,
+            **({"result": checked.model_dump(mode="json")} if not saved_report else {}),
+        )
         report = progress.get("final_report")
         loaded = None
         if report is None:
             context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
             packet = build_packet(fixed["question"], progress["evidence"], context)
-            loaded = load_biocheck(self.settings)
+            loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
             self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
             report = run_biocheck(
                 self.settings,
@@ -3581,7 +3923,7 @@ class AnalysisService:
             progress["final_report"] = report
             self._checkpoint(identifier, token, progress, result=checked.model_dump(mode="json"))
             if loaded is None:
-                loaded = load_biocheck(self.settings)
+                loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
                 self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
                 context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
                 packet = build_packet(fixed["question"], progress["evidence"], context)

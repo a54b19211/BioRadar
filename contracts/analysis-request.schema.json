@@ -182,6 +182,24 @@
       "default": null,
       "title": "Query Policy"
     },
+    "kdd_direction": {
+      "anyOf": [
+        {
+          "enum": [
+            "research",
+            "pipeline",
+            "business",
+            "public_health"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kdd Direction"
+    },
     "retry_of_analysis_id": {
       "anyOf": [
         {

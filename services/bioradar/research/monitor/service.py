@@ -3,7 +3,7 @@
 import copy
 import json
 import secrets
-from collections import deque
+from collections import defaultdict, deque
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -38,6 +38,7 @@ from bioradar.research.investigations.service import (
 from bioradar.research.mining.models import (
     Candidate,
     EngineRecord,
+    KddPolicy,
     MiningPolicy,
     NormalizedSnapshot,
     ProviderRef,
@@ -76,17 +77,25 @@ def identity(record):
 
 def fingerprint(record):
     """Do not create progress merely because adoption time or mapping version changed."""
-    return canonical_hash(
-        {
-            "text": record.normalized_text_hash,
-            "states": sorted((a.property, a.value) for a in record.state_assertions),
-            "flags": sorted(set(record.record_flags) & {"deleted", "retracted"}),
-            "stage": record.project_stage,
-            "relations": sorted(
-                (r.relation_type, r.subject_ref.object_id, r.object_ref.object_id) for r in record.relations
-            ),
-        }
-    )
+    value = {
+        "text": record.normalized_text_hash,
+        "states": sorted((a.property, a.value) for a in record.state_assertions),
+        "flags": sorted(set(record.record_flags) & {"deleted", "retracted"}),
+        "stage": record.project_stage,
+        "relations": sorted(
+            (r.relation_type, r.subject_ref.object_id, r.object_ref.object_id) for r in record.relations
+        ),
+    }
+    if record.graph_hints:
+        value["graph_hints"] = [
+            hint.model_dump(mode="json", exclude={"provenance", "hint_ref"}) for hint in record.graph_hints
+        ]
+    if record.metric_observations:
+        value["metric_observations"] = [
+            metric.model_dump(mode="json", exclude={"provenance", "observation_id"})
+            for metric in record.metric_observations
+        ]
+    return canonical_hash(value)
 
 
 def fair_window(progress, limit):
@@ -206,7 +215,7 @@ class MonitorService:
         return self.online_ids
 
     def permitted(self, *, online=True):
-        instance = "fixture" if self.settings.monitor_is_demo else "datafabric-test"
+        instance = "fixture" if self.settings.monitor_is_demo else self.settings.data_fabric_source_instance
         if instance not in self.actor.source_allowlist:
             return set()
         local = set(self.settings.engine_source_id_allowlist.get(instance, []))
@@ -520,6 +529,7 @@ class MonitorService:
     def _graph_projection(self, record):
         from bioradar.adapters.fabric_graph import (
             adopted_graph_snapshot,
+            project_graph_hints,
             read_graph_evidence,
             read_neighborhood,
         )
@@ -555,7 +565,99 @@ class MonitorService:
         snapshot = adopted_graph_snapshot(
             self.reader, record, bundle, neighborhood=neighborhood, documents=documents
         )
-        return list(snapshot.records), ["graph_evidence_or_neighborhood_is_bounded"]
+        records = list(snapshot.records)
+        if getattr(self.settings, "monitor_kdd_directions", {}).get(record["source_id"]) == "pipeline":
+            records[0] = project_graph_hints(
+                self.reader,
+                record,
+                bundle,
+                engine_record=records[0],
+                documents=documents,
+                neighborhood=neighborhood,
+            )
+        return records, ["graph_evidence_or_neighborhood_is_bounded"]
+
+    def _mining_policy(self, source_id, now, *, changed_refs=None):
+        direction = getattr(self.settings, "monitor_kdd_directions", {}).get(source_id)
+        model = KddPolicy if direction else MiningPolicy
+        values = (
+            {"kdd_direction": direction, "monitor_changed_refs": changed_refs or None} if direction else {}
+        )
+        return model(
+            as_of=now,
+            discovery_mode="stock_and_incremental",
+            limits=ResourceLimits(
+                max_records=self.settings.engine_max_records,
+                review_capacity=12,
+                max_candidates_per_method=30,
+            ),
+            **values,
+        )
+
+    def _candidate_followup_plan(self, payload, candidate):
+        plans = followup_plan(payload["evidence"], candidate)
+        if not candidate.metrics.get("graph_relation_hint"):
+            return plans
+        sources = set()
+        for support in candidate.supports:
+            for ref in support.evidence_refs:
+                if ref.provider != "data_fabric_history":
+                    continue
+                try:
+                    source, _, _ = json.loads(ref.object_id)
+                except (ValueError, TypeError):
+                    continue
+                sources.add(source)
+        sources.difference_update({"reviewed_graph", "primekg_graph"})
+        if not sources:
+            sources.update(
+                source
+                for source, direction in getattr(self.settings, "monitor_kdd_directions", {}).items()
+                if direction == "pipeline" and source not in {"reviewed_graph", "primekg_graph"}
+            )
+        sources.intersection_update(self.permitted())
+        for term in candidate.metrics.get("query_terms", []):
+            if not isinstance(term, str) or not 2 <= len(term.strip()) <= 120:
+                continue
+            for source in sorted(sources):
+                plans.append(
+                    {
+                        "term": term,
+                        "field": "fixed_graph_hint_label",
+                        "source_id": source,
+                        "qualification": "hypothesis_for_original_search_not_confirmed_relation",
+                        "review_status": candidate.metrics.get("review_status"),
+                    }
+                )
+                if len(plans) >= 2:
+                    return plans[:2]
+        return plans[:2]
+
+    @staticmethod
+    def _candidate_question(candidate, direction=None):
+        question = (
+            f"待调查线索（程序候选，尚未核实）：{candidate.title[:200]}\n"
+            f"调查问题：{candidate.next_questions[0]}"
+        )
+        if direction:
+            labels = {
+                "pipeline": "管线与竞争",
+                "research": "科研与技术",
+                "business": "商业与产业",
+                "public_health": "公共卫生",
+            }
+            question = "分析方向：" + labels[direction] + "\n" + question
+            if candidate.metrics.get("graph_relation_hint"):
+                question += (
+                    "\n图关系仅是待补证线索，保留原身份、审核与绑定状态；"
+                    "核对固定原件，不能据图推断药效或项目确认。"
+                )
+                question += "\n图中的原名或登记号：" + "；".join(candidate.metrics.get("query_terms", [])[:6])
+            if candidate.metrics.get("native_notice_event"):
+                question += "\n这是通报事件，不是病例数或发病率；区分发布、采集补录与疫情发生时间。"
+            if candidate.data_gaps:
+                question += "\n需补证范围：" + "；".join(candidate.data_gaps[:6])
+        return question[:4000]
 
     def accept_page(self, source_id):
         with Session(self.engine.database) as session:
@@ -661,7 +763,13 @@ class MonitorService:
             if value["source_record_id"] != native:
                 raise DomainError("monitor_head_mismatch", "当前版本与指定来源记录不一致", 502)
             heads.append({k: v for k, v in value.items() if k != "raw_content"})
-            record = project_record(self.reader, value, as_of=now, bootstrap=not current.get("initialized"))
+            record = project_record(
+                self.reader,
+                value,
+                as_of=now,
+                bootstrap=not current.get("initialized"),
+                kdd=value["source_id"] in self.settings.monitor_kdd_directions,
+            )
             if record is None:
                 continue
             key = identity(record)
@@ -761,13 +869,7 @@ class MonitorService:
             )
         if omitted_local or omitted or omitted_previous_bytes:
             gaps.append("whole_records_omitted_from_bounded_feature_window_versions_retained_at_source")
-        policy = MiningPolicy(
-            as_of=now,
-            discovery_mode="stock_and_incremental",
-            limits=ResourceLimits(
-                max_records=self.settings.engine_max_records, review_capacity=12, max_candidates_per_method=30
-            ),
-        )
+        policy = self._mining_policy(source_id, now, changed_refs=update_refs)
         payload = {
             "monitor_version": MONITOR_VERSION,
             "after": after,
@@ -840,6 +942,17 @@ class MonitorService:
         }
         methods, processed, excluded = [], set(), set()
         outcomes = result.method_results if result is not None else ()
+        kdd_direction = payload.get("policy", {}).get("kdd_direction")
+        evaluations = {item["candidate_key"]: item for item in (result.pattern_evaluations if result else ())}
+        decisions = {item["candidate_key"]: item for item in (result.selection_decisions if result else ())}
+        record_decisions = defaultdict(list)
+        if kdd_direction:
+            for outcome in outcomes:
+                for candidate in outcome.candidates:
+                    decision = decisions.get(candidate.candidate_key)
+                    if decision:
+                        for support in candidate.supports:
+                            record_decisions[support.record_ref.version_key].append(decision)
         for method in outcomes:
             omitted = {item.record_ref.version_key for item in method.excluded_records}
             handled = {
@@ -870,7 +983,21 @@ class MonitorService:
                     "limitations": list(method.limitations),
                 }
             )
-        expected = set(payload.get("policy", {}).get("method_ids", []))
+        if kdd_direction:
+            for summary, outcome in zip(methods, outcomes, strict=True):
+                candidate_keys = [candidate.candidate_key for candidate in outcome.candidates]
+                summary.update(
+                    kdd_direction=kdd_direction,
+                    generated_candidate_keys=candidate_keys,
+                    all_generated_candidates_retained_in_run=True,
+                    pattern_evaluations=[evaluations[key] for key in candidate_keys if key in evaluations],
+                    selection_decisions=[decisions[key] for key in candidate_keys if key in decisions],
+                )
+            from bioradar.research.mining.kdd import kdd_versions
+
+            expected = set(kdd_versions(KddPolicy.model_validate(payload["policy"]))) - {"__engine_compute__"}
+        else:
+            expected = set(payload.get("policy", {}).get("method_ids", []))
         complete_methods = (
             bool(outcomes)
             and expected <= {method.method_id for method in outcomes}
@@ -886,6 +1013,15 @@ class MonitorService:
                 outcome, reason = "unknown", "not_in_frozen_computation_window"
             elif result is None:
                 outcome, reason = "unknown", "method_receipts_not_available"
+            elif kdd_direction and record_decisions.get(key):
+                statuses = {value["decision"] for value in record_decisions[key]}
+                outcome = "no_candidate"
+                if statuses & {"capacity_deferred", "redundancy_deferred"}:
+                    reason = "value_eligible_pattern_deferred_by_review_capacity"
+                elif statuses == {"value_excluded"}:
+                    reason = "generated_patterns_excluded_by_frozen_value_policy"
+                else:
+                    reason = "selected_pattern_already_known_or_without_new_meaningful_support"
             elif key in excluded:
                 outcome, reason = "unknown", "record_excluded_by_method_preparation"
             elif not complete_methods:
@@ -904,6 +1040,8 @@ class MonitorService:
                     "reason": reason,
                 }
             )
+            if kdd_direction:
+                rows[-1]["candidate_selection_decisions"] = copy.deepcopy(record_decisions.get(key, []))
         return {
             "schema_version": "bioradar.monitor-selection.v1",
             "scope": "this_batch_manifest_and_frozen_computation_window",
@@ -952,6 +1090,84 @@ class MonitorService:
         )
         return importance_reason, urgency_reason
 
+    def _feature_snapshot(self, snapshot, payload):
+        """Read every eligible fixed member in source scopes, retaining the complete window."""
+        from bioradar.adapters.weknora_kdd import features_for_snapshot
+
+        mapping = self.settings.monitor_kdd_directions
+        graph_versions = {
+            tuple(item["ref_key"])
+            for item in payload.get("evidence", [])
+            if item.get("record_kind") == "graph"
+        }
+        groups, excluded = defaultdict(list), []
+        by_ref = {row.record_ref.version_key: row for row in snapshot.records}
+        gaps = set(snapshot.metadata_gaps)
+        for row in snapshot.records:
+            direction = mapping.get(row.source_id)
+            reason = None
+            if row.graph_hints or row.record_ref.version_key in graph_versions:
+                reason = "graph_package_is_not_document_embedding_unit"
+            elif direction is None:
+                reason = "feature_source_direction_not_configured"
+            if reason:
+                excluded.append({"record_ref": row.record_ref.model_dump(mode="json"), "reason": reason})
+                gaps.add("weknora_feature:" + reason)
+            else:
+                groups[direction].append(row)
+        receipts = []
+        adopted_count = 0
+        for direction, members in sorted(groups.items()):
+            for index in range(0, len(members), 100):
+                chunk = members[index : index + 100]
+                scope = snapshot.model_copy(
+                    update={
+                        "records": tuple(chunk),
+                        "snapshot_id": snapshot.snapshot_id + f"-{direction}-{index}",
+                    }
+                )
+                try:
+                    enriched, receipt = features_for_snapshot(self.settings, scope, direction=direction)
+                except DomainError as error:
+                    receipt = {
+                        "status": "unavailable",
+                        "error_code": error.code,
+                        "model_token_usage": None,
+                    }
+                    for row in chunk:
+                        excluded.append(
+                            {
+                                "record_ref": row.record_ref.model_dump(mode="json"),
+                                "reason": error.code,
+                            }
+                        )
+                    gaps.add("weknora_feature:" + error.code)
+                else:
+                    # The adapter has verified exact members, text hashes and model versions.
+                    for row in enriched.records:
+                        by_ref[row.record_ref.version_key] = row
+                    gaps.update(enriched.metadata_gaps)
+                    adopted_count += len(receipt["adopted"])
+                    excluded.extend(receipt["excluded"])
+                receipts.append({"direction": direction, "start_index": index, "receipt": receipt})
+        receipt = {
+            "schema_version": "bioradar.monitor-feature-adoption.v1",
+            "population": "complete_fixed_monitor_window_not_search_top_k",
+            "record_count": len(snapshot.records),
+            "adopted_count": adopted_count,
+            "status": "partial" if excluded else "complete",
+            "groups": receipts,
+            "excluded": excluded,
+            "model_token_usage": None,
+        }
+        return snapshot.model_copy(
+            update={
+                "records": tuple(by_ref[row.record_ref.version_key] for row in snapshot.records),
+                "snapshot_id": snapshot.snapshot_id + "-features-" + canonical_hash(receipt)[:12],
+                "metadata_gaps": tuple(sorted(gaps)),
+            }
+        ), receipt
+
     def _adopt_and_queue(self, identifier, payload):
         snapshot = NormalizedSnapshot.model_validate(payload["snapshot"]) if payload.get("snapshot") else None
         if snapshot is None:
@@ -960,9 +1176,22 @@ class MonitorService:
         key = "monitor-snapshot:" + identifier
         adopted = self._saved_response("snapshot.create", key)
         if adopted is None:
+            if (
+                "kdd_direction" in payload["policy"]
+                and self.settings.weknora_kdd_url
+                and "feature_adoption" not in payload
+            ):
+                snapshot, receipt = self._feature_snapshot(snapshot, payload)
+                payload = {
+                    **payload,
+                    "snapshot": snapshot.model_dump(mode="json"),
+                    "feature_adoption": receipt,
+                }
+                self._save_batch(identifier, payload=payload)
             _, adopted = self.engine.adopt_snapshot(self.actor, snapshot, key)
         self._save_batch(identifier, snapshot_id=adopted["id"])
-        request = RunCreate(snapshot_id=adopted["id"], policy=MiningPolicy.model_validate(payload["policy"]))
+        policy_model = KddPolicy if "kdd_direction" in payload["policy"] else MiningPolicy
+        request = RunCreate(snapshot_id=adopted["id"], policy=policy_model.model_validate(payload["policy"]))
         key = "monitor-run:" + identifier
         run = self._saved_response("run.create", key)
         if run is None:
@@ -978,7 +1207,12 @@ class MonitorService:
         )
         for item in ordered:
             meaningful = [s for s in item.supports if tuple(s.record_ref.version_key) in changed]
-            if item.method_id in {"lexical_emergence", "text_topics"}:
+            if item.method_id in {
+                "lexical_emergence",
+                "text_topics",
+                "research_tfidf_topics",
+                "research_embedding_clusters",
+            }:
                 meaningful = [
                     s for s in meaningful if s.normalized_text_hash in payload["changed_text_hashes"]
                 ]
@@ -993,7 +1227,7 @@ class MonitorService:
                 continue
             # The existing runner has already used method-local scores and fair rounds.
             group = item.group_key
-            if item.method_id == "text_topics":
+            if item.method_id in {"text_topics", "research_tfidf_topics"}:
                 terms = item.metrics.get("terms")
                 group = (
                     {"exact_topic_terms": sorted(set(terms))}
@@ -1037,11 +1271,32 @@ class MonitorService:
                     "candidate": candidate_payload,
                     "changed_supports": [s.record_ref.model_dump(mode="json") for s in meaningful],
                     "new_to_radar": prior is None,
-                    "plan": followup_plan(payload["evidence"], item),
+                    "plan": self._candidate_followup_plan(payload, item),
                     "steps": [],
                     "material_receipts": [],
                     "queries": [],
                 }
+                direction = payload.get("policy", {}).get("kdd_direction")
+                if direction:
+                    body["kdd_direction"] = direction
+                    body["question"] = self._candidate_question(item, direction)
+                    body["pattern_evaluation"] = next(
+                        (
+                            copy.deepcopy(value)
+                            for value in result.pattern_evaluations
+                            if value["candidate_key"] == item.candidate_key
+                        ),
+                        None,
+                    )
+                    body["selection_decision"] = next(
+                        (
+                            copy.deepcopy(value)
+                            for value in result.selection_decisions
+                            if value["candidate_key"] == item.candidate_key
+                        ),
+                        None,
+                    )
+                    body["dataset_hash"] = (result.data_preparation or {}).get("dataset_hash")
                 if prior:
                     # A user's closed/paused investigation is never silently reopened.
                     if prior.investigation_id:
@@ -1403,10 +1658,7 @@ class MonitorService:
         if view is None:
             request = InvestigationCreate(
                 title=candidate.title[:200],
-                question=(
-                    f"待调查线索（程序候选，尚未核实）：{candidate.title[:200]}\n"
-                    f"调查问题：{candidate.next_questions[0]}"
-                ),
+                question=p.get("question") or self._candidate_question(candidate, p.get("kdd_direction")),
                 questions=list(candidate.next_questions[:32]),
                 is_demo=self.settings.monitor_is_demo,
                 origin=InvestigationOriginCreate(
@@ -1452,9 +1704,19 @@ class MonitorService:
                 latest = copy.deepcopy(session.get(MonitorLead, lead_id).payload)
             intent = latest.get("analysis_intent")
             if intent is None:
+                if latest.get("kdd_direction"):
+                    analysis_request = AnalysisCreate(
+                        expected_revision=view.revision,
+                        question=latest.get("question")
+                        or self._candidate_question(candidate, latest["kdd_direction"]),
+                        auto_retrieve=True,
+                        kdd_direction=latest["kdd_direction"],
+                    )
+                else:
+                    analysis_request = AnalysisCreate(expected_revision=view.revision)
                 intent = {
                     "key": "monitor-analysis:" + canonical_hash([lead_key, batch_id]),
-                    "body": AnalysisCreate(expected_revision=view.revision).model_dump(mode="json"),
+                    "body": analysis_request.model_dump(mode="json"),
                 }
                 latest["analysis_intent"] = intent
                 self._save_lead(lead_id, payload=latest)
@@ -1630,7 +1892,10 @@ class MonitorService:
             if view.origin:
                 supports.extend(view.origin.candidate.supports)
             adopted = [ref for support in supports for ref in (support.record_ref, *support.evidence_refs)]
-            identities, versions = {r.identity_key for r in adopted}, {r.version_key for r in adopted}
+            identities, versions = (
+                {r.identity_key for r in adopted},
+                {r.version_key for r in adopted},
+            )
             for ref in refs:
                 if ref.identity_key not in identities or ref.version_key in versions:
                     continue
@@ -1658,15 +1923,48 @@ class MonitorService:
                         }
                         intents.append(intent)
                         self._save_batch(identifier, payload=payload)
-                    _, saved = runtime.append(
-                        self.actor,
-                        investigation_id,
-                        InvestigationEntryCreate.model_validate(intent["body"]),
-                        key,
-                        automation=InvestigationAutomation(
-                            batch_id=identifier, lead_key=canonical_hash(["source_change", ref.identity_key])
-                        ),
-                    )
+                    if (
+                        intent.get("waiting_for_analysis")
+                        and intent["body"]["expected_revision"] != view.revision
+                    ):
+                        intent.setdefault("revision_rebases", []).append(
+                            {
+                                "from": intent["body"]["expected_revision"],
+                                "to": view.revision,
+                                "reason": "analysis_in_progress_append_not_written",
+                            }
+                        )
+                        intent["body"]["expected_revision"] = view.revision
+                        self._save_batch(identifier, payload=payload)
+                    try:
+                        _, saved = runtime.append(
+                            self.actor,
+                            investigation_id,
+                            InvestigationEntryCreate.model_validate(intent["body"]),
+                            key,
+                            automation=InvestigationAutomation(
+                                batch_id=identifier,
+                                lead_key=canonical_hash(["source_change", ref.identity_key]),
+                            ),
+                        )
+                    except DomainError as exc:
+                        if exc.code != "analysis_in_progress":
+                            raise
+                        intent["waiting_for_analysis"] = True
+                        payload["context_update_waiting"] = {
+                            "code": exc.code,
+                            "investigation_id": investigation_id,
+                            "intent_key": key,
+                        }
+                        self._save_batch(
+                            identifier,
+                            payload=payload,
+                            state="investigating",
+                            error=exc.code,
+                        )
+                        return False
+                    intent.pop("waiting_for_analysis", None)
+                    payload.pop("context_update_waiting", None)
                 view = runtime.get(self.actor, saved["id"])
                 versions.add(ref.version_key)
                 if investigation_id not in payload["investigation_ids"]:

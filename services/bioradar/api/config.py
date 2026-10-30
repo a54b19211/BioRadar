@@ -22,6 +22,24 @@ class Settings(BaseSettings):
 
     biocheck_project_dir: Path | None = None
     mech_evidence_project_dir: Path | None = None
+    biocheck_transport: Literal["local", "http"] = "local"
+    biocheck_service_url: str | None = None
+    biocheck_service_token: SecretStr | None = None
+    mech_evidence_transport: Literal["local", "http"] = "local"
+    mech_evidence_service_url: str | None = None
+    mech_evidence_service_token: SecretStr | None = None
+    professional_http_timeout_seconds: float = Field(default=30, gt=0, le=120)
+    professional_http_max_bytes: int = Field(default=8388608, ge=4096, le=16777216)
+    professional_max_steps: int = Field(default=24, ge=1, le=64)
+    weknora_kdd_url: str | None = None
+    weknora_kdd_token: SecretStr | None = None
+    weknora_kdd_knowledge_base_id: str | None = Field(default=None, min_length=1, max_length=200)
+    analysis_kdd_enabled: bool = False
+    analysis_kdd_selector: Literal["information_gain_v1", "coverage_cost_baseline_v1"] = "information_gain_v1"
+    monitor_kdd_directions: dict[str, Literal["research", "pipeline", "business", "public_health"]] = Field(
+        default_factory=dict
+    )
+    data_fabric_source_instance: str = Field(default="datafabric-test", min_length=1, max_length=200)
     weknora_url: str | None = None
     weknora_api_key: SecretStr | None = None
     weknora_knowledge_base_ids: list[str] = Field(default_factory=list, max_length=8)
@@ -80,7 +98,8 @@ class Settings(BaseSettings):
     analysis_max_calls: int = Field(default=16, ge=1, le=32)
     analysis_max_tokens: int = Field(default=262144, ge=1, le=10_000_000)
     analysis_max_seconds: int = Field(default=1800, ge=1, le=1800)
-    analysis_max_queries: int = Field(default=6, ge=0, le=6)
+    analysis_min_call_seconds: int = Field(default=60, ge=1, le=180)
+    analysis_max_queries: int = Field(default=6, ge=0, le=32)
     analysis_max_tool_calls: int = Field(default=64, ge=1, le=256)
     analysis_query_policy: Literal["baseline", "query_planner"] = "baseline"
     query_planner_project_dir: Path | None = None
@@ -159,7 +178,7 @@ class Settings(BaseSettings):
             raise ValueError("History reader requires a configured loopback base URL")
         return value.rstrip("/")
 
-    @field_validator("weknora_url")
+    @field_validator("weknora_url", "weknora_kdd_url", "biocheck_service_url", "mech_evidence_service_url")
     @classmethod
     def configured_knowledge_endpoint(cls, value: str | None) -> str | None:
         from urllib.parse import urlsplit
@@ -181,7 +200,13 @@ class Settings(BaseSettings):
             raise ValueError("Use an explicit server-configured WeKnora root URL without credentials")
         return value.rstrip("/")
 
-    @field_validator("data_fabric_history_read_token", "weknora_api_key")
+    @field_validator(
+        "data_fabric_history_read_token",
+        "weknora_api_key",
+        "weknora_kdd_token",
+        "biocheck_service_token",
+        "mech_evidence_service_token",
+    )
     @classmethod
     def empty_history_token(cls, value: SecretStr | None) -> SecretStr | None:
         return value if value and value.get_secret_value() else None

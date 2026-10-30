@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -227,6 +228,65 @@ class RegionalIndicator(FrozenModel):
     provenance: SectionProvenance
 
 
+class MetricObservation(FrozenModel):
+    """An adopted typed metric; source parsing and binding remain upstream."""
+
+    observation_id: str = Field(min_length=1)
+    domain: Literal["business", "public_health"]
+    subject_ref: ProviderRef
+    metric_id: str = Field(min_length=1)
+    metric_version: str = Field(min_length=1)
+    value_lower: Decimal
+    value_upper: Decimal
+    unit: str = Field(min_length=1)
+    value_kind: Literal["monetary", "count", "ratio", "other"] = "other"
+    currency: str | None = None
+    reporting_scope: str | None = None
+    population: str | None = None
+    region: str | None = None
+    period_start: datetime
+    period_end: datetime
+    denominator: Decimal | None = Field(default=None, gt=0)
+    denominator_unit: str | None = None
+    measurement_basis: Literal["reported", "forecast", "estimate", "unknown"] = "unknown"
+    binding_status: Literal["source_bound", "declared"] = "declared"
+    field_locators: dict[str, JsonValue] = Field(default_factory=dict)
+    evidence_refs: tuple[ProviderRef, ...] = ()
+    provenance: SectionProvenance
+
+    @model_validator(mode="after")
+    def validate_metric(self):
+        if self.period_start.tzinfo is None or self.period_end.tzinfo is None:
+            raise ValueError("metric periods require timezone")
+        if self.period_start >= self.period_end:
+            raise ValueError("metric period must have positive duration")
+        if self.value_lower > self.value_upper:
+            raise ValueError("metric value bounds are reversed")
+        if not self.value_lower.is_finite() or not self.value_upper.is_finite():
+            raise ValueError("metric values must be finite")
+        return self
+
+
+class GraphHint(FrozenModel):
+    """A fixed graph relation to verify; never a confirmed project or effect."""
+
+    hint_ref: ProviderRef
+    subject_id: str
+    subject_label: str
+    relation_type: str
+    object_id: str
+    object_label: str
+    identity_statuses: tuple[str, str]
+    review_status: str
+    declared_binding_status: str
+    originals_validated: bool = False
+    query_terms: tuple[str, ...] = ()
+    evidence_refs: tuple[ProviderRef, ...] = ()
+    scope_description: str
+    selection_truncated: bool = False
+    provenance: SectionProvenance
+
+
 class ProjectTimeline(FrozenModel):
     project_ref: ProviderRef
     stage: str
@@ -295,6 +355,8 @@ class EngineRecord(FrozenModel):
     dependencies: tuple[ClaimDependency, ...] = ()
     events: tuple[Event, ...] = ()
     regional_indicators: tuple[RegionalIndicator, ...] = ()
+    graph_hints: tuple[GraphHint, ...] = Field(default=(), exclude_if=lambda value: not value)
+    metric_observations: tuple[MetricObservation, ...] = Field(default=(), exclude_if=lambda value: not value)
     timeline: ProjectTimeline | None = None
 
     @model_validator(mode="after")
@@ -441,6 +503,29 @@ class MiningPolicy(FrozenModel):
         return self
 
 
+class ValuePolicy(FrozenModel):
+    """Frozen descriptive thresholds, separate from queue capacity."""
+
+    minimum_pattern_support: int = Field(default=2, ge=1, le=100000)
+    relative_change_threshold: float = Field(default=0.1, ge=0)
+    absolute_change_threshold: float = Field(default=0.0, ge=0)
+    novelty_distance_threshold: float = Field(default=0.45, ge=0, le=2)
+    allow_singleton_exploration: bool = True
+
+
+class KddPolicy(MiningPolicy):
+    kdd_direction: Literal["research", "pipeline", "business", "public_health"]
+    value_policy: ValuePolicy = Field(default_factory=ValuePolicy)
+    monitor_changed_refs: tuple[ProviderRef, ...] | None = Field(
+        default=None,
+        max_length=2000,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Actual changed fixed record versions; only qualified prior versions establish new periods."
+        ),
+    )
+
+
 class EvidenceSupport(FrozenModel):
     record_ref: ProviderRef
     document_hash: str
@@ -493,15 +578,24 @@ class MethodResult(FrozenModel):
 
 class MiningResult(FrozenModel):
     schema_version: Literal["bioradar.engine.result.v1"] = "bioradar.engine.result.v1"
-    compute_version: Literal["bioradar-mining-compute-v1", "bioradar-mining-compute-v0.2"] = (
-        ENGINE_COMPUTE_VERSION
-    )
+    compute_version: Literal[
+        "bioradar-mining-compute-v1", "bioradar-mining-compute-v0.2", "bioradar-mining-compute-v0.3"
+    ] = ENGINE_COMPUTE_VERSION
     snapshot_hash: str
     policy_hash: str
     method_results: tuple[MethodResult, ...]
     candidates: tuple[Candidate, ...]
     result_hash: str
     limitations: tuple[str, ...] = ()
+    data_preparation: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    pattern_evaluations: tuple[dict[str, JsonValue], ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
+    selection_decisions: tuple[dict[str, JsonValue], ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
 
 
 def canonical_hash(value: Any) -> str:

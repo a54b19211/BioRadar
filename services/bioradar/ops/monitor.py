@@ -46,7 +46,9 @@ def main():
                     },
                 ) as client:
                     reader = FabricHistoryReader(
-                        client, authorization_ref=DevelopmentAccess(settings).actor().grant_ref
+                        client,
+                        source_instance=settings.data_fabric_source_instance,
+                        authorization_ref=DevelopmentAccess(settings).actor().grant_ref,
                     )
                     result = MonitorService(EngineService(database, settings), reader).retry_batch(
                         DevelopmentAccess(settings).actor(), arguments.retry_batch
@@ -83,6 +85,7 @@ def main():
                     ) as client:
                         reader = FabricHistoryReader(
                             client,
+                            source_instance=settings.data_fabric_source_instance,
                             authorization_ref=DevelopmentAccess(settings).actor().grant_ref,
                             max_records=settings.engine_max_records,
                             max_bytes=settings.engine_max_snapshot_bytes,

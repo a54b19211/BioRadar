@@ -1,8 +1,28 @@
+export interface QueryPolicyArtifactRef {
+  id: string;
+  version: string;
+}
+
+export interface QueryPolicyArtifact {
+  id: string;
+  version: string;
+  kind: string;
+  source_artifact_id?: string;
+  source_version?: string;
+  qualified_count?: number;
+  record_count?: number;
+  scope?: { direction?: string; mode?: string; cutoff?: string };
+  policy?: unknown;
+  provider?: string;
+  status?: string;
+}
+
 export interface QueryPolicyCheck {
   id: string;
   question?: string;
   required?: boolean;
   qualification?: string;
+  artifact_refs?: QueryPolicyArtifactRef[];
   status: "passed" | "failed" | "unknown";
   evidence_ids?: string[];
   reason?: string;
@@ -30,6 +50,8 @@ export interface QueryPolicyHistory {
   query_index?: number;
   evidence_ids?: string[];
   new_evidence_ids?: string[];
+  new_artifact_refs?: QueryPolicyArtifactRef[];
+  check_updates?: unknown[];
 }
 
 export interface QueryPolicyDecision {
@@ -56,12 +78,20 @@ export interface QueryPolicyDecision {
     status: string;
     error_code?: string | null;
     evidence_ids?: string[];
+    new_artifact_refs?: QueryPolicyArtifactRef[];
+    check_updates?: unknown[];
     cost?: Record<string, number | null>;
   } | null;
 }
 
 export interface QueryPolicyTrace {
   execution_version: string;
+  schema_version?: string;
+  direction?: string;
+  direction_basis?: string;
+  artifacts?: QueryPolicyArtifact[];
+  artifact_results?: Record<string, unknown>;
+  execution?: { action_id: string; kind: string; input_refs: QueryPolicyArtifactRef[]; output_refs: QueryPolicyArtifactRef[] }[];
   requested: string;
   effective: string;
   version?: string;
@@ -84,6 +114,8 @@ export interface QueryPolicyTrace {
 
 export interface PolicyQueryReceipt {
   action_id?: string | null;
+  kind?: string;
+  artifact_refs?: Record<string, unknown>[];
   provider?: string;
   phase?: string;
   index?: number;

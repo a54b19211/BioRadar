@@ -338,19 +338,31 @@ class InvestigationService:
     ):
         request = body.root
         self._actor(actor)
-        if (automation is not None or machine_analysis_id is not None) and request.kind not in {
+        if (
+            automation is not None or machine_analysis_id is not None
+        ) and request.kind not in {
             "material",
             "note",
         }:
-            raise DomainError("automation_judgment_forbidden", "后台仅可整理材料和笔记，不能签研究判断", 422)
+            raise DomainError(
+                "automation_judgment_forbidden",
+                "后台仅可整理材料和笔记，不能签研究判断",
+                422,
+            )
         with Session(self.engine.database) as session:
             self._row(session, actor, identifier)
             if machine_analysis_id is not None:
-                from bioradar.research.investigations.analysis_service import AnalysisService
+                from bioradar.research.investigations.analysis_service import (
+                    AnalysisService,
+                )
 
-                analysis = AnalysisService(self.engine)._row(session, actor, machine_analysis_id)
+                analysis = AnalysisService(self.engine)._row(
+                    session, actor, machine_analysis_id
+                )
                 if analysis.investigation_id != identifier:
-                    raise DomainError("analysis_reference_invalid", "机器分析与调查不一致", 422)
+                    raise DomainError(
+                        "analysis_reference_invalid", "机器分析与调查不一致", 422
+                    )
             if automation is not None and automation.source == "topic":
                 from bioradar.topics.service import TopicService
 
@@ -361,30 +373,96 @@ class InvestigationService:
 
             def mutate():
                 sources = {}
-                row, entries = self._row(session, actor, identifier, lock=True, sources=sources)
+                row, entries = self._row(
+                    session, actor, identifier, lock=True, sources=sources
+                )
+                if (
+                    automation is not None
+                    and machine_analysis_id is None
+                    and request.kind == "material"
+                    and request.stance == "context"
+                ):
+                    from bioradar.research.investigations.analysis_service import (
+                        InvestigationAnalysisRecord,
+                    )
+
+                    active = session.scalar(
+                        select(InvestigationAnalysisRecord.id)
+                        .where(
+                            InvestigationAnalysisRecord.workspace_id
+                            == actor.workspace_id,
+                            InvestigationAnalysisRecord.investigation_id == identifier,
+                            InvestigationAnalysisRecord.state.in_(
+                                ("queued", "running")
+                            ),
+                        )
+                        .limit(1)
+                    )
+                    if active is not None:
+                        raise DomainError(
+                            "analysis_in_progress",
+                            "本调查正在分析；自动新版本材料保留待追加",
+                            409,
+                        )
                 if row.revision != request.expected_revision:
-                    raise DomainError("revision_conflict", "调查已更新，请重新读取后保存", 409)
+                    raise DomainError(
+                        "revision_conflict", "调查已更新，请重新读取后保存", 409
+                    )
                 if len(entries) >= MAX_ENTRIES:
                     raise DomainError(
-                        "investigation_budget_exceeded", "调查记录已达保存上限，请拆分研究问题", 422
+                        "investigation_budget_exceeded",
+                        "调查记录已达保存上限，请拆分研究问题",
+                        422,
                     )
-                if row.status == "closed" and (request.kind != "status" or request.status == "closed"):
-                    raise DomainError("investigation_closed", "调查已关闭，请先重新开启", 409)
+                if row.status == "closed" and (
+                    request.kind != "status" or request.status == "closed"
+                ):
+                    raise DomainError(
+                        "investigation_closed", "调查已关闭，请先重新开启", 409
+                    )
                 payload = request.model_dump(mode="json", exclude={"expected_revision"})
                 if request.kind == "material":
-                    saved, source_demo = self._material(session, actor, request, sources)
-                    if any(source.payload["is_demo"] != source_demo for source in sources.values()):
-                        raise DomainError("fixture_scope_mismatch", "教学与真实来源不能混入同一调查", 422)
+                    saved, source_demo = self._material(
+                        session, actor, request, sources
+                    )
+                    if any(
+                        source.payload["is_demo"] != source_demo
+                        for source in sources.values()
+                    ):
+                        raise DomainError(
+                            "fixture_scope_mismatch",
+                            "教学与真实来源不能混入同一调查",
+                            422,
+                        )
                     payload = saved.model_dump(mode="json")
                     row.is_demo = row.is_demo or source_demo
                 elif request.kind == "judgment":
-                    allowed = {entry.id for entry in entries if entry.kind == "material"}
+                    allowed = {
+                        entry.id for entry in entries if entry.kind == "material"
+                    }
                     basis = request.basis_entry_ids
-                    if len(set(basis)) != len(basis) or not set(basis).issubset(allowed):
-                        raise DomainError("judgment_basis_invalid", "判断依据必须是本调查已有的材料记录", 422)
+                    if len(set(basis)) != len(basis) or not set(basis).issubset(
+                        allowed
+                    ):
+                        raise DomainError(
+                            "judgment_basis_invalid",
+                            "判断依据必须是本调查已有的材料记录",
+                            422,
+                        )
                     if request.assessment == "provisional" and not basis:
-                        raise DomainError("judgment_basis_required", "没有采用材料时请记录无法判断", 422)
-                    latest = next((entry for entry in reversed(entries) if entry.kind == "judgment"), None)
+                        raise DomainError(
+                            "judgment_basis_required",
+                            "没有采用材料时请记录无法判断",
+                            422,
+                        )
+                    latest = next(
+                        (
+                            entry
+                            for entry in reversed(entries)
+                            if entry.kind == "judgment"
+                        ),
+                        None,
+                    )
                     payload = InvestigationJudgment(
                         text=request.text,
                         conditions=request.conditions,
@@ -394,20 +472,32 @@ class InvestigationService:
                         parent_judgment_entry_id=latest.id if latest else None,
                     ).model_dump(mode="json")
                 elif request.kind == "status":
-                    updates = {update.question_id: update.status for update in request.question_updates}
-                    if len(updates) != len(request.question_updates) or not set(updates).issubset(
-                        {question["question_id"] for question in row.questions}
-                    ):
-                        raise DomainError("question_update_invalid", "核实问题不存在或重复更新", 422)
+                    updates = {
+                        update.question_id: update.status
+                        for update in request.question_updates
+                    }
+                    if len(updates) != len(request.question_updates) or not set(
+                        updates
+                    ).issubset({question["question_id"] for question in row.questions}):
+                        raise DomainError(
+                            "question_update_invalid", "核实问题不存在或重复更新", 422
+                        )
                     row.questions = [
-                        {**question, "status": updates.get(question["question_id"], question["status"])}
+                        {
+                            **question,
+                            "status": updates.get(
+                                question["question_id"], question["status"]
+                            ),
+                        }
                         for question in row.questions
                     ]
                     row.status = request.status
                 if machine_analysis_id is not None:
                     payload["machine_analysis_id"] = machine_analysis_id
                 if automation is not None:
-                    payload["automation"] = automation.model_dump(mode="json", exclude_none=True)
+                    payload["automation"] = automation.model_dump(
+                        mode="json", exclude_none=True
+                    )
                 row.revision += 1
                 row.updated_at = datetime.now(UTC)
                 entry = InvestigationEntryRecord(
@@ -426,15 +516,28 @@ class InvestigationService:
             if automation is not None or machine_analysis_id is not None:
                 idempotent_body = {"request": body.model_dump(mode="json")}
                 if automation is not None:
-                    idempotent_body["automation"] = automation.model_dump(mode="json", exclude_none=True)
+                    idempotent_body["automation"] = automation.model_dump(
+                        mode="json", exclude_none=True
+                    )
                 if machine_analysis_id is not None:
                     idempotent_body["machine_analysis_id"] = machine_analysis_id
             code, payload = self.engine._idempotent(
-                session, actor, "investigation.append:" + identifier, key, idempotent_body, mutate
+                session,
+                actor,
+                "investigation.append:" + identifier,
+                key,
+                idempotent_body,
+                mutate,
             )
             self._row(session, actor, identifier)
-        if request.kind == "material" and machine_analysis_id is None and automation is None:
-            from bioradar.research.investigations.analysis_service import AnalysisService
+        if (
+            request.kind == "material"
+            and machine_analysis_id is None
+            and automation is None
+        ):
+            from bioradar.research.investigations.analysis_service import (
+                AnalysisService,
+            )
 
             if self.engine.settings.semantic_llm_enabled:
                 try:

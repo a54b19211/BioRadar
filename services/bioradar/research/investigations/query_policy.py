@@ -68,7 +68,13 @@ def _canonical(value, name=""):
 
 def semantic_key(kind, arguments):
     """Hash real tool meaning; changing a stage, reason or action ID cannot enable a retry."""
-    if kind not in {"document_search", *_GRAPH_KINDS} or not isinstance(arguments, dict):
+    if kind not in {
+        "document_search",
+        *_GRAPH_KINDS,
+        "dataset_prepare",
+        "analysis_run",
+        "professional_assess",
+    } or not isinstance(arguments, dict):
         raise DomainError("query_policy_action_invalid", "查询动作种类或参数无效", 422)
     effective = {key: value for key, value in arguments.items() if key not in _HOST_ARGUMENTS}
     try:
@@ -96,14 +102,23 @@ def freeze_policy(settings, requested=None):
     if selected == "query_planner":
         _, version = load_query_planner(settings)
         source = version
+    kdd = selected == "query_planner" and getattr(settings, "analysis_kdd_enabled", False)
     return {
         "requested": selected,
         "effective": selected,
         "version": version,
         "source_sha256": source,
-        "schema_version": SCHEMA_VERSION,
-        "selector": "legacy_sequence" if selected == "baseline" else "heuristic",
-        "stop": "legacy_bounded_sequence" if selected == "baseline" else "rule",
+        "schema_version": "query-planner.external.v2" if kdd else SCHEMA_VERSION,
+        "selector": getattr(settings, "analysis_kdd_selector", "information_gain_v1")
+        if kdd
+        else "legacy_sequence"
+        if selected == "baseline"
+        else "heuristic",
+        "stop": "observed_checks_v1"
+        if kdd
+        else "legacy_bounded_sequence"
+        if selected == "baseline"
+        else "rule",
         "training_status": "llm_rules_baseline" if selected == "baseline" else "heuristic_untrained",
         "max_steps": getattr(settings, "analysis_query_policy_max_steps", 12),
         "provider_status": status,

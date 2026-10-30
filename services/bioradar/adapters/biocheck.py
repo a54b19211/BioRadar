@@ -178,7 +178,7 @@ def build_packet(question, evidence, assessment=None):
 def _callback(call):
     checks = 0
 
-    def invoke(stage, instruction, payload):
+    def invoke(stage, instruction, payload, response_schema=None, *, call_id=None):
         nonlocal checks
         if stage == "verify":
             checks += 1
@@ -189,7 +189,12 @@ def _callback(call):
             target = _STAGES.get(stage)
         if target is None or not isinstance(instruction, str) or not isinstance(payload, dict):
             raise DomainError("biocheck_stage_invalid", "BioCheck 请求阶段不符合接入约定", 502)
-        output = call(target, instruction, payload)
+        keywords = {"call_id": call_id} if call_id is not None else {}
+        output = (
+            call(target, instruction, payload, response_schema, **keywords)
+            if response_schema is not None
+            else call(target, instruction, payload, **keywords)
+        )
         if not isinstance(output, dict):
             raise DomainError("biocheck_response_invalid", "BioCheck 模型回执不是JSON对象", 502)
         return output
@@ -284,9 +289,35 @@ def check_biocheck(settings, packet, draft, call, *, repair=True, loaded=None):
         return _unavailable(packet, draft, version=version)
     invoke = _callback(call)
     try:
-        initial = core.verify(copy.deepcopy(packet), draft, invoke)
+        try:
+            initial = core.verify(copy.deepcopy(packet), draft, invoke)
+        except ModelCallError as exc:
+            if exc.receipt.status != "failed" or exc.code not in {
+                "model_output_invalid", "model_output_truncated"
+            }:
+                raise
+            # The provider answered, but supplied no usable verification. Preserve
+            # the exact draft as failed/unverified; never revise it from this error.
+            return {
+                **_unavailable(packet, draft, version=version, status="failed"),
+                "error_code": exc.code,
+                "verification_error": "核验服务返回的内容无法使用；正文保留，等待核验。",
+            }
+        except DomainError as exc:
+            if exc.code != "method_input_invalid":
+                raise
+            # A completed HTTP method rejection is a known failed verification,
+            # unlike a missing/unknown transport response.
+            return {
+                **_unavailable(packet, draft, version=version, status="failed"),
+                "error_code": exc.code,
+                "verification_error": "专业核验未接受本次回执结构；正文保留，等待核验。",
+            }
         draft, review, revision, repair_state = _optional_repair(core, packet, draft, initial, invoke, repair)
-        return _result(packet, draft, review, initial, revision, version, **repair_state)
+        return _result(
+            packet, draft, review, initial, revision,
+            getattr(core, "provider_version", version), **repair_state
+        )
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         # Provider validation errors may include restricted source text.
         return _unavailable(packet, draft, version=version, status="failed")
@@ -302,9 +333,50 @@ def run_biocheck(settings, packet, call, *, repair=True, loaded=None):
     try:
         generated = core.generate(copy.deepcopy(packet), invoke, method="bound")
         draft = generated["draft"]
-        initial = core.verify(copy.deepcopy(packet), draft, invoke)
+        try:
+            initial = core.verify(copy.deepcopy(packet), draft, invoke)
+        except ModelCallError as exc:
+            if exc.receipt.status != "failed" or exc.code not in {
+                "model_output_invalid", "model_output_truncated"
+            }:
+                raise
+            # The provider answered, but supplied no usable verification. Preserve
+            # the exact draft as failed/unverified; never revise it from this error.
+            return {
+                **_unavailable(packet, draft, version=version, status="failed"),
+                "error_code": exc.code,
+                "verification_error": "核验服务返回的内容无法使用；正文保留，等待核验。",
+            }
+        except DomainError as exc:
+            if exc.code != "method_input_invalid":
+                raise
+            # A completed HTTP method rejection is a known failed verification,
+            # unlike a missing/unknown transport response.
+            return {
+                **_unavailable(packet, draft, version=version, status="failed"),
+                "error_code": exc.code,
+                "verification_error": "专业核验未接受本次回执结构；正文保留，等待核验。",
+            }
         draft, review, revision, repair_state = _optional_repair(core, packet, draft, initial, invoke, repair)
-        return _result(packet, draft, review, initial, revision, version, generated=generated, **repair_state)
+        return _result(
+            packet, draft, review, initial, revision,
+            getattr(core, "provider_version", version), generated=generated, **repair_state
+        )
+    except DomainError as exc:
+        known_failed = exc.code == "method_input_invalid" or (
+            isinstance(exc, ModelCallError)
+            and exc.receipt.status == "failed"
+            and exc.code in {"model_output_invalid", "model_output_truncated"}
+        )
+        if not known_failed or draft is not None:
+            raise
+        # No professional draft exists yet. The host can still deliver its saved
+        # structured analysis, explicitly marked as an unfinished report.
+        return {
+            **_unavailable(packet, version=version, status="failed"),
+            "error_code": exc.code,
+            "generation_error": "专业报告生成未完成；保留已有分析草稿，尚未经过正文核验。",
+        }
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         return _unavailable(packet, draft, version=version, status="failed")
 
@@ -350,7 +422,7 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
     callback_failure = None
     guarded_call = _callback(call)
 
-    def invoke(stage, instruction, payload):
+    def invoke(stage, instruction, payload, response_schema=None, *, call_id=None):
         nonlocal callback_failure
         try:
             assessment = packet.get("assessment")
@@ -365,7 +437,7 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
                 payload.setdefault("assessment", {})["research_scope"] = copy.deepcopy(
                     assessment["research_scope"]
                 )
-            return guarded_call(stage, instruction, payload)
+            return guarded_call(stage, instruction, payload, response_schema, call_id=call_id)
         except Exception as exc:
             callback_failure = exc
             raise
@@ -409,6 +481,7 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
         if core is None or not callable(getattr(core, "audit_support", None)):
             return stopped("NOT_RUN", "biocheck_support_unavailable", "当前共享方法未提供所选片段复核。")
         audit = core.audit_support(copy.deepcopy(packet), copy.deepcopy(review), invoke, targets=requested)
+        binding["provider_version"] = getattr(core, "provider_version", version)
         if (
             not isinstance(audit, dict)
             or audit.get("status") not in {"PASS", "REVIEW", "NOT_RUN"}
@@ -532,6 +605,10 @@ def quality_feedback_biocheck(settings, packet, review, *, audit=None, source_er
     try:
         binding, errors = _feedback_binding(packet, review, audit)
         result.update(binding)
+        if not isinstance(review, dict) or not review.get("draft"):
+            result["review_required"] = errors
+            result["error_code"] = "biocheck_verification_unavailable"
+            return result
         if core is None or not callable(getattr(core, "quality_feedback", None)):
             result.update(error_code="biocheck_feedback_unavailable")
             result["review_required"].append(
@@ -550,6 +627,7 @@ def quality_feedback_biocheck(settings, packet, review, *, audit=None, source_er
         ):
             raise ValueError("invalid quality feedback")
         result.update(copy.deepcopy(feedback))
+        result["provider_version"] = getattr(core, "provider_version", version)
         result["review_required"].extend(errors)
         if (source_errors or review.get("verification_errors")) and not result["review_required"]:
             result["review_required"].append(
@@ -587,7 +665,7 @@ def revise_biocheck(settings, packet, review, call, *, audit=None, source_errors
     original = review.get("draft") if isinstance(review, dict) else None
     result = {
         "provider": "biocheck",
-        "provider_version": version,
+        "provider_version": getattr(core, "provider_version", version),
         "draft": original,
         "status": "blocked" if feedback["review_required"] else "not_changed",
         "changed_units": [],
@@ -603,10 +681,10 @@ def revise_biocheck(settings, packet, review, call, *, audit=None, source_errors
     callback_failure = None
     guarded_call = _callback(call)
 
-    def invoke(stage, instruction, payload):
+    def invoke(stage, instruction, payload, response_schema=None, *, call_id=None):
         nonlocal callback_failure
         try:
-            return guarded_call(stage, instruction, payload)
+            return guarded_call(stage, instruction, payload, response_schema, call_id=call_id)
         except Exception as exc:
             callback_failure = exc
             raise
@@ -660,3 +738,42 @@ def revise_biocheck(settings, packet, review, call, *, audit=None, source_errors
         result.update(status="failed", error_code="biocheck_revision_invalid")
         result["reason"] = "修订回执未严格对应允许段落，保留原核验文字。"
         return result
+
+
+class _HTTPMethods:
+    """Expose native method signatures; transport and durable hooks are supplied by the host."""
+
+    def __init__(self, execute, provider_version):
+        self.execute = execute
+        self.provider_version = provider_version
+
+    def _run(self, operation, arguments, call=None):
+        response = self.execute(operation, arguments, call=call)
+        self.provider_version = response["provider_version"]
+        return response["result"]
+
+    def generate(self, packet, call, method="bound"):
+        return self._run("generate", {"packet": packet, "method": method}, call)
+
+    def verify(self, packet, draft, call):
+        return self._run("verify", {"packet": packet, "draft": draft}, call)
+
+    def revise(self, packet, review, call, *, audit=None, source_errors=()):
+        return self._run(
+            "revise",
+            {"packet": packet, "review": review, "audit": audit, "source_errors": list(source_errors)},
+            call,
+        )
+
+    def audit_support(self, packet, review, call, *, targets=None):
+        return self._run("audit_support", {"packet": packet, "review": review, "targets": targets}, call)
+
+    def quality_feedback(self, review, audit=None, *, source_errors=()):
+        return self._run(
+            "quality_feedback", {"review": review, "audit": audit, "source_errors": list(source_errors)}
+        )
+
+
+def load_biocheck_http(execute, provider_version=None):
+    """Bind the host's operation executor; HTTP mode never falls back to a local import."""
+    return _HTTPMethods(execute, provider_version), provider_version

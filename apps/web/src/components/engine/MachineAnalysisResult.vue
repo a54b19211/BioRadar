@@ -13,6 +13,14 @@ function object(value: unknown): Record<string, unknown> {
 function list(value: unknown): unknown[] { return Array.isArray(value) ? value : []; }
 function text(value: unknown) { return typeof value === "string" ? value : ""; }
 const savedReport = computed(() => props.analysis.result?.report);
+const generationError = computed(() => text(savedReport.value?.generation_error));
+const verificationErrorCode = computed(() => text(savedReport.value?.error_code));
+const verificationError = computed(() => generationError.value ? "" : text(savedReport.value?.verification_error)
+  || ({
+    model_output_invalid: "核验服务返回的结果无法使用，正文已保留，等待有效核验。",
+    model_output_truncated: "核验服务返回的结果被截断，正文已保留，等待有效核验。",
+  } as Record<string, string>)[verificationErrorCode.value]
+  || (verificationErrorCode.value ? "本版核验未完成，正文已保留供检查。" : ""));
 const feedbackRounds = computed(() => list(savedReport.value?.rounds).map(object));
 const savedFeedback = computed(() => {
   const direct = object(savedReport.value?.quality_feedback);
@@ -143,13 +151,21 @@ const reviewStatus: Record<string, string> = {
       <div class="candidate-meta">
         <h3>研究报告</h3>
         <ElTag :type="analysis.result.report.status.toUpperCase() === 'PASS' ? 'success' : 'warning'">
-          {{ reportStatus[analysis.result.report.status.toUpperCase()] || analysis.result.report.status }}
+          {{ generationError ? "报告生成未完成" : reportStatus[analysis.result.report.status.toUpperCase()] || analysis.result.report.status }}
         </ElTag>
       </div>
       <div v-if="analysis.result.report.final_text" class="report-document">{{ analysis.result.report.final_text }}</div>
       <p v-else class="notice">本版尚未取得可阅读的报告正文，请查看核验与执行记录。</p>
       <p class="muted">{{ analysis.result.report.provider || "报告生成服务" }} ·
-        {{ analysis.result.report.status.toUpperCase() === "PASS" ? "原报告核验已通过；所选片段复核另见下方。" : "原报告核验尚未通过，当前正文已保留供检查。" }}
+        {{ generationError ? "当前正文为此前已保存的结构化分析稿，专业生成与核验未完成。" : analysis.result.report.status.toUpperCase() === "PASS" ? "原报告核验已通过；所选片段复核另见下方。" : "原报告核验尚未通过，当前正文已保留供检查。" }}
+      </p>
+      <p v-if="generationError" class="notice" role="alert">
+        报告生成未完成原因：{{ generationError }}
+        <small v-if="verificationErrorCode">（{{ verificationErrorCode }}）</small>
+      </p>
+      <p v-if="verificationError" class="notice" role="alert">
+        核验未完成原因：{{ verificationError }}
+        <small v-if="verificationErrorCode">（{{ verificationErrorCode }}）</small>
       </p>
       <details v-if="analysis.result.report.verification">
         <summary>原报告核验结果</summary>

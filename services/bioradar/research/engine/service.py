@@ -36,6 +36,7 @@ from bioradar.research.engine.schemas import (
     SnapshotSummary,
 )
 from bioradar.research.mining.models import (
+    KddPolicy,
     MiningPolicy,
     MiningResult,
     NormalizedSnapshot,
@@ -53,7 +54,13 @@ SOURCE_LIST_NOTE = "本页部分来源当前不可读取，相关项目未返回
 RESULT_BUDGET_MESSAGE = "结果超过运行预算，请缩小采用范围或候选上限后新建分析"
 
 
-def computation_versions(method_ids: tuple[str, ...]) -> dict[str, str]:
+def computation_versions(method_ids: tuple[str, ...], *, policy=None) -> dict[str, str]:
+    if isinstance(policy, dict) and "kdd_direction" in policy:
+        policy = KddPolicy.model_validate(policy)
+    if isinstance(policy, KddPolicy):
+        from bioradar.research.mining.kdd import kdd_versions
+
+        return kdd_versions(policy)
     return {**method_versions(method_ids), "__engine_compute__": ENGINE_COMPUTE_VERSION}
 
 
@@ -252,7 +259,8 @@ class EngineService:
     @staticmethod
     def _compatible_policy(original: dict) -> MiningPolicy | None:
         try:
-            policy = MiningPolicy.model_validate(original)
+            policy_type = KddPolicy if "kdd_direction" in original else MiningPolicy
+            policy = policy_type.model_validate(original)
         except ValidationError:
             return None
         return policy if canonical_hash(policy) == canonical_hash(original) else None
@@ -409,7 +417,7 @@ class EngineService:
             or body.policy.topic_components > 20
         ):
             raise DomainError("engine_budget_exceeded", "计算参数超过开发授权资源上限", 422)
-        versions = computation_versions(body.policy.method_ids)
+        versions = computation_versions(body.policy.method_ids, policy=body.policy)
         with Session(self.database) as session, session.begin():
             snapshot = self._snapshot(session, actor, body.snapshot_id)
             input_hash = canonical_hash(
@@ -509,7 +517,10 @@ class EngineService:
                     raise DomainError("result_budget_exceeded", RESULT_BUDGET_MESSAGE, 409)
                 if self._compatible_policy(row.policy) is None:
                     raise DomainError("policy_schema_changed", "原始策略采用旧Schema，请创建新分析运行", 409)
-                if computation_versions(tuple(row.policy["method_ids"])) != row.method_versions:
+                if (
+                    computation_versions(tuple(row.policy["method_ids"]), policy=row.policy)
+                    != row.method_versions
+                ):
                     raise DomainError("method_version_changed", "方法已升级，请创建新分析运行", 409)
                 self._requeue(row)
                 return 202, self._view(session, row, detail=False).model_dump(mode="json")
@@ -546,7 +557,13 @@ class EngineService:
             row = self._run(session, actor, identifier)
             if row.result is None or row.result_hash != body.result_hash:
                 raise DomainError("result_hash_conflict", "反馈目标不是已接受的固定结果", 409)
-            if body.candidate_key not in {c["candidate_key"] for c in row.result["candidates"]}:
+            candidate_keys = {c["candidate_key"] for c in row.result["candidates"]}
+            candidate_keys.update(
+                candidate["candidate_key"]
+                for method in row.result.get("method_results", [])
+                for candidate in method["candidates"]
+            )
+            if body.candidate_key not in candidate_keys:
                 raise DomainError("candidate_not_found", "未找到该固定结果中的候选", 404)
 
             def mutate():
@@ -632,7 +649,7 @@ class EngineService:
                 row.completed_at, row.dispatch_pending = datetime.now(UTC), False
                 row.revision += 1
                 return None
-            if computation_versions(policy.method_ids) != row.method_versions:
+            if computation_versions(policy.method_ids, policy=policy) != row.method_versions:
                 row.state, row.error_code = "failed", "method_version_changed"
                 row.error_message = "方法版本已变化，请创建新分析"
                 row.completed_at, row.dispatch_pending = datetime.now(UTC), False
@@ -674,7 +691,8 @@ class EngineService:
             expected_versions["__engine_compute__"] = result.compute_version
             if (
                 expected_versions != row.method_versions
-                or computation_versions(tuple(row.policy["method_ids"])) != row.method_versions
+                or computation_versions(tuple(row.policy["method_ids"]), policy=row.policy)
+                != row.method_versions
             ):
                 raise DomainError("result_method_mismatch", "计算结果的方法集合与固定调用不匹配", 502)
             payload = result.model_dump(mode="json")

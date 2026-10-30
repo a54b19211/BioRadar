@@ -127,7 +127,10 @@ def build_graph_candidates(settings, fixed, progress, reading, *, checks):
     scope = fixed["graph_scope"] if "graph_scope" in fixed else fixed.get("search_scope", [])
     if SOURCE not in scope:
         return []
-    instance = "fixture" if fixed.get("is_demo") else "datafabric-test"
+    instance = (
+        "fixture" if fixed.get("is_demo")
+        else getattr(settings, "data_fabric_source_instance", "datafabric-test")
+    )
     if SOURCE not in getattr(settings, "engine_source_id_allowlist", {}).get(instance, []):
         return []
     history = fixed.get("evidence_time", {})

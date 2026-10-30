@@ -235,7 +235,7 @@ def create_engine_router(settings: Settings) -> APIRouter:
             cutoff = datetime.now(UTC)
         if cutoff.tzinfo is None or cutoff.utcoffset() is None or cutoff > datetime.now(UTC):
             raise DomainError("graph_cutoff_invalid", "列表截止时间须为已有的含时区时间", 422)
-        instance = "fixture" if is_demo else "datafabric-test"
+        instance = "fixture" if is_demo else settings.data_fabric_source_instance
         if instance not in actor.source_allowlist or source_id not in settings.engine_source_id_allowlist.get(
             instance, []
         ):
@@ -358,6 +358,7 @@ def create_engine_router(settings: Settings) -> APIRouter:
                         initial_queries=body.initial_queries,
                         budget=body.budget,
                         query_policy=body.query_policy,
+                        kdd_direction=body.kdd_direction,
                     ),
                     "ask-analysis:" + canonical_hash(idempotency_key),
                 )
@@ -449,6 +450,9 @@ def create_engine_router(settings: Settings) -> APIRouter:
                 content = (analysis.result.report or {}).get("final_text") or render_report(
                     analysis.result.model_dump(mode="json"), analysis.question
                 )
+                from bioradar.research.investigations.kdd import scope_markdown
+
+                content = scope_markdown(analysis.progress.get("material_scope")) + content
                 return Response(
                     content=content,
                     media_type="text/markdown; charset=utf-8",

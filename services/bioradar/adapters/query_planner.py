@@ -88,7 +88,7 @@ def validate_decision(request, result, *, expected_version=None):
         raise DomainError("query_policy_output_invalid", "查询策略输出不是有限JSON对象", 502) from None
     if (
         not isinstance(result, dict)
-        or result.get("schema_version") != SCHEMA_VERSION
+        or result.get("schema_version") != request.get("schema_version", SCHEMA_VERSION)
         or result.get("decision") not in _DECISIONS
         or "action" not in result
         or not isinstance(result.get("reason"), str)
@@ -98,10 +98,10 @@ def validate_decision(request, result, *, expected_version=None):
     ):
         raise DomainError("query_policy_output_invalid", "查询策略输出不符合固定契约", 502)
     policy = result["policy"]
-    if any(
-        not isinstance(policy.get(key), str) or not policy[key]
-        for key in ("version", "selector", "stop", "training_status")
-    ):
+    policy_keys = ("version", "selector", "training_status")
+    if request.get("schema_version") != "query-planner.external.v2":
+        policy_keys += ("stop",)
+    if any(not isinstance(policy.get(key), str) or not policy[key] for key in policy_keys):
         raise DomainError("query_policy_output_invalid", "查询策略缺少实际版本与训练状态", 502)
     if expected_version is not None and policy["version"] != expected_version:
         raise DomainError("query_policy_version_changed", "查询策略返回版本与本轮固定版本不同", 409)
@@ -131,12 +131,22 @@ def validate_decision(request, result, *, expected_version=None):
     if result["decision"] == "complete":
         current = {item["id"] for item in request.get("evidence", [])}
         required = [check for check in request.get("checks", []) if check.get("required", True)]
-        if not required or any(
-            check.get("status") != "passed"
-            or not check.get("evidence_ids")
-            or not set(check["evidence_ids"]).issubset(current)
-            for check in required
-        ):
+        artifacts = {(a["id"], a["version"]) for a in request.get("artifacts", [])}
+
+        def bound(check):
+            evidence = check.get("evidence_ids") or []
+            refs = check.get("artifact_refs") or []
+            if evidence and set(evidence).issubset(current):
+                return True
+            return (
+                request.get("schema_version") == "query-planner.external.v2"
+                and bool(refs)
+                and all(
+                    isinstance(ref, dict) and (ref.get("id"), ref.get("version")) in artifacts for ref in refs
+                )
+            )
+
+        if not required or any(check.get("status") != "passed" or not bound(check) for check in required):
             raise DomainError("query_policy_coverage_invalid", "尚未绑定当前证据的覆盖检查不能判为完成", 502)
     return copy.deepcopy(result)
 
@@ -148,7 +158,14 @@ def decide_query(settings, request, *, loaded=None):
     if current is None or current[1] != version:
         raise DomainError("query_policy_version_changed", "本轮查询方法源码已变化，未继续选择动作", 409)
     try:
-        result = module.decide(copy.deepcopy(request))
+        if request.get("schema_version") == "query-planner.external.v2":
+            if not callable(getattr(module, "decide_kdd", None)):
+                raise DomainError("query_policy_version_changed", "本轮路由未提供KDD能力选择", 409)
+            result = module.decide_kdd(
+                copy.deepcopy(request), selector=request.get("selector", "information_gain_v1")
+            )
+        else:
+            result = module.decide(copy.deepcopy(request))
     except DomainError:
         raise
     except Exception as exc:

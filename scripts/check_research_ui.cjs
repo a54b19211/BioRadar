@@ -124,6 +124,37 @@ async function renderReport(status, genericState = "passed", calls = [], reportF
     analysis: { state: "completed", result, calls, evidence: [] },
   }));
 }
+async function renderPanelScope(scope) {
+  const { compileComponent } = require("./check_query_policy_ui.cjs");
+  const empty = Vue.defineComponent({ setup: () => () => null });
+  const panel = compileComponent("apps/web/src/components/engine/MachineAnalysisPanel.vue", {
+    "../../api/engine": {
+      engineRequest: () => new Promise(() => {}),
+      EngineError,
+    },
+    "element-plus": { ElButton: empty, ElDrawer: empty, ElTag: empty },
+    "./MachineAnalysisResult.vue": { default: empty },
+    "./ResearchQuestionForm.vue": { default: empty },
+    "./ResearchProgress.vue": { default: empty },
+  });
+  const originalSetup = panel.setup;
+  panel.setup = (props, context) => {
+    const state = originalSetup(props, context);
+    state.selected.value = {
+      id: "offline-scope-control", state: "needs_review", question: "Offline scope control",
+      is_demo: false, evidence_count: 5, queries: [], limitations: [], search_scope: [],
+      calls: [], budget: {}, version: "offline", prompt_version: "offline",
+      progress: scope ? { material_scope: scope } : {},
+    };
+    return state;
+  };
+  const app = Vue.createSSRApp(panel, {
+    investigation: investigation(), busy: false, loading: false, readOnly: true,
+  });
+  app.component("RouterLink", empty);
+  return renderToString(app);
+}
+
 async function main() {
   const apiContext = {
     exports: {}, Headers, console,
@@ -239,6 +270,62 @@ async function main() {
   assert.equal(retainedDraft.result.report.final_text, "Preserved failed draft");
   assert.equal(retainedDraft.result.report.status, "FAIL");
 
+  const scope = {
+    fixed_version_count: 8, read_version_count: 5,
+    read_scope: "selected_passages_not_full_documents",
+    unread_versions: ["unread-a", "unread-b", "unread-c"].map((id, i) => ({
+      source_id: "who_don", source_record_id: id, version_id: String(i).repeat(64),
+    })),
+    source_failures: [
+      { provider: "fabric", source_id: "who_don", status: "unavailable", error_code: "source_unavailable" },
+      { provider: "weknora", source_id: null, status: "failed", error_code: "retrieval_failed" },
+    ],
+    qualification: "固定计算与选定原文片段分别计数。",
+  };
+  scope.unread_versions[0].query_hit = true;
+  scope.unread_versions[0].adoption_stop_reason = "analysis_evidence_budget";
+  const scopeHtml = await renderPanelScope(scope);
+  assert.match(scopeHtml, /固定资料 8 个版本；实际读取其中 5 个版本的选定片段/);
+  assert.match(scopeHtml, /未进入本轮原文片段：3 个版本；补查未完成：2 次/);
+  assert.match(scopeHtml, /不是全文阅读量、独立研究数或全领域覆盖率/);
+  assert.match(scopeHtml, /未读材料与失败补查不代表没有相关证据/);
+  assert.match(scopeHtml, /成功补查命中但未读：1 个固定版本/);
+  assert.match(scopeHtml, /本轮原文片段容量已满，这些命中未进入已读证据/);
+  assert.match(scopeHtml, /unread-c/);
+  assert.match(scopeHtml, /source_unavailable/);
+  assert.match(scopeHtml, /retrieval_failed/);
+  const scopePrint = require("./check_query_policy_ui.cjs").printableText(scopeHtml);
+  assert.match(scopePrint, /固定资料 8 个版本；实际读取其中 5 个版本的选定片段/);
+  assert.match(scopePrint, /未进入本轮原文片段：3 个版本；补查未完成：2 次/);
+  assert.match(scopePrint, /成功补查命中但未读：1 个固定版本/);
+  assert.doesNotMatch(await renderPanelScope(null), /本轮资料范围（系统记录）/,
+    "Legacy analyses must not acquire fabricated reading counts");
+
+  const failedVerification = await renderReport("failed", "needs_review", [], {
+    verification: null, error_code: "method_input_invalid",
+    verification_error: "SYNTHETIC 核验服务未能返回合格结果，正文保留。",
+    support_audit: { status: "NOT_RUN", not_run_reason: "verification_unavailable" },
+  });
+  assert.match(failedVerification, /报告核验未完成/);
+  assert.match(failedVerification, /核验未完成原因：/);
+  assert.match(failedVerification, /SYNTHETIC 核验服务未能返回合格结果，正文保留/);
+  assert.match(failedVerification, /method_input_invalid/);
+  assert.match(failedVerification, /所选片段复核未执行/);
+  assert.match(failedVerification, /Exact final report text/);
+  assert.doesNotMatch(failedVerification, /BioCheck 原核验通过/);
+  assert.match(require("./check_query_policy_ui.cjs").printableText(failedVerification),
+    /SYNTHETIC 核验服务未能返回合格结果，正文保留/);
+
+  const generationFailed = await renderReport("failed", "needs_review", [], {
+    generation_error: "SYNTHETIC 专业生成拒绝，保留结构稿。",
+    error_code: "method_input_invalid", verification: null,
+  });
+  assert.match(generationFailed, /报告生成未完成/);
+  assert.match(generationFailed, /此前已保存的结构化分析稿，专业生成与核验未完成/);
+  assert.match(generationFailed, /SYNTHETIC 专业生成拒绝，保留结构稿/);
+  assert.doesNotMatch(generationFailed, /核验未完成原因：/);
+  assert.doesNotMatch(generationFailed, /BioCheck 原核验通过/);
+
   const review = await renderReport("REVIEW");
   assert.match(review, /Exact final report text/);
   assert.match(review, /报告待核/);
@@ -331,6 +418,7 @@ async function main() {
     "post_verification_feedback_and_round_stop_reasons_are_visible_and_printable",
     "current_feedback_is_bound_to_the_saved_body_and_separate_from_old_structured_gaps",
     "support_audit_pass_never_upgrades_whole_report_failure",
+    "actual_read_passage_scope_unread_and_failed_queries_are_visible_and_printable",
     "missing_report_does_not_fabricate_professional_feedback",
   ] }));
 }

@@ -1,0 +1,370 @@
+"""Fixed-version WeKnora retrieval and vector features; Fabric stays the original authority."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+import time
+
+import httpx
+
+from bioradar.api.errors import DomainError
+from bioradar.research.mining.models import (
+    Embedding,
+    NormalizedSnapshot,
+    ProviderRef,
+    SectionProvenance,
+    canonical_hash,
+)
+
+CONTRACT = "weknora-kdd-v1"
+FEATURE_VERSION = "bioradar.weknora.features.v1"
+MAX_RESPONSE_BYTES = 16_777_216
+
+
+def _member(record):
+    ref = record.record_ref
+    try:
+        source, native, demo = json.loads(ref.object_id)
+    except (ValueError, TypeError):
+        raise DomainError("weknora_identity_missing", "向量成员须有固定 Fabric 原件身份", 422) from None
+    if source != record.source_id or demo is not False or ref.provider != "data_fabric_history":
+        raise DomainError("weknora_identity_missing", "向量成员须为已采用的真实 Fabric 固定版本", 422)
+    return {
+        "source_instance": record.source_instance,
+        "source_id": source,
+        "source_record_id": native,
+        "version_id": ref.adopted_version,
+        "raw_sha256": ref.content_hash,
+    }
+
+
+def _identity(value):
+    return tuple(
+        value.get(key)
+        for key in ("source_instance", "source_id", "source_record_id", "version_id", "raw_sha256")
+    )
+
+
+def _post(settings, path, body, *, timeout_seconds=30, client=None):
+    url = getattr(settings, "weknora_kdd_url", None)
+    token = getattr(settings, "weknora_kdd_token", None)
+    if not url or not token:
+        raise DomainError("weknora_kdd_not_configured", "未配置固定版本检索与向量服务", 503)
+    if timeout_seconds <= 0:
+        raise DomainError("analysis_time_budget", "发送前研究时限已结束", 409)
+    own = client is None
+    session = client or httpx.Client(trust_env=False)
+    deadline = time.monotonic() + timeout_seconds
+    try:
+        with session.stream(
+            "POST",
+            url + path,
+            json=body,
+            headers={"Authorization": "Bearer " + token.get_secret_value()},
+            timeout=httpx.Timeout(timeout_seconds, connect=min(5, timeout_seconds)),
+            follow_redirects=False,
+        ) as response:
+            if response.status_code != 200:
+                raise DomainError(
+                    "weknora_kdd_http_error",
+                    "固定版本检索或向量读取失败",
+                    502,
+                    response.status_code >= 500,
+                )
+            raw = bytearray()
+            for chunk in response.iter_bytes():
+                raw.extend(chunk)
+                if len(raw) > MAX_RESPONSE_BYTES or time.monotonic() > deadline:
+                    raise DomainError("weknora_kdd_response_budget", "向量读取超过时间或响应大小限制", 422)
+        value = json.loads(raw)
+        if not isinstance(value, dict) or value.get("contract_version") != CONTRACT:
+            raise ValueError()
+        return value
+    except httpx.HTTPError:
+        raise DomainError(
+            "weknora_kdd_transport_unconfirmed", "检索或向量请求的返回结果未知，未自动重发", 502
+        ) from None
+    except (ValueError, TypeError):
+        raise DomainError("weknora_kdd_response_invalid", "检索或向量回执格式无效，未采用结果", 502) from None
+    finally:
+        if own:
+            session.close()
+
+
+def features_for_snapshot(settings, snapshot, *, direction, timeout_seconds=30, client=None):
+    """Only exact member/text/version matches can receive an embedding.
+
+    An incomplete feature response preserves every original record with an explicit
+    missing feature reason; it never narrows the declared analysis population.
+    """
+    snapshot = NormalizedSnapshot.model_validate(snapshot)
+    kb = getattr(settings, "weknora_kdd_knowledge_base_id", None)
+    if not kb:
+        raise DomainError("weknora_kdd_not_configured", "未配置本轮向量知识库", 503)
+    if not 1 <= len(snapshot.records) <= 100 or snapshot.is_demo:
+        raise DomainError("weknora_feature_scope", "真实向量读取需明确 1 至 100 个固定成员", 422)
+    members = [_member(record) for record in snapshot.records]
+    if len({_identity(x) for x in members}) != len(members):
+        raise DomainError("weknora_feature_scope", "固定成员重复，未把版本重复计入向量样本", 422)
+    response = _post(
+        settings,
+        "/api/v1/kdd/features",
+        {"knowledge_base_id": kb, "source_scope": direction, "members": members, "include_chunks": False},
+        timeout_seconds=timeout_seconds,
+        client=client,
+    )
+    if (
+        response.get("requested_count") != len(members)
+        or not isinstance(response.get("features"), list)
+        or not isinstance(response.get("excluded"), list)
+        or response.get("population") != "explicit_members_only"
+    ):
+        raise DomainError("weknora_feature_scope", "向量回执缺少实际成员范围", 502)
+    expected = {_identity(value) for value in members}
+    features = {}
+    for feature in response["features"]:
+        if not isinstance(feature, dict) or not isinstance(feature.get("identity"), dict):
+            raise DomainError("weknora_feature_identity", "向量回执缺少固定成员身份", 502)
+        key = _identity(feature["identity"])
+        if key not in expected or key in features or feature.get("source_scope") != direction:
+            raise DomainError("weknora_feature_identity", "向量回执含重复、越界或不匹配成员", 502)
+        features[key] = feature
+    if response.get("returned_count") != len(features):
+        raise DomainError("weknora_feature_scope", "向量回执数量与实际返回不符", 502)
+    adopted, excluded, records = [], [], []
+    for record, member in zip(snapshot.records, members, strict=True):
+        feature = features.get(_identity(member))
+        reason = None
+        if feature is None:
+            reason = "feature_not_returned"
+        elif feature.get("status") != "ready":
+            reason = "feature_" + str(feature.get("status", "unavailable"))
+        elif feature.get("text") != record.normalized_text:
+            reason = "feature_text_differs_from_fixed_analysis_text"
+        elif feature.get("content_sha256") != hashlib.sha256(feature["text"].encode()).hexdigest():
+            reason = "feature_text_hash_mismatch"
+        else:
+            provenance = feature.get("embedding_provenance") or {}
+            if (
+                provenance.get("verified") is not True
+                or not provenance.get("model_version")
+                or not provenance.get("model_id")
+                or any(
+                    not isinstance(feature.get(key), str) or not feature[key].strip()
+                    for key in ("knowledge_id", "publication_id", "index_version", "indexed_text_sha256")
+                )
+                or type(feature.get("chunk_count")) is not int
+                or type(feature.get("vector_count")) is not int
+                or not 0 < feature["vector_count"] <= feature["chunk_count"]
+                or feature.get("aggregation") != "mean_l2_normalized_enabled_text_chunks_v1"
+                or not isinstance(feature.get("chunking"), dict)
+            ):
+                reason = "feature_model_or_aggregation_unverified"
+        if reason is not None:
+            excluded.append({"member": member, "reason": reason})
+            records.append(record)
+            continue
+        provenance = feature["embedding_provenance"]
+        try:
+            model = {
+                "provider": provenance["provider"],
+                "model_id": provenance["model_id"],
+                "model_version": provenance["model_version"],
+                "artifact_version": provenance.get("artifact_version"),
+                "dimension": provenance["dimension"],
+                "aggregation": feature["aggregation"],
+                "chunking": feature["chunking"],
+            }
+            feature_ref = ProviderRef.model_validate(
+                {
+                    **record.record_ref.model_dump(mode="json"),
+                    "provider": "weknora_kdd",
+                    "object_type": "document_embedding",
+                    "object_id": feature["knowledge_id"],
+                    "adopted_version": feature["index_version"],
+                    "content_hash": canonical_hash(
+                        {"identity": member, "model": model, "vector": feature["embedding"]}
+                    ),
+                }
+            )
+            embedding = Embedding(
+                provider="weknora_kdd",
+                model_version=canonical_hash(model),
+                dimension=provenance["dimension"],
+                vector=feature["embedding"],
+                text_hash=feature["content_sha256"],
+                provenance=SectionProvenance(schema_version=FEATURE_VERSION, provider_ref=feature_ref),
+            )
+        except (ValueError, TypeError, KeyError):
+            excluded.append({"member": member, "reason": "feature_vector_invalid"})
+            records.append(record)
+            continue
+        status = dict(record.upstream_status)
+        status.update(
+            weknora_index_version=feature["index_version"], embedding_aggregation=feature["aggregation"]
+        )
+        records.append(record.model_copy(update={"embedding": embedding, "upstream_status": status}))
+        adopted.append(
+            {
+                "member": member,
+                "knowledge_id": feature["knowledge_id"],
+                "publication_id": feature["publication_id"],
+                "index_version": feature["index_version"],
+                "content_sha256": feature["content_sha256"],
+                "indexed_text_sha256": feature["indexed_text_sha256"],
+                "model": model,
+                "model_fingerprint": embedding.model_version,
+                "chunk_count": feature["chunk_count"],
+                "vector_count": feature["vector_count"],
+            }
+        )
+    result = snapshot.model_copy(
+        update={
+            "snapshot_id": snapshot.snapshot_id + "-vectors-" + canonical_hash(adopted)[:12],
+            "records": tuple(records),
+            "metadata_gaps": tuple(
+                sorted(
+                    set(snapshot.metadata_gaps)
+                    | {
+                        "weknora_vector_features_explicit_members_only",
+                        *("weknora_feature:" + row["reason"] for row in excluded),
+                    }
+                )
+            ),
+        }
+    )
+    return result, {
+        "schema_version": FEATURE_VERSION,
+        "requested_members": members,
+        "scope_fingerprint": response.get("scope_fingerprint"),
+        "adopted": adopted,
+        "excluded": excluded,
+        "provider_exclusions": response["excluded"],
+        "population": "explicit_members_only",
+        "statistical_unit": "document_version",
+        "method": "versioned_mean_document_vectors_not_independent_research_counts",
+        "tool_requests": 1,
+        "model_token_usage": None,
+    }
+
+
+def search_candidates(
+    settings,
+    query,
+    *,
+    direction,
+    reader,
+    source_ids,
+    cutoff,
+    is_demo=False,
+    limit=3,
+    timeout_seconds=30,
+    max_tool_calls=64,
+    selected_evidence=(),
+    client=None,
+):
+    """Search actual KB candidates, then read and validate the exact Fabric originals."""
+    from bioradar.adapters.weknora import _bind
+
+    if is_demo:
+        raise DomainError("weknora_kdd_real_only", "本接口只读取明确的真实资料知识库", 422)
+    kb = getattr(settings, "weknora_kdd_knowledge_base_id", None)
+    if not kb or max_tool_calls < 1:
+        raise DomainError("weknora_kdd_not_configured", "检索范围或工具预算不足", 422)
+    try:
+        found = _post(
+            settings,
+            "/api/v1/kdd/search",
+            {
+                "knowledge_base_id": kb,
+                "source_scope": direction,
+                "query_text": query,
+                "top_k": min(max(limit, 1), 20),
+                "rerank": True,
+            },
+            timeout_seconds=timeout_seconds,
+            client=client,
+        )
+    except DomainError as exc:
+        not_sent = exc.code in {"weknora_kdd_not_configured", "analysis_time_budget"}
+        unknown = exc.code == "weknora_kdd_transport_unconfirmed"
+        return {
+            "status": "unconfirmed" if unknown else "failed",
+            "candidates": [],
+            "records": [],
+            "tool_requests": 0 if not_sent else 1,
+            "error_code": exc.code,
+            "usage": {
+                "request_status": "not_sent" if not_sent else "unconfirmed" if unknown else "failed",
+                "embedding_rerank_tokens": None,
+                "scope": direction,
+                "knowledge_base_id": kb,
+            },
+        }
+    values = found.get("results")
+    if not isinstance(values, list) or len(values) > min(max(limit, 1), 20):
+        raise DomainError("weknora_kdd_response_invalid", "检索候选范围不符合请求", 502)
+    candidates, records = [], []
+    reads = {"lookup_requests": 0, "version_reads": 0, "knowledge_reads": 0, "tool_requests": 1}
+    before = getattr(reader, "requests_made", 0)
+    if reader is not None:
+        composite_limit = before + max(0, max_tool_calls - 1)
+        previous_limit = getattr(reader, "max_requests", None)
+        reader.max_requests = (
+            composite_limit if previous_limit is None else min(previous_limit, composite_limit)
+        )
+    for item in values:
+        identity = item.get("identity") if isinstance(item, dict) else None
+        if (
+            not isinstance(identity, dict)
+            or identity.get("source_instance") != getattr(reader, "source_instance", None)
+            or item.get("source_scope") != direction
+            or not all(identity.get(k) for k in ("source_id", "source_record_id", "version_id", "raw_sha256"))
+        ):
+            candidates.append(
+                {"binding_status": "unbound", "binding_reason": "fixed_source_identity_missing"}
+            )
+            continue
+        candidate, original = _bind(
+            reader,
+            identity,
+            source_ids=source_ids,
+            cutoff=cutoff,
+            is_demo=False,
+            reads=reads,
+        )
+        candidate.update(
+            knowledge_id=item.get("knowledge_id"),
+            chunk_id=item.get("chunk_id"),
+            index_version=item.get("index_version"),
+            score=item.get("score"),
+        )
+        candidates.append(candidate)
+        if original is not None and not any(x["version_id"] == original["version_id"] for x in records):
+            records.append(original)
+    execution = found.get("execution") or {}
+    degraded = bool(execution.get("degraded"))
+    return {
+        "status": "completed" if records else "empty" if not values and not degraded else "unavailable",
+        "degraded": degraded,
+        "excluded": copy.deepcopy(found.get("excluded", [])),
+        "candidates": candidates,
+        "records": records,
+        "tool_requests": 1,
+        "usage": {
+            "actual_execution": found.get("execution"),
+            "embedding_rerank_tokens": None,
+            "scope": direction,
+            "knowledge_base_id": kb,
+        },
+        "identity_reads": reads,
+        "error_code": (
+            None
+            if records or not values and not degraded
+            else "weknora_index_coverage_unverified"
+            if degraded
+            else "weknora_candidates_not_bound"
+        ),
+    }

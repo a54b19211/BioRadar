@@ -28,7 +28,28 @@ function compileComponent(relative, imports = {}) {
   return context.exports.default;
 }
 
-const policyPanel = compileComponent("apps/web/src/components/engine/PolicyTracePanel.vue");
+const apiCache = new Map();
+function loadApi(relative) {
+  const filename = path.resolve(root, relative);
+  if (apiCache.has(filename)) return apiCache.get(filename);
+  const context = { exports: {}, require(name) {
+    if (name.startsWith(".")) return loadApi(path.relative(root, path.resolve(path.dirname(filename), name + ".ts")));
+    throw new Error("Unexpected offline import: " + name);
+  } };
+  const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  vm.runInNewContext(code, context);
+  apiCache.set(filename, context.exports);
+  return context.exports;
+}
+const kddApi = loadApi("apps/web/src/api/kdd.ts");
+const kddSummary = compileComponent("apps/web/src/components/engine/KddRunSummary.vue", {
+  "../../api/kdd": kddApi,
+});
+const policyPanel = compileComponent("apps/web/src/components/engine/PolicyTracePanel.vue", {
+  "../../api/kdd": kddApi, "./KddRunSummary.vue": { default: kddSummary },
+});
 const progressPanel = compileComponent("apps/web/src/components/engine/ResearchProgress.vue", {
   "./PolicyTracePanel.vue": { default: policyPanel },
 });
@@ -137,6 +158,42 @@ async function main() {
   const fallback = await render(trace);
   assert.match(fallback, /请求策略：逐步查询策略/);
   assert.match(fallback, /本版实际策略：原有顺序基线/);
+  const dataset = {
+    schema_version: "bioradar-analysis-dataset-v1", direction: "research", input_count: 3,
+    qualified_count: 2, unit_contract: "study_x_conditions_or_explicit_exploratory_document",
+    units: [], excluded_records: [], unknown_reasons: ["independent_study_or_conditions_unresolved_document_exploration_only"],
+    denominator: { kind: "qualified_adopted_units", population_total: null, population_rate_permitted: false },
+    dataset_hash: "offline-dataset-version",
+  };
+  const refs = [{ id: "dataset:offline", version: "offline-dataset-version" }];
+  const capability = { id: "offline-prepare", kind: "dataset_prepare",
+    arguments: { capability_id: "radar.dataset.prepare", scope: { direction: "research" } },
+  };
+  const v2 = { ...trace, schema_version: "query-planner.external.v2", direction: "research", direction_basis: "explicit",
+    effective: "query_planner", requested: "query_planner", status: "insufficient", pending_action: null,
+    artifacts: [{ ...refs[0], kind: "analysis_dataset", qualified_count: 2 }],
+    artifact_results: { "dataset:offline": dataset }, execution: [],
+    checks: [{ id: "kdd_dataset", status: "passed", artifact_refs: refs, reason: "只证明加工已执行" }],
+    decisions: [{ step: 0, decision: "continue", action: capability, receipt: {
+      status: "read", query_index: 0, new_artifact_refs: refs, cost: { tool_calls: 1, tokens: 0, model_calls: 0 },
+    } }, { step: 1, decision: "insufficient", reason: "no_legal_action", state_summary: {
+      observed_history: [{ action_id: capability.id, status: "read", new_artifact_refs: refs }],
+    } }],
+  };
+  const kddHtml = await render(v2, [{ action_id: capability.id, kind: capability.kind, status: "read", returned: 1 }]);
+  assert.match(kddHtml, /加工固定资料/);
+  assert.match(kddHtml, /本动作实际产物/);
+  assert.match(kddHtml, /加工后的分析数据/);
+  assert.match(kddHtml, /已有固定产物支持本项执行检查/);
+  assert.match(kddHtml.replace(/<!--[\s\S]*?-->/g, ""), /offline-prepare（已取得回执，/);
+  const kddPrinted = printableText(kddHtml);
+  assert.match(kddPrinted, /合格分析单位\s*2/);
+  assert.match(kddPrinted, /执行检查完成不表示模式有科研价值/);
+  assert.match(kddPrinted, /独立研究或条件未确认/);
+  assert.match(kddPrinted, /总体数量：未提供/);
+  assert.match(kddPrinted, /未训练启发式/);
+  assert.match(kddPrinted, /本地数据加工和计算各计一次工具动作、零模型调用/);
+
   const historyWrites = [];
   const history = historyPage(async (url, options) => {
     historyWrites.push({ url, options });
@@ -156,9 +213,12 @@ async function main() {
     "actual_as_of_input_boundary_visible", "effective_fallback_policy_visible",
     "printed_report_keeps_actual_policy_unknown_budget_and_unchecked_scope",
     "history_uses_server_frozen_scope_and_never_retries_unknown_write",
+    "v2_capability_receipt_artifact_and_next_observation_visible",
+    "v2_print_keeps_real_processing_scope_and_scientific_limits",
   ], qualification: "Offline UI controls only." }));
 }
 
 module.exports = main;
 module.exports.printableText = printableText;
+module.exports.compileComponent = compileComponent;
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

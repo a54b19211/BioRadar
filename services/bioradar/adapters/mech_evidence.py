@@ -15,6 +15,7 @@ _STAGES = {
     "decomposition": "mech_decomposition",
     "local_review": "mech_local_review",
     "mechanism_review": "mech_mechanism_review",
+    "cohort_review": "mech_cohort_review",
 }
 
 
@@ -331,7 +332,9 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
             ):
                 return _state(packet, "needs_input", version=version, code="mech_evidence_material_mismatch")
             material.update(identity)
-        validated = models.Case.model_validate(case)
+        # The HTTP service owns its native Case schema; fixed identity checks
+        # above still run here before any remote model step can be authorized.
+        validated = case if isinstance(method, _HTTPMethods) else models.Case.model_validate(case)
     except identity_error as exc:
         return _identity_error_state(packet, version, exc)
     except (ValueError, TypeError, KeyError, AttributeError):
@@ -339,14 +342,15 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
 
     sent_materials = []
 
-    def invoke(stage, instruction, payload, schema):
+    def invoke(stage, instruction, payload, schema, *, call_id=None):
         target = _STAGES.get(stage)
         if target is None or not isinstance(schema, dict):
             raise DomainError("mech_evidence_stage_invalid", "机制评价阶段不符合接入约定", 502)
         # Runtime accepts this optional fourth argument and dispatches the original
         # method-owned JSON Schema through its existing strict model adapter.
         materials = copy.deepcopy(payload.get("materials", []))
-        output = call(target, instruction, payload, schema)
+        keywords = {"call_id": call_id} if call_id is not None else {}
+        output = call(target, instruction, payload, schema, **keywords)
         sent_materials.extend(materials)
         return output
 
@@ -363,13 +367,21 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
                 return _identity_error_state(packet, version, cause)
             cause = cause.__cause__
         return _state(packet, "failed", version=version, code="mech_evidence_result_invalid")
+    if isinstance(result, dict) and result.get("status") == "not_applicable":
+        return {
+            **result,
+            **_state(
+                packet, "not_applicable",
+                version=getattr(method, "provider_version", version), code=result.get("error_code")
+            ),
+        }
     if not isinstance(result, dict) or not isinstance(result.get("overall"), dict):
         return _state(packet, "failed", version=version, code="mech_evidence_result_invalid")
     return {
         **result,
         **mechanism_passage_bindings(packet, sent_materials, assessment=result),
         "provider": "mech_evidence",
-        "provider_version": version,
+        "provider_version": getattr(method, "provider_version", version),
         "status": "completed",
         "error_code": None,
         "missing_fields": missing,
@@ -384,3 +396,40 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
         },
         "evidence_map": copy.deepcopy(packet.get("evidence_map", {})),
     }
+
+
+class _HTTPMethods:
+    """Keep native methods remote while the adapter retains fixed material checks."""
+
+    def __init__(self, execute, provider_version, context):
+        self.execute = execute
+        self.provider_version = provider_version
+        self.context = copy.deepcopy(context or {})
+
+    def _run(self, operation, arguments, call):
+        response = self.execute(operation, arguments, call=call)
+        self.provider_version = response["provider_version"]
+        if response.get("status") == "not_applicable":
+            return {
+                key: copy.deepcopy(response[key])
+                for key in ("status", "error_code", "reason", "context")
+                if key in response
+            }
+        return response["result"]
+
+    def evaluate(self, case, call):
+        if hasattr(case, "model_dump"):
+            case = case.model_dump(mode="json")
+        return self._run(
+            "evaluate",
+            {"mode": "biomedical_research", "task": "mechanism", **self.context, "case": case},
+            call,
+        )
+
+    def assess_independence(self, arguments, call):
+        return self._run("assess_independence", copy.deepcopy(arguments), call)
+
+
+def load_mech_evidence_http(execute, provider_version=None, *, context=None):
+    """HTTP Case parsing happens in the service, with no dependency on its local checkout."""
+    return None, _HTTPMethods(execute, provider_version, context), provider_version

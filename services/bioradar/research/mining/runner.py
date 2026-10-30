@@ -51,8 +51,11 @@ def candidate_order(candidate: Candidate) -> tuple:
     )
 
 
-def select_candidates(candidates: list[Candidate], policy: MiningPolicy) -> tuple[Candidate, ...]:
-    ordered = sorted(candidates, key=candidate_order)
+def select_candidates(
+    candidates: list[Candidate], policy: MiningPolicy, *, sort_key=None, bucket_dimensions=2
+) -> tuple[Candidate, ...]:
+    rank_key = sort_key or candidate_order
+    ordered = sorted(candidates, key=rank_key)
     selected: dict[str, Candidate] = {}
     support_groups = {}
     capacity = policy.limits.review_capacity
@@ -92,17 +95,23 @@ def select_candidates(candidates: list[Candidate], policy: MiningPolicy) -> tupl
     # dimensions and are compared only inside that method's priority bucket.
     buckets = defaultdict(lambda: defaultdict(deque))
     for c in ordered:
-        buckets[candidate_order(c)[:2]][c.method_id].append(c)
+        buckets[rank_key(c)[:bucket_dimensions]][c.method_id].append(c)
     for _, pools in sorted(buckets.items()):
         while any(pools.values()) and len(selected) < capacity:
             for method in sorted(pools):
                 while pools[method]:
                     if take(pools[method].popleft()):
                         break
-    return tuple(sorted(selected.values(), key=lambda c: candidate_order(c)[:2]))
+    return tuple(sorted(selected.values(), key=lambda c: rank_key(c)[:bucket_dimensions]))
 
 
 def run_mining(snapshot: NormalizedSnapshot, policy: MiningPolicy) -> MiningResult:
+    from bioradar.research.mining.models import KddPolicy
+
+    if isinstance(policy, KddPolicy):
+        from bioradar.research.mining.kdd import run_kdd
+
+        return run_kdd(snapshot, policy)
     prepared = prepare(snapshot, policy)
     outcomes = []
     for identifier in policy.method_ids:

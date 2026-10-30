@@ -831,6 +831,8 @@ export interface components {
             budget?: components["schemas"]["AnalysisBudget"] | null;
             /** Query Policy */
             query_policy?: ("baseline" | "query_planner") | null;
+            /** Kdd Direction */
+            kdd_direction?: ("research" | "pipeline" | "business" | "public_health") | null;
             /** Retry Of Analysis Id */
             retry_of_analysis_id?: string | null;
             /** Parent Analysis Id */
@@ -979,7 +981,7 @@ export interface components {
              * @default fabric
              * @enum {string}
              */
-            provider: "fabric" | "weknora" | "graph" | "fabric_graph";
+            provider: "fabric" | "weknora" | "graph" | "fabric_graph" | "radar" | "professional";
             /**
              * Kind
              * @default document_search
@@ -999,6 +1001,14 @@ export interface components {
             graph_context?: {
                 [key: string]: unknown;
             } | unknown[] | null;
+            /** Artifact Refs */
+            artifact_refs?: {
+                [key: string]: unknown;
+            }[];
+            /** Check Updates */
+            check_updates?: {
+                [key: string]: unknown;
+            }[];
             /** Plan */
             plan: components["schemas"]["PolicyPlannedQuery"] | components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"] | {
                 [key: string]: unknown;
@@ -1862,7 +1872,7 @@ export interface components {
             provenance: components["schemas"]["SectionProvenance"];
         };
         /** EngineRecord */
-        EngineRecord: {
+        "EngineRecord-Input": {
             record_ref: components["schemas"]["ProviderRef"];
             /**
              * Evidence Refs
@@ -2028,6 +2038,195 @@ export interface components {
              * @default []
              */
             regional_indicators: components["schemas"]["RegionalIndicator"][];
+            /**
+             * Graph Hints
+             * @default []
+             */
+            graph_hints: components["schemas"]["GraphHint"][];
+            /**
+             * Metric Observations
+             * @default []
+             */
+            metric_observations: components["schemas"]["MetricObservation-Input"][];
+            timeline?: components["schemas"]["ProjectTimeline"] | null;
+        };
+        /** EngineRecord */
+        "EngineRecord-Output": {
+            record_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            /** Document Hash */
+            document_hash: string;
+            /** Source Instance */
+            source_instance: string;
+            /** Source Id */
+            source_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Source Family */
+            source_family?: string | null;
+            /**
+             * Source Independence Status
+             * @default unresolved
+             * @enum {string}
+             */
+            source_independence_status: "confirmed" | "unresolved";
+            study_cluster_ref?: components["schemas"]["ProviderRef"] | null;
+            /**
+             * Study Independence Status
+             * @default unresolved
+             * @enum {string}
+             */
+            study_independence_status: "confirmed" | "unresolved" | "not_applicable";
+            /** Published At */
+            published_at?: string | null;
+            /** Published Time Raw */
+            published_time_raw?: string | null;
+            /**
+             * Time Precision
+             * @default unknown
+             * @enum {string}
+             */
+            time_precision: "instant" | "day" | "month" | "year" | "interval" | "unknown";
+            /**
+             * Publication Time Verified
+             * @default false
+             */
+            publication_time_verified: boolean;
+            /** First Seen At */
+            first_seen_at?: string | null;
+            /** Available At */
+            available_at?: string | null;
+            /** Source Url */
+            source_url?: string | null;
+            /**
+             * Ingestion Mode
+             * @default sample_export
+             * @enum {string}
+             */
+            ingestion_mode: "live_delta" | "historical_backfill" | "sample_export" | "fixture";
+            /**
+             * Text Status
+             * @default unavailable
+             * @enum {string}
+             */
+            text_status: "inline_authorized" | "reference_authorized" | "unavailable";
+            /** Normalized Text */
+            normalized_text?: string | null;
+            /** Normalized Text Hash */
+            normalized_text_hash?: string | null;
+            /** Normalization Version */
+            normalization_version?: string | null;
+            authorized_text_ref?: components["schemas"]["ProviderRef"] | null;
+            locator?: components["schemas"]["Locator"];
+            /**
+             * Canonical Entity Refs
+             * @default []
+             */
+            canonical_entity_refs: components["schemas"]["MiningEntity"][];
+            labels?: components["schemas"]["MiningLabels"];
+            project_ref?: components["schemas"]["ProviderRef"] | null;
+            /** Project Stage */
+            project_stage?: string | null;
+            /**
+             * Company Refs
+             * @default []
+             */
+            company_refs: components["schemas"]["ProviderRef"][];
+            drug_ref?: components["schemas"]["ProviderRef"] | null;
+            /**
+             * Trial Refs
+             * @default []
+             */
+            trial_refs: components["schemas"]["ProviderRef"][];
+            /** Project Status */
+            project_status?: string | null;
+            entry_time?: components["schemas"]["TimeExpression"] | null;
+            exit_time?: components["schemas"]["TimeExpression"] | null;
+            /** Exit Reason */
+            exit_reason?: string | null;
+            /**
+             * State Assertions
+             * @default []
+             */
+            state_assertions: components["schemas"]["StateAssertion"][];
+            /**
+             * Record Flags
+             * @default []
+             */
+            record_flags: ("revised" | "deleted" | "retracted" | "historical_backfill" | "new_source")[];
+            /**
+             * Quality Refs
+             * @default []
+             */
+            quality_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Lineage Refs
+             * @default []
+             */
+            lineage_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Missing Fields
+             * @default []
+             */
+            missing_fields: string[];
+            /**
+             * Available Fields
+             * @default []
+             */
+            available_fields: string[];
+            /**
+             * Rule Readiness
+             * @default []
+             */
+            rule_readiness: components["schemas"]["RuleReadiness"][];
+            /** Upstream Status */
+            upstream_status?: {
+                [key: string]: string | null;
+            };
+            context?: components["schemas"]["StudyContext"] | null;
+            embedding?: components["schemas"]["Embedding"] | null;
+            /**
+             * Relations
+             * @default []
+             */
+            relations: components["schemas"]["Relation"][];
+            /**
+             * Assessments
+             * @default []
+             */
+            assessments: components["schemas"]["Assessment"][];
+            /**
+             * Dependencies
+             * @default []
+             */
+            dependencies: components["schemas"]["ClaimDependency"][];
+            /**
+             * Events
+             * @default []
+             */
+            events: components["schemas"]["Event"][];
+            /**
+             * Regional Indicators
+             * @default []
+             */
+            regional_indicators: components["schemas"]["RegionalIndicator"][];
+            /**
+             * Graph Hints
+             * @default []
+             */
+            graph_hints: components["schemas"]["GraphHint"][];
+            /**
+             * Metric Observations
+             * @default []
+             */
+            metric_observations: components["schemas"]["MetricObservation-Output"][];
             timeline?: components["schemas"]["ProjectTimeline"] | null;
         };
         /** Event */
@@ -2182,6 +2381,23 @@ export interface components {
             quote: string;
             locator: components["schemas"]["GraphLocator"];
         };
+        /** GraphFieldEvidence */
+        GraphFieldEvidence: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Raw Sha256 */
+            raw_sha256: string;
+            /** Origin Doc Uuid */
+            origin_doc_uuid?: string | null;
+            /** Json Pointer */
+            json_pointer: string;
+            /** Value */
+            value: unknown;
+        };
         /** GraphFollowUp */
         GraphFollowUp: {
             /** Edge Id */
@@ -2207,6 +2423,55 @@ export interface components {
              * @default []
              */
             search_terms: string[];
+        };
+        /**
+         * GraphHint
+         * @description A fixed graph relation to verify; never a confirmed project or effect.
+         */
+        GraphHint: {
+            hint_ref: components["schemas"]["ProviderRef"];
+            /** Subject Id */
+            subject_id: string;
+            /** Subject Label */
+            subject_label: string;
+            /** Relation Type */
+            relation_type: string;
+            /** Object Id */
+            object_id: string;
+            /** Object Label */
+            object_label: string;
+            /** Identity Statuses */
+            identity_statuses: [
+                string,
+                string
+            ];
+            /** Review Status */
+            review_status: string;
+            /** Declared Binding Status */
+            declared_binding_status: string;
+            /**
+             * Originals Validated
+             * @default false
+             */
+            originals_validated: boolean;
+            /**
+             * Query Terms
+             * @default []
+             */
+            query_terms: string[];
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            /** Scope Description */
+            scope_description: string;
+            /**
+             * Selection Truncated
+             * @default false
+             */
+            selection_truncated: boolean;
+            provenance: components["schemas"]["SectionProvenance"];
         };
         /** GraphIdentity */
         GraphIdentity: {
@@ -2377,9 +2642,18 @@ export interface components {
              * Identity Status
              * @enum {string}
              */
-            identity_status: "confirmed" | "unresolved" | "background";
+            identity_status: "confirmed" | "rule_confirmed" | "unresolved" | "background";
             /** Identity Review Basis */
             identity_review_basis?: string | null;
+            /** Identity Rule */
+            identity_rule?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Field Evidence
+             * @default []
+             */
+            field_evidence: components["schemas"]["GraphFieldEvidence"][];
             review: components["schemas"]["GraphReview"];
             /**
              * Mention Ids
@@ -3350,6 +3624,186 @@ export interface components {
             data_fabric_retrieval: "bounded_cli_available";
         };
         JsonValue: unknown;
+        /** KddPolicy */
+        KddPolicy: {
+            /**
+             * Policy Version
+             * @default bioradar.mining.policy.v1
+             * @constant
+             */
+            policy_version: "bioradar.mining.policy.v1";
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Time Mode
+             * @default publication_retrospective
+             * @enum {string}
+             */
+            time_mode: "publication_retrospective" | "availability_replay";
+            /**
+             * Discovery Mode
+             * @default stock_and_incremental
+             * @enum {string}
+             */
+            discovery_mode: "stock_and_incremental" | "incremental";
+            /** Baseline Start */
+            baseline_start?: string | null;
+            /** Baseline End */
+            baseline_end?: string | null;
+            /** Current Start */
+            current_start?: string | null;
+            /** Current End */
+            current_end?: string | null;
+            /**
+             * Method Ids
+             * @default [
+             *       "lexical_emergence",
+             *       "text_topics",
+             *       "entity_combinations",
+             *       "state_transitions",
+             *       "pipeline_landscape",
+             *       "research_network",
+             *       "maturity_shift",
+             *       "counterevidence_impact",
+             *       "translation_dwell",
+             *       "event_exposure",
+             *       "regional_comparison"
+             *     ]
+             */
+            method_ids: string[];
+            limits?: components["schemas"]["ResourceLimits"];
+            /**
+             * Scope Label
+             * @description Annotation only; records are not filtered by this label
+             */
+            scope_label?: string | null;
+            /**
+             * Minimum Support
+             * @default 2
+             */
+            minimum_support: number;
+            /**
+             * Minimum Growth
+             * @default 2
+             */
+            minimum_growth: number;
+            /**
+             * Exploration Fraction
+             * @default 0.2
+             */
+            exploration_fraction: number;
+            /**
+             * Known Vocabulary
+             * @default []
+             */
+            known_vocabulary: string[];
+            /** Vocabulary Version */
+            vocabulary_version?: string | null;
+            /**
+             * Stoplist
+             * @default []
+             */
+            stoplist: string[];
+            /**
+             * Topic Components
+             * @default 8
+             */
+            topic_components: number;
+            /**
+             * Topic Similarity
+             * @default 0.55
+             */
+            topic_similarity: number;
+            /**
+             * Novelty Distance
+             * @default 0.45
+             */
+            novelty_distance: number;
+            /**
+             * Random Seed
+             * @default 0
+             */
+            random_seed: number;
+            /**
+             * Burst Scale
+             * @default 2
+             */
+            burst_scale: number;
+            /**
+             * Burst Penalty
+             * @default 1
+             */
+            burst_penalty: number;
+            /**
+             * Burst States
+             * @default 3
+             */
+            burst_states: number;
+            /**
+             * Dwell Threshold Days
+             * @default 365
+             */
+            dwell_threshold_days: number;
+            /**
+             * Maturity Stage Order
+             * @default [
+             *       "hypothesis",
+             *       "in_vitro",
+             *       "animal",
+             *       "human_early_result",
+             *       "human_late_result",
+             *       "regulatory"
+             *     ]
+             */
+            maturity_stage_order: string[];
+            /**
+             * Cooperation Relations
+             * @default [
+             *       "coauthored",
+             *       "collaborated"
+             *     ]
+             */
+            cooperation_relations: string[];
+            /**
+             * Exposure Relations
+             * @default [
+             *       "supplies",
+             *       "depends_on",
+             *       "licensed_to",
+             *       "manufactures"
+             *     ]
+             */
+            exposure_relations: string[];
+            /**
+             * Exposure Reverse Relations
+             * @default [
+             *       "depends_on"
+             *     ]
+             */
+            exposure_reverse_relations: string[];
+            /**
+             * Urgent Event Types
+             * @default [
+             *       "regulatory_safety_action",
+             *       "product_recall"
+             *     ]
+             */
+            urgent_event_types: string[];
+            /**
+             * Kdd Direction
+             * @enum {string}
+             */
+            kdd_direction: "research" | "pipeline" | "business" | "public_health";
+            value_policy?: components["schemas"]["ValuePolicy"];
+            /**
+             * Monitor Changed Refs
+             * @description Actual changed fixed record versions; only qualified prior versions establish new periods.
+             */
+            monitor_changed_refs?: components["schemas"]["ProviderRef"][] | null;
+        };
         /** Locator */
         Locator: {
             /**
@@ -3427,6 +3881,154 @@ export interface components {
              * @default []
              */
             limitations: string[];
+        };
+        /**
+         * MetricObservation
+         * @description An adopted typed metric; source parsing and binding remain upstream.
+         */
+        "MetricObservation-Input": {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Domain
+             * @enum {string}
+             */
+            domain: "business" | "public_health";
+            subject_ref: components["schemas"]["ProviderRef"];
+            /** Metric Id */
+            metric_id: string;
+            /** Metric Version */
+            metric_version: string;
+            /** Value Lower */
+            value_lower: number | string;
+            /** Value Upper */
+            value_upper: number | string;
+            /** Unit */
+            unit: string;
+            /**
+             * Value Kind
+             * @default other
+             * @enum {string}
+             */
+            value_kind: "monetary" | "count" | "ratio" | "other";
+            /** Currency */
+            currency?: string | null;
+            /** Reporting Scope */
+            reporting_scope?: string | null;
+            /** Population */
+            population?: string | null;
+            /** Region */
+            region?: string | null;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Denominator */
+            denominator?: number | string | null;
+            /** Denominator Unit */
+            denominator_unit?: string | null;
+            /**
+             * Measurement Basis
+             * @default unknown
+             * @enum {string}
+             */
+            measurement_basis: "reported" | "forecast" | "estimate" | "unknown";
+            /**
+             * Binding Status
+             * @default declared
+             * @enum {string}
+             */
+            binding_status: "source_bound" | "declared";
+            /** Field Locators */
+            field_locators?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            provenance: components["schemas"]["SectionProvenance"];
+        };
+        /**
+         * MetricObservation
+         * @description An adopted typed metric; source parsing and binding remain upstream.
+         */
+        "MetricObservation-Output": {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Domain
+             * @enum {string}
+             */
+            domain: "business" | "public_health";
+            subject_ref: components["schemas"]["ProviderRef"];
+            /** Metric Id */
+            metric_id: string;
+            /** Metric Version */
+            metric_version: string;
+            /** Value Lower */
+            value_lower: string;
+            /** Value Upper */
+            value_upper: string;
+            /** Unit */
+            unit: string;
+            /**
+             * Value Kind
+             * @default other
+             * @enum {string}
+             */
+            value_kind: "monetary" | "count" | "ratio" | "other";
+            /** Currency */
+            currency?: string | null;
+            /** Reporting Scope */
+            reporting_scope?: string | null;
+            /** Population */
+            population?: string | null;
+            /** Region */
+            region?: string | null;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Denominator */
+            denominator?: string | null;
+            /** Denominator Unit */
+            denominator_unit?: string | null;
+            /**
+             * Measurement Basis
+             * @default unknown
+             * @enum {string}
+             */
+            measurement_basis: "reported" | "forecast" | "estimate" | "unknown";
+            /**
+             * Binding Status
+             * @default declared
+             * @enum {string}
+             */
+            binding_status: "source_bound" | "declared";
+            /** Field Locators */
+            field_locators?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            provenance: components["schemas"]["SectionProvenance"];
         };
         /** MetricSpec */
         "MetricSpec-Input": {
@@ -3724,7 +4326,7 @@ export interface components {
              * @default bioradar-mining-compute-v0.2
              * @enum {string}
              */
-            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2";
+            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2" | "bioradar-mining-compute-v0.3";
             /** Snapshot Hash */
             snapshot_hash: string;
             /** Policy Hash */
@@ -3740,6 +4342,24 @@ export interface components {
              * @default []
              */
             limitations: string[];
+            /** Data Preparation */
+            data_preparation?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /**
+             * Pattern Evaluations
+             * @default []
+             */
+            pattern_evaluations: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /**
+             * Selection Decisions
+             * @default []
+             */
+            selection_decisions: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
         };
         /** MonitorBatchList */
         MonitorBatchList: {
@@ -3992,7 +4612,7 @@ export interface components {
             limitations: string[];
         };
         /** NormalizedSnapshot */
-        NormalizedSnapshot: {
+        "NormalizedSnapshot-Input": {
             /**
              * Schema Version
              * @default bioradar.engine.snapshot.v1
@@ -4020,7 +4640,48 @@ export interface components {
              */
             observed_at: string;
             /** Records */
-            records: components["schemas"]["EngineRecord"][];
+            records: components["schemas"]["EngineRecord-Input"][];
+            /**
+             * Coverage
+             * @default []
+             */
+            coverage: components["schemas"]["SnapshotCoverage"][];
+            /**
+             * Metadata Gaps
+             * @default []
+             */
+            metadata_gaps: string[];
+        };
+        /** NormalizedSnapshot */
+        "NormalizedSnapshot-Output": {
+            /**
+             * Schema Version
+             * @default bioradar.engine.snapshot.v1
+             * @constant
+             */
+            schema_version: "bioradar.engine.snapshot.v1";
+            /** Snapshot Id */
+            snapshot_id: string;
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            /** Source Instance */
+            source_instance: string;
+            /**
+             * Coverage Mode
+             * @default unknown
+             * @enum {string}
+             */
+            coverage_mode: "complete" | "bounded_sample" | "manual_package" | "unknown";
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Records */
+            records: components["schemas"]["EngineRecord-Output"][];
             /**
              * Coverage
              * @default []
@@ -4223,6 +4884,8 @@ export interface components {
             budget?: components["schemas"]["AnalysisBudget"] | null;
             /** Query Policy */
             query_policy?: ("baseline" | "query_planner") | null;
+            /** Kdd Direction */
+            kdd_direction?: ("research" | "pipeline" | "business" | "public_health") | null;
         };
         /** RecordIdentity */
         RecordIdentity: {
@@ -4449,7 +5112,8 @@ export interface components {
         RunCreate: {
             /** Snapshot Id */
             snapshot_id: string;
-            policy: components["schemas"]["MiningPolicy"];
+            /** Policy */
+            policy: components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"];
         };
         /** RunError */
         RunError: {
@@ -4484,8 +5148,11 @@ export interface components {
             original_policy: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
-            /** @description Current schema view only; original_policy is the frozen input */
-            policy: components["schemas"]["MiningPolicy"] | null;
+            /**
+             * Policy
+             * @description Current schema view only; original_policy is the frozen input
+             */
+            policy: components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"] | null;
             /**
              * Policy View Status
              * @enum {string}
@@ -4650,7 +5317,7 @@ export interface components {
             id: string;
             /** Snapshot Hash */
             snapshot_hash: string;
-            snapshot: components["schemas"]["NormalizedSnapshot"];
+            snapshot: components["schemas"]["NormalizedSnapshot-Output"];
         };
         /** SnapshotList */
         SnapshotList: {
@@ -5224,6 +5891,37 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /**
+         * ValuePolicy
+         * @description Frozen descriptive thresholds, separate from queue capacity.
+         */
+        ValuePolicy: {
+            /**
+             * Minimum Pattern Support
+             * @default 2
+             */
+            minimum_pattern_support: number;
+            /**
+             * Relative Change Threshold
+             * @default 0.1
+             */
+            relative_change_threshold: number;
+            /**
+             * Absolute Change Threshold
+             * @default 0
+             */
+            absolute_change_threshold: number;
+            /**
+             * Novelty Distance Threshold
+             * @default 0.45
+             */
+            novelty_distance_threshold: number;
+            /**
+             * Allow Singleton Exploration
+             * @default true
+             */
+            allow_singleton_exploration: boolean;
+        };
         /** VerifiedClaim */
         VerifiedClaim: {
             /** Id */
@@ -5450,7 +6148,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NormalizedSnapshot"];
+                "application/json": components["schemas"]["NormalizedSnapshot-Input"];
             };
         };
         responses: {

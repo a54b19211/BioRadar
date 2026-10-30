@@ -9,12 +9,16 @@ import {
   type FeedbackView,
 } from "../../api/engine";
 import { explainCode } from "../../api/engineLabels";
+import { object, strings, readable, kddLabel, fieldLabel, methodLabel, text } from "../../api/kdd";
 const props = defineProps<{
   candidate: Candidate | null;
   runId: string;
   resultHash: string;
   snapshotId: string;
   feedback?: FeedbackView[];
+  patternEvaluation?: unknown;
+  selectionDecision?: unknown;
+  investigationAllowed?: boolean;
 }>();
 const emit = defineEmits<{
   close: [];
@@ -69,6 +73,8 @@ watch(
     }
   },
 );
+const pattern = computed(() => object(props.patternEvaluation));
+const selection = computed(() => object(props.selectionDecision));
 const support = computed(() => props.candidate?.supports[selectedSource.value]);
 const recordRefFields = [
   "provider",
@@ -100,11 +106,6 @@ const sourceLink = computed(() => {
     return null;
   }
 });
-function display(value: unknown) {
-  return typeof value === "object"
-    ? JSON.stringify(value, null, 2)
-    : String(value);
-}
 async function feedback(
   decision: "relevant" | "irrelevant" | "duplicate" | "needs_check",
 ) {
@@ -138,6 +139,7 @@ async function saveInvestigation() {
   const candidate = props.candidate;
   if (
     !candidate ||
+    props.investigationAllowed === false ||
     investigationBusy.value ||
     !props.runId ||
     !props.resultHash ||
@@ -183,7 +185,7 @@ async function saveInvestigation() {
       <ElTag type="warning">待核实线索</ElTag>
       <h2 class="candidate-detail-title">{{ candidate.title }}</h2>
       <p class="muted">
-        {{ candidate.method_id }} · {{ candidate.method_version }}
+        {{ methodLabel(candidate.method_id) }} · {{ candidate.method_version }}
       </p>
       <h3>为什么进入候选</h3>
       <ul class="evidence-list">
@@ -191,13 +193,33 @@ async function saveInvestigation() {
           {{ explainCode(reason) }}
         </li>
       </ul>
-      <details open class="detail-block">
+      <section v-if="pattern || selection" class="pattern-evaluation">
+        <h3>模式价值与本轮筛选</h3>
+        <p v-if="selection"><strong>{{ kddLabel(text(selection.decision)) }}</strong>：{{ readable(selection.reasons) }}</p>
+        <template v-if="pattern">
+          <p>{{ pattern.eligibility_kind === "exploratory_content_followup" ? "仅进入探索性内容补证，未确认有价值模式" : pattern.eligible === true ? "通过本轮描述性筛选条件" : pattern.eligible === false ? "未满足本轮价值条件" : "价值资格未记录" }}；
+            规则评分 {{ pattern.value_score === null ? "本轮未赋数值评分" : pattern.value_score ?? "未记录" }}。</p>
+          <p v-if="pattern.qualification">{{ kddLabel(text(pattern.qualification)) }}</p>
+          <ul><li v-for="reason in strings(pattern.value_reasons)" :key="reason">{{ kddLabel(reason) }}</li></ul>
+          <dl class="metric-list">
+            <dt>新颖性依据</dt><dd>{{ readable(pattern.novelty) }}</dd>
+            <dt>效应与变化幅度</dt><dd>{{ readable(pattern.effect) }}</dd>
+            <dt>不确定性</dt><dd>{{ readable(pattern.uncertainty) }}</dd>
+            <dt>重要性</dt><dd>{{ readable(pattern.importance) }}</dd>
+            <dt>紧急度</dt><dd>{{ readable(pattern.urgency) }}</dd>
+          </dl>
+          <p v-if="pattern.qualification">{{ readable(pattern.qualification) }}</p>
+          <p v-if="Array.isArray(pattern.required_evidence) && pattern.required_evidence.length"><strong>补证要求：</strong>{{ readable(pattern.required_evidence) }}</p>
+        </template>
+        <p class="muted">规则评分用于本轮筛选，不表示统计显著性或科研结论成立。容量暂缓不等于价值条件未通过。</p>
+      </section>
+      <details class="detail-block">
         <summary>实际计算与统计口径</summary>
         <dl class="metric-list">
           <template v-for="(value, key) in candidate.metrics" :key="key"
-            ><dt>{{ key }}</dt>
+            ><dt>{{ fieldLabel(String(key)) }}</dt>
             <dd>
-              <pre>{{ display(value) }}</pre>
+              {{ readable(value) }}
             </dd></template
           >
         </dl>
@@ -314,10 +336,9 @@ async function saveInvestigation() {
           {{ requirement }}
         </li>
       </ul>
-      <p class="muted">
-        共享取证与专业评价尚未接通。可以先保存调查，由研究人员继续补充已采用材料。
-      </p>
-      <section class="investigation-create">
+      <p class="muted">保存调查后可继续补证，按问题使用适用的专业评价，再查看报告、停止原因和版本更新；以该调查的实际执行记录为准。</p>
+      <p v-if="investigationAllowed === false" class="notice">这条算法候选未进入本轮审阅队列，可独立核对依据并留下意见。创建调查仅开放给本轮已选候选，未入选不代表没有价值。</p>
+      <section v-else class="investigation-create">
         <h3>保存为调查</h3>
         <label for="candidate-investigation-title">调查标题</label>
         <ElInput
