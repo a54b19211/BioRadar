@@ -607,6 +607,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/topics/simulation/tick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulation Tick */
+        post: operations["simulation_tick_api_engine_topics_simulation_tick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/topics/templates": {
         parameters: {
             query?: never;
@@ -829,6 +846,7 @@ export interface components {
             /** Initial Queries */
             initial_queries?: components["schemas"]["InitialQuery"][];
             budget?: components["schemas"]["AnalysisBudget"] | null;
+            historical_scope?: components["schemas"]["HistoricalAnalysisScope"] | null;
             /** Query Policy */
             query_policy?: ("baseline" | "query_planner") | null;
             /** Kdd Direction */
@@ -863,6 +881,10 @@ export interface components {
             history_binding?: {
                 [key: string]: unknown;
             } | null;
+            /** Source Context */
+            source_context?: {
+                [key: string]: unknown;
+            } | null;
             /** Facts */
             facts?: {
                 [key: string]: unknown;
@@ -886,6 +908,8 @@ export interface components {
             end: number;
             /** Text Sha256 */
             text_sha256: string;
+            /** Source Length */
+            source_length?: number | null;
             /** Passages */
             passages?: components["schemas"]["AnalysisPassage"][];
             /** Selection Hash */
@@ -1090,6 +1114,9 @@ export interface components {
             query_policy?: {
                 [key: string]: unknown;
             } | null;
+            warning_assessment?: components["schemas"]["WarningAssessment"] | null;
+            /** Competing Hypotheses */
+            competing_hypotheses?: components["schemas"]["CompetingHypothesis"][] | null;
             /** Limitations */
             limitations: string[];
         };
@@ -1402,6 +1429,21 @@ export interface components {
             reason: string;
             /** Evidence Keys */
             evidence_keys: string[];
+        };
+        /** CompetingHypothesis */
+        CompetingHypothesis: {
+            /** Id */
+            id: string;
+            /** Explanation */
+            explanation: string;
+            /** Supporting Claim Ids */
+            supporting_claim_ids?: string[];
+            /** Opposing Claim Ids */
+            opposing_claim_ids?: string[];
+            /** Discriminating Evidence Needed */
+            discriminating_evidence_needed: string;
+            /** Untested Conditions */
+            untested_conditions?: string[];
         };
         /** ConditionalAnswer */
         ConditionalAnswer: {
@@ -1844,6 +1886,182 @@ export interface components {
             text: string;
             basis: components["schemas"]["InputBasis"];
         };
+        /** DiscoveryPolicy */
+        DiscoveryPolicy: {
+            /**
+             * Policy Version
+             * @default bioradar.mining.policy.v1
+             * @constant
+             */
+            policy_version: "bioradar.mining.policy.v1";
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Time Mode
+             * @default publication_retrospective
+             * @enum {string}
+             */
+            time_mode: "publication_retrospective" | "availability_replay";
+            /** Availability Basis */
+            availability_basis?: ("operational_replay" | "public_history_reconstruction") | null;
+            /**
+             * Discovery Mode
+             * @default stock_and_incremental
+             * @enum {string}
+             */
+            discovery_mode: "stock_and_incremental" | "incremental";
+            /** Baseline Start */
+            baseline_start?: string | null;
+            /** Baseline End */
+            baseline_end?: string | null;
+            /** Current Start */
+            current_start?: string | null;
+            /** Current End */
+            current_end?: string | null;
+            /**
+             * Method Ids
+             * @default [
+             *       "lexical_emergence",
+             *       "text_topics",
+             *       "entity_combinations",
+             *       "state_transitions",
+             *       "pipeline_landscape",
+             *       "research_network",
+             *       "maturity_shift",
+             *       "counterevidence_impact",
+             *       "translation_dwell",
+             *       "event_exposure",
+             *       "regional_comparison"
+             *     ]
+             */
+            method_ids: string[];
+            limits?: components["schemas"]["ResourceLimits"];
+            /**
+             * Scope Label
+             * @description Annotation only; records are not filtered by this label
+             */
+            scope_label?: string | null;
+            /**
+             * Minimum Support
+             * @default 2
+             */
+            minimum_support: number;
+            /**
+             * Minimum Growth
+             * @default 2
+             */
+            minimum_growth: number;
+            /**
+             * Exploration Fraction
+             * @default 0.2
+             */
+            exploration_fraction: number;
+            /**
+             * Known Vocabulary
+             * @default []
+             */
+            known_vocabulary: string[];
+            /** Vocabulary Version */
+            vocabulary_version?: string | null;
+            /**
+             * Stoplist
+             * @default []
+             */
+            stoplist: string[];
+            /**
+             * Topic Components
+             * @default 8
+             */
+            topic_components: number;
+            /**
+             * Topic Similarity
+             * @default 0.55
+             */
+            topic_similarity: number;
+            /**
+             * Novelty Distance
+             * @default 0.45
+             */
+            novelty_distance: number;
+            /**
+             * Random Seed
+             * @default 0
+             */
+            random_seed: number;
+            /**
+             * Burst Scale
+             * @default 2
+             */
+            burst_scale: number;
+            /**
+             * Burst Penalty
+             * @default 1
+             */
+            burst_penalty: number;
+            /**
+             * Burst States
+             * @default 3
+             */
+            burst_states: number;
+            /**
+             * Dwell Threshold Days
+             * @default 365
+             */
+            dwell_threshold_days: number;
+            /**
+             * Maturity Stage Order
+             * @default [
+             *       "hypothesis",
+             *       "in_vitro",
+             *       "animal",
+             *       "human_early_result",
+             *       "human_late_result",
+             *       "regulatory"
+             *     ]
+             */
+            maturity_stage_order: string[];
+            /**
+             * Cooperation Relations
+             * @default [
+             *       "coauthored",
+             *       "collaborated"
+             *     ]
+             */
+            cooperation_relations: string[];
+            /**
+             * Exposure Relations
+             * @default [
+             *       "supplies",
+             *       "depends_on",
+             *       "licensed_to",
+             *       "manufactures"
+             *     ]
+             */
+            exposure_relations: string[];
+            /**
+             * Exposure Reverse Relations
+             * @default [
+             *       "depends_on"
+             *     ]
+             */
+            exposure_reverse_relations: string[];
+            /**
+             * Urgent Event Types
+             * @default [
+             *       "regulatory_safety_action",
+             *       "product_recall"
+             *     ]
+             */
+            urgent_event_types: string[];
+            /** Discovery Directions */
+            discovery_directions: ("research" | "pipeline" | "business" | "public_health")[];
+            value_policy?: components["schemas"]["ValuePolicy"];
+            /** Monitor Changed Refs */
+            monitor_changed_refs?: components["schemas"]["ProviderRef"][] | null;
+        };
         /** DraftFinding */
         DraftFinding: {
             /** Path */
@@ -1926,6 +2144,13 @@ export interface components {
             available_at?: string | null;
             /** Source Url */
             source_url?: string | null;
+            /** Public Available At */
+            public_available_at?: string | null;
+            /** Availability Proof */
+            availability_proof?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            signal_context?: components["schemas"]["SignalContext"] | null;
             /**
              * Ingestion Mode
              * @default sample_export
@@ -2105,6 +2330,13 @@ export interface components {
             available_at?: string | null;
             /** Source Url */
             source_url?: string | null;
+            /** Public Available At */
+            public_available_at?: string | null;
+            /** Availability Proof */
+            availability_proof?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            signal_context?: components["schemas"]["SignalContext"] | null;
             /**
              * Ingestion Mode
              * @default sample_export
@@ -2816,6 +3048,19 @@ export interface components {
             /** Unknown Reason */
             unknown_reason?: string | null;
             basis: components["schemas"]["InputBasis"];
+        };
+        /** HistoricalAnalysisScope */
+        HistoricalAnalysisScope: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "public_history_reconstruction" | "operational_replay";
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
         };
         /** HistoricalEvent */
         HistoricalEvent: {
@@ -3643,6 +3888,8 @@ export interface components {
              * @enum {string}
              */
             time_mode: "publication_retrospective" | "availability_replay";
+            /** Availability Basis */
+            availability_basis?: ("operational_replay" | "public_history_reconstruction") | null;
             /**
              * Discovery Mode
              * @default stock_and_incremental
@@ -4163,6 +4410,8 @@ export interface components {
              * @enum {string}
              */
             time_mode: "publication_retrospective" | "availability_replay";
+            /** Availability Basis */
+            availability_basis?: ("operational_replay" | "public_history_reconstruction") | null;
             /**
              * Discovery Mode
              * @default stock_and_incremental
@@ -4323,10 +4572,10 @@ export interface components {
             schema_version: "bioradar.engine.result.v1";
             /**
              * Compute Version
-             * @default bioradar-mining-compute-v0.2
+             * @default bioradar-mining-compute-v0.4
              * @enum {string}
              */
-            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2" | "bioradar-mining-compute-v0.3";
+            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2" | "bioradar-mining-compute-v0.3" | "bioradar-mining-compute-v0.4";
             /** Snapshot Hash */
             snapshot_hash: string;
             /** Policy Hash */
@@ -4882,6 +5131,7 @@ export interface components {
             /** Initial Queries */
             initial_queries?: components["schemas"]["InitialQuery"][];
             budget?: components["schemas"]["AnalysisBudget"] | null;
+            historical_scope?: components["schemas"]["HistoricalAnalysisScope"] | null;
             /** Query Policy */
             query_policy?: ("baseline" | "query_planner") | null;
             /** Kdd Direction */
@@ -5113,7 +5363,7 @@ export interface components {
             /** Snapshot Id */
             snapshot_id: string;
             /** Policy */
-            policy: components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"];
+            policy: components["schemas"]["DiscoveryPolicy"] | components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"];
         };
         /** RunError */
         RunError: {
@@ -5152,7 +5402,7 @@ export interface components {
              * Policy
              * @description Current schema view only; original_policy is the frozen input
              */
-            policy: components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"] | null;
+            policy: components["schemas"]["DiscoveryPolicy"] | components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"] | null;
             /**
              * Policy View Status
              * @enum {string}
@@ -5213,6 +5463,57 @@ export interface components {
             actor_id?: string | null;
             /** Workspace Id */
             workspace_id?: string | null;
+        };
+        /**
+         * SignalContext
+         * @description Attributed source claims; named sources are not thereby confirmed.
+         */
+        SignalContext: {
+            /** Material Type */
+            material_type?: string | null;
+            /** Origin Group */
+            origin_group?: string | null;
+            /**
+             * Attribution
+             * @default unknown
+             * @enum {string}
+             */
+            attribution: "named_institution" | "named_author" | "anonymous" | "unknown";
+            /** Claimed Origin */
+            claimed_origin?: string | null;
+            /**
+             * Entity Names
+             * @default []
+             */
+            entity_names: string[];
+            /**
+             * Source Relations
+             * @default []
+             */
+            source_relations: components["schemas"]["SourceRelation"][];
+            /** Claim Text */
+            claim_text?: string | null;
+            /**
+             * Verification Status
+             * @default unknown
+             * @enum {string}
+             */
+            verification_status: "source_confirmed" | "unverified" | "unknown";
+            /**
+             * Statement Status
+             * @default unknown
+             * @enum {string}
+             */
+            statement_status: "source_reported" | "unverified_report" | "unknown";
+            /** Document Evidence */
+            document_evidence?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
         };
         /** SnapshotComparison */
         SnapshotComparison: {
@@ -5360,6 +5661,15 @@ export interface components {
             /** Metadata Gaps */
             metadata_gaps: string[];
         };
+        /** SourceRelation */
+        SourceRelation: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "correction" | "retraction" | "supplement" | "repost";
+            target_ref: components["schemas"]["ProviderRef"];
+        };
         /** StateAssertion */
         StateAssertion: {
             assertion_ref: components["schemas"]["ProviderRef"];
@@ -5445,6 +5755,10 @@ export interface components {
             expected_revision: number;
             /** Paused */
             paused: boolean;
+            /** Lifecycle */
+            lifecycle?: ("closed" | "warming") | null;
+            /** Reason */
+            reason?: string | null;
         };
         /** TopicCoverage */
         TopicCoverage: {
@@ -5542,7 +5856,7 @@ export interface components {
              * @default month
              * @enum {string}
              */
-            bucket: "week" | "month";
+            bucket: "hour" | "day" | "week" | "month";
             /**
              * Lookback Buckets
              * @default 24
@@ -5618,7 +5932,11 @@ export interface components {
              * @default not_needed
              * @enum {string}
              */
-            automation_status: "not_needed" | "deferred" | "saved" | "needs_review" | "blocked";
+            automation_status: "not_needed" | "deferred" | "saved" | "needs_review" | "blocked" | "waiting_budget";
+            /** Tracking */
+            tracking?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** TopicEvaluationList */
         TopicEvaluationList: {
@@ -5752,7 +6070,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "text_pattern" | "state_change" | "milestone_check" | "metric_change" | "source_event" | "evidence_revision";
+            kind: "text_pattern" | "state_change" | "milestone_check" | "metric_change" | "source_event" | "evidence_revision" | "source_claim";
             /** Title */
             title: string;
             /** Reason */
@@ -5772,6 +6090,14 @@ export interface components {
             evidence_keys?: string[];
             /** Next Questions */
             next_questions?: string[];
+        };
+        /** TopicSimulationTick */
+        TopicSimulationTick: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
         };
         /** TopicSourceProgress */
         TopicSourceProgress: {
@@ -5877,6 +6203,10 @@ export interface components {
             latest_evaluation_id?: string | null;
             /** Data Gaps */
             data_gaps: string[];
+            /** Tracking */
+            tracking?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -5964,6 +6294,24 @@ export interface components {
             end: number;
             /** Passage Id */
             passage_id?: string | null;
+        };
+        /** WarningAssessment */
+        WarningAssessment: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "verify_now" | "alert" | "watch";
+            /** Supporting Claim Ids */
+            supporting_claim_ids?: string[];
+            /** Opposing Claim Ids */
+            opposing_claim_ids?: string[];
+            /** Critical Unknowns */
+            critical_unknowns?: string[];
+            /** Next Actions */
+            next_actions?: string[];
+            /** Reason */
+            reason: string;
         };
         /** InvestigationQuestion */
         bioradar__research__decision__models__InvestigationQuestion: {
@@ -7377,6 +7725,39 @@ export interface operations {
                 };
                 content: {
                     "text/plain": string;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    simulation_tick_api_engine_topics_simulation_tick_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicSimulationTick"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

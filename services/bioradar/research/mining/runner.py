@@ -106,8 +106,12 @@ def select_candidates(
 
 
 def run_mining(snapshot: NormalizedSnapshot, policy: MiningPolicy) -> MiningResult:
-    from bioradar.research.mining.models import KddPolicy
+    from bioradar.research.mining.models import DiscoveryPolicy, KddPolicy
 
+    if isinstance(policy, DiscoveryPolicy):
+        from bioradar.research.mining.kdd import run_discovery
+
+        return run_discovery(snapshot, policy)
     if isinstance(policy, KddPolicy):
         from bioradar.research.mining.kdd import run_kdd
 

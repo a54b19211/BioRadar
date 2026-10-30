@@ -183,7 +183,7 @@ def test_typed_exact_parser_intervals_unknown_scope_and_periods():
 
 @pytest.fixture
 def runtime(database):
-    for name in ("0006_monitor.py", "0007_topics.py"):
+    for name in ("0006_monitor.py", "0007_topics.py", "0008_investigation_analyses.py"):
         path = Path(__file__).resolve().parents[1] / "db/migrations/versions" / name
         spec = importlib.util.spec_from_file_location("topic_migration", path)
         module = importlib.util.module_from_spec(spec)
@@ -200,6 +200,7 @@ def runtime(database):
         monitor_is_demo=True,
         monitor_batch_records=2,
         monitor_hourly_investigations=0,
+        topic_hourly_investigations=0,
     )
     client = httpx.Client(base_url="http://127.0.0.1:18511", transport=httpx.MockTransport(source.handler))
 
@@ -283,7 +284,7 @@ def test_seed_event_is_not_lost_on_unmatched_final_page(runtime):
     identifier = create(make, definition(terms_all=["selected"]))
     make().tick(now=NOW)
     first = latest(make, identifier)
-    assert first.automation_status == "deferred" and first.coverage.seed_complete is False
+    assert first.automation_status == "waiting_budget" and first.coverage.seed_complete is False
     make().tick(now=NOW)
     second = latest(make, identifier)
     assert second.observation_revision == first.observation_revision
@@ -305,7 +306,7 @@ def test_new_event_survives_text_budget_and_all_counts(runtime, monkeypatch):
     make().tick(now=NOW)
     report = latest(make, identifier)
     assert report.coverage.active_records == 6 and report.coverage.omitted_records >= 3
-    assert report.automation_status == "deferred"
+    assert report.automation_status == "waiting_budget"
     assert any(s.kind == "source_event" for s in report.signals)
     assert not any(s.kind == "text_pattern" for s in report.signals)
 
@@ -339,7 +340,9 @@ def test_pause_catchup_due_and_old_evidence_current_permission(runtime):
     before = latest(make, identifier).id
     make().tick(now=NOW + timedelta(hours=1))
     assert latest(make, identifier).id == before
-    make().tick(now=NOW + timedelta(hours=25))
+    due = make().get(make().actor, identifier).next_evaluation_at
+    assert due > NOW + timedelta(hours=1)
+    make().tick(now=due + timedelta(seconds=1))
     assert latest(make, identifier).id != before
     source.enabled.clear()
     with pytest.raises(DomainError) as exc:
@@ -353,6 +356,7 @@ def test_followup_unknown_snapshot_commit_uses_fixed_receipt(runtime, monkeypatc
 
     make, source, settings = runtime
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     source.records = [dated(1, "2026-09-01", "SYNTHETIC focus adaptive vesicle response")]
     identifier = create(make, definition(terms_all=["focus"]))
     make().tick(now=NOW)
@@ -574,6 +578,7 @@ def test_attention_event_survives_old_milestone_preview(runtime):
     make, source, settings = runtime
     settings.monitor_batch_records = 50
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     source.records = [*originals, event(202)]
     identifier = create(make)
     for _ in range(5):
@@ -654,6 +659,7 @@ def test_human_append_conflict_blocks_followup_not_source(runtime, monkeypatch):
 
     make, source, settings = runtime
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     source.records = [record(1, "SYNTHETIC initial state")]
     identifier = create(make)
     make().tick(now=NOW)
@@ -694,6 +700,7 @@ def test_global_pause_during_original_read_stops_adoption(runtime, monkeypatch):
 
     make, source, settings = runtime
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     source.records = [record(1, "SYNTHETIC initial state")]
     identifier = create(make)
     make().tick(now=NOW)
@@ -725,10 +732,11 @@ def test_global_pause_during_original_read_stops_adoption(runtime, monkeypatch):
     assert latest(make, identifier).automation_status == "saved"
 
 
-def test_persistent_text_baseline_then_new_material_starts_one_inquiry(runtime):
+def test_persistent_text_baseline_and_unanchored_new_words_do_not_start_an_inquiry(runtime):
     make, source, settings = runtime
     settings.monitor_batch_records = 50
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     source.records = []
     number = 0
     for month, relevant in [("07", 0), ("08", 2), ("09", 4)]:
@@ -766,17 +774,15 @@ def test_persistent_text_baseline_then_new_material_starts_one_inquiry(runtime):
     assert latest(make, identifier).coverage.seed_complete is False
     make().tick(now=NOW)
     changed = latest(make, identifier)
-    assert changed.automation_status == "saved" and changed.investigation_id
+    # The trajectory remains a diagnostic, but the new words still contain no
+    # entity/quantity/event claim and no changed native fact to investigate.
+    assert changed.automation_status == "not_needed" and changed.investigation_id is None
     assert any(s.kind == "text_pattern" for s in changed.signals)
-    runtime_service = InvestigationService(make().engine)
-    view = runtime_service.get(make().actor, changed.investigation_id)
-    assert not any(entry.kind == "judgment" for entry in view.entries)
-    queries = [params for path, params in source.calls if path == "/api/history/records"]
-    assert queries
-    count = len(view.entries)
+    assert not any(path == "/api/history/records" for path, _ in source.calls)
+    with Session(make().engine.database) as session:
+        assert session.scalar(select(func.count()).select_from(InvestigationRecord)) == 0
     make().tick(now=NOW)
-    assert runtime_service.get(make().actor, view.id).revision == view.revision
-    assert len(runtime_service.get(make().actor, view.id).entries) == count
+    assert latest(make, identifier).id == changed.id
     assert make().evaluation(make().actor, identifier, baseline.id).model_dump() == baseline.model_dump()
 
 
@@ -981,6 +987,7 @@ def test_closed_topic_inquiry_needs_human_review_not_permanent_deferred(runtime)
 
     make, source, settings = runtime
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     source.records = [record(1, "SYNTHETIC initial state")]
     identifier = create(make)
     make().tick(now=NOW)
@@ -1013,6 +1020,7 @@ def test_closed_topic_inquiry_needs_human_review_not_permanent_deferred(runtime)
 def fairness_topic(runtime, *, suffix="one", sources=None):
     make, source, settings = runtime
     settings.monitor_hourly_investigations = 0
+    settings.topic_hourly_investigations = 0
     if "topic-source" not in settings.engine_source_id_allowlist["fixture"]:
         settings.engine_source_id_allowlist["fixture"].append("topic-source")
     source.enabled.add("topic-source")
@@ -1034,7 +1042,7 @@ def fairness_topic(runtime, *, suffix="one", sources=None):
     )
     service.tick(now=NOW)
     report = latest(make, view["id"])
-    assert report.automation_status == "deferred"
+    assert report.automation_status == "waiting_budget"
     with Session(service.engine.database) as session:
         scope_id = session.scalar(select(TopicScopeRecord.id).where(TopicScopeRecord.topic_id == view["id"]))
     return view["id"], scope_id, report.id
@@ -1047,11 +1055,16 @@ def fairness_monitor(runtime):
 
     make, source, settings = runtime
     settings.monitor_hourly_investigations = 0
+    settings.topic_hourly_investigations = 0
     old = [v for v in source.records if v["source_id"] != "fixture-source"]
-    shared = "adaptive immune vesicle. optical quantum tracer. ribosome peptide vector. "
+    # Pool scheduling uses checkable events; generic repeated phrases no longer
+    # justify automatic research. The batch cap is tested separately.
+    settings.monitor_batch_records = 3
+    settings.monitor_investigations_per_batch = 6
     source.records = [
-        record(1, "SYNTHETIC " + shared + "transient treatment.", seq=1),
-        record(2, "SYNTHETIC " + shared + "persistent treatment.", seq=2),
+        record(1, "北江医院报告2名医护人员感染，传播途径尚未确定。", seq=1),
+        record(2, "河西医院报告3名医护人员感染，传播途径尚未确定。", seq=2),
+        record(3, "南川医院报告4名医护人员感染，传播途径尚未确定。", seq=3),
         *old,
     ]
 
@@ -1079,16 +1092,17 @@ def test_shared_budget_alternates_both_ready_classes_and_never_exceeds_total(run
     _, scope2, eval2 = fairness_topic(runtime, suffix="two")
     _, scope3, eval3 = fairness_topic(runtime, suffix="three")
     monitor, leads = fairness_monitor(runtime)
-    settings.monitor_hourly_investigations = 6
+    settings.monitor_hourly_investigations = 3
+    settings.topic_hourly_investigations = 3
     current = monitor()
     assert current.claim()
     for i, (scope, evaluation) in enumerate([(scope1, eval1), (scope2, eval2), (scope3, eval3)]):
         assert current.reserve_investigation(*leads[i], "routine")
-        assert not current.reserve_investigation("synthetic-extra-monitor-" + str(i), "extra", "routine")
         assert current.reserve_investigation(
             canonical_hash(["topic", scope]), evaluation, "routine", origin="topic"
         )
     assert not current.reserve_investigation("synthetic-over-budget", "extra", "routine")
+    assert not current.reserve_investigation("synthetic-over-topic", "extra-topic", "routine", origin="topic")
     current.release()
     with Session(make().engine.database) as session:
         receipts = list(
@@ -1108,6 +1122,7 @@ def test_shared_quota_one_retains_turn_across_hours_and_legacy_receipts(runtime)
     _, scope, evaluation = fairness_topic(runtime)
     monitor, leads = fairness_monitor(runtime)
     settings.monitor_hourly_investigations = 1
+    settings.topic_hourly_investigations = 1
     current = monitor()
     assert current.claim()
     assert current.reserve_investigation(*leads[0], "routine")
@@ -1130,7 +1145,8 @@ def test_shared_quota_one_retains_turn_across_hours_and_legacy_receipts(runtime)
     current = monitor()
     assert current.claim()
     assert current.reserve_investigation(*leads[0], "routine")  # Same attempt resumes without a new turn.
-    assert not current.reserve_investigation(*leads[1], "routine")
+    assert current.reserve_investigation(*leads[1], "routine")
+    assert not current.reserve_investigation(*leads[2], "routine")
     assert current.reserve_investigation(
         canonical_hash(["topic", scope]), evaluation, "routine", origin="topic"
     )
@@ -1138,10 +1154,10 @@ def test_shared_quota_one_retains_turn_across_hours_and_legacy_receipts(runtime)
     expire_and_remove_origin()
     current = monitor()
     assert current.claim()
-    assert not current.reserve_investigation(
+    assert current.reserve_investigation(
         "synthetic-next-topic", "synthetic-next-evaluation", "routine", origin="topic"
     )
-    assert current.reserve_investigation(*leads[1], "routine")
+    assert current.reserve_investigation(*leads[2], "routine")
     current.release()
     with Session(make().engine.database) as session:
         assert (
@@ -1150,7 +1166,7 @@ def test_shared_quota_one_retains_turn_across_hours_and_legacy_receipts(runtime)
                 .select_from(EngineIdempotency)
                 .where(EngineIdempotency.operation == "monitor.dig.start")
             )
-            == 3
+            == 5
         )
 
 
@@ -1160,6 +1176,7 @@ def test_single_ready_class_can_use_the_whole_shared_quota(runtime, origin):
 
     make, _, settings = runtime
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     service = make()
     monitor = MonitorService(service.engine, service.reader)
     assert monitor.claim()
@@ -1230,6 +1247,7 @@ def test_unrunnable_topic_does_not_reserve_a_phantom_turn(runtime, unrunnable):
             progress["topic-source"]["error_code"] = "history_read_failed"
             scope.progress = progress
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     current = make()
     monitor = MonitorService(current.engine, current.reader)
     assert monitor.claim()
@@ -1249,11 +1267,13 @@ def test_one_unrelated_source_error_does_not_hide_a_runnable_topic(runtime):
         progress["fixture-source"] = {"error_code": "history_read_failed"}
         scope.progress = progress
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     current = make()
     monitor = MonitorService(current.engine, current.reader)
     assert monitor.claim()
     assert monitor.reserve_investigation("synthetic-first-monitor", "first", "routine")
-    assert not monitor.reserve_investigation("synthetic-next-monitor", "next", "routine")
+    assert monitor.reserve_investigation("synthetic-next-monitor", "next", "routine")
+    # An independent topic pool never takes a monitor turn.
     monitor.release()
 
 
@@ -1264,6 +1284,7 @@ def test_reserved_or_cooling_topic_does_not_claim_another_new_turn(runtime):
     make, _, settings = runtime
     _, scope, evaluation = fairness_topic(runtime)
     settings.monitor_hourly_investigations = 6
+    settings.topic_hourly_investigations = 6
     current = make()
     monitor = MonitorService(current.engine, current.reader)
     assert monitor.claim()
@@ -1339,6 +1360,9 @@ def test_rival_scan_reads_large_scope_once_and_reaches_authorized_old_pending_af
         scope.progress = progress
         valid = session.get(TopicEvaluationRecord, valid_id)
         valid.created_at = old + timedelta(minutes=64)
+        # This read-only compatibility scan exercises legacy deferred rows. New
+        # budget waits are scheduled by their own pool, not a shared rival turn.
+        valid.followup = {**valid.followup, "status": "deferred"}
         for index in range(64):
             identifier = f"00000000-0000-4000-8000-{index:012d}"
             result = copy.deepcopy(valid.result)

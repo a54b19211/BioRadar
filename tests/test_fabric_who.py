@@ -95,9 +95,11 @@ def test_adopted_eight_notices_keep_six_typed_observations_and_original_scope():
     data = result.data_preparation
     kinds = Counter(unit["unit_kind"] for unit in data["units"])
     assert data["input_count"] == 8
-    assert data["qualified_count"] == 14
+    assert kinds["region_indicator_period_population"] == 6
+    assert data["qualified_count"] == 14 + kinds["source_claim"]
+    assert data["denominator"]["count"] == 14
     assert kinds["native_notice_publication"] == 8
-    assert sum(kinds.values()) - kinds["native_notice_publication"] == 6
+    assert data["denominator"].get("excluded_source_claim_units", 0) == kinds["source_claim"]
     original_refs = {
         json.dumps(r.record_ref.model_dump(mode="json"), sort_keys=True) for r in snapshot.records
     }

@@ -91,7 +91,35 @@ def _identity(reference):
     return "", ""
 
 
+def _document_type(item):
+    context = item.get("source_context") or {}
+    kind = context.get("material_kind")
+    mapping = {
+        "primary_research": "research_article", "review": "review",
+        "trial_registry": "trial_registration", "press_release": "press_release",
+        "corporate_disclosure": "company_disclosure", "news_report": "news",
+        "social_media": "social_post", "repost": "social_post",
+        "conference_abstract": "conference_abstract", "graph": "graph",
+    }
+    return mapping.get(kind) if kind is not None else item.get("document_type")
+
+
 def _source_kind(item, source_id, record_id):
+    context = item.get("source_context") or {}
+    material_kind = context.get("material_kind")
+    document_type = _document_type(item)
+    if material_kind is not None:
+        if document_type in {"research_article", "trial_results"}:
+            return "primary", "fabric_material_kind_original_research"
+        if document_type in {"trial_registration", "study_protocol"}:
+            return "primary", "fabric_registration_context_only_not_result_evidence"
+        if document_type == "review":
+            return "review", "fabric_material_kind_review"
+        if document_type == "graph":
+            return "graph", "fabric_material_kind_graph_background"
+        if document_type == "conference_abstract" and item.get("source_kind") == "primary":
+            return "primary", "explicit_original_author_abstract_not_press_release"
+        return None, "fabric_material_kind_requires_original_research:" + str(material_kind)
     explicit = item.get("source_kind")
     if isinstance(explicit, str) and explicit.strip().casefold() in {"primary", "review", "graph"}:
         return explicit.strip().casefold(), "explicit_source_kind"
@@ -170,6 +198,13 @@ def _case(packet):
         if kind is None:
             missing.append(f"materials.{identifier}.source_kind")
             continue
+        document_type = _document_type(item)
+        if (
+            not document_type
+            and assessment.get("research_contract_version") == "bioradar-research-input-v1"
+            and identity["source_id"] in {"clinicaltrials", "chictr"}
+        ):
+            document_type = "trial_registration"
         materials.append(
             {
                 "id": identifier,
@@ -177,7 +212,10 @@ def _case(packet):
                 "version": item["version"],
                 "title": item.get("title", ""),
                 "source_kind": kind,
-                "text_level": item.get("text_level") or "selected_passages",
+                "text_level": item.get("text_level")
+                if item.get("text_level") in {"full_text", "abstract"} else "selected_passages",
+                **({"document_type": document_type} if document_type else {}),
+                **({"is_demo": item["is_demo"]} if type(item.get("is_demo")) is bool else {}),
                 **identity,
             }
         )
@@ -301,13 +339,21 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
     if method is None:
         return _state(packet, "unavailable", version=version, code="mech_evidence_not_available")
     if missing and not case.get("materials"):
-        return _state(
-            packet,
-            "needs_input",
-            version=version,
-            code="mech_evidence_material_type_missing",
-            missing=missing,
-        )
+        return {
+            **_state(
+                packet, "needs_input", version=version,
+                code="mech_evidence_material_type_missing", missing=missing,
+            ),
+            "material_type_mapping": classification,
+            "material_feedback": [
+                {
+                    "material_id": item["evidence_id"], "field": "source_kind",
+                    "required_information": item["basis"],
+                    "qualification": "仍保留在雷达作为归属声明或补查线索；未作机制研究材料。",
+                }
+                for item in classification if item["source_kind"] is None
+            ],
+        }
     identity_error = getattr(method, "IdentityInputError", ())
     try:
         # Explicit cases must still use exactly the caller's fixed and authorized material.
@@ -367,6 +413,13 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
                 return _identity_error_state(packet, version, cause)
             cause = cause.__cause__
         return _state(packet, "failed", version=version, code="mech_evidence_result_invalid")
+    if isinstance(result, dict) and result.get("status") == "needs_input":
+        return {
+            **result, "provider": "mech_evidence",
+            "provider_version": getattr(method, "provider_version", version),
+            "material_type_mapping": classification,
+            "evidence_map": copy.deepcopy(packet.get("evidence_map", {})),
+        }
     if isinstance(result, dict) and result.get("status") == "not_applicable":
         return {
             **result,
@@ -409,10 +462,13 @@ class _HTTPMethods:
     def _run(self, operation, arguments, call):
         response = self.execute(operation, arguments, call=call)
         self.provider_version = response["provider_version"]
-        if response.get("status") == "not_applicable":
+        if response.get("status") in {"not_applicable", "needs_input"}:
             return {
                 key: copy.deepcopy(response[key])
-                for key in ("status", "error_code", "reason", "context")
+                for key in (
+                    "status", "error_code", "reason", "context", "missing_fields",
+                    "material_feedback", "errors",
+                )
                 if key in response
             }
         return response["result"]

@@ -16,7 +16,6 @@ from bioradar.research.mining.kdd import run_kdd
 from bioradar.research.mining.models import (
     Embedding,
     KddPolicy,
-    MiningPolicy,
     ResourceLimits,
     SectionProvenance,
 )
@@ -41,13 +40,16 @@ def monitor_stub(mapping=None):
     return value
 
 
-def test_direction_policy_is_explicit_and_unconfigured_branch_keeps_old_defaults():
+def test_direction_policy_is_explicit_and_unconfigured_branch_discovers_all_domains():
     monitor = monitor_stub({"who_don": "public_health"})
     current = monitor._mining_policy("who_don", AS_OF)
     old = monitor._mining_policy("unconfigured", AS_OF)
     assert isinstance(current, KddPolicy) and current.kdd_direction == "public_health"
-    assert type(old) is MiningPolicy
-    expected = MiningPolicy(
+    from bioradar.research.mining.models import DiscoveryPolicy
+
+    assert type(old) is DiscoveryPolicy
+    expected = DiscoveryPolicy(
+        discovery_directions=("research", "pipeline", "business", "public_health"),
         as_of=AS_OF,
         discovery_mode="stock_and_incremental",
         limits=ResourceLimits(max_records=2000, review_capacity=12, max_candidates_per_method=30),
@@ -188,7 +190,7 @@ def test_who_kdd_monitor_accepts_runs_and_starts_frozen_direction_analysis(runti
         batch = session.scalar(select(MonitorBatch))
         lead = session.scalar(select(MonitorLead))
         assert run.policy["kdd_direction"] == "public_health"
-        assert run.result["compute_version"] == "bioradar-mining-compute-v0.3"
+        assert run.result["compute_version"] == "bioradar-mining-compute-v0.4"
         assert batch.state == "completed"
         assert lead.payload["kdd_direction"] == "public_health"
         assert lead.payload["candidate"]["method_id"] == "public_health_notifications"

@@ -697,7 +697,7 @@ def test_legacy_v1_result_is_read_exactly_and_current_version_uses_new_run_ident
     _, current_run = service.create_run(
         actor, RunCreate(snapshot_id=adopted["id"], policy=fixed_policy()), "current-compute"
     )
-    assert ENGINE_COMPUTE_VERSION == "bioradar-mining-compute-v0.2"
+    assert ENGINE_COMPUTE_VERSION == "bioradar-mining-compute-v0.4"
     assert current_run["id"] != run["id"] and current_run["input_hash"] != historical_hash
     with Session(database) as session:
         assert session.get(EngineRun, run["id"]).result == payload

@@ -48,7 +48,9 @@ def evaluate_patterns(candidates: list[Candidate], policy: KddPolicy, *, dataset
             )
             native_notice = metrics.get("native_notice_event") is True
             graph_hint = metrics.get("graph_relation_hint") is True
-            if native_notice:
+            if metrics.get("attributed_source_claim"):
+                reasons.append("single_attributed_claim_for_verification_not_confirmed_event")
+            elif native_notice:
                 reasons.append("single_official_notice_for_verification_not_outbreak_detection")
             elif graph_hint:
                 reasons.append(

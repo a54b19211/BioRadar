@@ -19,6 +19,7 @@ from bioradar.research.mining.evaluation import evaluate_patterns
 from bioradar.research.mining.methods_text import _analyzer
 from bioradar.research.mining.models import (
     Candidate,
+    DiscoveryPolicy,
     ExcludedRecord,
     KddPolicy,
     MethodResult,
@@ -28,8 +29,9 @@ from bioradar.research.mining.models import (
     canonical_hash,
 )
 from bioradar.research.mining.prepare import ref_key, snapshot_hash
+from bioradar.research.mining.signals import with_attention
 
-KDD_COMPUTE_VERSION = "bioradar-mining-compute-v0.3"
+KDD_COMPUTE_VERSION = "bioradar-mining-compute-v0.4"
 VERSIONS = {
     "research_tfidf_topics": "conditioned-tfidf-nmf-v2",
     "research_embedding_clusters": "fixed-embedding-unit-clusters-v1",
@@ -39,27 +41,44 @@ VERSIONS = {
     "business_metric_change": "source-bound-period-change-v2",
     "public_health_metric_change": "source-bound-period-change-v2",
     "public_health_notifications": "native-notice-publication-v1",
+    "business_utilization": "source-bound-numerator-denominator-v1",
+    "research_source_claims": "attributed-source-claim-v1",
+    "pipeline_source_claims": "attributed-source-claim-v1",
+    "business_source_claims": "attributed-source-claim-v1",
+    "public_health_source_claims": "attributed-source-claim-v1",
 }
 DIRECTION_METHODS = {
-    "research": ("research_tfidf_topics", "research_embedding_clusters", "research_evidence_balance"),
-    "pipeline": ("conditional_pipeline_landscape", "pipeline_graph_hints"),
-    "business": ("business_metric_change",),
-    "public_health": ("public_health_metric_change", "public_health_notifications"),
+    "research": (
+        "research_tfidf_topics",
+        "research_embedding_clusters",
+        "research_evidence_balance",
+        "research_source_claims",
+    ),
+    "pipeline": ("conditional_pipeline_landscape", "pipeline_graph_hints", "pipeline_source_claims"),
+    "business": ("business_metric_change", "business_utilization", "business_source_claims"),
+    "public_health": (
+        "public_health_metric_change",
+        "public_health_notifications",
+        "public_health_source_claims",
+    ),
 }
 MAX_CLUSTER_UNITS = 1000
 
 
-def kdd_versions(policy: KddPolicy) -> dict[str, str]:
-    return {"__engine_compute__": KDD_COMPUTE_VERSION} | {
-        method: VERSIONS[method] for method in DIRECTION_METHODS[policy.kdd_direction]
-    }
+def kdd_versions(policy: KddPolicy | DiscoveryPolicy) -> dict[str, str]:
+    directions = (
+        policy.discovery_directions if isinstance(policy, DiscoveryPolicy) else (policy.kdd_direction,)
+    )
+    return {
+        "__engine_compute__": KDD_COMPUTE_VERSION,
+    } | {method: VERSIONS[method] for direction in directions for method in DIRECTION_METHODS[direction]}
 
 
 def _candidate(dataset, method, key, title, units, *, metrics=None, kind="association", gaps=(), score=0.0):
     records = unit_records(dataset, units)
     independent_records = unit_records(dataset, [unit for unit in units if unit["independent_study"]])
     studies = {ref_key(item.record.study_cluster_ref) for item in independent_records if item.confirmed_study}
-    return Candidate(
+    value = Candidate(
         candidate_key=canonical_hash([method, VERSIONS[method], key]),
         method_id=method,
         method_version=VERSIONS[method],
@@ -72,6 +91,7 @@ def _candidate(dataset, method, key, title, units, *, metrics=None, kind="associ
         ),
         supports=tuple(support(item) for item in records),
         metrics={
+            "kdd_direction": dataset.direction,
             "analysis_unit_count": len(units),
             "independent_study_count": len(studies),
             **(metrics or {}),
@@ -83,6 +103,12 @@ def _candidate(dataset, method, key, title, units, *, metrics=None, kind="associ
         evidence_status="partial"
         if units and all(unit["independent_study"] for unit in units)
         else "unverified",
+    )
+    return with_attention(
+        value,
+        [item.record for item in records],
+        qualified_study_refs={item.record.record_ref.version_key: item.confirmed_study for item in records},
+        policy=dataset.prepared.policy,
     )
 
 
@@ -233,6 +259,8 @@ def _research_embeddings(dataset):
     method = "research_embedding_clusters"
     spaces, rejected = defaultdict(list), []
     for unit in dataset.units:
+        if unit["unit_kind"] == "source_claim":
+            continue
         values = unit["features"].get("embeddings", [])
         signatures = {(value["provider"], value["model_version"], value["dimension"]) for value in values}
         by_text = defaultdict(list)
@@ -386,7 +414,7 @@ def _pipeline(dataset):
         )
     groups = defaultdict(list)
     for unit in dataset.units:
-        if unit["unit_kind"] == "graph_relation_hint":
+        if unit["unit_kind"] not in {"confirmed_project", "native_registration"}:
             continue
         condition = unit["condition_key"]
         if condition is None:
@@ -579,6 +607,32 @@ def _period_basis(dimensions):
     }
 
 
+def _comparison_pairs(units):
+    """Adjacent comparable periods plus explicit same-calendar-period year pairs."""
+    pairs = {(a["unit_id"], b["unit_id"]): (a, b) for a, b in zip(units, units[1:])}
+    by_period = {(u["dimensions"]["period_start"], u["dimensions"]["period_end"]): u for u in units}
+    for current in units:
+        start = datetime.fromisoformat(current["dimensions"]["period_start"])
+        end = datetime.fromisoformat(current["dimensions"]["period_end"])
+        try:
+            old = (start.replace(year=start.year - 1).isoformat(), end.replace(year=end.year - 1).isoformat())
+        except ValueError:
+            continue  # Leap-day equivalence is not silently assumed.
+        previous = by_period.get(old)
+        if previous:
+            pairs[(previous["unit_id"], current["unit_id"])] = previous, current
+    for previous, current in pairs.values():
+        a = datetime.fromisoformat(previous["dimensions"]["period_start"])
+        b = datetime.fromisoformat(previous["dimensions"]["period_end"])
+        c = datetime.fromisoformat(current["dimensions"]["period_start"])
+        d = datetime.fromisoformat(current["dimensions"]["period_end"])
+        try:
+            yoy = a.replace(year=a.year + 1) == c and b.replace(year=b.year + 1) == d
+        except ValueError:
+            yoy = False
+        yield previous, current, "year_over_year" if yoy else "equal_period_change"
+
+
 def _metrics(dataset):
     method = DIRECTION_METHODS[dataset.direction][0]
     if not dataset.units:
@@ -587,7 +641,7 @@ def _metrics(dataset):
         )
     groups = defaultdict(list)
     for unit in dataset.units:
-        if unit["unit_kind"] == "native_notice_publication":
+        if unit["unit_kind"] not in {"company_metric_period", "region_indicator_period_population"}:
             continue
         dimensions = unit["dimensions"]
         series = {
@@ -622,7 +676,7 @@ def _metrics(dataset):
                     gaps=("at_least_two_comparable_periods_required",),
                 )
             )
-        for before, after in zip(units, units[1:]):
+        for before, after, comparison_kind in _comparison_pairs(units):
             previous, current = before["features"]["observations"][0], after["features"]["observations"][0]
             comparable = _periods_comparable(before["dimensions"], after["dimensions"])
             conflict = before["features"]["conflicting_values"] or after["features"]["conflicting_values"]
@@ -666,6 +720,7 @@ def _metrics(dataset):
                         "period_unit_ids": [before["unit_id"], after["unit_id"]],
                         "period_basis": period_basis,
                         "seasonal_adjustment": "not_performed",
+                        "comparison_kind": comparison_kind,
                         "denominator_known": previous["denominator"] is not None
                         and current["denominator"] is not None,
                     },
@@ -793,6 +848,168 @@ def _public_notifications(dataset):
     )
 
 
+def _source_claims(dataset):
+    method = dataset.direction + "_source_claims"
+    units = [u for u in dataset.units if u["unit_kind"] == "source_claim"]
+    candidates = []
+    for unit in units:
+        claims = unit["features"]["claims"]
+        candidates.append(
+            _candidate(
+                dataset,
+                method,
+                unit["unit_id"],
+                "待核来源说法：" + claims[0]["text"][:150],
+                [unit],
+                kind="hypothesis",
+                metrics={
+                    "attributed_source_claim": True,
+                    "claims": claims,
+                    "source_claim_count": len(claims),
+                    "confirmed_case_count": None,
+                },
+                gaps=("claim_truth_and_source_independence_require_verification",),
+            )
+        )
+    return _result(
+        dataset,
+        method,
+        candidates,
+        ready=False,
+        reasons=() if candidates else ("no_checkable_source_claim_with_entity_quantity_or_event",),
+    )
+
+
+def _utilization(dataset):
+    method = "business_utilization"
+    pairs = defaultdict(dict)
+    for unit in dataset.units:
+        if unit["unit_kind"] != "company_metric_period":
+            continue
+        dimensions = unit["dimensions"]
+        role = dimensions["metric_id"]
+        if role not in {"used_work_hours", "available_work_hours"} or dimensions["unit"] != "hours":
+            continue
+        key = canonical_hash({k: v for k, v in dimensions.items() if k not in {"metric_id", "subject_ref"}})
+        pairs[key][role] = unit
+    candidates, gaps, ratio_series = [], [], defaultdict(list)
+    for key, pair in sorted(pairs.items()):
+        if set(pair) != {"used_work_hours", "available_work_hours"}:
+            gaps.append(key)
+            continue
+        numerator, denominator = pair["used_work_hours"], pair["available_work_hours"]
+        if numerator["features"]["conflicting_values"] or denominator["features"]["conflicting_values"]:
+            gaps.append(key)
+            continue
+        n, d = numerator["features"]["observations"][0], denominator["features"]["observations"][0]
+        with localcontext() as context:
+            context.prec = 34
+            low_d, high_d = Decimal(d["value_lower"]), Decimal(d["value_upper"])
+            if low_d <= 0:
+                gaps.append(key)
+                continue
+            lower, upper = Decimal(n["value_lower"]) / high_d, Decimal(n["value_upper"]) / low_d
+        calculation = {
+            "formula": "used_work_hours / available_work_hours",
+            "numerator": n,
+            "denominator": d,
+            "result": {"lower": str(lower), "upper": str(upper), "unit": "ratio"},
+            "period": {k: numerator["dimensions"][k] for k in ("period_start", "period_end")},
+            "qualification": "source_reported_inputs_program_computed_not_audited_or_industry_population",
+        }
+        series = {
+            k: v
+            for k, v in numerator["dimensions"].items()
+            if k not in {"metric_id", "period_start", "period_end", "subject_ref"}
+        }
+        series["period_basis"] = _period_basis(numerator["dimensions"])
+        ratio_series[canonical_hash(series)].append(
+            {
+                "unit_id": key,
+                "dimensions": numerator["dimensions"],
+                "units": [numerator, denominator],
+                "calculation": calculation,
+                "lower": lower,
+                "upper": upper,
+            }
+        )
+        candidates.append(
+            _candidate(
+                dataset,
+                method,
+                key,
+                "可复算工时利用率",
+                [numerator, denominator],
+                kind="observed_change",
+                metrics={
+                    "calculation": calculation,
+                    "comparable": True,
+                    "derived_ratio": True,
+                    "period_unit_ids": [numerator["unit_id"], denominator["unit_id"]],
+                },
+                gaps=("reported_hours_and_reporting_scope_require_review",),
+            )
+        )
+    for series, ratios in sorted(ratio_series.items()):
+        ratios.sort(key=lambda r: (r["dimensions"]["period_start"], r["unit_id"]))
+        for before, after, comparison_kind in _comparison_pairs(ratios):
+            if not _periods_comparable(before["dimensions"], after["dimensions"]):
+                continue
+            with localcontext() as context:
+                context.prec = 34
+                low, high = after["lower"] - before["upper"], after["upper"] - before["lower"]
+                relative = (
+                    {
+                        "lower": str(after["lower"] / before["upper"] - 1),
+                        "upper": str(after["upper"] / before["lower"] - 1),
+                    }
+                    if before["lower"] > 0
+                    else None
+                )
+                result = {"lower": str(low * 100), "upper": str(high * 100), "unit": "percentage_points"}
+            candidates.append(
+                _candidate(
+                    dataset,
+                    method,
+                    [series, before["unit_id"], after["unit_id"]],
+                    "同口径工时利用率变化",
+                    before["units"] + after["units"],
+                    kind="observed_change",
+                    metrics={
+                        "comparable": True,
+                        "derived_ratio": True,
+                        "comparison_kind": comparison_kind,
+                        "period_unit_ids": [u["unit_id"] for u in before["units"] + after["units"]],
+                        "calculation": {
+                            "formula": (
+                                "(after_used / after_available - before_used / before_available) * 100"
+                            ),
+                            "before": before["calculation"],
+                            "after": after["calculation"],
+                            "result": result,
+                            "relative_change": relative,
+                            "qualification": (
+                                "source_bound_scope_only_not_industry_population_or_causal_proof"
+                            ),
+                        },
+                        "effect": {"lower": float(low), "upper": float(high), "unit": "ratio_difference"},
+                    },
+                    gaps=("seasonality_sampling_and_scope_changes_not_adjusted",),
+                )
+            )
+    return _result(
+        dataset,
+        method,
+        candidates,
+        statistics={
+            "formula": "used_work_hours / available_work_hours",
+            "unpaired_or_conflicting_periods": gaps,
+        },
+        ready=bool(candidates),
+        reasons=() if candidates else ("same_subject_period_unit_and_scope_numerator_denominator_required",),
+    )
+
+
 def run_kdd(snapshot: NormalizedSnapshot, policy: KddPolicy) -> MiningResult:
     dataset = build_dataset(snapshot, policy)
     functions = {
@@ -804,6 +1021,11 @@ def run_kdd(snapshot: NormalizedSnapshot, policy: KddPolicy) -> MiningResult:
         "business_metric_change": _metrics,
         "public_health_metric_change": _metrics,
         "public_health_notifications": _public_notifications,
+        "business_utilization": _utilization,
+        "research_source_claims": _source_claims,
+        "pipeline_source_claims": _source_claims,
+        "business_source_claims": _source_claims,
+        "public_health_source_claims": _source_claims,
     }
     outcomes = []
     for method in DIRECTION_METHODS[policy.kdd_direction]:
@@ -839,6 +1061,125 @@ def run_kdd(snapshot: NormalizedSnapshot, policy: KddPolicy) -> MiningResult:
             | ({"fixture_not_real_intelligence"} if snapshot.is_demo else set())
         ),
     }
+    result = MiningResult(**payload, result_hash="pending")
+    return result.model_copy(
+        update={"result_hash": canonical_hash(result.model_dump(mode="json", exclude={"result_hash"}))}
+    )
+
+
+def run_discovery(snapshot: NormalizedSnapshot, policy: DiscoveryPolicy) -> MiningResult:
+    """One fixed cohort, direction-specific methods, one shared final review capacity."""
+    from bioradar.research.mining.runner import select_candidates
+
+    outcomes, direction_datasets, evaluations = [], {}, {}
+    for direction in policy.discovery_directions:
+        values = policy.model_dump(mode="json", exclude={"discovery_directions"})
+        child_policy = KddPolicy.model_validate({**values, "kdd_direction": direction})
+        result = run_kdd(snapshot, child_policy)
+        outcomes.extend(result.method_results)
+        manifest = dict(result.data_preparation or {})
+        manifest.pop("selection_summary", None)
+        manifest.pop("dataset_hash_scope", None)
+        direction_datasets[direction] = manifest
+        evaluations.update({row["candidate_key"]: dict(row) for row in result.pattern_evaluations})
+    all_candidates = [candidate for result in outcomes for candidate in result.candidates]
+    eligible = [candidate for candidate in all_candidates if evaluations[candidate.candidate_key]["eligible"]]
+    from bioradar.research.mining.runner import candidate_order
+
+    new_period = any(
+        (evaluations[c.candidate_key].get("incremental_context") or {}).get("classification") == "new_period"
+        for c in eligible
+    )
+
+    def order(candidate):
+        base = candidate_order(candidate)
+        fresh = (evaluations[candidate.candidate_key].get("incremental_context") or {}).get(
+            "classification"
+        ) == "new_period"
+        return (base[0], -int(fresh), *base[1:])
+
+    selected = select_candidates(
+        eligible, policy, sort_key=order if new_period else None, bucket_dimensions=3 if new_period else 2
+    )
+    selected_keys = {candidate.candidate_key for candidate in selected}
+    decisions = [
+        {
+            "candidate_key": candidate.candidate_key,
+            "decision": "selected"
+            if candidate.candidate_key in selected_keys
+            else "value_excluded"
+            if not evaluations[candidate.candidate_key]["eligible"]
+            else "capacity_deferred",
+            "reasons": [
+                "one_shared_discovery_review_capacity"
+                if candidate.candidate_key not in selected_keys
+                and evaluations[candidate.candidate_key]["eligible"]
+                else "frozen_direction_value_admission"
+            ],
+        }
+        for candidate in all_candidates
+    ]
+    units = [
+        {**unit, "kdd_direction": direction}
+        for direction, data in direction_datasets.items()
+        for unit in data["units"]
+    ]
+    preparation = {
+        "schema_version": "bioradar-discovery-dataset-v1",
+        "direction": "multi_domain_discovery",
+        "unit_contract": "per_direction_units_no_shared_population_denominator",
+        "input_count": len(snapshot.records),
+        "qualified_count": len(units),
+        "qualified_count_unit": "direction_specific_analysis_units_not_documents_or_population",
+        "units": units,
+        "direction_datasets": direction_datasets,
+        "excluded_records": [
+            {**row, "kdd_direction": direction}
+            for direction, data in direction_datasets.items()
+            for row in data["excluded_records"]
+        ],
+        "unknown_reasons": sorted(
+            {reason for data in direction_datasets.values() for reason in data["unknown_reasons"]}
+        ),
+        "denominator": {
+            "kind": "direction_specific_no_pooled_population",
+            "count": None,
+            "population_total": None,
+            "population_rate_permitted": False,
+        },
+        "coverage": {
+            "scope": "single_adopted_snapshot_direction_eligibility_separate",
+            "mode": snapshot.coverage_mode,
+            "source_population_coverage": "unknown",
+        },
+        "versions": {
+            "dataset": "bioradar-discovery-dataset-v1",
+            "narrative_extractor": "literal-narrative-observations-v1",
+        },
+        "as_of": policy.as_of.isoformat(),
+        "time_mode": policy.time_mode,
+    }
+    preparation["dataset_hash"] = canonical_hash(preparation)
+    preparation["selection_summary"] = {
+        "scope": "all_applicable_directions_one_shared_capacity",
+        "generated": len(all_candidates),
+        "value_eligible": len(eligible),
+        "selected": len(selected),
+        "review_capacity": policy.limits.review_capacity,
+        "capacity_deferred": len(eligible) - len(selected),
+    }
+    payload = dict(
+        schema_version="bioradar.engine.result.v1",
+        compute_version=KDD_COMPUTE_VERSION,
+        snapshot_hash=snapshot_hash(snapshot),
+        policy_hash=canonical_hash(policy),
+        method_results=tuple(outcomes),
+        candidates=selected,
+        data_preparation=preparation,
+        pattern_evaluations=tuple(evaluations[key] for key in sorted(evaluations)),
+        selection_decisions=tuple(decisions),
+        limitations=("direction_units_and_source_claims_are_not_one_population_or_independent_studies",),
+    )
     result = MiningResult(**payload, result_hash="pending")
     return result.model_copy(
         update={"result_hash": canonical_hash(result.model_dump(mode="json", exclude={"result_hash"}))}

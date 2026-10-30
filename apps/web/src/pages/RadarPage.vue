@@ -29,7 +29,7 @@ const selectedRun = ref<RunView | null>(null);
 const selectedCandidate = ref<Candidate | null>(null);
 const filter = ref("");
 const candidateScope = ref<"selected" | "all">("selected");
-const direction = ref<KddDirection | "legacy">("research");
+const direction = ref<KddDirection | "legacy" | "discovery">("research");
 const methodLabels = ref<Record<string, string>>({});
 const busy = ref(false);
 const loggingOut = ref(false);
@@ -344,9 +344,11 @@ onUnmounted(() => {
           @change="importSnapshot"
         />
       </div>
+      <p v-if="direction === 'discovery'" class="notice">同一批资料分别按科研、管线、商业和公共卫生的单位条件计算，各方向分母独立，审阅容量共享。字段不足的方法会保留实际缺口，不保证每个方向都产生模式。</p>
       <div class="analysis-controls">
         <label class="kdd-direction">分析方向
           <select v-model="direction" aria-label="分析方向">
+            <option value="discovery">全方向发现（共享审阅容量）</option>
             <option v-for="(label, value) in kddDirections" :key="value" :value="value">{{ label }}</option>
             <option value="legacy">原有方法（固定行为）</option>
           </select>

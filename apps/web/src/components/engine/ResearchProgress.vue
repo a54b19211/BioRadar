@@ -8,6 +8,7 @@ const stages: Record<string, string> = {
   queued: "等待执行", preparing: "固定本轮输入",
   question_plan: "理解问题并规划查询", initial_retrieval: "取得起始材料",
   read_plan: "解读材料并规划补查", digging: "补查关键缺口",
+  read_plan_repair: "修复结构化阅读格式", narrative_extract: "从固定原文选择数值字段",
   synthesize: "综合证据形成分析", check: "核对陈述与引文",
   revise: "修订分析", recheck: "复核修订结果", compare: "比较前后判断",
   mechanism_evaluation: "评价机制证据", final_verification: "核验最终报告",
@@ -35,8 +36,17 @@ const waitingReasons: Record<string, string> = {
   analysis_time_budget: "本轮时间预算已用完，已保留过程记录",
   model_call_outcome_unconfirmed: "上次调用结果尚未确认，需先核对回执",
 };
+const budgetPools: Record<string, string> = { manual: "手动研究", monitor: "无对象监测", topic: "专题跟踪", material_update: "资料自动更新" };
+const budgetWait = computed(() => props.analysis.progress?.budget_wait);
+const fetchWait = computed(() => props.analysis.progress?.waiting_fetch);
+function time(value: string) {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("zh-CN", { hour12: false });
+}
 const currentStage = computed(() => {
   const view = props.analysis;
+  if (view.state === "queued" && budgetWait.value) return "等待预算恢复";
+  if (view.state === "queued" && fetchWait.value) return "等待公开资料采集";
   const stage = view.progress?.stage || [...view.calls].reverse().find(call => call.status === "sent")?.stage || view.state;
   return stages[stage] || stage;
 });
@@ -83,6 +93,16 @@ function providerState(value: ResearchProvider) {
         {{ waitingReasons[analysis.progress.waiting_reason] || "等待相关条件恢复，具体原因见执行记录。" }}
       </span>
     </div>
+    <p v-if="fetchWait" class="fetch-wait notice" role="status">
+      公开来源补采任务已排队，正在等待实际采集回执；下次检查：<strong>{{ time(fetchWait.next_poll_at) }}</strong>。
+      已有资料与回执保留，这段排队不表示采集失败。
+    </p>
+    <p v-if="budgetWait" class="budget-wait notice" role="status">
+      {{ budgetPools[budgetWait.pool] || budgetWait.pool }}额度暂不可用，任务在队列中等待。
+      预计恢复时点：<strong>{{ time(budgetWait.next_budget_at) }}</strong>。
+      已有回执与材料保留；这段等待不表示调查失败，也不计作执行时间。
+    </p>
+    <p v-else-if="analysis.progress?.budget_pool" class="muted">本轮预算池：{{ budgetPools[analysis.progress.budget_pool] || analysis.progress.budget_pool }}。</p>
     <div class="research-usage">
       <span>调用 {{ number(usage.calls) }}<template v-if="limits.max_calls != null"> / {{ number(limits.max_calls) }}</template> 次</span>
       <span>检索 {{ number(usage.queries) }}<template v-if="limits.max_queries != null"> / {{ number(limits.max_queries) }}</template> 次</span>

@@ -327,6 +327,45 @@
           "default": null,
           "title": "Source Url"
         },
+        "public_available_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Public Available At"
+        },
+        "availability_proof": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Availability Proof"
+        },
+        "signal_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignalContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "ingestion_mode": {
           "default": "sample_export",
           "enum": [
@@ -1646,6 +1685,132 @@
       "title": "SectionProvenance",
       "type": "object"
     },
+    "SignalContext": {
+      "additionalProperties": false,
+      "description": "Attributed source claims; named sources are not thereby confirmed.",
+      "properties": {
+        "material_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material Type"
+        },
+        "origin_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origin Group"
+        },
+        "attribution": {
+          "default": "unknown",
+          "enum": [
+            "named_institution",
+            "named_author",
+            "anonymous",
+            "unknown"
+          ],
+          "title": "Attribution",
+          "type": "string"
+        },
+        "claimed_origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Origin"
+        },
+        "entity_names": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Names",
+          "type": "array"
+        },
+        "source_relations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SourceRelation"
+          },
+          "title": "Source Relations",
+          "type": "array"
+        },
+        "claim_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Text"
+        },
+        "verification_status": {
+          "default": "unknown",
+          "enum": [
+            "source_confirmed",
+            "unverified",
+            "unknown"
+          ],
+          "title": "Verification Status",
+          "type": "string"
+        },
+        "statement_status": {
+          "default": "unknown",
+          "enum": [
+            "source_reported",
+            "unverified_report",
+            "unknown"
+          ],
+          "title": "Statement Status",
+          "type": "string"
+        },
+        "document_evidence": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Document Evidence"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "title": "SignalContext",
+      "type": "object"
+    },
     "SnapshotCoverage": {
       "additionalProperties": false,
       "properties": {
@@ -1711,6 +1876,30 @@
         "record_count"
       ],
       "title": "SnapshotCoverage",
+      "type": "object"
+    },
+    "SourceRelation": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "correction",
+            "retraction",
+            "supplement",
+            "repost"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "target_ref": {
+          "$ref": "#/$defs/ProviderRef"
+        }
+      },
+      "required": [
+        "kind",
+        "target_ref"
+      ],
+      "title": "SourceRelation",
       "type": "object"
     },
     "StateAssertion": {

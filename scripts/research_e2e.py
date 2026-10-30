@@ -38,7 +38,7 @@ DEFAULT_FOLLOWUP = (
 )
 
 
-def expected_report_markdown(view):
+def _expected_legacy_markdown(view):
     """System scope is outside the unchanged verified body; v1 stays byte-for-byte exact."""
     body = view["result"]["report"]["final_text"]
     scope = (view.get("progress") or {}).get("material_scope")
@@ -91,6 +91,15 @@ def expected_report_markdown(view):
             )
         lines.append("补查未完成：" + "；".join(labels) + "。")
     return "\n".join(lines) + "\n\n---\n\n" + body
+
+
+def expected_report_markdown(view, delivery=None):
+    legacy = _expected_legacy_markdown(view)
+    if delivery is None:
+        return legacy
+    from report_delivery_assertions import expected_delivery_markdown
+
+    return expected_delivery_markdown(view, delivery, legacy)
 
 
 def read_resume(path):
@@ -306,12 +315,13 @@ class ResearchExercise:
             "report_version_matches_its_saved_text",
         )
         path = f"/api/engine/investigations/{view['investigation_id']}/analyses/{view['id']}/export"
+        exported_payload = self.call("GET", path).json()
         exported = self.call("GET", path + "?format=markdown").text
         self.check(
-            exported == expected_report_markdown(view),
-            "markdown_is_exact_system_scope_and_saved_report",
+            exported == expected_report_markdown(view, exported_payload.get("delivery")),
+            "markdown_is_exact_system_scope_saved_body_and_separate_source_index",
         )
-        exported_json = self.call("GET", path).json()["analysis"]
+        exported_json = exported_payload["analysis"]
         self.check(exported_json["result"] == result, "json_export_is_same_saved_result")
         self.check(
             (exported_json.get("progress") or {}).get("material_scope")

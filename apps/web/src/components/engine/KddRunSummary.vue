@@ -2,11 +2,13 @@
 import { computed } from "vue";
 import {
   object, objects, count, text, strings, preparation, selectionCounts,
-  facts, readable, kddLabel, methodLabel, representationScope,
+  facts, readable, kddLabel, methodLabel, representationScope, preparationDirections,
 } from "../../api/kdd";
 
 const props = defineProps<{ result: unknown; policy?: unknown; methodLabels?: Record<string, string> }>();
 const data = computed(() => preparation(props.result));
+const directions = computed(() => preparationDirections(props.result));
+const isMulti = computed(() => directions.value.length > 0);
 const units = computed(() => objects(data.value?.units));
 const excluded = computed(() => objects(data.value?.excluded_records));
 const methods = computed(() => objects(object(props.result)?.method_results));
@@ -59,9 +61,27 @@ function download() {
     <template v-if="data">
       <div class="kdd-facts">
         <div><span>输入资料</span><strong>{{ count(data.input_count) ?? "未记录" }}</strong></div>
-        <div><span>合格分析单位</span><strong>{{ count(data.qualified_count) ?? "未记录" }}</strong></div>
-        <div><span>排除记录</span><strong>{{ Array.isArray(data.excluded_records) ? excluded.length : "未记录" }}</strong></div>
+        <div><span>{{ isMulti ? "各方向单位条目" : "合格分析单位" }}</span><strong>{{ count(data.qualified_count) ?? "未记录" }}</strong></div>
+        <div><span>{{ isMulti ? "各方向排除条目" : "排除记录" }}</span><strong>{{ Array.isArray(data.excluded_records) ? excluded.length : "未记录" }}</strong></div>
         <div><span>实际执行方法</span><strong>{{ methodCount }} / {{ methods.length }}</strong></div>
+      </div>
+      <p v-if="isMulti" class="notice">同一批输入分别进入各方向的资格判断。各方向的单位身份、分母与排除口径独立，不能相加当作文档数、独立研究数或一个共同总体；所有方向共用本轮审阅容量。</p>
+      <div v-if="isMulti" class="direction-datasets">
+        <article v-for="entry in directions" :key="entry.direction" class="direction-dataset">
+          <h4>{{ kddLabel(entry.direction) }} · 真实单位资格</h4>
+          <p>收到原批次输入 {{ count(entry.data.input_count) ?? "未记录" }} 条；该方向合格分析单位 {{ count(entry.data.qualified_count) ?? "未记录" }}；排除条目 {{ Array.isArray(entry.data.excluded_records) ? entry.data.excluded_records.length : "未记录" }}。</p>
+          <p><strong>分析单位：</strong>{{ readable(entry.data.unit_contract) }}</p>
+          <p><strong>该方向分母：</strong>{{ readable(entry.data.denominator) }}</p>
+          <ul v-if="strings(entry.data.unknown_reasons).length" class="notice"><li v-for="item in strings(entry.data.unknown_reasons)" :key="item">{{ kddLabel(item) }}</li></ul>
+          <details>
+            <summary>该方向的单位成员、排除与覆盖</summary>
+            <dl class="kdd-definition"><template v-for="item in facts(entry.data.coverage)" :key="item.key"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></template></dl>
+            <ul><li v-for="(unit, index) in objects(entry.data.units).slice(0, 10)" :key="unitName(unit) + index">{{ unitName(unit) }} · {{ readable(unit.dimensions) }} · {{ members(unit) }}</li></ul>
+            <p v-if="objects(entry.data.units).length > 10" class="muted">单位预览 10 / {{ objects(entry.data.units).length }}；全部固定成员可下载。</p>
+            <ul><li v-for="(item, index) in objects(entry.data.excluded_records)" :key="index">未进入该方向计算 · {{ reason(item) }}</li></ul>
+            <p>该方向数据哈希：{{ text(entry.data.dataset_hash) || "未记录" }}</p>
+          </details>
+        </article>
       </div>
       <p><strong>分析单位：</strong>{{ unitContract }}</p>
       <p><strong>分母及适用范围：</strong>{{ denominator }}</p>
@@ -69,7 +89,7 @@ function download() {
         <template v-for="item in coverage" :key="item.key"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></template>
       </dl>
       <ul v-if="unknown.length" class="notice"><li v-for="item in unknown" :key="item">{{ kddLabel(item) }}</li></ul>
-      <details v-if="units.length">
+      <details v-if="!isMulti && units.length">
         <summary>查看分析单位、比较条件和原件成员（预览 {{ Math.min(units.length, 10) }} / {{ units.length }}）</summary>
         <table class="kdd-table"><thead><tr><th>稳定单位</th><th>比较条件</th><th>固定原件成员</th></tr></thead><tbody>
           <tr v-for="(unit, index) in units.slice(0, 10)" :key="unitName(unit) + index">
@@ -78,7 +98,7 @@ function download() {
         </tbody></table>
         <p class="muted">完整成员与特征版本保存在本次固定结果中，可由上方下载。预览数量不改变实际计算范围。</p>
       </details>
-      <details v-if="excluded.length"><summary>哪些资料没有进入分析</summary>
+      <details v-if="!isMulti && excluded.length"><summary>哪些资料没有进入分析</summary>
         <ul><li v-for="(item, index) in excluded" :key="index">{{ reason(item) }}</li></ul>
       </details>
     </template>
@@ -87,7 +107,7 @@ function download() {
       <template v-for="rule in valueRules" :key="rule.key"><dt>{{ rule.label }}</dt><dd>{{ rule.value }}</dd></template>
     </dl>
     <div v-if="selections" class="kdd-selection">
-      <strong>本轮筛选</strong>
+      <strong>{{ isMulti ? "跨方向共享容量筛选" : "本轮筛选" }}</strong>
       <span>入选 {{ selections.selected }}</span><span>价值条件未通过 {{ selections.value_excluded }}</span>
       <span>容量暂缓 {{ selections.capacity_deferred }}</span><span>相同依据暂缓 {{ selections.redundancy_deferred }}</span>
       <span v-if="count(selectionSummary?.exploratory_followup_eligible_count) !== null">仅探索补证合格 {{ count(selectionSummary?.exploratory_followup_eligible_count) }}</span>
@@ -128,6 +148,7 @@ function download() {
   </section>
 </template>
 <style scoped>
+.direction-dataset { border-top: 1px solid var(--line, #dce5e9); padding: 12px 0; }
 .kdd-summary { min-width: 0; border: 1px solid var(--line, #dce5e9); border-radius: 10px; padding: 16px; margin: 16px 0; overflow-wrap: anywhere; }
 .kdd-heading, .kdd-selection { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
 .kdd-heading h3 { margin: 0; }.kdd-heading button { margin-left: auto; }

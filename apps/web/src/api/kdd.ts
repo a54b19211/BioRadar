@@ -45,6 +45,9 @@ export function strings(value: unknown): string[] {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
 }
 const labels: Record<string, string> = {
+  multi_domain_discovery: "多方向发现",
+  direction_specific_analysis_units_not_documents_or_population: "各方向独立的分析单位条目，不是文档数或总体数",
+  direction_specific_no_pooled_population: "各方向独立分母，不建立跨方向合并总体",
   research: "科研与技术", pipeline: "管线与竞争", business: "商业与产业", public_health: "公共卫生",
   selected: "已进入本轮审阅", value_excluded: "未满足本轮价值条件",
   exploratory_content_followup: "探索内容待补证",
@@ -216,6 +219,14 @@ export function facts(value: unknown): { key: string; label: string; value: stri
 export function preparation(result: unknown): KddObject | null {
   return object(object(result)?.data_preparation);
 }
+export function preparationDirections(result: unknown): { direction: string; data: KddObject }[] {
+  const directions = object(preparation(result)?.direction_datasets);
+  if (!directions) return [];
+  return Object.entries(directions).flatMap(([direction, value]) => {
+    const data = object(value);
+    return data ? [{ direction, data }] : [];
+  });
+}
 export function evaluations(result: unknown): KddObject[] {
   return objects(object(result)?.pattern_evaluations);
 }
@@ -247,14 +258,20 @@ export function selectionCounts(result: unknown): Record<string, number> | null 
   }
   return counts;
 }
-export function makeKddPolicy(value: unknown, direction: KddDirection | "legacy") {
+export function makeKddPolicy(value: unknown, direction: KddDirection | "legacy" | "discovery") {
   const policy = object(value);
   if (!policy) throw new Error("分析参数必须是对象。");
   if (direction === "legacy") {
-    if ("kdd_direction" in policy || "value_policy" in policy)
+    if ("kdd_direction" in policy || "value_policy" in policy || "discovery_directions" in policy)
       throw new Error("原有方法不接受 KDD 方向和价值条件，请在上方选择对应方向。");
     return policy;
   }
+  if (direction === "discovery") {
+    if ("kdd_direction" in policy) throw new Error("全方向发现不接受单一 kdd_direction，请移除旧方向字段。");
+    return { ...policy, discovery_directions: Object.keys(kddDirections),
+      value_policy: { ...defaultValuePolicy, ...(object(policy.value_policy) ?? {}) } };
+  }
+  if ("discovery_directions" in policy) throw new Error("单方向计算不接受全方向参数，请改选全方向发现。");
   return { ...policy, kdd_direction: direction,
     value_policy: { ...defaultValuePolicy, ...(object(policy.value_policy) ?? {}) } };
 }

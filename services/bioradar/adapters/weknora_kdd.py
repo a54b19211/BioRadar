@@ -23,14 +23,40 @@ FEATURE_VERSION = "bioradar.weknora.features.v1"
 MAX_RESPONSE_BYTES = 16_777_216
 
 
-def _member(record):
+def retrieval_scope(settings, *, direction, is_demo=False):
+    """One KB rule for planning and sending; demo never falls back to the real KB."""
+    real = getattr(settings, "weknora_kdd_knowledge_base_id", None)
+    demo = getattr(settings, "weknora_kdd_demo_knowledge_base_id", None)
+    selected = demo if is_demo else real
+    if not selected or real and demo and real == demo:
+        raise DomainError("weknora_kdd_not_configured", "真实与演示检索须使用各自明确的知识库", 422)
+    scope = getattr(settings, "weknora_kdd_demo_source_scope", "simulation") if is_demo else direction
+    if not isinstance(scope, str) or not scope.strip():
+        raise DomainError("weknora_kdd_not_configured", "检索授权范围未明确", 422)
+    return {"knowledge_base_id": selected, "source_scope": scope, "is_demo": is_demo}
+
+
+def search_status(settings, *, direction, is_demo=False):
+    try:
+        scope = retrieval_scope(settings, direction=direction, is_demo=is_demo)
+    except DomainError as exc:
+        return {"available": False, "is_demo": is_demo, "error_code": exc.code}
+    available = bool(
+        getattr(settings, "weknora_kdd_url", None) and getattr(settings, "weknora_kdd_token", None)
+    )
+    return {"available": available, **scope}
+
+
+def _member(record, *, is_demo=False):
     ref = record.record_ref
     try:
         source, native, demo = json.loads(ref.object_id)
     except (ValueError, TypeError):
         raise DomainError("weknora_identity_missing", "向量成员须有固定 Fabric 原件身份", 422) from None
-    if source != record.source_id or demo is not False or ref.provider != "data_fabric_history":
-        raise DomainError("weknora_identity_missing", "向量成员须为已采用的真实 Fabric 固定版本", 422)
+    if source != record.source_id or demo is not is_demo or ref.provider != "data_fabric_history":
+        raise DomainError(
+            "weknora_identity_missing", "向量成员须为同一真实或演示范围的已采用 Fabric 固定版本", 422
+        )
     return {
         "source_instance": record.source_instance,
         "source_id": source,
@@ -100,18 +126,21 @@ def features_for_snapshot(settings, snapshot, *, direction, timeout_seconds=30, 
     missing feature reason; it never narrows the declared analysis population.
     """
     snapshot = NormalizedSnapshot.model_validate(snapshot)
-    kb = getattr(settings, "weknora_kdd_knowledge_base_id", None)
-    if not kb:
-        raise DomainError("weknora_kdd_not_configured", "未配置本轮向量知识库", 503)
-    if not 1 <= len(snapshot.records) <= 100 or snapshot.is_demo:
-        raise DomainError("weknora_feature_scope", "真实向量读取需明确 1 至 100 个固定成员", 422)
-    members = [_member(record) for record in snapshot.records]
+    scope = retrieval_scope(settings, direction=direction, is_demo=snapshot.is_demo)
+    kb, source_scope = scope["knowledge_base_id"], scope["source_scope"]
+    if not 1 <= len(snapshot.records) <= 100:
+        raise DomainError("weknora_feature_scope", "向量读取需明确 1 至 100 个固定成员", 422)
+    members = [_member(record, is_demo=snapshot.is_demo) for record in snapshot.records]
     if len({_identity(x) for x in members}) != len(members):
         raise DomainError("weknora_feature_scope", "固定成员重复，未把版本重复计入向量样本", 422)
     response = _post(
         settings,
         "/api/v1/kdd/features",
-        {"knowledge_base_id": kb, "source_scope": direction, "members": members, "include_chunks": False},
+        {
+            "knowledge_base_id": kb, "source_scope": source_scope,
+            "members": members, "include_chunks": False,
+            **({"is_demo": True} if snapshot.is_demo else {}),
+        },
         timeout_seconds=timeout_seconds,
         client=client,
     )
@@ -128,7 +157,10 @@ def features_for_snapshot(settings, snapshot, *, direction, timeout_seconds=30, 
         if not isinstance(feature, dict) or not isinstance(feature.get("identity"), dict):
             raise DomainError("weknora_feature_identity", "向量回执缺少固定成员身份", 502)
         key = _identity(feature["identity"])
-        if key not in expected or key in features or feature.get("source_scope") != direction:
+        if (
+            key not in expected or key in features or feature.get("source_scope") != source_scope
+            or feature.get("is_demo", False) is not snapshot.is_demo
+        ):
             raise DomainError("weknora_feature_identity", "向量回执含重复、越界或不匹配成员", 502)
         features[key] = feature
     if response.get("returned_count") != len(features):
@@ -268,10 +300,9 @@ def search_candidates(
     """Search actual KB candidates, then read and validate the exact Fabric originals."""
     from bioradar.adapters.weknora import _bind
 
-    if is_demo:
-        raise DomainError("weknora_kdd_real_only", "本接口只读取明确的真实资料知识库", 422)
-    kb = getattr(settings, "weknora_kdd_knowledge_base_id", None)
-    if not kb or max_tool_calls < 1:
+    scope = retrieval_scope(settings, direction=direction, is_demo=is_demo)
+    kb, source_scope = scope["knowledge_base_id"], scope["source_scope"]
+    if max_tool_calls < 1:
         raise DomainError("weknora_kdd_not_configured", "检索范围或工具预算不足", 422)
     try:
         found = _post(
@@ -279,7 +310,8 @@ def search_candidates(
             "/api/v1/kdd/search",
             {
                 "knowledge_base_id": kb,
-                "source_scope": direction,
+                "source_scope": source_scope,
+                **({"is_demo": True} if is_demo else {}),
                 "query_text": query,
                 "top_k": min(max(limit, 1), 20),
                 "rerank": True,
@@ -320,7 +352,8 @@ def search_candidates(
         if (
             not isinstance(identity, dict)
             or identity.get("source_instance") != getattr(reader, "source_instance", None)
-            or item.get("source_scope") != direction
+            or item.get("source_scope") != source_scope
+            or item.get("is_demo", False) is not is_demo
             or not all(identity.get(k) for k in ("source_id", "source_record_id", "version_id", "raw_sha256"))
         ):
             candidates.append(
@@ -332,7 +365,7 @@ def search_candidates(
             identity,
             source_ids=source_ids,
             cutoff=cutoff,
-            is_demo=False,
+            is_demo=is_demo,
             reads=reads,
         )
         candidate.update(

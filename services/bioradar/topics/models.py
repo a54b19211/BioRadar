@@ -30,7 +30,7 @@ class TopicDefinition(RuntimeModel):
     terms_any: list[ShortText] = Field(default_factory=list, max_length=16)
     profiles: list[TopicProfile] = Field(min_length=1, max_length=4)
     metric_ids: list[ShortText] = Field(default_factory=list, max_length=16)
-    bucket: Literal["week", "month"] = "month"
+    bucket: Literal["hour", "day", "week", "month"] = "month"
     lookback_buckets: int = Field(default=24, ge=3, le=120)
     cadence_hours: int = Field(default=24, ge=1, le=720)
     minimum_support: int = Field(default=2, ge=2, le=100)
@@ -57,6 +57,10 @@ class TopicUpdate(TopicCreate):
 class TopicControl(RuntimeModel):
     expected_revision: int = Field(ge=1)
     paused: bool
+    lifecycle: Literal["closed", "warming"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    reason: str | None = Field(default=None, max_length=2000, exclude_if=lambda value: value is None)
 
 
 class TopicSourceProgress(RuntimeModel):
@@ -87,6 +91,7 @@ class TopicView(RuntimeModel):
     observation_count: int
     latest_evaluation_id: str | None = None
     data_gaps: list[str]
+    tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class TopicList(RuntimeModel):
@@ -130,6 +135,7 @@ class TopicSignal(RuntimeModel):
         "metric_change",
         "source_event",
         "evidence_revision",
+        "source_claim",
     ]
     title: str
     reason: str
@@ -230,7 +236,10 @@ class TopicEvaluation(RuntimeModel):
     next_questions: list[str]
     draft: str
     investigation_id: str | None = None
-    automation_status: Literal["not_needed", "deferred", "saved", "needs_review", "blocked"] = "not_needed"
+    automation_status: Literal[
+        "not_needed", "deferred", "saved", "needs_review", "blocked", "waiting_budget"
+    ] = "not_needed"
+    tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class TopicEvaluationList(RuntimeModel):

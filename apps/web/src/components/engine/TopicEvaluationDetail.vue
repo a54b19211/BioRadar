@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { onUnmounted, ref } from "vue";
+import { computed, onUnmounted, ref } from "vue";
 import { ElButton } from "element-plus";
 import { engineRequest } from "../../api/engine";
 import { topicGapLabel } from "../../api/topicLabels";
+import TopicTrackingCard from "./TopicTrackingCard.vue";
 import { facts, readable } from "../../api/kdd";
 import type { components } from "../../api/generated/engine";
 
@@ -12,6 +13,7 @@ const props = defineProps<{
   isDemo: boolean;
   evaluation: Evaluation;
 }>();
+const tracking = computed(() => (props.evaluation as Evaluation & { tracking?: unknown }).tracking);
 const emit = defineEmits<{ failure: [error: unknown] }>();
 const reading = ref("");
 const original = ref<Record<string, unknown> | null>(null);
@@ -106,6 +108,7 @@ onUnmounted(() => {
 
 <template>
   <div class="topic-evaluation">
+    <TopicTrackingCard v-if="tracking" :tracking="tracking" title="该版观察的证据与跟踪状态" :as-of="evaluation.as_of" />
     <section class="engine-panel">
       <div class="section-heading">
         <h2>这次看到了什么</h2>

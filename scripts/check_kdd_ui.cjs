@@ -29,6 +29,7 @@ const Summary = compileComponent("apps/web/src/components/engine/KddRunSummary.v
 const slot = { setup(_props, { slots }) { return () => Vue.h("section", slots.default?.()); } };
 const Detail = compileComponent("apps/web/src/components/engine/CandidateDetail.vue", {
   "../../api/kdd": kdd,
+  "./SourceAttentionPanel.vue": { default: compileComponent("apps/web/src/components/engine/SourceAttentionPanel.vue", { "../../api/kdd": kdd }) },
   "../../api/engineLabels": load("apps/web/src/api/engineLabels.ts"),
   "../../api/engine": { engineRequest() { throw new Error("UI check must not make HTTP"); } },
   "element-plus": { ElDrawer: slot, ElTag: slot, ElButton: slot, ElInput: slot },
@@ -145,8 +146,30 @@ async function main() {
   assert.equal(policy.kdd_direction, "business");
   assert.equal(policy.value_policy.relative_change_threshold, 0.1);
   assert.equal("kdd_direction" in original, false);
+  const discovery = kdd.makeKddPolicy(original, "discovery");
+  assert.deepEqual(Array.from(discovery.discovery_directions), ["research", "pipeline", "business", "public_health"]);
+  assert.equal("kdd_direction" in discovery, false);
+  assert.equal("discovery_directions" in original, false);
+  assert.throws(() => kdd.makeKddPolicy({ kdd_direction: "research" }, "discovery"));
+  assert.throws(() => kdd.makeKddPolicy({ discovery_directions: ["research"] }, "legacy"));
   assert.throws(() => kdd.makeKddPolicy({ kdd_direction: "research" }, "legacy"));
   assert.equal(JSON.stringify(fixture), frozen, "Rendering does not rewrite saved results");
+  const multi = result();
+  const manifests = Object.fromEntries(["research", "pipeline", "business", "public_health"].map(direction => [direction, result(direction).data_preparation]));
+  multi.data_preparation = { ...multi.data_preparation, direction: "multi_domain_discovery", direction_datasets: manifests,
+    input_count: 3, qualified_count: 8, qualified_count_unit: "direction_specific_analysis_units_not_documents_or_population",
+    denominator: { kind: "direction_specific_no_pooled_population", count: null, population_total: null } };
+  const multiHtml = await render(Summary, { result: multi });
+  assert.match(multiHtml, /多方向发现/);
+  assert.match(multiHtml, /各方向单位条目/);
+  assert.match(multiHtml, /不能相加当作文档数、独立研究数或一个共同总体/);
+  assert.match(multiHtml, /所有方向共用本轮审阅容量/);
+  assert.match(multiHtml, /跨方向共享容量筛选/);
+  assert.equal((multiHtml.match(/该方向合格分析单位 2/g) || []).length, 4);
+  assert.equal((multiHtml.match(/该方向分母/g) || []).length, 4);
+  const multiPrint = printableText(multiHtml);
+  assert.match(multiPrint, /不能相加当作文档数/);
+  assert.equal((multiPrint.match(/该方向合格分析单位 2/g) || []).length, 4);
   console.log("KDD UI controls passed: four units, real scope, full candidates, capacity/value distinction, legacy gaps, printable summary; no HTTP.");
 }
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

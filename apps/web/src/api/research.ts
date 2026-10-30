@@ -56,6 +56,14 @@ export interface ResearchMaterialScope {
 }
 
 export interface ResearchProgress {
+  waiting_fetch?: { reason: string; action_id?: string | null; next_poll_at: string } | null;
+  budget_pool?: "manual" | "monitor" | "topic" | "material_update";
+  budget_wait?: {
+    reason: string;
+    next_budget_at: string;
+    started_at: string;
+    pool: "manual" | "monitor" | "topic" | "material_update";
+  } | null;
   material_scope?: ResearchMaterialScope | null;
   stage?: string;
   started_at?: string | null;
@@ -164,11 +172,42 @@ export interface ResearchMechanismEvaluation {
   [key: string]: unknown;
 }
 
+export interface ResearchWarningAssessment {
+  decision: "verify_now" | "alert" | "watch";
+  supporting_claim_ids: string[];
+  opposing_claim_ids: string[];
+  critical_unknowns: string[];
+  next_actions: string[];
+  reason: string;
+}
+export interface ResearchCompetingHypothesis {
+  id: string;
+  explanation: string;
+  supporting_claim_ids: string[];
+  opposing_claim_ids: string[];
+  discriminating_evidence_needed: string;
+  untested_conditions: string[];
+}
+export interface ResearchReadingManifestItem {
+  source_id: string;
+  source_record_id: string;
+  version_id: string;
+  status: "read" | "unread" | "unavailable";
+  priority: "critical" | "normal";
+  reason: "correction" | "counterevidence" | "scope";
+  covers: string[];
+  window_start?: number;
+}
+
 type OriginalResult = components["schemas"]["AnalysisResult"];
 export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluation" | "query_policy"> & {
   report?: ResearchReport | null;
   mechanism_evaluation?: ResearchMechanismEvaluation | null;
   query_policy?: QueryPolicyTrace | null;
+  warning_assessment?: ResearchWarningAssessment | null;
+  competing_hypotheses?: ResearchCompetingHypothesis[] | null;
+  coverage_issues?: { check_id: string; source: string; status: "unknown" }[];
+  reading_manifest?: ResearchReadingManifestItem[];
 };
 
 export interface ResearchCall {

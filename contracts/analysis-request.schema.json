@@ -77,6 +77,30 @@
       "title": "AnalysisBudget",
       "type": "object"
     },
+    "HistoricalAnalysisScope": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "public_history_reconstruction",
+            "operational_replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "cutoff": {
+          "format": "date-time",
+          "title": "Cutoff",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "cutoff"
+      ],
+      "title": "HistoricalAnalysisScope",
+      "type": "object"
+    },
     "InitialQuery": {
       "additionalProperties": false,
       "properties": {
@@ -159,6 +183,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/AnalysisBudget"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "historical_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HistoricalAnalysisScope"
         },
         {
           "type": "null"

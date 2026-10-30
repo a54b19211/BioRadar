@@ -94,7 +94,14 @@ def _checked_response(value, *, provider, operation_id, version, request):
             **value,
             "error_code": _service_error_code(value, "professional_task_not_applicable"),
         }
-    if status in {"error", "needs_input", "failed"}:
+    if status == "needs_input":
+        if any(
+            key in value and not isinstance(value[key], list)
+            for key in ("missing_fields", "material_feedback", "errors")
+        ):
+            raise _failure("professional_rpc_protocol_invalid", "专业输入反馈不是结构化清单")
+        return {**value, "error_code": _service_error_code(value, "professional_input_missing")}
+    if status in {"error", "failed"}:
         code = _service_error_code(value, "professional_rpc_operation_failed")
         raise _failure(code, "专业服务明确返回输入或方法错误，未作为研究结论采用", 422)
     if status != "model_required":
@@ -274,7 +281,7 @@ def execute_professional(
             state.update(status=value["status"])
             state.pop("error_code", None)
             checkpoint()
-            if value["status"] in {"completed", "not_applicable"}:
+            if value["status"] in {"completed", "not_applicable", "needs_input"}:
                 return copy.deepcopy(value)
             required = value["model_call"]
             if len(receipts) >= max_model_calls:

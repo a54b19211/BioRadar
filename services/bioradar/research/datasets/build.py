@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC
 
+from bioradar.research.datasets.narrative import applicable_directions, extract_narrative_observations
 from bioradar.research.mining.methods_pipeline import context_key
 from bioradar.research.mining.methods_text import is_structured_json
 from bioradar.research.mining.models import KddPolicy, NormalizedSnapshot, canonical_hash
@@ -17,6 +18,7 @@ from bioradar.research.mining.prepare import (
     section_visible,
     version_key,
 )
+from bioradar.research.mining.signals import checkable_claims
 
 DATASET_VERSION = "bioradar-analysis-dataset-v1"
 UNIT_CONTRACTS = {
@@ -88,9 +90,20 @@ class AnalysisDataset:
             "unknown_reasons": list(self.gaps),
             "denominator": {
                 "kind": "qualified_adopted_units",
-                "count": sum(unit["unit_kind"] != "graph_relation_hint" for unit in units),
+                "count": sum(
+                    unit["unit_kind"] not in {"graph_relation_hint", "source_claim"} for unit in units
+                ),
                 "excluded_graph_hint_units": sum(
                     unit["unit_kind"] == "graph_relation_hint" for unit in units
+                ),
+                **(
+                    {
+                        "excluded_source_claim_units": sum(
+                            unit["unit_kind"] == "source_claim" for unit in units
+                        )
+                    }
+                    if any(unit["unit_kind"] == "source_claim" for unit in units)
+                    else {}
                 ),
                 "population_total": None,
                 "population_rate_permitted": False,
@@ -137,6 +150,31 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
         if {"deleted", "retracted"} & set(record.record_flags):
             exclude(item, "record_deleted_or_retracted")
             continue
+        applicability = applicable_directions(record)
+        if record.source_id == "external_archive" and direction not in applicability:
+            exclude(item, "direction_not_applicable_to_visible_content_or_typed_fields")
+            continue
+        claims = checkable_claims(
+            record.normalized_text or "", record.signal_context.entity_names if record.signal_context else ()
+        )
+        if claims and direction in applicability:
+            claim_key = canonical_hash(["source_claim", direction, record.record_ref.version_key])
+            groups[claim_key].append(
+                (
+                    item,
+                    {
+                        "unit_kind": "source_claim",
+                        "condition_key": None,
+                        "independent_study": False,
+                        "dimensions": {
+                            "direction": direction,
+                            "statement_status": "unverified_source_claim",
+                            "applicability_reason": applicability[direction],
+                        },
+                        "claims": claims,
+                    },
+                )
+            )
         context = record.context
         if context and (not context.provenance or not section_visible(context.provenance, record, policy)):
             context = None
@@ -281,7 +319,18 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                     )
                 )
                 gaps.add("notification_event_only_population_and_incidence_unknown")
-            metrics = [metric for metric in record.metric_observations if metric.domain == direction]
+            natural = (
+                extract_narrative_observations(record)
+                if direction == "business" and record.text_status == "inline_authorized"
+                else {"observations": [], "gaps": []}
+            )
+            metrics = [
+                metric
+                for metric in (*record.metric_observations, *natural["observations"])
+                if metric.domain == direction
+            ]
+            if natural["gaps"]:
+                gaps.add("narrative_metric_scope_or_period_requires_review")
             if not metrics and not notice:
                 exclude(item, "typed_metric_observations_not_supplied")
             for metric in metrics:
@@ -352,6 +401,25 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                         },
                     )
                 )
+    # Only exact-version, same-dimensional correction inputs can replace a value.
+    # Keep both source members and the original numbers in the fixed dataset.
+    for key, members in list(groups.items()):
+        if not members or "metric" not in members[0][1]:
+            continue
+        targets = {}
+        present = {item.record.record_ref.version_key for item, _ in members}
+        for item, _ in members:
+            if item.record.signal_context:
+                for relation in item.record.signal_context.source_relations:
+                    target = relation.target_ref.version_key
+                    if relation.kind == "correction" and target in present:
+                        targets.setdefault(target, set()).add(item.record.record_ref.version_key)
+        for item, meta in members:
+            replacements = targets.get(item.record.record_ref.version_key, set())
+            if replacements and len(replacements) == 1 and not replacements.intersection(targets):
+                meta["superseded_by"] = [list(ref) for ref in sorted(replacements)]
+            elif replacements:
+                gaps.add("metric_correction_cycle_or_multiple_replacements_unresolved")
     units = []
     text_budget = policy.limits.max_text_characters
     for key, members in sorted(groups.items()):
@@ -359,7 +427,12 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
         by_version = {version_key(item.record.record_ref): item for item, _ in members}
         records = [by_version[k] for k in sorted(by_version)]
         features = {}
-        if direction == "research":
+        if meta["unit_kind"] == "source_claim":
+            features = {
+                "claims": meta["claims"],
+                "qualification": "attributed_claim_not_confirmed_case_study_or_project",
+            }
+        elif direction == "research":
             unique_texts = {}
             for item in records:
                 unique_texts.setdefault(item.record.normalized_text_hash, item.record.normalized_text)
@@ -426,7 +499,12 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 "source_new_to_scope": any("new_source" in item.record.record_flags for item in records),
             }
         else:
-            metrics = [meta_value["metric"] for _, meta_value in members]
+            metrics = [m["metric"] for _, m in members if not m.get("superseded_by")]
+            superseded = [
+                {"observation": m["metric"], "superseded_by_version_keys": m["superseded_by"]}
+                for _, m in members
+                if m.get("superseded_by")
+            ]
             signatures = {
                 canonical_hash([value["value_lower"], value["value_upper"], value["denominator"]])
                 for value in metrics
@@ -435,6 +513,9 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 "observations": sorted(metrics, key=canonical_hash),
                 "conflicting_values": len(signatures) > 1,
             }
+            if superseded:
+                features["superseded_observations"] = superseded
+                features["correction_qualification"] = "exact_version_same_metric_period_scope_only"
             if features["conflicting_values"]:
                 gaps.add("conflicting_metric_values_not_averaged")
         unit = {

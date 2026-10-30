@@ -32,7 +32,10 @@ def _sources(settings):
         return None
     root = Path(directory) / "app"
     try:
-        sources = {name: (root / name).read_text(encoding="utf-8") for name in _PROVIDER_FILES}
+        names = list(_PROVIDER_FILES)
+        if (root / "source_context.py").is_file():
+            names.insert(0, "source_context.py")
+        sources = {name: (root / name).read_text(encoding="utf-8") for name in names}
         methods = {
             node.name for node in ast.parse(sources["core.py"]).body if isinstance(node, ast.FunctionDef)
         }
@@ -43,7 +46,7 @@ def _sources(settings):
     except (OSError, UnicodeError, SyntaxError):
         return None
     version = hashlib.sha256(
-        "".join(name + "\0" + sources[name] for name in _PROVIDER_FILES).encode()
+        "".join(name + "\0" + sources[name] for name in sources).encode()
     ).hexdigest()
     return sources, version
 
@@ -77,7 +80,7 @@ def load_biocheck(settings):
     package.__path__ = []
     sys.modules[package_name] = package
     try:
-        for filename in _PROVIDER_FILES:
+        for filename in sources:
             name = package_name + "." + filename.removesuffix(".py")
             module = ModuleType(name)
             module.__package__ = package_name
@@ -88,7 +91,7 @@ def load_biocheck(settings):
         if not all(callable(getattr(core, method, None)) for method in _METHODS):
             raise ValueError("missing method")
     except Exception:
-        for name in (package_name, *(package_name + "." + f[:-3] for f in _PROVIDER_FILES)):
+        for name in (package_name, *(package_name + "." + f[:-3] for f in sources)):
             sys.modules.pop(name, None)
         return None, version
     return core, version
@@ -128,6 +131,33 @@ def build_packet(question, evidence, assessment=None):
             if name in item:
                 entry[name] = copy.deepcopy(item[name])
         facts = item.get("facts") or {}
+        source_context = item.get("source_context")
+        if source_context is not None:
+            from bioradar.adapters.fabric_document import context_at
+
+            interpretation = _value(assessment) if assessment is not None else {}
+            temporal = (interpretation.get("research_scope") or {}).get("evidence_time") or {}
+            entry["source_context"] = context_at(
+                source_context, mode=temporal.get("mode", "current"),
+                cutoff=temporal.get("cutoff"), text=text,
+            )
+            try:
+                source_id, native_id, demo = json.loads(reference["object_id"])
+            except (KeyError, ValueError, TypeError):
+                source_id, native_id, demo = item.get("source_id", ""), "", None
+            entry.update(source_id=source_id, record_id=native_id)
+            if type(demo) is bool:
+                entry["is_demo"] = demo
+            if source_context.get("material_kind"):
+                entry["source_kind"] = source_context["material_kind"]
+            if entry["source_context"].get("information_events"):
+                entry["source_context"]["information_environment_event"] = True
+            entry["verification_status"] = (
+                "unverified" if source_context.get("statement_status") == "unverified_report"
+                or source_context.get("material_kind") in {"social_media", "repost"} else "unknown"
+            )
+            if source_context.get("text_level") is not None:
+                entry["text_level"] = "selected_passages"
         for name in (
             "source_kind",
             "publication_type",
@@ -143,6 +173,11 @@ def build_packet(question, evidence, assessment=None):
                 entry[name] = copy.deepcopy(item[name])
             elif isinstance(facts, dict) and name in facts:
                 entry[name] = copy.deepcopy(facts[name])
+        if source_context is not None:
+            # Explicit document type wins over stale legacy source_kind metadata.
+            if source_context.get("material_kind"):
+                entry["source_kind"] = source_context["material_kind"]
+            entry["text_level"] = "selected_passages"
         for name in ("pmid", "doi"):
             if isinstance(facts, dict) and name in facts:
                 entry[name] = copy.deepcopy(facts[name])
@@ -430,13 +465,13 @@ def audit_biocheck_support(settings, packet, review, call, *, targets=None, load
                 stage == "support_audit"
                 and isinstance(payload, dict)
                 and isinstance(assessment, dict)
-                and "research_scope" in assessment
+                and ("research_scope" in assessment or "source_updates" in assessment)
             ):
                 # Upstream audit sends only claims; keep the same frozen scope as full verification.
                 payload = copy.deepcopy(payload)
-                payload.setdefault("assessment", {})["research_scope"] = copy.deepcopy(
-                    assessment["research_scope"]
-                )
+                for field in ("research_scope", "source_updates", "analysis_results"):
+                    if field in assessment:
+                        payload.setdefault("assessment", {})[field] = copy.deepcopy(assessment[field])
             return guarded_call(stage, instruction, payload, response_schema, call_id=call_id)
         except Exception as exc:
             callback_failure = exc
@@ -541,6 +576,10 @@ def _feedback_binding(packet, review, audit):
             for item in packet["evidence"]
         },
     }
+    if isinstance(review, dict):
+        for field in ("evidence_catalog", "source_updates", "analysis_signature"):
+            if field in review:
+                binding[field] = copy.deepcopy(review[field])
     errors = []
     if not isinstance(draft, str) or not draft.strip():
         errors.append({"kind": "verification_unavailable", "reason": "缺少已核验的固定正文。"})
@@ -572,8 +611,11 @@ def _feedback_binding(packet, review, audit):
     if audit is not None:
         if audit.get("original_status") is not None and audit["original_status"] != review.get("status"):
             errors.append({"kind": "audit_mismatch", "reason": "片段复核的原核验状态与当前回执不同。"})
-        for key in ("text_sha256", "review_sha256", "evidence_versions"):
-            if key in audit and audit[key] != binding[key]:
+        for key in (
+            "text_sha256", "review_sha256", "evidence_versions",
+            "evidence_catalog", "source_updates", "analysis_signature",
+        ):
+            if key in audit and key in binding and audit[key] != binding[key]:
                 errors.append({"kind": "audit_mismatch", "reason": "片段复核不属于本稿、本核验或固定原件。"})
         if audit.get("error_code") and audit["error_code"] != "biocheck_support_no_targets":
             errors.append(

@@ -228,7 +228,7 @@ def test_received_five_stage_report_survives_worker_exit_deadline_and_duplicate_
     drain()
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
-        assert row.state == "running" and row.result is None
+        assert row.state == "running" and (row.result or {}).get("report") is None
         assert Job.fetch(row.rq_job_id, connection=connection).is_failed
         assert "final_report" not in row.progress
         saved_calls = copy.deepcopy(row.progress["calls"])
@@ -328,7 +328,9 @@ def test_upstream_fault_does_not_turn_an_unverified_revision_into_success(runtim
     accepted = start(runtime)
     factory().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.state == "blocked" and result.note_entry_id is None and result.result is None
+    assert result.state == "blocked" and result.note_entry_id is None
+    assert result.result is not None and result.result.report is None
+    assert result.result.review.status == "needs_review"
     last = result.calls[-1]
     assert last["stage"] == stage
     assert last["status"] == ("unconfirmed" if fault == "timeout" else "failed")
@@ -356,7 +358,8 @@ def test_failed_received_receipt_save_remains_unknown_and_is_not_resent(runtime,
         service.execute(accepted["id"], accepted["input_hash"])
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
-        assert row.state == "running" and row.result is None
+        assert row.state == "running" and row.result is not None
+        assert row.result["report"] is None and row.result["review"]["status"] == "needs_review"
         assert row.progress["calls"][-1]["status"] == "sent"
     posts = list(meter.stages)
     expire_lease(database, accepted["id"])
@@ -364,7 +367,10 @@ def test_failed_received_receipt_save_remains_unknown_and_is_not_resent(runtime,
     factory().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
     assert result.state == "blocked" and result.error_code == "model_call_outcome_unconfirmed"
-    assert result.note_entry_id is None and result.result is None and meter.stages == posts
+    assert result.note_entry_id is None and meter.stages == posts
+    assert result.result is not None and result.result.report is None
+    assert result.result.review.status == "needs_review"
+    assert result.result.conditional_answer.model_dump(mode="json") == row.result["conditional_answer"]
 
 
 def test_completed_receipts_do_not_bypass_current_source_revocation(runtime, database, model_http):
@@ -391,7 +397,9 @@ def test_completed_receipts_do_not_bypass_current_source_revocation(runtime, dat
     assert failure.value.code == "history_source_revoked"
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
-        assert row.state == "queued" and row.result is None and row.note_entry_id is None
+        assert row.state == "queued" and row.note_entry_id is None
+        assert row.result is not None and row.result["report"] is None
+        assert row.result["review"]["status"] == "needs_review"
     assert meter.stages == posts
 
 
@@ -528,6 +536,13 @@ def test_weknora_intent_commit_crossing_deadline_is_not_sent_or_retried(
 
     monkeypatch.setattr(weknora, "search_candidates", unexpected_post)
     accepted = start(runtime, budget=AnalysisBudget(max_seconds=5))
+    # Exercise the retained pre-step execution path that owns _weknora_retrieval.
+    # New query-step runs dispatch through _execute_policy_action instead.
+    with Session(database) as session, session.begin():
+        row = session.get(InvestigationAnalysisRecord, accepted["id"])
+        fixed = copy.deepcopy(row.fixed_input)
+        fixed.pop("execution_version", None)
+        row.fixed_input = fixed
     service = factory()
     checkpoint, stalled, interrupted = service._checkpoint, [False], [False]
 

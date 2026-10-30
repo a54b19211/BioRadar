@@ -9,6 +9,7 @@ import {
   type FeedbackView,
 } from "../../api/engine";
 import { explainCode } from "../../api/engineLabels";
+import SourceAttentionPanel from "./SourceAttentionPanel.vue";
 import { object, strings, readable, kddLabel, fieldLabel, methodLabel, text } from "../../api/kdd";
 const props = defineProps<{
   candidate: Candidate | null;
@@ -186,7 +187,9 @@ async function saveInvestigation() {
       <h2 class="candidate-detail-title">{{ candidate.title }}</h2>
       <p class="muted">
         {{ methodLabel(candidate.method_id) }} · {{ candidate.method_version }}
+        <span v-if="candidate.metrics?.kdd_direction"> · {{ kddLabel(String(candidate.metrics.kdd_direction)) }}</span>
       </p>
+      <SourceAttentionPanel v-if="candidate.metrics?.attention" :attention="candidate.metrics?.attention" />
       <h3>为什么进入候选</h3>
       <ul class="evidence-list">
         <li v-for="reason in candidate.reasons" :key="reason">

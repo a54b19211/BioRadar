@@ -82,10 +82,10 @@ function analysisPanel(request) {
   };
   vm.createContext(context);
   vm.runInContext(script("apps/web/src/components/engine/MachineAnalysisPanel.vue") +
-    "\nglobalThis.probe={startAnalysis,refresh,list,selected};", context);
+    "\nglobalThis.probe={startAnalysis,refresh,list,selected,queryProvider,queryTerms,queryState};", context);
   return { ...context.probe, props, events };
 }
-async function renderReport(status, genericState = "passed", calls = [], reportFields = {}, resultFields = {}) {
+async function renderReport(status, genericState = "passed", calls = [], reportFields = {}, resultFields = {}, analysisFields = {}, humanDecision = null) {
   const relative = "apps/web/src/components/engine/MachineAnalysisResult.vue";
   const source = fs.readFileSync(path.join(root, relative), "utf8");
   const { descriptor } = compiler.parse(source, { filename: relative });
@@ -106,6 +106,13 @@ async function renderReport(status, genericState = "passed", calls = [], reportF
     require(name) {
       if (name === "vue") return Vue;
       if (name === "element-plus") return { ElButton: element("button"), ElTag: element("span") };
+      if (name === "./ReportSourceIndex.vue") {
+        const helper = { exports: {} };
+        vm.runInNewContext(compile(fs.readFileSync(path.join(root, "apps/web/src/api/reportDelivery.ts"), "utf8")), helper);
+        return { default: require("./check_query_policy_ui.cjs").compileComponent(
+          "apps/web/src/components/engine/ReportSourceIndex.vue", { "../../api/reportDelivery": helper.exports },
+        ) };
+      }
       return {};
     },
   };
@@ -121,7 +128,7 @@ async function renderReport(status, genericState = "passed", calls = [], reportF
     ...resultFields,
   };
   return renderToString(Vue.createSSRApp(context.exports.default, {
-    analysis: { state: "completed", result, calls, evidence: [] },
+    analysis: { state: "completed", result, calls, evidence: [], ...analysisFields }, humanDecision,
   }));
 }
 async function renderPanelScope(scope) {
@@ -218,6 +225,16 @@ async function main() {
     if (url.endsWith("/analyses")) return { enabled: true, configured: true, items: [{ id: "child", state: "queued" }] };
     return { id: "child", state: "queued", calls: [], queries: [] };
   });
+  const fixedRead = { kind: "document_read", provider: "fabric", phase: "followup", status: "read", plan: {
+    source_id: "who_don", records: [{ source_record_id: "offline-fixed-original", version_id: "frozen", window_start: 6000 }],
+  } };
+  assert.equal(follow.queryProvider(fixedRead), "Fabric 固定原件点读");
+  assert.match(follow.queryTerms(fixedRead), /offline-fixed-original.*固定版本 frozen.*Unicode窗口起点 6000/);
+  assert.doesNotMatch(follow.queryTerms(fixedRead), /图谱/);
+  for (const [kind, label] of [["dataset_prepare", "分析数据整理"], ["analysis_run", "实际计算"], ["professional_assess", "专业评价"], ["source_fetch", "公开来源补采"]]) {
+    assert.ok(follow.queryProvider({ ...fixedRead, kind }).includes(label));
+  }
+  assert.match(follow.queryState({ ...fixedRead, kind: "analysis_run" }), /动作已返回/);
   follow.list.value = { enabled: true, configured: true, items: [{ id: "parent", state: "completed", result_summary: "Old" }] };
   follow.selected.value = { id: "parent", question: "Earlier question", result: { report: { final_text: "Old report" } }, search_scope: ["clinicaltrials"], query_policy: { requested: "query_planner" } };
   await follow.startAnalysis(undefined, { question: "New follow-up", source_ids: ["europe_pmc"], budget: { max_calls: 4 } });
@@ -401,6 +418,137 @@ async function main() {
   assert.doesNotMatch(noReport, /核验后反馈与未补齐问题/);
   assert.doesNotMatch(noReport, /BioCheck 原核验通过/);
 
+  const citedBody = "Original body [qreal] [record:S1] [qmissing] <not-html>";
+  const fixedRef = { source_id: "who_don", source_record_id: "notice", adopted_version: "frozen-version" };
+  const citedHtml = await renderReport("FAIL", "passed", [], {
+    final_text: citedBody, text_sha256: "saved-body-hash", evidence_map: { S1: { key: "qreal", record_ref: fixedRef } },
+    support_audit: { status: "PASS", checks: [] },
+  }, {
+    warning_assessment: { decision: "verify_now", reason: "SYNTHETIC worthwhile verification", supporting_claim_ids: [], opposing_claim_ids: [], critical_unknowns: ["SYNTHETIC source independence unknown"], next_actions: [] },
+    competing_hypotheses: [{ id: "H1", explanation: "SYNTHETIC competing explanation", supporting_claim_ids: [], opposing_claim_ids: [], discriminating_evidence_needed: "SYNTHETIC distinguishing observation", untested_conditions: ["SYNTHETIC untested condition"] }],
+    reading_manifest: [{ source_id: "who_don", source_record_id: "notice", version_id: "v1", status: "unread", priority: "critical", reason: "counterevidence", covers: ["C1"], window_start: 321 }],
+  }, {
+    trigger: "history", query_policy: { evidence_time: { mode: "operational_replay", cutoff: "2020-01-01T00:00:00Z" } },
+    evidence: [{ key: "qreal", source_id: "who_don", title: "SYNTHETIC original title", publication_time: "2019-12-31", record_ref: fixedRef }],
+  });
+  assert.match(citedHtml, /<div class="report-document">Original body \[qreal\] \[record:S1\] \[qmissing\] &lt;not-html&gt;<\/div>/);
+  assert.match(citedHtml, /WHO 通报 · 2019-12-31 · SYNTHETIC original title/);
+  assert.match(citedHtml, /qmissing.*无法绑定本版固定原文/);
+  assert.match(citedHtml, /来源标签与下方阅读注释不属于原保存正文/);
+  assert.match(citedHtml, /文字核验判断转述和引用是否准确/);
+  assert.match(citedHtml, /不证明传言属实/);
+  assert.match(citedHtml, /现代模型仍可能含训练后见知识/);
+  assert.match(citedHtml, /立即核实/);
+  assert.match(citedHtml, /不是真实性概率或潜在后果评分/);
+  assert.match(citedHtml, /SYNTHETIC untested condition/);
+  assert.match(citedHtml, /后续窗口未读，已保留此前片段/);
+  assert.match(citedHtml, /窗口起点 321/);
+  assert.match(citedHtml, /不代表覆盖已完成/);
+  assert.match(citedHtml, /报告核验未通过/);
+  assert.match(citedHtml, /所列片段支持复核通过/);
+  assert.match(citedHtml, /尚未记录人工判断/);
+  const conflictingVersion = await renderReport("FAIL", "passed", [], {
+    final_text: "Unchanged body [record:S1]", evidence_map: { S1: { key: "qreal", version: "DIFFERENT-FIXED-VERSION" } },
+  }, {}, {
+    evidence: [{ key: "qreal", source_id: "who_don", title: "SYNTHETIC original title", publication_time: "2019-12-31", record_ref: fixedRef }],
+  });
+  assert.match(conflictingVersion, /S1.*无法绑定本版固定原文/);
+  assert.doesNotMatch(conflictingVersion, /WHO 通报 · 2019-12-31 · SYNTHETIC original title/);
+  const citedPrinted = require("./check_query_policy_ui.cjs").printableText(citedHtml);
+  assert.match(citedPrinted, /系统补充/);
+  assert.match(citedPrinted, /SYNTHETIC original title/);
+  assert.match(citedPrinted, /不证明传言属实/);
+  assert.doesNotMatch(citedPrinted, /这是添加系统来源标签的阅读视图/);
+
+  const empty = Vue.defineComponent({ setup: () => () => null });
+  const progressComponent = require("./check_query_policy_ui.cjs").compileComponent(
+    "apps/web/src/components/engine/ResearchProgress.vue", { "./PolicyTracePanel.vue": { default: empty } },
+  );
+  const waitingHtml = await renderToString(Vue.createSSRApp(progressComponent, { analysis: {
+    state: "queued", calls: [], queries: [], progress: { stage: "queued", budget_pool: "topic",
+      budget_wait: { reason: "analysis_topic_budget", pool: "topic", next_budget_at: "2026-10-31T08:00:00Z", started_at: "2026-10-31T07:30:00Z" } },
+  } }));
+  assert.match(waitingHtml, /等待预算恢复/);
+  assert.match(waitingHtml, /专题跟踪额度暂不可用/);
+  assert.match(waitingHtml, /预计恢复时点/);
+  assert.match(waitingHtml, /不表示调查失败/);
+  assert.doesNotMatch(waitingHtml, /本次未完成/);
+  const fetchingHtml = await renderToString(Vue.createSSRApp(progressComponent, { analysis: {
+    state: "queued", calls: [], queries: [], progress: { waiting_fetch: {
+      reason: "analysis_fetch_pending", action_id: "offline-fetch", next_poll_at: "2026-10-31T08:00:05Z",
+    } },
+  } }));
+  assert.match(fetchingHtml, /等待公开资料采集/);
+  assert.match(fetchingHtml, /下次检查/);
+  assert.match(fetchingHtml, /不表示采集失败/);
+
+
+  const engineLabelsHelper = { exports: {} };
+  vm.runInNewContext(compile(fs.readFileSync(path.join(root, "apps/web/src/api/engineLabels.ts"), "utf8")), engineLabelsHelper);
+  const kddHelper = { exports: {}, require(name) {
+    if (name === "./engineLabels") return engineLabelsHelper.exports;
+    throw new Error("Unexpected API helper import: " + name);
+  } };
+  vm.runInNewContext(compile(fs.readFileSync(path.join(root, "apps/web/src/api/kdd.ts"), "utf8")), kddHelper);
+  const trackingComponent = require("./check_query_policy_ui.cjs").compileComponent(
+    "apps/web/src/components/engine/TopicTrackingCard.vue", { "../../api/kdd": kddHelper.exports },
+  );
+  const trackingValue = {
+    version: "source-evidence-heat-lifecycle-v1", lifecycle: "cooling", cadence_hours: 1,
+    next_due_at: "2026-10-31T09:00:00Z", evidence: { level: "unverified", confirmed_source_groups: 0, independent_study_count: null, unknown_source_records: 2, basis_refs: [] },
+    heat: { score: 3, new_source_groups: 1, confirmed_new_source_groups: 0, half_life_hours: 36 },
+    correction: { status: "corrected", refs: [], counterevidence_refs: [] },
+    risk: { status: "unresolved", critical_gaps: ["source_unavailable_not_evidence_of_resolution"] },
+    model_update: { needed: false, reasons: [], status: "not_needed" },
+    environment_signals: [{ kind: "deletion", record_ref: { provider: "offline", object_id: "notice", adopted_version: "fixed" } }],
+  };
+  const trackingHtml = await renderToString(Vue.createSSRApp(trackingComponent, { tracking: trackingValue }));
+  for (const label of ["证据强度", "采用来源曝光热度", "更正／反证", "生命周期", "仍未解除", "降温", "尚不能完整确认", "不是人群热度或真实性概率", "不作为传言真伪或风险解除的证明"]) assert.ok(trackingHtml.includes(label), label);
+  const trackingPrint = require("./check_query_policy_ui.cjs").printableText(trackingHtml);
+  assert.match(trackingPrint, /仍未解除/);
+  assert.match(trackingPrint, /已有更正／撤回材料/);
+  assert.match(trackingPrint, /下次应检查/);
+  assert.doesNotMatch(await renderToString(Vue.createSSRApp(trackingComponent, { tracking: null })), /证据强度/);
+  const attentionComponent = require("./check_query_policy_ui.cjs").compileComponent(
+    "apps/web/src/components/engine/SourceAttentionPanel.vue", { "../../api/kdd": kddHelper.exports },
+  );
+  const attentionHtml = await renderToString(Vue.createSSRApp(attentionComponent, { attention: {
+    version: "offline", truth_confidence: { status: "unverified" }, potential_consequence: { level: "potentially_serious" },
+    verification_priority: { importance: "high", urgency: "immediate" }, attention_reasons: [], checkable_claims: [],
+  } }));
+  assert.match(attentionHtml, /尚未证实/);
+  assert.match(attentionHtml, /若说法成立，潜在后果可能严重/);
+  assert.match(attentionHtml, /立即核实/);
+  assert.match(attentionHtml, /事后不成立的说法，当时也可能值得核实/);
+
+  const controls = [];
+  const topicContext = {
+    exports: {}, console, Error, setTimeout: () => 1, clearTimeout() {},
+    require(name) {
+      if (name === "vue") return { ...Vue, onMounted() {}, onUnmounted() {} };
+      if (name === "vue-router") return { useRoute: () => ({ query: {} }), useRouter: () => ({ replace: async () => {} }) };
+      if (name.endsWith("/api/engine")) return { EngineError, post: async (url, body) => {
+        controls.push({ url, body }); return { ...topicContext.probe.selected.value, control_revision: 8 };
+      } };
+      return {};
+    },
+  };
+  vm.createContext(topicContext);
+  vm.runInContext(script("apps/web/src/pages/TopicsPage.vue") +
+    "\nglobalThis.probe={togglePause,selected,lifecycleReason,error};", topicContext);
+  topicContext.probe.selected.value = { id: "offline-topic", control_revision: 7, paused: false };
+  await Vue.nextTick();
+  await topicContext.probe.togglePause("closed");
+  assert.equal(controls.length, 0);
+  assert.match(topicContext.probe.error.value, /请先记录/);
+  topicContext.probe.lifecycleReason.value = "SYNTHETIC explicit closure reason; risk remains unresolved";
+  await topicContext.probe.togglePause("closed");
+  assert.equal(controls.length, 1);
+  assert.equal(controls[0].body.expected_revision, 7);
+  assert.equal(controls[0].body.paused, true);
+  assert.equal(controls[0].body.lifecycle, "closed");
+  assert.equal(controls[0].body.reason, topicContext.probe.lifecycleReason.value);
+
   await require("./check_query_policy_ui.cjs")();
   console.log(JSON.stringify({ status: "passed", checks: [
     "api_preserves_retained_investigation_receipt",
@@ -420,6 +568,14 @@ async function main() {
     "support_audit_pass_never_upgrades_whole_report_failure",
     "actual_read_passage_scope_unread_and_failed_queries_are_visible_and_printable",
     "missing_report_does_not_fabricate_professional_feedback",
+    "readable_source_index_is_separate_from_exact_saved_body_and_fixed_original",
+    "text_audit_mechanism_human_and_replay_statuses_remain_separate",
+    "warning_priority_does_not_assert_rumor_truth_or_consequences",
+    "budget_wait_displays_pool_and_restore_time_without_failure",
+    "topic_evidence_heat_correction_lifecycle_and_unresolved_risk_are_separate",
+    "source_truth_conditional_consequence_and_verification_priority_are_separate",
+    "manual_topic_close_requires_reason_and_preserves_revision_gate",
+    "fixed_document_windows_computation_professional_and_source_fetch_labels_match_actual_actions",
   ] }));
 }
 module.exports = { renderReport };

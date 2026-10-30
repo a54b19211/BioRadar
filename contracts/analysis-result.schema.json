@@ -144,6 +144,66 @@
       "title": "ClaimUpdate",
       "type": "object"
     },
+    "CompetingHypothesis": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "opposing_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Opposing Claim Ids",
+          "type": "array"
+        },
+        "discriminating_evidence_needed": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Discriminating Evidence Needed",
+          "type": "string"
+        },
+        "untested_conditions": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Untested Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "explanation",
+        "discriminating_evidence_needed"
+      ],
+      "title": "CompetingHypothesis",
+      "type": "object"
+    },
     "ConditionalAnswer": {
       "additionalProperties": false,
       "properties": {
@@ -546,6 +606,72 @@
       ],
       "title": "VerifiedEvidenceLink",
       "type": "object"
+    },
+    "WarningAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "verify_now",
+            "alert",
+            "watch"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "opposing_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Opposing Claim Ids",
+          "type": "array"
+        },
+        "critical_unknowns": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Critical Unknowns",
+          "type": "array"
+        },
+        "next_actions": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Next Actions",
+          "type": "array"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "reason"
+      ],
+      "title": "WarningAssessment",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -643,6 +769,33 @@
       ],
       "default": null,
       "title": "Query Policy"
+    },
+    "warning_assessment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WarningAssessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "competing_hypotheses": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/CompetingHypothesis"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Competing Hypotheses"
     },
     "limitations": {
       "items": {

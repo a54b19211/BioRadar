@@ -70,6 +70,8 @@ def semantic_key(kind, arguments):
     """Hash real tool meaning; changing a stage, reason or action ID cannot enable a retry."""
     if kind not in {
         "document_search",
+        "document_read",
+        "source_fetch",
         *_GRAPH_KINDS,
         "dataset_prepare",
         "analysis_run",
@@ -77,6 +79,23 @@ def semantic_key(kind, arguments):
     } or not isinstance(arguments, dict):
         raise DomainError("query_policy_action_invalid", "查询动作种类或参数无效", 422)
     effective = {key: value for key, value in arguments.items() if key not in _HOST_ARGUMENTS}
+    if kind == "document_read":
+        records = copy.deepcopy(effective.get("records"))
+        if not isinstance(records, list) or not records:
+            raise DomainError("query_policy_action_invalid", "固定读取动作缺少原件窗口", 422)
+        for record in records:
+            if not isinstance(record, dict) or any(
+                not isinstance(record.get(key), str) or not record[key]
+                for key in ("source_record_id", "version_id")
+            ):
+                raise DomainError("query_policy_action_invalid", "固定读取原件身份无效", 422)
+            window = record.get("window_start", 0)
+            if type(window) is not int or window < 0:
+                raise DomainError("query_policy_action_invalid", "固定读取窗口无效", 422)
+            if window == 0:
+                record.pop("window_start", None)
+        records.sort(key=lambda r: (r["source_record_id"], r["version_id"], r.get("window_start", 0)))
+        effective["records"] = records
     try:
         return _hash([kind, _canonical(effective)])
     except (TypeError, ValueError, RecursionError):
@@ -114,13 +133,18 @@ def freeze_policy(settings, requested=None):
         else "legacy_sequence"
         if selected == "baseline"
         else "heuristic",
-        "stop": "observed_checks_v1"
+        "stop": "observed_checks_reading_v2"
         if kdd
         else "legacy_bounded_sequence"
         if selected == "baseline"
         else "rule",
         "training_status": "llm_rules_baseline" if selected == "baseline" else "heuristic_untrained",
-        "max_steps": getattr(settings, "analysis_query_policy_max_steps", 12),
+        "max_steps": getattr(settings, "analysis_query_policy_v2_max_steps", 32)
+        if kdd else getattr(settings, "analysis_query_policy_max_steps", 12),
+        **({
+            "research_contract_version": "bioradar-research-input-v1",
+            "action_limits": copy.deepcopy(getattr(settings, "analysis_v2_action_limits", {})),
+        } if kdd else {}),
         "provider_status": status,
         "qualification": "取证覆盖决策，不代表科学结论或人工审批。",
     }
@@ -252,12 +276,97 @@ def _gap_check_key(identifier, question=None, checks=None):
     return key
 
 
+_DIRECTION_CHECKS = {
+    "public_health": {
+        "warning_judgment": "是否预警、立即核实或继续观察及其条件；不以官方是否发文替代判断",
+        "independent_confirmation": "来源独立性、机构确认与转载去重",
+        "competing_hypotheses": "各竞争假设的支持、反证、未检验条件与区分证据",
+        "counterevidence": "反证、否定边界、替代解释与来源限制",
+        "count_revision": "人数去重、累计与净增以及更正替代关系",
+        "pathogen_uncertainty": "病原未确认、疑似与已排除的区别",
+        "transmission_uncertainty": "传播方式和持续人传人证据及未确认范围",
+    },
+    "business": {
+        "orders": "毛订单、净订单、退订及原始口径",
+        "corrections": "已知更正、撤回及其明确替代目标",
+        "comparable_periods": "同主体、指标、期间、币种与范围的可比性",
+        "revenue_recognition": "验收、收入确认、销售额的区别",
+        "cash_receipts": "现金、预收款和收入确认的区别",
+        "capacity_utilization": "产能利用率的实际口径与程序计算",
+        "sample_scope": "已采用样本和不能外推的总体范围",
+    },
+}
+_CLINICAL_CHECKS = {
+    "population": "限定人群、队列、入组与实际评价人数",
+    "endpoints": "预设终点、PFS与OS及不能外推的获益",
+    "safety": "早期和当前安全性、毒性以及不良事件上修",
+    "corrections": "同研究的更正、撤回和补充，不能当新研究",
+    "regulatory_status": "实际监管状态与批准边界",
+    "publication_status": "论文、会议、新闻稿与正式发表状态",
+}
+
+
+def normalize_policy_coverage(reading, declared_checks, evidence):
+    """Only model coverage decoration is recoverable; source/action checks stay strict."""
+    value = _plain(reading)
+    declared = {}
+    for check in declared_checks:
+        key = check.get("id")
+        if not isinstance(key, str) or not key or key in declared:
+            raise DomainError("analysis_policy_coverage_invalid", "覆盖检查声明编号无效或重复", 422)
+        declared[key] = check
+    if not isinstance(value, dict):
+        return value, []
+    rows = value.get("coverage_checks", [])
+    if not isinstance(rows, list):
+        return value, []
+    issues, reported = [], {}
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str):
+            return value, []
+        reported.setdefault(row["id"], []).append(row)
+    normalized = []
+    for key, updates in reported.items():
+        if key not in declared:
+            issues.append({"check_id": key, "source": "model_coverage", "status": "unknown"})
+            continue
+        if len(updates) != 1:
+            normalized.append({
+                "id": key, "status": "unknown", "evidence_ids": [],
+                "reason": "模型重复报告同一覆盖编号，状态保留未知。",
+            })
+            issues.append({"check_id": key, "source": "model_coverage", "status": "unknown"})
+        else:
+            normalized.append(copy.deepcopy(updates[0]))
+    value["coverage_checks"] = normalized
+    for plan in value.get("next_queries", []):
+        if not isinstance(plan, dict) or not isinstance(plan.get("coverage_check_ids", []), list):
+            continue
+        identifiers = plan.get("coverage_check_ids", [])
+        if any(not isinstance(key, str) for key in identifiers):
+            continue
+        valid = []
+        for key in identifiers:
+            if key not in declared or key in valid:
+                issues.append({"check_id": key, "source": "model_query_coverage", "status": "unknown"})
+            else:
+                valid.append(key)
+        if "coverage_check_ids" in plan:
+            plan["coverage_check_ids"] = valid
+    unique = {(item["source"], item["check_id"]): item for item in issues}
+    return value, list(unique.values())
+
+
 def build_coverage_checks(fixed, progress, *, reading=None):
     evidence_ids = {item["key"] for item in progress.get("evidence", [])}
     saved = progress.get("query_policy", {}).get("checks", [])
     external = fixed.get("query_policy", {}).get("effective") == "query_planner"
     checks, aliases = {}, {}
+    saved_ids = set()
     for original in saved:
+        if original.get("id") in saved_ids:
+            raise DomainError("analysis_policy_coverage_invalid", "已声明覆盖检查编号重复", 422)
+        saved_ids.add(original.get("id"))
         item = copy.deepcopy(original)
         old_key = item["id"]
         key = (
@@ -286,6 +395,17 @@ def build_coverage_checks(fixed, progress, *, reading=None):
     )
     if _pipeline_question(fixed["question"]):
         for key, question in _PIPELINE_CHECKS.items():
+            checks.setdefault(key, _check(key, question))
+    contract = fixed.get("query_policy", {}).get("research_contract_version")
+    if external and contract == "bioradar-research-input-v1":
+        direction = fixed.get("query_policy", {}).get("direction", "research")
+        extra = dict(_DIRECTION_CHECKS.get(direction, {}))
+        if direction in {"research", "pipeline"} and any(
+            word in fixed["question"].casefold()
+            for word in ("药", "临床", "治疗", "试验", "trial", "therapy", "drug")
+        ):
+            extra.update(_CLINICAL_CHECKS)
+        for key, question in extra.items():
             checks.setdefault(key, _check(key, question))
     value = _plain(reading) if reading else {}
     for gap in value.get("gaps", []):
@@ -332,6 +452,8 @@ def build_coverage_checks(fixed, progress, *, reading=None):
                 reason="成稿核验或所选片段复核提出的取证缺口；先检查已读原文，再规划必要补查。",
             ),
         )
+    if external:
+        value, _ = normalize_policy_coverage(value, list(checks.values()), progress.get("evidence", []))
     seen = set()
     for update in value.get("coverage_checks", []):
         update = _plain(update)
@@ -397,7 +519,8 @@ def _action_arguments(plan, provider, phase, index, fixed):
         "phase": phase,
         "index": index,
         "plan": copy.deepcopy(plan),
-        "as_of": fixed.get("as_of"),
+        "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of"))
+        if fixed.get("query_policy", {}).get("research_contract_version") else fixed.get("as_of"),
         "mode": fixed.get("evidence_time", {}).get("mode", "current"),
     }
 
@@ -647,6 +770,198 @@ def _policy_budget(fixed, progress):
     return {"limits": limits, "remaining": remaining}
 
 
+def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
+    """Only fixed/adopted originals and actual successful query receipts may name a read."""
+    if fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1":
+        return []
+    scope = set(fixed.get("search_scope", [])) | {
+        item["source_id"] for item in fixed.get("dependency_sources", []) if item.get("history")
+    }
+    known, metadata, read, windows = {}, {}, set(), {}
+
+    def bind(value):
+        value = _plain(value)
+        if not isinstance(value, dict):
+            return None
+        if "is_demo" in value and value["is_demo"] is not fixed.get("is_demo", False):
+            return None
+        ref = value.get("record_ref", value)
+        if isinstance(ref, dict) and isinstance(ref.get("object_id"), str):
+            try:
+                native = json.loads(ref["object_id"])
+            except (ValueError, TypeError):
+                return None
+            if (
+                not isinstance(native, list) or len(native) != 3
+                or native[2] is not fixed.get("is_demo", False)
+            ):
+                return None
+            sid, rid, version = native[0], native[1], ref.get("adopted_version")
+        else:
+            sid = value.get("source_id")
+            rid = value.get("source_record_id", value.get("record_id"))
+            version = value.get("version_id", value.get("version"))
+        if sid not in scope or not all(isinstance(x, str) and x for x in (sid, rid, version)):
+            return None
+        if len(version) != 64 or any(c not in "0123456789abcdef" for c in version):
+            return None
+        return sid, rid, version
+
+    def adopt(value):
+        key = bind(value)
+        if key is not None:
+            known[key] = {
+                "source_id": key[0], "source_record_id": key[1], "version_id": key[2],
+                "status": "unread", "priority": "normal", "reason": "scope",
+                "covers": ["answer_scope"],
+            }
+            metadata.setdefault(key, []).append(_plain(value))
+        return key
+
+    fixed_members = (
+        list(fixed_version_refs)
+        + progress.get("kdd_source_version_refs", [])
+        + progress.get("kdd_source_catalog", [])
+        + fixed.get("evidence", [])
+    )
+    for value in fixed_members:
+        adopt(value)
+    for value in progress.get("evidence", []):
+        key = adopt(value)
+        if key is not None:
+            read.add(key)
+            if (
+                type(value.get("end")) is int and type(value.get("source_length")) is int
+                and 0 <= value["end"] <= value["source_length"]
+            ):
+                old = windows.get(key, (0, value["source_length"]))
+                windows[key] = (max(old[0], value["end"]), value["source_length"])
+    for query in progress.get("queries", []):
+        if query.get("status") == "read":
+            for value in query.get("records", []):
+                adopt(value)
+    declared = {
+        x["id"]
+        for x in (checks if checks is not None else progress.get("query_policy", {}).get("checks", []))
+    }
+    declared.add("answer_scope")
+
+    def critical(key, reason, covers=(), *, basis=None):
+        if key in known:
+            if basis is None:
+                return
+            known[key].update(priority="critical", reason=reason, basis=copy.deepcopy(basis))
+            known[key]["covers"] = list(dict.fromkeys(
+                [x for x in covers if x in declared] + known[key]["covers"]
+            ))
+
+    for key, items in metadata.items():
+        for item in items:
+            context = item.get("signal_context") or {}
+            relations = context.get("source_relations", [])
+            for relation in relations:
+                if relation.get("kind") in {"correction", "retraction"}:
+                    basis = {"kind": "visible_source_relation", "reference_ids": [key[1]]}
+                    critical(
+                        key, "correction", ["corrections", "count_revision", "counterevidence"],
+                        basis=basis,
+                    )
+                    target = bind(relation.get("target_ref", {}))
+                    critical(
+                        target, "correction", ["corrections", "count_revision", "counterevidence"],
+                        basis=basis,
+                    )
+            facts = item.get("facts") or {}
+            document = (
+                item.get("source_context") or item.get("document_evidence")
+                or facts.get("document_evidence") or context.get("document_evidence") or {}
+            )
+            for relation in document.get("document_relations", []):
+                if relation.get("relation_type") not in {"corrects", "retracts"}:
+                    continue
+                basis = {"kind": "visible_source_relation", "reference_ids": [key[1]]}
+                critical(key, "correction", ["corrections", "count_revision", "counterevidence"], basis=basis)
+                target = bind({
+                    "source_id": relation.get("target_source_id"),
+                    "source_record_id": relation.get("target_source_record_id"),
+                    "version_id": relation.get("target_version_id"),
+                })
+                critical(
+                    target, "correction", ["corrections", "count_revision", "counterevidence"],
+                    basis=basis,
+                )
+            if set(item.get("record_flags", [])) & {"retracted", "corrected"}:
+                critical(
+                    key, "counterevidence", ["counterevidence", "corrections"],
+                    basis={"kind": "visible_source_relation", "reference_ids": [key[1]]},
+                )
+    quality = progress.get("quality_feedback") or {}
+    requests = list(quality.get("read_requests") or [])
+    for gap in quality.get("evidence_gaps", []):
+        requests.extend(gap.get("read_requests") or [])
+    for request in requests:
+        if not isinstance(request, dict):
+            continue
+        matches = [
+            key for key in known
+            if key[1] == request.get("record_id")
+            and key[2] == request.get("version")
+            and (not request.get("source_id") or key[0] == request["source_id"])
+        ]
+        if len(matches) == 1:
+            quality_checks = [x for x in declared if x.startswith("quality:")]
+            if quality_checks:
+                critical(
+                    matches[0], "counterevidence", quality_checks,
+                    basis={"kind": "observed_gap", "reference_ids": quality_checks},
+                )
+    for key in read:
+        known[key]["status"] = "read"
+        if key in windows:
+            end, length = windows[key]
+            if end < length:
+                known[key].update(status="unread", window_start=end)
+    return sorted(known.values(), key=lambda x: (
+        x["priority"] != "critical", x["source_id"], x["source_record_id"], x["version_id"]
+    ))
+
+
+def document_read_candidates(fixed, progress, manifest, checks):
+    """A one-record fixed read has the same legality and retry identity as its receipt."""
+    if fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1":
+        return []
+    declared = {item["id"] for item in checks}
+    result = []
+    for item in manifest:
+        if item["status"] != "unread":
+            continue
+        args = {
+            "provider": "fabric", "source_id": item["source_id"],
+            "records": [{
+                "source_record_id": item["source_record_id"], "version_id": item["version_id"],
+                **({"window_start": item["window_start"]} if "window_start" in item else {}),
+            }],
+            "scope": {
+                "direction": fixed["query_policy"].get("direction", "research"),
+                "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of")),
+                "mode": fixed.get("evidence_time", {}).get("mode", "current"),
+                "is_demo": fixed.get("is_demo", False),
+            },
+        }
+        result.append({
+            "id": "read:" + semantic_key("document_read", args)[:32],
+            "kind": "document_read", "arguments": args,
+            "covers": [key for key in item["covers"] if key in declared],
+            "reason": item["reason"],
+            "applicability": {
+                "status": "eligible", "scope_match": 1,
+                "reason": "原件版本及Unicode窗口来自本轮已采用manifest；执行前仍核当前许可。",
+            },
+            "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
+        })
+    return result
+
+
 def build_policy_context(
     fixed, progress, *, phase, plans, reading=None, provider_status=None, graph_candidates=None
 ):
@@ -656,6 +971,19 @@ def build_policy_context(
     value = _plain(reading) if reading else {}
     plans = [_plain(plan) for plan in plans]
     checks = build_coverage_checks(fixed, progress, reading=value)
+    coverage_issues = []
+    if policy == "query_planner":
+        value, coverage_issues = normalize_policy_coverage(
+            value, checks, progress.get("evidence", [])
+        )
+        normalized_plans, plan_issues = normalize_policy_coverage(
+            {"next_queries": plans}, checks, progress.get("evidence", [])
+        )
+        plans = normalized_plans["next_queries"]
+        coverage_issues = list({
+            (item["source"], item["check_id"]): item
+            for item in coverage_issues + plan_issues
+        }.values())
     queries = progress.get("queries", [])
     history = _history(fixed, progress)
     stages = [(phase, plans)]
@@ -663,7 +991,8 @@ def build_policy_context(
         initial = state.get("initial_plans") or fixed.get("retrieval", {}).get("initial_queries", [])
         if initial:
             stages.insert(0, ("initial", [_plain(plan) for plan in initial]))
-    candidates = []
+    reading_manifest = build_read_manifest(fixed, progress, checks=checks)
+    candidates = document_read_candidates(fixed, progress, reading_manifest, checks)
     for stage, items in stages:
         originals = [
             _candidate(plan, "fabric", stage, index, fixed, checks, value)
@@ -683,12 +1012,22 @@ def build_policy_context(
     weknora = status.get("weknora", {})
     available = weknora.get("available", False) if isinstance(weknora, dict) else bool(weknora)
     mode = fixed.get("evidence_time", {}).get("mode", "current")
+    if fixed.get("is_demo"):
+        available = bool(
+            policy == "query_planner"
+            and fixed.get("query_policy", {}).get("research_contract_version")
+            == "bioradar-research-input-v1"
+            and isinstance(weknora, dict) and weknora.get("is_demo") is True
+            and weknora.get("knowledge_base_id") and weknora.get("source_scope")
+            and available
+        )
     if (
         plans
         and available
         and mode == "current"
         and not any(query.get("provider") == "weknora" for query in queries)
-        and len(progress.get("evidence", [])) < 10
+        and len({_hash(item["record_ref"]) for item in progress.get("evidence", [])})
+        < fixed.get("reading_limits", {}).get("max_versions", 10)
         and (policy == "query_planner" or not candidates)
     ):
         candidates.append(_candidate(plans[0], "weknora", phase, 0, fixed, checks, value))
@@ -728,6 +1067,11 @@ def build_policy_context(
         "candidates": candidates,
         "budget": _policy_budget(fixed, progress),
         "max_steps": fixed.get("query_policy", {}).get("max_steps", 12),
+        **(
+            {"action_limits": copy.deepcopy(fixed["query_policy"]["action_limits"])}
+            if "action_limits" in fixed.get("query_policy", {}) else {}
+        ),
+        **({"reading_manifest": reading_manifest} if reading_manifest else {}),
         "host_budget": copy.deepcopy(state.get("budget")),
         "phase": phase,
         "mechanism_context": mechanism_query_context(
@@ -736,6 +1080,16 @@ def build_policy_context(
         "quality_feedback": copy.deepcopy(progress.get("quality_feedback") or fixed.get("quality_feedback")),
         "graph_context": copy.deepcopy(state.get("graph_context", progress.get("graph_context", []))),
         "graph_history": copy.deepcopy(state.get("graph_history", progress.get("graph_history", []))),
+        **(
+            {
+                "coverage_issues": coverage_issues,
+                "warnings": [
+                    "模型覆盖检查编号未知或重复，保留未知：" + item["check_id"]
+                    for item in coverage_issues
+                ],
+            }
+            if coverage_issues else {}
+        ),
         "coverage_qualification": "取证覆盖与预计查询方向，不代表科学结论或人工审批。",
     }
 

@@ -41,6 +41,7 @@ from bioradar.topics.models import (
     TopicUpdate,
     TopicView,
 )
+from bioradar.topics.tracking import tracking_view, update_tracking
 
 EVALUATION_LIMIT = 50000
 SOURCE_GAPS = {"history_source_unavailable", "history_read_budget", "history_not_connected"} | set(
@@ -87,18 +88,46 @@ def observation_row(scope_id, item, value):
     )
 
 
+def analysis_budget_wait(analysis):
+    progress = analysis.get("progress") or {}
+    wait = progress.get("budget_wait") or {}
+    waiting = analysis.get("state") == "waiting_budget" or bool(progress.get("budget_pending")) or bool(wait)
+    return waiting, wait.get("next_budget_at") or progress.get("next_budget_at")
+
+
 class TopicService:
-    def __init__(self, engine, reader=None):
-        self.engine, self.reader = engine, reader
+    def __init__(self, engine, reader=None, *, fetch_hook=None):
+        self.engine, self.reader, self.fetch_hook = engine, reader, fetch_hook
         self.actor = DevelopmentAccess(engine.settings).actor()
         if reader is not None:
             self.engine.history_source_reader = reader.sources
+            if fetch_hook is None and getattr(engine.settings, "data_fabric_history_fetch_token", None):
+                from bioradar.research.investigations.fetch_execution import make_topic_fetch_hook
+
+                self.fetch_hook = make_topic_fetch_hook(
+                    engine.settings, reader, guard=self._guard_fetch_context
+                )
+
+    def _guard_fetch_context(self, context):
+        # A persisted topic does not retain a revoked source permission.
+        self.engine._history_source_ids = None
+        self.engine._history_permission_failure = None
+        view = self.get(self.actor, context["topic_id"])
+        if view.scope_revision != context["scope_revision"] or view.paused:
+            raise DomainError("topic_followup_paused", "专题已暂停或范围已更新", 409)
+        self.engine.authorize_history_source(context["source_id"])
+        if getattr(self, "_active_monitor", None):
+            with Session(self.engine.database) as session:
+                self._active_monitor._guard(self._active_monitor._state(session))
 
     def _authorize(self, actor, definition, is_demo, *, online=False):
         if actor != self.actor:
             raise DomainError("permission_denied", "研究授权上下文不匹配", 403)
         instance = definition["source_instance"]
-        if (instance == "fixture") != is_demo:
+        demo_instance = getattr(self.engine.settings, "data_fabric_demo_source_instance", None) or "fixture"
+        if (is_demo and instance != demo_instance) or (
+            not is_demo and instance in {"fixture", demo_instance}
+        ):
             raise DomainError("fixture_scope_mismatch", "教学与真实专题来源须分开", 422)
         allowed = self.engine.settings.engine_source_id_allowlist.get(instance, [])
         if instance not in actor.source_allowlist or not set(definition["source_ids"]) <= set(allowed):
@@ -180,6 +209,7 @@ class TopicService:
             sources=sources,
             observation_count=count,
             latest_evaluation_id=latest,
+            tracking=tracking_view(progress.get("_tracking")) or None,
             data_gaps=[
                 "source_collection_freshness_unknown",
                 "adopted_records_not_complete_domain_denominator",
@@ -280,12 +310,30 @@ class TopicService:
             ],
         )
 
-    def create(self, actor, body: TopicCreate, key):
+    def create(self, actor, body: TopicCreate, key, *, automation=None):
         definition = body.definition.model_dump(mode="json")
         self._authorize(actor, definition, body.is_demo)
         with Session(self.engine.database) as session, session.begin():
 
             def mutate():
+                if automation is not None:
+                    from bioradar.research.monitor.models import MonitorState
+
+                    session.get(MonitorState, actor.workspace_id, with_for_update=True)
+                    active = session.scalar(
+                        select(func.count())
+                        .select_from(TopicScopeRecord)
+                        .where(
+                            TopicScopeRecord.workspace_id == actor.workspace_id,
+                            TopicScopeRecord.is_current.is_(True),
+                            TopicScopeRecord.progress["_tracking"]["automatic"].as_boolean().is_(True),
+                            TopicScopeRecord.progress["_tracking"]["lifecycle"].astext != "closed",
+                        )
+                    )
+                    if active >= self.engine.settings.topic_max_auto_active:
+                        raise DomainError(
+                            "automatic_topic_capacity", "自动专题上限已满，线索保留等待名额", 409
+                        )
                 now, identifier = datetime.now(UTC), str(uuid4())
                 row = TopicScopeRecord(
                     id=str(uuid4()),
@@ -297,7 +345,16 @@ class TopicService:
                     is_demo=body.is_demo,
                     paused=False,
                     definition=definition,
-                    progress={},
+                    progress={
+                        "_tracking": {
+                            "version": "source-evidence-heat-lifecycle-v1",
+                            "automatic": True,
+                            "origin": copy.deepcopy(automation),
+                            "lifecycle": "incipient",
+                        }
+                    }
+                    if automation is not None
+                    else {},
                     observation_revision=0,
                     next_source=0,
                     updated_at=now,
@@ -307,7 +364,12 @@ class TopicService:
                 session.flush()
                 return 201, self._view(session, row).model_dump(mode="json")
 
-            return self.engine._idempotent(session, actor, "topic.create", key, body, mutate)
+            request = (
+                {"request": body.model_dump(mode="json"), "automation": automation}
+                if automation is not None
+                else body
+            )
+            return self.engine._idempotent(session, actor, "topic.create", key, request, mutate)
 
     def update(self, actor, identifier, body: TopicUpdate, key):
         definition = body.definition.model_dump(mode="json")
@@ -333,7 +395,9 @@ class TopicService:
                     is_demo=old.is_demo,
                     paused=old.paused,
                     definition=definition,
-                    progress={},
+                    progress={"_tracking": copy.deepcopy(old.progress["_tracking"])}
+                    if old.progress.get("_tracking")
+                    else {},
                     observation_revision=0,
                     next_source=0,
                     updated_at=now,
@@ -354,8 +418,24 @@ class TopicService:
                 row = self._scope(session, actor, identifier, lock=True)
                 if row.control_revision != body.expected_revision:
                     raise DomainError("revision_conflict", "专题开关已更新，请刷新后操作", 409)
+                if body.lifecycle is not None:
+                    progress = copy.deepcopy(row.progress)
+                    tracking = copy.deepcopy(progress.get("_tracking") or {})
+                    tracking.update(
+                        lifecycle=body.lifecycle,
+                        _manual_closed=body.lifecycle == "closed",
+                        manual_control={
+                            "actor_id": actor.actor_id,
+                            "at": datetime.now(UTC).isoformat(),
+                            "reason": body.reason,
+                        },
+                    )
+                    progress["_tracking"] = tracking
+                    row.progress = progress
+                    if body.lifecycle == "warming":
+                        row.next_evaluation_at = datetime.now(UTC)
                 row.paused, row.control_revision, row.updated_at = (
-                    body.paused,
+                    True if body.lifecycle == "closed" else body.paused,
                     row.control_revision + 1,
                     datetime.now(UTC),
                 )
@@ -434,6 +514,11 @@ class TopicService:
                 "closed_bucket_end",
             }
         }
+        if result.get("tracking") and row.followup.get("status") == "waiting_budget":
+            result["tracking"] = copy.deepcopy(result["tracking"])
+            result["tracking"]["model_update"].update(
+                status="waiting_budget", retry_at=row.followup.get("next_budget_at")
+            )
         result.update(
             investigation_id=row.followup.get("investigation_id"),
             automation_status=row.followup.get("status", "not_needed"),
@@ -910,6 +995,29 @@ class TopicService:
         computed["draft"] = computed["draft"].replace(old_summary, computed["summary"], 1)
         if sum(status_counts.values()) > 100:
             computed["data_gaps"].append("registered_state_preview_limited")
+        tracking = update_tracking(
+            values, definition, progress.get("_tracking"), as_of=now, source_errors=errors
+        )
+        progress["_tracking"] = tracking
+        if tracking["model_update"]["needed"]:
+            claim_values = [v for v in values if (v.get("attention") or {}).get("checkable_claims")]
+            if claim_values:
+                computed["signals"].append(
+                    {
+                        "key": canonical_hash(["source_claim", tracking["_evidence_fingerprint"]]),
+                        "kind": "source_claim",
+                        "title": "有出处的待核说法发生变化",
+                        "reason": "；".join(tracking["assessment_reason"]),
+                        "support_units": len(claim_values),
+                        "qualification": "attributed_claim_not_confirmation_of_truth",
+                        "details": {"risk": tracking["risk"]},
+                        "evidence_keys": [
+                            canonical_hash([v["source_id"], v["source_record_id"], v["version_id"]])
+                            for v in claim_values
+                        ],
+                        "next_questions": ["哪些原始来源、反证或检验可以区分竞争解释？"],
+                    }
+                )
         closed_bucket_end = max(
             (b["end"] for b in computed["buckets"] if b["complete_time_bucket"]), default=None
         )
@@ -936,7 +1044,7 @@ class TopicService:
                     and signal["key"] not in baseline_keys
                 ):
                     continue
-            elif previous is None and signal["kind"] != "source_event":
+            elif previous is None and signal["kind"] not in {"source_event", "source_claim"}:
                 continue
             meaningful.append(signal)
         # The first complete stock is a baseline. Subsequent qualified changes become
@@ -960,12 +1068,32 @@ class TopicService:
                 >= now - timedelta(days=30)
             )
         ]
+        grounded_claim_keys = {
+            canonical_hash([v["source_id"], v["source_record_id"], v["version_id"]])
+            for v in values
+            if (v.get("attention") or {}).get("automatic_investigation_allowed")
+        }
+        # Exposure statistics stay visible. Generic words cannot borrow a native
+        # registration's unrelated metadata to become an automatic inquiry.
+        meaningful = [
+            s
+            for s in meaningful
+            if s["kind"] != "text_pattern" or grounded_claim_keys.intersection(s["evidence_keys"])
+        ]
         actionable = [
             s
             for s in meaningful
-            if s["kind"] in {"state_change", "evidence_revision", "source_event"} or seed and not errors
+            if s["kind"] in {"state_change", "evidence_revision", "source_event", "source_claim"}
+            or seed
+            and not errors
         ]
-        eligible = bool(actionable)
+        eligible = bool(actionable) and tracking["lifecycle"] not in {"dormant", "closed"}
+        if eligible and not tracking["model_update"]["needed"]:
+            tracking["model_update"] = {
+                "needed": True,
+                "status": "ready",
+                "reasons": ["new_fixed_source_signal_requires_review"],
+            }
         meaningful = actionable
         identifier = str(uuid4())
         result = {
@@ -983,6 +1111,7 @@ class TopicService:
             "created_at": now.isoformat(),
             **computed,
             "dependency_source_ids": dependency_sources,
+            "tracking": tracking_view(tracking),
         }
         followup = {
             "status": "deferred" if eligible else "not_needed",
@@ -1026,7 +1155,7 @@ class TopicService:
                 old_keys | ({s["key"] for s in meaningful} if eligible else set())
             )
             row.progress, row.last_evaluated_at = progress, now
-            row.next_evaluation_at = now + timedelta(hours=definition["cadence_hours"])
+            row.next_evaluation_at = datetime.fromisoformat(tracking["next_due_at"])
         return identifier
 
     def _save_followup(self, identifier, followup):
@@ -1086,6 +1215,27 @@ class TopicService:
             row, scope = self._evaluation_row(session, self.actor, scope.topic_id, evaluation_id)
             evaluation, state = self._evaluation_view(row), copy.deepcopy(row.followup)
             scope_id, demo = scope.id, scope.is_demo
+        if state.get("analysis_id"):
+            # A model-budget wait is owned by the existing analysis resumer. Never
+            # reappend materials or create a second analysis to escape that wait.
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            saved_analysis = AnalysisService(self.engine, self.reader).get(
+                self.actor, state["investigation_id"], state["analysis_id"]
+            )
+            analysis = saved_analysis.model_dump(mode="json")
+            waiting, next_budget_at = analysis_budget_wait(analysis)
+            state.update(status="waiting_budget" if waiting else "saved")
+            state["next_budget_at"] = next_budget_at
+            self._save_followup(evaluation_id, state)
+            return
+        retry = state.get("next_budget_at")
+        if (
+            state.get("status") == "waiting_budget"
+            and retry
+            and datetime.fromisoformat(retry) > datetime.now(UTC)
+        ):
+            return
         runtime = InvestigationService(self.engine)
         key = "topic-investigation:" + scope_id
         saved = self._saved("investigation.create", key)
@@ -1102,6 +1252,12 @@ class TopicService:
         lead_key = canonical_hash(["topic", scope_id])
         self._followup_guard(evaluation_id)
         if not monitor.reserve_investigation(lead_key, evaluation_id, "routine", origin="topic"):
+            state.update(
+                status="waiting_budget",
+                next_budget_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+                error_code="topic_hourly_budget",
+            )
+            self._save_followup(evaluation_id, state)
             return
         if view is None:
             self._followup_guard(evaluation_id)
@@ -1126,7 +1282,7 @@ class TopicService:
             e
             for e in evaluation.evidence
             if any(e.key in s.evidence_keys for s in evaluation.signals if s.key in state["signal_keys"])
-        ][:4]
+        ]
         for item in evidence:
             tag = "evidence:" + item.key
             snapshot_key = "topic-snapshot:" + canonical_hash([evaluation_id, tag])
@@ -1177,9 +1333,16 @@ class TopicService:
                     "topic_id": evaluation.topic_id,
                     "evaluation_id": evaluation_id,
                     "reservation_key": "monitor-dig:" + canonical_hash([lead_key, evaluation_id]),
+                    "tracking": {
+                        key: (evaluation.tracking or {}).get(key)
+                        for key in ("lifecycle", "risk", "assessment_reason")
+                    },
                 },
             )
-            state.update(status="saved", analysis_id=analysis["id"])
+            waiting, next_budget_at = analysis_budget_wait(analysis)
+            state.update(status="waiting_budget" if waiting else "saved", analysis_id=analysis["id"])
+            if waiting:
+                state["next_budget_at"] = next_budget_at
             self._save_followup(evaluation_id, state)
             return
         # Scope terms are declared by the researcher; otherwise derive an exact literal from a fixed original.
@@ -1290,11 +1453,71 @@ class TopicService:
         state["status"] = "saved"
         self._save_followup(evaluation_id, state)
 
-    def tick(self, *, now=None):
+    def _fetch_source(self, scope_id, source, *, now):
+        """Use the host fetch receipt once per due topic cycle, outside model execution."""
+        if self.fetch_hook is None:
+            return
+        with Session(self.engine.database) as session:
+            row = session.get(TopicScopeRecord, scope_id)
+            saved = copy.deepcopy(row.progress.get("_fetch", {}).get(source))
+            due = row.next_evaluation_at is None or row.next_evaluation_at <= now
+            pending = bool(
+                saved
+                and (
+                    saved.get("receipt", {}).get("status") in {"sent", "unknown"}
+                    or (saved.get("receipt", {}).get("result") or {}).get("status") == "pending"
+                )
+            )
+            if not due and not pending:
+                return
+            slot = (row.next_evaluation_at or row.created_at).isoformat()
+            key = "topic-fetch:" + canonical_hash([scope_id, source, slot])
+            if pending:
+                key = saved["call_key"]
+            prior = saved.get("receipt") if saved and saved["call_key"] == key else None
+            definition = copy.deepcopy(row.definition)
+            context = {
+                "topic_id": row.topic_id,
+                "scope_revision": row.scope_revision,
+                "source_id": source,
+                "is_demo": row.is_demo,
+                "terms_all": definition.get("terms_all", []),
+                "terms_any": definition.get("terms_any", []),
+                "since": (row.last_checked_at or row.created_at).isoformat(),
+                "until": now.isoformat(),
+                "may_send": not row.is_demo and due,
+            }
+            if saved and saved["call_key"] == key:
+                context = saved["context"]
+
+        def checkpoint(receipt):
+            with Session(self.engine.database) as session, session.begin():
+                row = session.get(TopicScopeRecord, scope_id, with_for_update=True)
+                self._authorize(self.actor, row.definition, row.is_demo, online=True)
+                if not row.is_current or row.paused:
+                    raise DomainError("topic_followup_paused", "专题已暂停或范围更新", 409)
+                if getattr(self, "_active_monitor", None):
+                    self._active_monitor._guard(self._active_monitor._state(session))
+                progress = copy.deepcopy(row.progress)
+                progress.setdefault("_fetch", {})[source] = {
+                    "call_key": key,
+                    "context": context,
+                    "receipt": copy.deepcopy(receipt),
+                }
+                row.progress = progress
+
+        receipt = self.fetch_hook(context, call_key=key, prior_receipt=prior, checkpoint=checkpoint)
+        checkpoint(receipt)
+
+    def tick(self, *, now=None, only_demo=False):
         """One topic/source page per existing monitor loop; a failed topic does not starve others."""
         from bioradar.research.monitor.service import MonitorService
 
         now = now or datetime.now(UTC)
+        if now.tzinfo is None:
+            raise DomainError("simulation_clock_invalid", "专题时钟必须含时区", 422)
+        if only_demo and self.engine.settings.environment != "test":
+            raise DomainError("simulation_not_allowed", "加速专题检查仅限test教学范围", 403)
         monitor = MonitorService(self.engine, self.reader)
         if not self.engine.settings.monitor_enabled or not DevelopmentAccess(self.engine.settings).enabled:
             return {"state": "disabled"}
@@ -1310,6 +1533,7 @@ class TopicService:
                         TopicScopeRecord.workspace_id == self.actor.workspace_id,
                         TopicScopeRecord.is_current.is_(True),
                         TopicScopeRecord.paused.is_(False),
+                        *([TopicScopeRecord.is_demo.is_(True)] if only_demo else []),
                     )
                     .order_by(TopicScopeRecord.last_checked_at.asc().nullsfirst(), TopicScopeRecord.topic_id)
                     .limit(1)
@@ -1322,6 +1546,7 @@ class TopicService:
                 expected = copy.deepcopy(row.progress.get(source, {}))
             self._authorize(self.actor, definition, demo)
             self.engine.authorize_history_source(source)
+            self._fetch_source(scope_id, source, now=now)
             page = change_page(
                 self.reader,
                 source_id=source,
@@ -1350,7 +1575,7 @@ class TopicService:
                     select(TopicEvaluationRecord.id)
                     .where(
                         TopicEvaluationRecord.scope_id == scope_id,
-                        TopicEvaluationRecord.followup["status"].astext == "deferred",
+                        TopicEvaluationRecord.followup["status"].astext.in_(("deferred", "waiting_budget")),
                     )
                     .order_by(TopicEvaluationRecord.created_at)
                     .limit(1)

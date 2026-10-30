@@ -31,7 +31,7 @@ METHOD_IDS = (
     "event_exposure",
     "regional_comparison",
 )
-ENGINE_COMPUTE_VERSION = "bioradar-mining-compute-v0.2"
+ENGINE_COMPUTE_VERSION = "bioradar-mining-compute-v0.4"
 
 
 class FrozenModel(BaseModel):
@@ -302,6 +302,29 @@ class ProjectTimeline(FrozenModel):
     provenance: SectionProvenance
 
 
+class SourceRelation(FrozenModel):
+    kind: Literal["correction", "retraction", "supplement", "repost"]
+    target_ref: ProviderRef
+
+
+class SignalContext(FrozenModel):
+    """Attributed source claims; named sources are not thereby confirmed."""
+
+    material_type: str | None = None
+    origin_group: str | None = None
+    attribution: Literal["named_institution", "named_author", "anonymous", "unknown"] = "unknown"
+    claimed_origin: str | None = None
+    entity_names: tuple[str, ...] = ()
+    source_relations: tuple[SourceRelation, ...] = ()
+    claim_text: str | None = None
+    verification_status: Literal["source_confirmed", "unverified", "unknown"] = "unknown"
+    statement_status: Literal["source_reported", "unverified_report", "unknown"] = "unknown"
+    document_evidence: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    evidence_refs: tuple[ProviderRef, ...] = ()
+
+
 class EngineRecord(FrozenModel):
     record_ref: ProviderRef
     evidence_refs: tuple[ProviderRef, ...] = ()
@@ -320,6 +343,11 @@ class EngineRecord(FrozenModel):
     first_seen_at: datetime | None = None
     available_at: datetime | None = None
     source_url: str | None = None
+    public_available_at: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
+    availability_proof: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    signal_context: SignalContext | None = Field(default=None, exclude_if=lambda value: value is None)
     ingestion_mode: Literal["live_delta", "historical_backfill", "sample_export", "fixture"] = "sample_export"
     text_status: Literal["inline_authorized", "reference_authorized", "unavailable"] = "unavailable"
     normalized_text: str | None = None
@@ -361,7 +389,13 @@ class EngineRecord(FrozenModel):
 
     @model_validator(mode="after")
     def check_evidence(self) -> EngineRecord:
-        timestamps = (self.observed_at, self.published_at, self.available_at, self.first_seen_at)
+        timestamps = (
+            self.observed_at,
+            self.published_at,
+            self.available_at,
+            self.first_seen_at,
+            self.public_available_at,
+        )
         if any(t is not None and t.tzinfo is None for t in timestamps):
             raise ValueError("record timestamps must have a timezone")
         if self.time_precision in {"month", "year", "interval", "unknown"} and self.published_at:
@@ -442,6 +476,9 @@ class MiningPolicy(FrozenModel):
     policy_version: Literal["bioradar.mining.policy.v1"] = "bioradar.mining.policy.v1"
     as_of: datetime
     time_mode: Literal["publication_retrospective", "availability_replay"] = "publication_retrospective"
+    availability_basis: Literal["operational_replay", "public_history_reconstruction"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     discovery_mode: Literal["stock_and_incremental", "incremental"] = "stock_and_incremental"
     baseline_start: datetime | None = None
     baseline_end: datetime | None = None
@@ -526,6 +563,22 @@ class KddPolicy(MiningPolicy):
     )
 
 
+class DiscoveryPolicy(MiningPolicy):
+    discovery_directions: tuple[Literal["research", "pipeline", "business", "public_health"], ...] = Field(
+        min_length=1, max_length=4
+    )
+    value_policy: ValuePolicy = Field(default_factory=ValuePolicy)
+    monitor_changed_refs: tuple[ProviderRef, ...] | None = Field(
+        default=None, max_length=2000, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def unique_directions(self):
+        if len(set(self.discovery_directions)) != len(self.discovery_directions):
+            raise ValueError("discovery directions must be unique")
+        return self
+
+
 class EvidenceSupport(FrozenModel):
     record_ref: ProviderRef
     document_hash: str
@@ -579,7 +632,10 @@ class MethodResult(FrozenModel):
 class MiningResult(FrozenModel):
     schema_version: Literal["bioradar.engine.result.v1"] = "bioradar.engine.result.v1"
     compute_version: Literal[
-        "bioradar-mining-compute-v1", "bioradar-mining-compute-v0.2", "bioradar-mining-compute-v0.3"
+        "bioradar-mining-compute-v1",
+        "bioradar-mining-compute-v0.2",
+        "bioradar-mining-compute-v0.3",
+        "bioradar-mining-compute-v0.4",
     ] = ENGINE_COMPUTE_VERSION
     snapshot_hash: str
     policy_hash: str

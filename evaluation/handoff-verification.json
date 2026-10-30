@@ -491,14 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-30T14:26:23.657523+00:00",
-    "status": "isolated_engineering_verified_scientific_review_required",
-    "details": "multi_domain_kdd_20261030",
+    "checked_at": "2026-10-30T18:18:21.596487+00:00",
+    "status": "isolated_code_ready_for_coordinated_real_acceptance",
+    "details": "natural_materials_coordination_20261031",
     "source_roots": {
       "radar": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar"
     },
-    "scope": "Four-domain fixed data computation; real first questions/follow-up and automatic WHO parent-to-child report; actual SEC newly comparable periods selected into a source-bound investigation; targeted recovery, accounting and delivery checks. Scientific failures and unknown requests are preserved.",
-    "deployment_evidence": "All implementation and acceptance changes are in the isolated zktest worktree. Production main, production database and Fabric branch were not merged or switched. Coordinator performs final packaging/deployment separately."
+    "scope": "Engineering changes and targeted fault recovery verified; new real-data acceptance remains separate.",
+    "deployment_evidence": "Only isolated zktest Radar worktree changed; no main merge, production deployment, external repository mutation or restored 4022 checkout."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -6089,5 +6089,131 @@
         "docs/资产盘点.md"
       ]
     }
+  },
+  "natural_materials_coordination_20261031": {
+    "checked_at": "2026-10-30T18:18:21.596487+00:00",
+    "status": "isolated_code_ready_for_coordinated_real_acceptance",
+    "branch": "codex/radar-kdd-20261030",
+    "code_root": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar",
+    "base_commit": "4d53c9140d4fe181cb36aaceceb4ac3f7505f83c",
+    "compute_version": "bioradar-mining-compute-v0.4",
+    "evidence_archive": "/home/zk_test/zk_projects/.bioradar-kdd-integration/acceptance-20261031/engineering",
+    "implementation": [
+      "Four qualified direction methods on one fixed input, with shared selection capacity.",
+      "Anchored Chinese claims, same-origin/repost grouping, unknown study independence and explicit attention grounds.",
+      "Source-located natural numeric observations, program utilization/comparison and exact correction replacement.",
+      "Fixed-source windows, visible unread/correction list, one recorded structure repair and coverage validation.",
+      "Current real source-fetch intent/run/poll receipts and fixed graph packages; no current fetch in demo/history.",
+      "Separate admission pools and durable global/topic daily reservations without double model POST.",
+      "Persistent topic heat/evidence/risk/lifecycle and bounded automatic topic queue.",
+      "Arbitrary fixed-as-of historical question through HTTP ask; test-only accelerated demo tick.",
+      "Checked final body preserved with separate source index/audit; blind grading rejects ambiguous judgments."
+    ],
+    "required_checks": [
+      {
+        "command": "make test CARD=BOOT",
+        "passed": 43,
+        "log": "required-0.log"
+      },
+      {
+        "command": "make lint",
+        "exit_code": 0,
+        "log": "required-lint-final.log"
+      },
+      {
+        "command": "make contract-check",
+        "exit_code": 0,
+        "log": "required-contract-check-final.log"
+      },
+      {
+        "command": "make web-check",
+        "exit_code": 0,
+        "log": "c-required-web-check-after-permissions.log"
+      },
+      {
+        "command": "npm generate / check / build after v0.4 export",
+        "exit_code": 0,
+        "log": "c-v04-generate-check-build.log"
+      }
+    ],
+    "regressions": {
+      "initial_full_engine": {
+        "passed": 825,
+        "failed": 71,
+        "skipped": 117,
+        "log": "root-engine-suite-v1.log",
+        "qualification": "Initial failures retained, followed by targeted fixes; not presented as a passing full suite."
+      },
+      "root_runtime": {
+        "passed": 12,
+        "log": "root-failures-v2.log"
+      },
+      "historical_followup_scope": {
+        "passed": 1,
+        "log": "root-historical-narrowing.log"
+      },
+      "durable_received_and_late_send": {
+        "passed": 2,
+        "log": "root-recovery-v2.log"
+      },
+      "methods_monitor_topics": {
+        "passed": 60,
+        "log": "a-recovery-failed-subset-final.log"
+      },
+      "semantic_numeric_boundaries": {
+        "passed": 12,
+        "log": "a-final-boundaries-v2.log"
+      },
+      "version_freeze": {
+        "passed": 8,
+        "log": "a-v04-version-regression.log"
+      },
+      "adapter_runtime": {
+        "passed": 114,
+        "log": "source-adapters-pure.log"
+      },
+      "professional_runtime_regressions": {
+        "passed_across_targeted_runs": 115,
+        "logs": [
+          "runtime-regression-owned-v2.log",
+          "runtime-regression-owned-delta-v3.log"
+        ]
+      },
+      "installed_native_methods": {
+        "passed": 106,
+        "log": "root-native-cores-v1.log",
+        "qualification": "Previously unconfigured native-method cases run against actual fixed checkouts with synthetic callbacks."
+      },
+      "delivery_protocol": {
+        "passed": 13,
+        "log": "c-review-fixes-pure.log"
+      },
+      "counting": "These sets overlap; do not sum them into unique tests or scientific successes."
+    },
+    "verified_upstream_pure_versions": {
+      "BioCheck": "a568b40ca609603c25a1ceca205c692c8136e1cc",
+      "MechEvidence": "5aa38a9b88910f9125c706b729895865068d98d6",
+      "query-planner": "a617dfccf8908fd6c8fbffb0be8bbccfb9a147e5"
+    },
+    "cross_review": {
+      "reviewers": [
+        "GPT-6.1 SOL methods",
+        "GPT-6.1 SOL adapter/runtime",
+        "GPT-6.1 SOL delivery/evaluation"
+      ],
+      "records": [
+        "a-research-methods-handoff.json",
+        "b-final-nonauthor-review.json",
+        "c-execution-nonauthor-review-final.json"
+      ],
+      "last_root_fix": "Historical follow-up intersects explicitly selected/current authorized sources and parent scope; nonauthor accepted and actual PG regression passed."
+    },
+    "real_acceptance": {
+      "status": "awaiting_coordinator_first_publication_and_real_matrix",
+      "previous_first_question_and_followup": "Preserved in multi_domain_kdd_20261030 and earlier coordination entries; not rerun or relabelled as the new experiment.",
+      "model_calls_in_engineering_checks": "Synthetic local HTTP/MockTransport or pure callbacks only; no new commercial-model calls.",
+      "scope": "A/B/C/M directed comparisons, strict public-history D and accelerated lifecycle cases are coordinated externally. This entry does not claim scientific PASS."
+    },
+    "deployment": "Only isolated zktest Radar worktree changed; no main merge, production deployment, external repository mutation or restored 4022 checkout."
   }
 }

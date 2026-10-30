@@ -37,6 +37,7 @@ from bioradar.research.investigations.service import (
 )
 from bioradar.research.mining.models import (
     Candidate,
+    DiscoveryPolicy,
     EngineRecord,
     KddPolicy,
     MiningPolicy,
@@ -579,12 +580,20 @@ class MonitorService:
 
     def _mining_policy(self, source_id, now, *, changed_refs=None):
         direction = getattr(self.settings, "monitor_kdd_directions", {}).get(source_id)
-        model = KddPolicy if direction else MiningPolicy
+        model = KddPolicy if direction else DiscoveryPolicy
         values = (
-            {"kdd_direction": direction, "monitor_changed_refs": changed_refs or None} if direction else {}
+            {"kdd_direction": direction, "monitor_changed_refs": changed_refs or None}
+            if direction
+            else {
+                "discovery_directions": ("research", "pipeline", "business", "public_health"),
+                "monitor_changed_refs": changed_refs or None,
+            }
         )
+        current_start = now - timedelta(days=getattr(self.settings, "monitor_current_window_days", 30))
         return model(
             as_of=now,
+            current_start=current_start,
+            baseline_end=current_start,
             discovery_mode="stock_and_incremental",
             limits=ResourceLimits(
                 max_records=self.settings.engine_max_records,
@@ -639,6 +648,10 @@ class MonitorService:
             f"待调查线索（程序候选，尚未核实）：{candidate.title[:200]}\n"
             f"调查问题：{candidate.next_questions[0]}"
         )
+        attention = candidate.metrics.get("attention") or {}
+        if attention.get("checkable_claims"):
+            question += "\n原件待核说法：" + attention["checkable_claims"][0]["text"][:800]
+        question += "\n区分原文声称、独立佐证与已核实事实；列出反证、成立条件和最能区分竞争解释的补查。"
         if direction:
             labels = {
                 "pipeline": "管线与竞争",
@@ -768,7 +781,7 @@ class MonitorService:
                 value,
                 as_of=now,
                 bootstrap=not current.get("initialized"),
-                kdd=value["source_id"] in self.settings.monitor_kdd_directions,
+                kdd=True,  # New monitor policies are KDD or multi-domain discovery.
             )
             if record is None:
                 continue
@@ -1190,7 +1203,13 @@ class MonitorService:
                 self._save_batch(identifier, payload=payload)
             _, adopted = self.engine.adopt_snapshot(self.actor, snapshot, key)
         self._save_batch(identifier, snapshot_id=adopted["id"])
-        policy_model = KddPolicy if "kdd_direction" in payload["policy"] else MiningPolicy
+        policy_model = (
+            DiscoveryPolicy
+            if "discovery_directions" in payload["policy"]
+            else KddPolicy
+            if "kdd_direction" in payload["policy"]
+            else MiningPolicy
+        )
         request = RunCreate(snapshot_id=adopted["id"], policy=policy_model.model_validate(payload["policy"]))
         key = "monitor-run:" + identifier
         run = self._saved_response("run.create", key)
@@ -1206,6 +1225,9 @@ class MonitorService:
             result.candidates, key=lambda c: (c.urgency != "immediate", c.kind != "observed_change")
         )
         for item in ordered:
+            attention = item.metrics.get("attention") or {}
+            if not attention.get("automatic_investigation_allowed") or item.importance == "undetermined":
+                continue
             meaningful = [s for s in item.supports if tuple(s.record_ref.version_key) in changed]
             if item.method_id in {
                 "lexical_emergence",
@@ -1276,7 +1298,9 @@ class MonitorService:
                     "material_receipts": [],
                     "queries": [],
                 }
-                direction = payload.get("policy", {}).get("kdd_direction")
+                direction = item.metrics.get("kdd_direction") or payload.get("policy", {}).get(
+                    "kdd_direction"
+                )
                 if direction:
                     body["kdd_direction"] = direction
                     body["question"] = self._candidate_question(item, direction)
@@ -1297,6 +1321,8 @@ class MonitorService:
                         None,
                     )
                     body["dataset_hash"] = (result.data_preparation or {}).get("dataset_hash")
+                if prior and prior.payload.get("auto_topic"):
+                    body["auto_topic"] = copy.deepcopy(prior.payload["auto_topic"])
                 if prior:
                     # A user's closed/paused investigation is never silently reopened.
                     if prior.investigation_id:
@@ -1536,7 +1562,6 @@ class MonitorService:
         key = "monitor-dig:" + canonical_hash([lead_key, batch_id])
         if self._saved_response("monitor.dig.start", key) is not None:
             return True
-        # Warm the existing request-local catalog before taking the shared row lock.
         self._catalog()
         with Session(self.engine.database) as session, session.begin():
             state = self._state(session, lock=True)
@@ -1547,31 +1572,47 @@ class MonitorService:
                 EngineIdempotency.actor_id == self.actor.actor_id,
                 EngineIdempotency.operation == "monitor.dig.start",
             )
-            count = session.scalar(
-                select(func.count()).select_from(
-                    base.where(EngineIdempotency.created_at >= now - timedelta(hours=1)).subquery()
+            # Admission pools are independent. Old missing-origin receipts remain
+            # conservatively in the monitor pool; their saved responses are unchanged.
+            pool = (
+                base.where(EngineIdempotency.response_body["origin"].astext == "topic")
+                if origin == "topic"
+                else base.where(
+                    or_(
+                        EngineIdempotency.response_body["origin"].astext != "topic",
+                        EngineIdempotency.response_body["origin"].astext.is_(None),
+                    )
                 )
             )
+            limit = (
+                self.settings.topic_hourly_investigations
+                if origin == "topic"
+                else self.settings.monitor_hourly_investigations
+            )
+            count = session.scalar(
+                select(func.count()).select_from(
+                    pool.where(EngineIdempotency.created_at >= now - timedelta(hours=1)).subquery()
+                )
+            )
+            if count >= limit:
+                return False
+            if origin == "monitor":
+                batch_count = session.scalar(
+                    select(func.count()).select_from(
+                        pool.where(EngineIdempotency.response_body["batch_id"].astext == batch_id).subquery()
+                    )
+                )
+                if batch_count >= self.settings.monitor_investigations_per_batch:
+                    return False
             latest = session.scalar(
-                base.where(EngineIdempotency.response_body["lead_key"].astext == lead_key)
+                pool.where(EngineIdempotency.response_body["lead_key"].astext == lead_key)
                 .order_by(EngineIdempotency.created_at.desc())
                 .limit(1)
             )
-            if count >= self.settings.monitor_hourly_investigations:
-                return False
             if (
                 urgency != "immediate"
                 and latest
                 and latest.created_at > now - timedelta(minutes=self.settings.monitor_cooldown_minutes)
-            ):
-                return False
-            previous = session.scalar(
-                base.order_by(EngineIdempotency.created_at.desc(), EngineIdempotency.id.desc()).limit(1)
-            )
-            if (
-                previous
-                and self._reservation_origin(session, previous) == origin
-                and self._has_runnable_rival(session, origin, now)
             ):
                 return False
             self.engine._idempotent(
@@ -1591,6 +1632,90 @@ class MonitorService:
                 ),
             )
             return True
+
+    def _ensure_tracking(self, lead_id):
+        from bioradar.topics.models import TopicCreate
+        from bioradar.topics.service import TopicService
+        from bioradar.topics.tracking import automatic_topic_definition
+
+        with Session(self.engine.database) as session:
+            lead = session.get(MonitorLead, lead_id)
+            payload = copy.deepcopy(lead.payload)
+            candidate = Candidate.model_validate(payload["candidate"])
+            batch = session.get(MonitorBatch, lead.batch_id)
+            snapshot = batch.payload.get("snapshot")
+            if snapshot is None:
+                return
+            intent = payload.get("auto_topic")
+            if intent and intent.get("status") == "created":
+                return
+            if intent is None:
+                selected = {support.record_ref.version_key for support in candidate.supports}
+                records = [
+                    EngineRecord.model_validate(row)
+                    for row in snapshot["records"]
+                    if ProviderRef.model_validate(row["record_ref"]).version_key in selected
+                ]
+                definition = automatic_topic_definition(
+                    candidate, records, source_instance=snapshot["source_instance"]
+                )
+                if definition is None:
+                    return
+                intent = {
+                    "status": "queued",
+                    "key": "monitor-topic:" + lead.lead_key,
+                    "body": TopicCreate(definition=definition, is_demo=batch.is_demo).model_dump(mode="json"),
+                    "origin": {
+                        "source": "monitor",
+                        "lead_id": lead.id,
+                        "lead_key": lead.lead_key,
+                        "batch_id": lead.batch_id,
+                        "run_id": lead.run_id,
+                    },
+                }
+                payload["auto_topic"] = intent
+        self._save_lead(lead_id, payload=payload)
+        try:
+            _, created = TopicService(self.engine, self.reader).create(
+                self.actor,
+                TopicCreate.model_validate(intent["body"]),
+                intent["key"],
+                automation=intent["origin"],
+            )
+        except DomainError as exc:
+            if exc.code not in {
+                "automatic_topic_capacity",
+                "source_not_authorized",
+                "history_source_unavailable",
+            }:
+                raise
+            intent.update(status="queued", error_code=exc.code)
+        else:
+            intent.update(status="created", topic_id=created["id"])
+            intent.pop("error_code", None)
+        with Session(self.engine.database) as session:
+            latest = copy.deepcopy(session.get(MonitorLead, lead_id).payload)
+        latest["auto_topic"] = intent
+        self._save_lead(lead_id, payload=latest)
+
+    def _drain_tracking(self):
+        with Session(self.engine.database) as session:
+            identifiers = list(
+                session.scalars(
+                    select(MonitorLead.id)
+                    .join(MonitorBatch)
+                    .where(
+                        MonitorLead.workspace_id == self.actor.workspace_id,
+                        MonitorLead.payload["auto_topic"]["status"].astext == "queued",
+                        MonitorBatch.source_id.in_(self.permitted()),
+                        MonitorBatch.is_demo == self.settings.monitor_is_demo,
+                    )
+                    .order_by(MonitorLead.created_at)
+                    .limit(8)
+                )
+            )
+        for identifier in identifiers:
+            self._ensure_tracking(identifier)
 
     def drain_deferred(self):
         with Session(self.engine.database) as session:
@@ -1652,6 +1777,16 @@ class MonitorService:
         if view is not None and view.status != "open":
             self._save_lead(lead_id, state="deferred")
             return None
+        reservation = self._saved_response(
+            "monitor.dig.start", "monitor-dig:" + canonical_hash([lead_key, batch_id])
+        )
+        if reservation is None and not (candidate.metrics.get("attention") or {}).get(
+            "automatic_investigation_allowed"
+        ):
+            self._save_lead(
+                lead_id, state="deferred", payload={**p, "error_code": "unqualified_automatic_signal"}
+            )
+            return None
         if not self.reserve_investigation(lead_key, batch_id, candidate.urgency):
             self._save_lead(lead_id, state="deferred")
             return None
@@ -1685,7 +1820,14 @@ class MonitorService:
             tag="candidate",
         )
         # Only actual support refs from the fixed mining snapshot are adopted.
-        for support in candidate.supports[:4]:
+        attention = candidate.metrics.get("attention") or {}
+        priority = {
+            canonical_hash(row["record_ref"])
+            for row in attention.get("corrections", [])
+            if row.get("record_ref")
+        } | {canonical_hash(ref) for ref in attention.get("reviewed_counterevidence_refs", [])}
+        supports = sorted(candidate.supports, key=lambda s: canonical_hash(s.record_ref) not in priority)
+        for support in supports:
             view = self._append(
                 lead_id,
                 view,
@@ -1713,7 +1855,11 @@ class MonitorService:
                         kdd_direction=latest["kdd_direction"],
                     )
                 else:
-                    analysis_request = AnalysisCreate(expected_revision=view.revision)
+                    analysis_request = AnalysisCreate(
+                        expected_revision=view.revision,
+                        question=self._candidate_question(candidate),
+                        auto_retrieve=True,
+                    )
                 intent = {
                     "key": "monitor-analysis:" + canonical_hash([lead_key, batch_id]),
                     "body": analysis_request.model_dump(mode="json"),
@@ -2038,10 +2184,8 @@ class MonitorService:
         if state == "investigating" or payload.get("selected_leads") is not None:
             if not self._propagate_context_updates(identifier, payload, snapshot_id):
                 return
-            for position, lead_id in enumerate(payload["selected_leads"]):
-                if position >= self.settings.monitor_investigations_per_batch:
-                    self._save_lead(lead_id, state="deferred")
-                    continue
+            for lead_id in payload["selected_leads"]:
+                self._ensure_tracking(lead_id)
                 with Session(self.engine.database) as session:
                     lead = session.get(MonitorLead, lead_id)
                     finished = lead.state in {"investigated", "deferred"}
@@ -2120,7 +2264,10 @@ class MonitorService:
 
             with Session(self.engine.database) as session:
                 stored = session.get(EngineRun, run_id)
-                if computation_versions(tuple(stored.policy["method_ids"])) != stored.method_versions:
+                if (
+                    computation_versions(tuple(stored.policy["method_ids"]), policy=stored.policy)
+                    != stored.method_versions
+                ):
                     raise DomainError(
                         "method_version_changed", "方法版本已变，不能用新算法重写原固定批次", 409
                     )
@@ -2202,6 +2349,7 @@ class MonitorService:
             self.engine.recover(limit=30)
             # Recovery belongs to the selected source's active batch below.
             # A revoked dependency in one batch must not monopolize every tick.
+            self._drain_tracking()
             self.drain_deferred()
             with Session(self.engine.database) as session:
                 row = self._state(session)

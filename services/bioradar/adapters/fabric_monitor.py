@@ -372,7 +372,7 @@ def search_analysis_records(
         or not re.fullmatch(r"[A-Za-z0-9_.:-]{1,80}", source_id)
         or type(is_demo) is not bool
         or type(limit) is not int
-        or not 1 <= limit <= 6
+        or not 1 <= limit <= 20
         or not isinstance(terms, (list, tuple))
         or not 1 <= len(terms) <= 3
         or any(not isinstance(term, str) or not 2 <= len(term.strip()) <= 120 for term in terms)

@@ -350,8 +350,8 @@ def test_weknora_http_error_does_not_echo_private_body_or_credentials():
 @pytest.mark.parametrize(
     "changes",
     [
-        {"analysis_max_calls": 17},
-        {"analysis_max_queries": 7},
+        {"analysis_max_calls": 33},
+        {"analysis_max_queries": 33},
         {"analysis_max_tokens": 10_000_001},
         {"analysis_max_seconds": 1801},
         {"weknora_url": "http://:password@localhost"},

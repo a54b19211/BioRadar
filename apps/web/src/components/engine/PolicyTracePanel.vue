@@ -76,7 +76,7 @@ const statusNames: Record<string, string> = {
   not_requested: "本轮未请求", skipped_budget: "预算不足，未执行",
 };
 const dimensionNames: Record<string, string> = {
-  tool_calls: "实际工具动作", tokens: "token", model_calls: "模型调用", relation_access: "关系读取", queries: "执行动作",
+  tool_calls: "实际工具动作", known_tool_calls: "已确认工具动作", tokens: "token", model_calls: "模型调用", relation_access: "关系读取", queries: "执行动作",
 };
 const reasonNames: Record<string, string> = {
   selected_by_heuristic: "启发式选择本次动作",

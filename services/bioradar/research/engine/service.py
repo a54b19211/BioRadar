@@ -36,6 +36,7 @@ from bioradar.research.engine.schemas import (
     SnapshotSummary,
 )
 from bioradar.research.mining.models import (
+    DiscoveryPolicy,
     KddPolicy,
     MiningPolicy,
     MiningResult,
@@ -55,9 +56,11 @@ RESULT_BUDGET_MESSAGE = "结果超过运行预算，请缩小采用范围或候�
 
 
 def computation_versions(method_ids: tuple[str, ...], *, policy=None) -> dict[str, str]:
-    if isinstance(policy, dict) and "kdd_direction" in policy:
+    if isinstance(policy, dict) and "discovery_directions" in policy:
+        policy = DiscoveryPolicy.model_validate(policy)
+    elif isinstance(policy, dict) and "kdd_direction" in policy:
         policy = KddPolicy.model_validate(policy)
-    if isinstance(policy, KddPolicy):
+    if isinstance(policy, (KddPolicy, DiscoveryPolicy)):
         from bioradar.research.mining.kdd import kdd_versions
 
         return kdd_versions(policy)
@@ -259,7 +262,13 @@ class EngineService:
     @staticmethod
     def _compatible_policy(original: dict) -> MiningPolicy | None:
         try:
-            policy_type = KddPolicy if "kdd_direction" in original else MiningPolicy
+            policy_type = (
+                DiscoveryPolicy
+                if "discovery_directions" in original
+                else KddPolicy
+                if "kdd_direction" in original
+                else MiningPolicy
+            )
             policy = policy_type.model_validate(original)
         except ValidationError:
             return None

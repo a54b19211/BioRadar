@@ -7,6 +7,7 @@ from typing import Any
 from bioradar.research.mining.models import Candidate, EvidenceSupport, MethodResult, canonical_hash
 from bioradar.research.mining.prepare import PreparedRecord, PreparedSnapshot
 from bioradar.research.mining.registry import METHODS
+from bioradar.research.mining.signals import with_attention
 
 
 def support(item: PreparedRecord, quote: str | None = None, start: int | None = None) -> EvidenceSupport:
@@ -54,7 +55,7 @@ def candidate(
     supports = tuple(
         support(item, (quotes or {}).get(item.record.document_hash)) for _, item in sorted(by_ref.items())
     )
-    return Candidate(
+    value = Candidate(
         candidate_key=key,
         method_id=method_id,
         method_version=METHODS[method_id].version,
@@ -71,6 +72,12 @@ def candidate(
         evidence_status="partial" if items and all(i.confirmed_study for i in items) else "unverified",
         urgency=urgency,
         importance=importance,
+    )
+    return with_attention(
+        value,
+        [item.record for item in items],
+        qualified_study_refs={item.record.record_ref.version_key: item.confirmed_study for item in items},
+        policy=items[0].policy if items else None,
     )
 
 
@@ -99,6 +106,14 @@ def result(
         else "success",
         candidates=tuple(candidates[:limit]),
         statistics={
+            **(
+                {
+                    "time_axis": "verified_public_availability",
+                    "time_qualification": "proof_granularity_not_publication_or_collection_clock",
+                }
+                if prepared.policy.availability_basis == "public_history_reconstruction"
+                else {}
+            ),
             **(statistics or {}),
             "candidate_limit_omitted": extra,
             "record_budget_omitted": prepared.truncated_count,

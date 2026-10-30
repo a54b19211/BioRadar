@@ -359,6 +359,7 @@ def create_engine_router(settings: Settings) -> APIRouter:
                         budget=body.budget,
                         query_policy=body.query_policy,
                         kdd_direction=body.kdd_direction,
+                        historical_scope=body.historical_scope,
                     ),
                     "ask-analysis:" + canonical_hash(idempotency_key),
                 )
@@ -445,21 +446,19 @@ def create_engine_router(settings: Settings) -> APIRouter:
             if format == "markdown":
                 if analysis.result is None:
                     raise DomainError("analysis_report_unavailable", "本轮尚无可导出的分析稿", 409)
-                from bioradar.research.investigations.analysis import render_report
+                from bioradar.delivery.research_report import render_report_markdown
 
-                content = (analysis.result.report or {}).get("final_text") or render_report(
-                    analysis.result.model_dump(mode="json"), analysis.question
-                )
-                from bioradar.research.investigations.kdd import scope_markdown
-
-                content = scope_markdown(analysis.progress.get("material_scope")) + content
+                content = render_report_markdown(analysis.model_dump(mode="json"))
                 return Response(
                     content=content,
                     media_type="text/markdown; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="analysis-{analysis_id}.md"'},
                 )
+            from bioradar.delivery.research_report import build_report_delivery
+
             return {
                 "analysis": analysis.model_dump(mode="json"),
+                "delivery": build_report_delivery(analysis.model_dump(mode="json")),
                 "warning": "有出处的机器分析，专业方法评价或模型核验不等于人工批准。",
             }
 

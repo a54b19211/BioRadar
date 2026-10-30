@@ -77,6 +77,7 @@ def history_reader(settings, request=None):
             max_bytes=request.max_bytes if request else settings.engine_max_snapshot_bytes,
             max_seconds=request.max_seconds if request else 5,
             source_instance=getattr(settings, "data_fabric_source_instance", "datafabric-test"),
+            demo_source_instance=getattr(settings, "data_fabric_demo_source_instance", None),
         )
 
 
@@ -88,7 +89,11 @@ class HistoryService:
     def _authorize(self, actor, source_id, is_demo):
         if actor != DevelopmentAccess(self.engine.settings).actor():
             raise DomainError("permission_denied", "研究授权上下文不匹配", 403)
-        instance = "fixture" if is_demo else self.engine.settings.data_fabric_source_instance
+        instance = (
+            getattr(self.engine.settings, "data_fabric_demo_source_instance", None) or "fixture"
+            if is_demo
+            else self.engine.settings.data_fabric_source_instance
+        )
         if (
             instance not in actor.source_allowlist
             or source_id not in self.engine.settings.engine_source_id_allowlist.get(instance, [])
@@ -379,7 +384,8 @@ class HistoryService:
                     feature_snapshot,
                     MiningPolicy(
                         as_of=request.cutoff,
-                        time_mode="publication_retrospective",
+                        time_mode="availability_replay",
+                        availability_basis=request.mode,
                         method_ids=("lexical_emergence", "text_topics", "counterevidence_impact"),
                         limits=ResourceLimits(review_capacity=min(30, request.review_budget + 10)),
                     ),

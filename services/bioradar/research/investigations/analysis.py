@@ -118,7 +118,44 @@ def material_context_payload(evidence):
     return result
 
 
-def model_evidence(evidence):
+def _model_fact_projection(item, *, compact=False):
+    facts, locators = item.get("facts", {}), item.get("field_locators", {})
+    if not compact:
+        return {"facts": facts, "field_locators": locators}
+    facts, locators = copy.deepcopy(facts), copy.deepcopy(locators)
+    removed = []
+    names = {
+        "body", "full_text", "fulltext", "text", "clean_text", "normalized_text",
+        "abstract", "abstract_text",
+    }
+    selected = item.get("text", "")
+    for key, value in list(facts.items()):
+        if key == "document_evidence" and value == item.get("source_context"):
+            removed.append(key)
+            continue
+        if key not in names or not isinstance(value, str) or not value:
+            continue
+        pointer = (locators.get(key) or {}).get("json_pointer", "")
+        native_body = pointer.rsplit("/", 1)[-1] in names
+        duplicate = selected and (
+            selected in value or value in selected
+            or any(p["text"] in value for p in item.get("passages", []) if len(p["text"]) >= 40)
+        )
+        if native_body or duplicate:
+            removed.append(key)
+    for key in removed:
+        facts.pop(key, None)
+        locators.pop(key, None)
+    return {
+        "facts": facts, "field_locators": locators,
+        **({"omitted_text_projections": removed} if removed else {}),
+    }
+
+
+def model_evidence(evidence, *, include_source_context=False, evidence_time=None):
+    from bioradar.adapters.fabric_document import context_at
+
+    temporal = evidence_time or {}
     return [
         {
             "evidence_key": item["key"],
@@ -128,8 +165,14 @@ def model_evidence(evidence):
             "passages": [{"id": p["id"], "text": p["text"]} for p in item["passages"]],
             "publication_time": item.get("publication_time"),
             "record_flags": item.get("record_flags", []),
-            "facts": item.get("facts", {}),
-            "field_locators": item.get("field_locators", {}),
+            **_model_fact_projection(item, compact=include_source_context),
+            **(
+                {"source_context": context_at(
+                    item["source_context"], mode=temporal.get("mode", "current"),
+                    cutoff=temporal.get("cutoff"), text=item["text"],
+                )}
+                if include_source_context and item.get("source_context") is not None else {}
+            ),
             "limitations": item.get("limitations", []),
         }
         for item in evidence
@@ -285,6 +328,94 @@ def validate_reading(value, evidence, search_scope):
         if not set(alternative.for_claim_ids + alternative.against_claim_ids).issubset(claim_ids):
             raise DomainError("analysis_output_invalid", "竞争解释指向不存在的命题", 422)
     return result
+
+
+def validate_policy_reading(value, evidence, search_scope):
+    """Retain hard source/position checks for optional structured research judgments."""
+    from bioradar.research.investigations.analysis_models import PolicyReading
+
+    try:
+        result = PolicyReading.model_validate(value)
+    except ValidationError:
+        raise DomainError("analysis_reading_invalid", "模型研究解读结构无效，原回执保留", 422) from None
+    core = result.model_dump(
+        mode="json", exclude={"coverage_checks", "warning_assessment", "competing_hypotheses"}
+    )
+    for query in core["next_queries"]:
+        query.pop("coverage_check_ids", None)
+    validate_reading(core, evidence, search_scope)
+    claims = {claim.id: claim for claim in result.claims}
+    hypotheses = result.competing_hypotheses or []
+    if len({item.id for item in hypotheses}) != len(hypotheses):
+        raise DomainError("analysis_output_invalid", "竞争假设编号重复", 422)
+    assessments = list(hypotheses)
+    if result.warning_assessment is not None:
+        assessments.append(result.warning_assessment)
+    for item in assessments:
+        ids = item.supporting_claim_ids + item.opposing_claim_ids
+        if not set(ids).issubset(claims):
+            raise DomainError("analysis_output_invalid", "研究判断引用不存在的命题", 422)
+        if set(item.supporting_claim_ids) & set(item.opposing_claim_ids):
+            raise DomainError("analysis_output_invalid", "同一命题不能同时标为同一假设的支持与反证", 422)
+    warning = result.warning_assessment
+    if warning is not None and warning.decision == "alert":
+        if not warning.supporting_claim_ids or not any(
+            claims[key].evidence_links for key in warning.supporting_claim_ids
+        ):
+            raise DomainError("analysis_output_invalid", "预警判断须绑定实际固定原文命题", 422)
+        if not warning.critical_unknowns or not warning.next_actions:
+            raise DomainError("analysis_output_invalid", "预警判断须保留关键未知与核实动作", 422)
+    return result
+
+
+def research_task_context(fixed):
+    """Versioned tasks; baseline and existing frozen runs retain their original prompts."""
+    policy = fixed.get("query_policy", {})
+    if not (
+        policy.get("schema_version") == "query-planner.external.v2"
+        and policy.get("effective") == "query_planner"
+        and policy.get("research_contract_version") == "bioradar-research-input-v1"
+    ):
+        return {}
+    direction = policy.get("direction", "research")
+    tasks = {
+        "public_health": (
+            "明确判断建议预警(alert)、立即核实(verify_now)或暂不预警但继续观察(watch)，"
+            "依据当时已见材料、成立条件、反证、病原与传播关键未知及下一动作；"
+            "是否已获官方发文与是否值得预警分别回答。未发现不等于已排除。"
+        ),
+        "business": (
+            "分别核对订单、更正、可比期间、验收与收入确认、预收与现金、产能利用率和样本范围；"
+            "只采用程序已计算并明确口径的数值，不以模型心算代替计算，不能从三家样本外推行业。"
+        ),
+        "pipeline": (
+            "明确试验、项目和适应证身份，区分人群、预设终点(PFS与OS)、安全性、"
+            "监管与发表状态以及更正；同试验更正不算新试验或新增受试者。"
+        ),
+        "research": (
+            "明确研究命题和成立条件；涉及临床进展时分别核对人群、预设终点、安全性、"
+            "监管与发表状态和更正，有限PFS信号不等于OS获益或获批。"
+        ),
+    }
+    return {
+        "version": policy["research_contract_version"],
+        "direction": direction,
+        "task": tasks.get(direction, tasks["research"]),
+        "claim_instruction": (
+            "将传言拆为可核对命题：事件、地点、数量、归属说话人及自称来源；"
+            "来源类型、独立性、更正和未证实状态必须沿用输入，转载不算独立确认。"
+            "匿名截图、删帖、辟谣或处罚仅是待核来源/反应信号，不证明病原存在或传言为假。"
+        ),
+        "hypothesis_instruction": (
+            "并列合理竞争假设，分别列支持命题、反向命题、未检验条件及最能区分它们的下一证据；"
+            "不得用缺少反证自动选出赢家；可保持多个解释未决。"
+        ),
+        "output_instruction": (
+            "公卫预警问题填写warning_assessment，支持与反证引用当前已验证claim id，"
+            "alert必须附原文支持、关键未知和核实动作；需要比较解释时填写competing_hypotheses。"
+            "结构合法与文字转述准确不证明传言属实，保留据称/网传/未证实限定。"
+        ),
+    }
 
 
 def validate_update(value, claims, evidence, *, parent):
@@ -448,7 +579,10 @@ def freeze_payload(
         "as_of": fixed_input["as_of"],
         "analysis_version": ANALYSIS_VERSION,
         "prompt_version": PROMPT_VERSION,
-        "evidence": model_evidence(evidence),
+        "evidence": model_evidence(
+            evidence, include_source_context=bool(research_task_context(fixed_input)),
+            evidence_time=fixed_input.get("evidence_time"),
+        ),
         "search_scope": fixed_input["search_scope"],
     }
     if (
@@ -456,6 +590,9 @@ def freeze_payload(
         and fixed_input.get("query_policy", {}).get("effective") == "query_planner"
     ):
         payload.update(material_context_payload(evidence))
+    task_context = research_task_context(fixed_input)
+    if task_context and stage in {"read_plan", "synthesize"}:
+        payload["research_task"] = task_context
     if stage == "read_plan":
         payload["query_instruction"] = (
             "补查terms是必须同时满足的字面条件（AND），不是任选词。"
@@ -775,15 +912,21 @@ def readable_result(result):
     return "\n".join(lines)[:7900]
 
 
-def source_excerpt(original, remaining):
+def source_excerpt(original, remaining, *, start=None, max_characters=6000):
     """Select exact source text; native fields are never rewritten as source quotations."""
     raw_basis = original["record_kind"] == "trial" and original["raw_media_type"].startswith(
         "application/json"
     )
     source_text = original["raw_content"] if raw_basis else original["clean_text"]
-    start = 0
+    explicit_start = start is not None
+    if start is None:
+        start = 0
+    if type(start) is not int or not 0 <= start <= len(source_text):
+        raise DomainError("analysis_selection_mismatch", "读取窗口不是实际原件的合法Unicode下标", 422)
+    if type(max_characters) is not int or max_characters < 1:
+        raise DomainError("analysis_selection_mismatch", "读取窗口长度无效", 422)
     reason = original["facts"].get("why_stopped")
-    if raw_basis and isinstance(reason, str):
+    if not explicit_start and raw_basis and isinstance(reason, str):
         position = source_text.find(reason)
         if position < 0:
             position = source_text.find(json.dumps(reason, ensure_ascii=False)[1:-1])
@@ -818,7 +961,7 @@ def source_excerpt(original, remaining):
             continue
         fields[key] = value
         used += size
-    content = source_text[start : start + max(0, min(6000, remaining - used))]
+    content = source_text[start : start + max(0, min(max_characters, remaining - used))]
     limitations = []
     if len(content) != len(source_text):
         limitations.append("本轮仅输入原件连续片段，其余内容未作已读证据。")
@@ -829,6 +972,11 @@ def source_excerpt(original, remaining):
         "start": start,
         "end": start + len(content),
         "text_sha256": hashlib.sha256(source_text.encode()).hexdigest(),
+        "source_length": len(source_text),
+        **(
+            {"source_context": copy.deepcopy(original["document_evidence"])}
+            if original.get("document_evidence") is not None else {}
+        ),
         "text_basis": "source_raw_content" if raw_basis else "source_clean_text",
         "facts": fields,
         "field_locators": {k: original["field_locators"][k] for k in fields},
@@ -912,6 +1060,16 @@ def analysis_budget(fixed, progress, now):
         limits = {**limits, "max_seconds": seconds}
         clock_started = resumed_at
         elapsed = max(0, ((ended if ended >= resumed_at else now) - resumed_at).total_seconds())
+    from bioradar.research.investigations.execution_budget import waiting_seconds
+
+    wait_progress = (
+        progress if not resumption
+        else {**progress, "started_at": clock_started.isoformat()}
+    )
+    paused = waiting_seconds(fixed, wait_progress, now)
+    display_end = ended if not resumption or ended >= clock_started else now
+    display_paused = waiting_seconds(fixed, wait_progress, min(display_end, now))
+    elapsed = max(0, elapsed - display_paused)
     return {
         "limits": limits,
         **(
@@ -933,7 +1091,10 @@ def analysis_budget(fixed, progress, now):
             "budgeted_tokens": charged,
             "queries": len(progress.get("queries", [])),
             "elapsed_seconds": elapsed,
-            "remaining_seconds": limits["max_seconds"] - max(0, (now - clock_started).total_seconds()),
+            "remaining_seconds": limits["max_seconds"] - max(
+                0, (now - clock_started).total_seconds() - paused
+            ),
+            **({"automatic_budget_wait_seconds": paused} if paused else {}),
             **({"original_elapsed_seconds": original_elapsed} if resumption else {}),
             "monetary_cost": None,
             "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。",

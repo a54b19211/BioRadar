@@ -131,7 +131,7 @@ class Source:
 
 @pytest.fixture
 def runtime(database):
-    for name in ("0006_monitor.py", "0007_topics.py"):
+    for name in ("0006_monitor.py", "0007_topics.py", "0008_investigation_analyses.py"):
         path = Path(__file__).resolve().parents[1] / "db/migrations/versions" / name
         spec = importlib.util.spec_from_file_location("monitor_migration", path)
         migration = importlib.util.module_from_spec(spec)
@@ -152,11 +152,25 @@ def runtime(database):
     )
     client = httpx.Client(base_url="http://127.0.0.1:18511", transport=httpx.MockTransport(source.handler))
 
-    def make():
+    def make(*, legacy=True):
         reader = FabricHistoryReader(client, authorization_ref=GRANT, max_seconds=90)
         engine = EngineService(database, settings)
         engine.history_source_reader = reader.sources
-        return MonitorService(engine, reader)
+        monitor = MonitorService(engine, reader)
+        if legacy and not settings.monitor_kdd_directions:
+            # These transaction/fault tests freeze the original MiningPolicy.
+            # New Discovery acceptance is exercised by test_opus_monitor_runtime.
+            from bioradar.research.mining.models import ResourceLimits
+            from bioradar.research.monitor.service import MiningPolicy
+
+            monitor._mining_policy = lambda source, now, **kw: MiningPolicy(
+                as_of=now,
+                discovery_mode="stock_and_incremental",
+                limits=ResourceLimits(
+                    max_records=settings.engine_max_records, review_capacity=12, max_candidates_per_method=30
+                ),
+            )
+        return monitor
 
     yield make, source, settings
     client.close()
@@ -175,9 +189,24 @@ def finish_pending(runtime):
 
 def seeded(source):
     source.records = [
-        record(1, "SYNTHETIC adaptive immune vesicle treatment with transient activation.", seq=1),
-        record(2, "SYNTHETIC adaptive immune vesicle delivery with persistent regulation.", seq=2),
-        record(3, "SYNTHETIC unrelated boron imaging method for a different observation.", seq=3),
+        record(
+            1,
+            "SYNTHETIC adaptive immune vesicle treatment with transient activation. "
+            "CX-893三期试验纳入240名患者。",
+            seq=1,
+        ),
+        record(
+            2,
+            "SYNTHETIC adaptive immune vesicle delivery with persistent regulation. "
+            "CX-893三期试验纳入240名患者。",
+            seq=2,
+        ),
+        record(
+            3,
+            "SYNTHETIC unrelated boron imaging method for a different observation. "
+            "CX-461三期试验纳入180名患者。",
+            seq=3,
+        ),
     ]
 
 
@@ -198,10 +227,9 @@ def test_unattended_two_batches_persist_queries_and_restart_without_duplicate(ru
     )
     selected = next(lead for lead in leads if lead.investigation_id == view.id)
     candidate = selected.payload["candidate"]
-    assert view.question == (
-        f"待调查线索（程序候选，尚未核实）：{candidate['title'][:200]}\n"
-        f"调查问题：{candidate['next_questions'][0]}"
-    )
+    assert candidate["title"][:200] in view.question
+    assert candidate["next_questions"][0] in view.question
+    assert "反证" in view.question and "条件" in view.question
     assert not any(e.kind == "judgment" for e in view.entries)
     assert all(e.payload.automation is not None for e in view.entries if e.kind in {"note", "material"})
     make().tick()  # New coordinator instance simulates a clean restart.
@@ -922,6 +950,11 @@ def _only_state_transition_policy(monkeypatch):
         method_ids: tuple[str, ...] = ("state_transitions",)
 
     monkeypatch.setattr(monitor_service, "MiningPolicy", StateOnlyPolicy)
+
+    def state_only(self, source, now, **kwargs):
+        return StateOnlyPolicy(as_of=now, discovery_mode="stock_and_incremental")
+
+    monkeypatch.setattr(monitor_service.MonitorService, "_mining_policy", state_only)
 
 
 def test_selection_summary_new_version_is_not_automatically_worth_investigation(runtime, monkeypatch):

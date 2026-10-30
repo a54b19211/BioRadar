@@ -182,7 +182,10 @@ def test_followup_excerpt_budget_retains_initial_reading_and_actual_search_recei
         )
         # Exercise the actual excerpt-budget gate, with no direct injected DomainError.
         with monkeypatch.context() as patch:
-            patch.setattr(module, "MAX_CHARACTERS", used)
+            original_limits = module.reading_limits
+            patch.setattr(module, "reading_limits", lambda value: {
+                **original_limits(value), "max_characters": used,
+            })
             return adopt(identifier, token, fixed, progress, original, tag)
 
     service._adopt_original = exhaust_after_reading

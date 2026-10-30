@@ -2,9 +2,11 @@
 import { computed } from "vue";
 import { ElButton, ElTag } from "element-plus";
 import type { ResearchAnalysisView } from "../../api/research";
+import type { InvestigationEntry } from "../../api/engine";
+import ReportSourceIndex from "./ReportSourceIndex.vue";
 
 type View = ResearchAnalysisView;
-const props = defineProps<{ analysis: View }>();
+const props = defineProps<{ analysis: View; humanDecision?: InvestigationEntry | null }>();
 const genericReviewRan = computed(() => props.analysis.calls.some(call => ["check", "recheck", "final_check"].includes(call.stage) && call.status === "received"));
 const emit = defineEmits<{ source: [key: string] }>();
 function object(value: unknown): Record<string, unknown> {
@@ -96,6 +98,18 @@ function feedbackAction(value: unknown) {
   const action = text(object(value).action);
   return feedbackActions[action] || action;
 }
+const evidenceTime = computed(() => object((props.analysis.query_policy ?? props.analysis.result?.query_policy)?.evidence_time));
+const isReplay = computed(() => props.analysis.trigger === "history" ||
+  (typeof evidenceTime.value.mode === "string" && evidenceTime.value.mode !== "current"));
+const warningLabels: Record<string, string> = { verify_now: "立即核实", alert: "建议发出待核提醒", watch: "继续观察" };
+const readingStates: Record<string, string> = { read: "已读选定片段", unread: "尚未读取", unavailable: "暂不可读" };
+const readingReasons: Record<string, string> = { correction: "更正材料", counterevidence: "反证材料", scope: "范围材料" };
+function citedClaims(ids: string[]) {
+  return ids.map(id => {
+    const claim = props.analysis.result?.claims.find(item => item.id === id);
+    return claim ? id + "：" + claim.text : id + "（本版未找到对应陈述）";
+  });
+}
 const reportStatus: Record<string, string> = {
   PASS: "BioCheck 原核验通过", REVIEW: "报告待核", FAIL: "报告核验未通过",
   UNAVAILABLE: "核验服务暂不可用", FAILED: "报告核验未完成",
@@ -114,6 +128,12 @@ const mechanismStatus: Record<string, string> = {
   needs_input: "评价仍缺输入", failed: "本次评价未完成", completed: "已完成机制评价",
   skipped_budget: "预算不足，本轮未执行",
 };
+const mechanismSummary = computed(() => {
+  const evaluation = props.analysis.result?.mechanism_evaluation;
+  const state = mechanismStatus[evaluation?.status || "not_requested"] || evaluation?.status;
+  const verdict = evaluation?.overall?.verdict;
+  return verdict ? state + "；" + (mechanismStatus[verdict] || verdict) : state;
+});
 const claimStatus: Record<string, string> = {
   supported: "所列依据支持", contradicted: "所列依据反对",
   mixed: "依据存在分歧", insufficient: "依据不足",
@@ -147,6 +167,58 @@ const reviewStatus: Record<string, string> = {
 
 <template>
   <div v-if="analysis.result" class="machine-result">
+    <section class="validation-summary" aria-label="分别核验与人工决定">
+      <h3>本版核验与判断</h3>
+      <dl class="validation-grid">
+        <div><dt>全文文字核验</dt><dd>{{ savedReport ? reportStatus[savedReport.status.toUpperCase()] || savedReport.status : "未执行" }}</dd></div>
+        <div><dt>所选片段复核</dt><dd>{{ auditLabels[supportAuditStatus] || supportAuditStatus }}</dd></div>
+        <div><dt>Mech 机制评价</dt><dd>{{ mechanismSummary }}</dd></div>
+        <div><dt>人工决定</dt><dd>{{ humanDecision?.kind === 'judgment' ? "调查中已记录人工判断" : "尚未记录人工判断" }}</dd></div>
+      </dl>
+      <p class="muted">文字核验判断转述和引用是否准确；所选片段复核只覆盖实际所选片段。两者均不证明传言属实，不替代机制评价或人工决定。</p>
+      <p v-if="analysis.is_demo" class="notice">教学／模拟材料，不能作为真实情报成绩。</p>
+      <p v-if="isReplay" class="notice">历史回放：仅允许当时已可见材料；截止 {{ evidenceTime.cutoff || "未记录" }}。现代模型仍可能含训练后见知识，本结果不等同于当时的真实预测。</p>
+      <details v-if="humanDecision?.kind === 'judgment'">
+        <summary>调查中最新人工判断（不表示逐字批准本稿）</summary>
+        <p>{{ humanDecision.payload.text }}</p>
+        <p v-if="humanDecision.payload.kind === 'judgment'">适用条件：{{ humanDecision.payload.conditions }}；依据调查第 {{ humanDecision.payload.based_on_revision }} 版。</p>
+        <small>{{ humanDecision.created_at }} · {{ humanDecision.created_by }}</small>
+      </details>
+    </section>
+    <section v-if="analysis.result.warning_assessment" class="warning-assessment notice" aria-label="核实优先级与竞争解释">
+      <h3>{{ warningLabels[analysis.result.warning_assessment.decision] || analysis.result.warning_assessment.decision }}</h3>
+      <p>{{ analysis.result.warning_assessment.reason }}</p>
+      <p class="muted">这是当前核实／提醒优先级，不是真实性概率或潜在后果评分；原始说法是否属实仍须用独立证据判断。事后不成立的说法，当时也可能值得核实。</p>
+      <p><strong>支持当前行动的陈述：</strong>{{ citedClaims(analysis.result.warning_assessment.supporting_claim_ids).join("；") || "未列出" }}</p>
+      <p><strong>反对或限制当前行动的陈述：</strong>{{ citedClaims(analysis.result.warning_assessment.opposing_claim_ids).join("；") || "未列出" }}</p>
+      <h4 v-if="analysis.result.warning_assessment.critical_unknowns.length">关键未知</h4>
+      <ul><li v-for="item in analysis.result.warning_assessment.critical_unknowns" :key="item">{{ item }}</li></ul>
+      <h4 v-if="analysis.result.warning_assessment.next_actions.length">下一步核实</h4>
+      <ul><li v-for="item in analysis.result.warning_assessment.next_actions" :key="item">{{ item }}</li></ul>
+    </section>
+    <section v-if="analysis.result.competing_hypotheses?.length" class="competing-hypotheses">
+      <h3>并列解释与可检验缺口</h3>
+      <p class="muted">以下保留竞争解释，不由算法宣布胜者。</p>
+      <article v-for="item in analysis.result.competing_hypotheses" :key="item.id" class="investigation-entry">
+        <h4>{{ item.id }} · {{ item.explanation }}</h4>
+        <p><strong>支持：</strong>{{ citedClaims(item.supporting_claim_ids).join("；") || "未列出" }}</p>
+        <p><strong>反证／限制：</strong>{{ citedClaims(item.opposing_claim_ids).join("；") || "未列出" }}</p>
+        <p><strong>区分解释还需要：</strong>{{ item.discriminating_evidence_needed }}</p>
+        <ul><li v-for="condition in item.untested_conditions" :key="condition">未检验条件：{{ condition }}</li></ul>
+      </article>
+    </section>
+    <section v-if="analysis.result.coverage_issues?.length || analysis.result.reading_manifest?.length" class="reading-manifest notice">
+      <h3>覆盖缺口与优先原文</h3>
+      <p v-if="analysis.result.coverage_issues?.length">{{ analysis.result.coverage_issues.length }} 项覆盖声明仍未知，未计作已覆盖。</p>
+      <ul><li v-for="item in analysis.result.coverage_issues" :key="item.check_id + ':' + item.source">{{ item.check_id }} · {{ item.source }}：未知</li></ul>
+      <details v-if="analysis.result.reading_manifest?.length" :open="analysis.result.reading_manifest.some(item => item.priority === 'critical' && item.status !== 'read')">
+        <summary>需优先核对的固定材料窗口（{{ analysis.result.reading_manifest.length }} 项）</summary>
+        <ul><li v-for="item in analysis.result.reading_manifest" :key="[item.source_id, item.source_record_id, item.version_id, item.window_start, item.status].join(':')">
+          {{ item.priority === 'critical' ? '关键' : '普通' }} · {{ readingReasons[item.reason] || item.reason }} · {{ item.status === 'unread' && item.window_start != null ? '后续窗口未读，已保留此前片段' : readingStates[item.status] || item.status }}
+          · {{ item.source_id }} / {{ item.source_record_id }} / {{ item.version_id }}<span v-if="item.window_start != null"> · 窗口起点 {{ item.window_start }}（Unicode字符）</span><span v-if="item.covers.length"> · 预计帮助核对 {{ item.covers.join('、') }}，不代表覆盖已完成</span>
+        </li></ul>
+      </details>
+    </section>
     <section v-if="analysis.result.report" class="research-report">
       <div class="candidate-meta">
         <h3>研究报告</h3>
@@ -154,8 +226,10 @@ const reviewStatus: Record<string, string> = {
           {{ generationError ? "报告生成未完成" : reportStatus[analysis.result.report.status.toUpperCase()] || analysis.result.report.status }}
         </ElTag>
       </div>
+      <p v-if="analysis.result.report.final_text" class="muted">原保存正文（逐字保留；核验状态见上方）<small v-if="savedReport?.text_sha256"> · SHA-256 {{ savedReport.text_sha256 }}</small></p>
       <div v-if="analysis.result.report.final_text" class="report-document">{{ analysis.result.report.final_text }}</div>
       <p v-else class="notice">本版尚未取得可阅读的报告正文，请查看核验与执行记录。</p>
+      <ReportSourceIndex v-if="analysis.result.report.final_text" :analysis="analysis" @source="emit('source', $event)" />
       <p class="muted">{{ analysis.result.report.provider || "报告生成服务" }} ·
         {{ generationError ? "当前正文为此前已保存的结构化分析稿，专业生成与核验未完成。" : analysis.result.report.status.toUpperCase() === "PASS" ? "原报告核验已通过；所选片段复核另见下方。" : "原报告核验尚未通过，当前正文已保留供检查。" }}
       </p>
@@ -389,6 +463,10 @@ const reviewStatus: Record<string, string> = {
 .research-report { margin: 24px 0; }
 .research-report h3 { margin: 0; }
 .report-document { white-space: pre-wrap; font-size: 15px; line-height: 1.9; color: var(--el-text-color-primary); padding: 20px 0; }
+.validation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.validation-grid dt { font-size: 13px; color: var(--el-text-color-secondary); }
+.validation-grid dd { margin: 6px 0; }
+.validation-summary small { overflow-wrap: anywhere; }
 .machine-result h3 { margin: 1.4rem 0 .6rem; }
 .machine-result h4 { margin: .9rem 0 .3rem; }
 .machine-result li { margin: .4rem 0; line-height: 1.65; }

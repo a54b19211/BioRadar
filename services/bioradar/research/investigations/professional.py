@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import copy
+
 import httpx
 
 from bioradar.api.errors import DomainError
@@ -435,6 +437,14 @@ def mechanism(service, identifier, token, fixed, progress, reading):
             {
                 "mechanism": reading.mechanism_candidate,
                 "qualification": "machine_proposed_candidate_not_source_fact",
+                **(
+                    {
+                        "research_contract_version": "bioradar-research-input-v1",
+                        "research_scope": {"evidence_time": copy.deepcopy(fixed["evidence_time"])},
+                    }
+                    if fixed.get("query_policy", {}).get("research_contract_version")
+                    == "bioradar-research-input-v1" else {}
+                ),
             },
         )
         if not reading.mechanism_candidate or not fixed.get("providers", {}).get("mech_evidence", {}).get(

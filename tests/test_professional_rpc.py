@@ -494,9 +494,9 @@ def test_native_applicability_and_limited_error_code_remain_distinct_without_mod
         return httpx.Response(200, json=response)
 
     with httpx.Client(base_url="http://127.0.0.1", transport=httpx.MockTransport(handler)) as client:
-        if status == "not_applicable":
-            result = run(client, state, lambda *a, **k: pytest.fail("Not applicable"))
-            assert result["status"] == "not_applicable"
+        if status in {"not_applicable", "needs_input"}:
+            result = run(client, state, lambda *a, **k: pytest.fail("No model for terminal feedback"))
+            assert result["status"] == status
             assert result["error_code"] == "professional_task_not_applicable"
             assert "result" not in result
         else:

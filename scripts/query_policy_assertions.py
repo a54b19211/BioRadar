@@ -101,7 +101,10 @@ def _dataset(payload):
 
 def _pattern(payload):
     _require(isinstance(payload, dict), "pattern payload is not visible")
-    _require(payload.get("compute_version") == "bioradar-mining-compute-v0.3", "not a saved KDD computation")
+    _require(
+        payload.get("compute_version") in {"bioradar-mining-compute-v0.3", "bioradar-mining-compute-v0.4"},
+        "not a saved KDD computation",
+    )
     _require(
         payload.get("result_hash") == _hash({k: v for k, v in payload.items() if k != "result_hash"}),
         "saved pattern content differs from its frozen hash",
@@ -396,6 +399,108 @@ def _artifact_check(check, artifacts, payloads):
         )
 
 
+def _fetch_known_prefix(query):
+    cost = query.get("cost") or {}
+    if "known_tool_calls" not in cost:
+        return 0
+    known = cost["known_tool_calls"]
+    fetch = (query.get("usage") or {}).get("fetch") or {}
+    _require(
+        query.get("kind") == "source_fetch"
+        and query.get("provider") == "fabric"
+        and query.get("status") in UNCONFIRMED
+        and cost.get("tool_calls") is None
+        and type(known) is int
+        and known >= 0
+        and type(fetch.get("known_tool_calls")) is int
+        and known == fetch["known_tool_calls"]
+        and cost.get("reserved_tool_calls") == 1,
+        "partial known cost is not bound to the actual source-fetch receipt",
+    )
+    if known:
+        _require(
+            fetch.get("submission_status") == "received"
+            and isinstance(fetch.get("run_id"), str)
+            and bool(fetch["run_id"]),
+            "known fetch prefix has no received run identity",
+        )
+    return known
+
+
+def _source_fetch_receipt(view, trace, action, query):
+    args = action["arguments"]
+    fetch = (query.get("usage") or {}).get("fetch") or {}
+    _require(
+        query.get("provider") == "fabric"
+        and query.get("kind") == "source_fetch"
+        and query.get("plan") == args
+        and args.get("capability_id") == "fabric.history.fetch"
+        and args.get("capability_version") == "datafabric.history.fetch.v1",
+        "actual source fetch differs from the selected fixed capability",
+    )
+    _require(
+        view.get("is_demo") is False
+        and args.get("scope")
+        == {
+            "direction": trace.get("direction"),
+            "mode": "current",
+            "as_of": (trace.get("evidence_time") or {}).get("cutoff"),
+            "is_demo": False,
+        }
+        and (trace.get("evidence_time") or {}).get("mode") == "current",
+        "source fetch crossed its actual current/real/direction scope",
+    )
+    parameters = args.get("parameters")
+    _require(isinstance(parameters, dict), "source-fetch parameters missing")
+    expected = {
+        "source_record_ids": [],
+        "max_records": 10,
+        "max_pages": 3,
+        "deadline_seconds": 60,
+        **{key: value for key, value in parameters.items() if value is not None},
+    }
+    request = fetch.get("request")
+    _require(
+        request == expected
+        and fetch.get("request_hash") == _hash(request)
+        and fetch.get("call_key") == "analysis-fetch:" + _hash([view.get("id"), action["id"]]),
+        "source fetch lost its normalized request, hash or stable acceptance key",
+    )
+    run = fetch.get("run")
+    records = query.get("records") or []
+    _require(isinstance(records, list), "fetch returned-record receipt is not a list")
+    if run is None:
+        _require(not fetch.get("run_id") and not records, "unconfirmed fetch invented a run or versions")
+        return
+    _require(
+        isinstance(run, dict)
+        and run.get("id") == fetch.get("run_id")
+        and bool(run.get("id"))
+        and run.get("source_id") == request.get("source_id")
+        and run.get("is_demo") is False
+        and run.get("kind") == "fetch",
+        "source fetch run does not match its received source and data class",
+    )
+    versions = run.get("version_ids")
+    _require(
+        isinstance(versions, list)
+        and len(versions) == len(set(versions))
+        and all(isinstance(value, str) and len(value) == 64 for value in versions),
+        "fetch run version identities are invalid",
+    )
+    for record in records:
+        _require(
+            record.get("source_id") == request["source_id"]
+            and record.get("is_demo") is False
+            and record.get("version_id") in versions
+            and isinstance(record.get("source_record_id"), str)
+            and bool(record["source_record_id"])
+            and isinstance(record.get("raw_content"), str)
+            and record.get("raw_sha256") == hashlib.sha256(record["raw_content"].encode()).hexdigest(),
+            "returned original is not bound to an actual source-fetch run version",
+        )
+
+
 def assert_professional_http_accounting(view):
     """Reconcile visible saved attempts without filling a cost residual or exposing requests."""
     trace = view["query_policy"]
@@ -504,6 +609,8 @@ def assert_professional_http_accounting(view):
         elif known is not None:
             _require(type(known) is int and known >= 0, "invalid measured route request count")
             route_known += known
+        else:
+            route_known += _fetch_known_prefix(query)
         if known is None:
             route_reserved += cost.get("reserved_tool_calls", 0)
     usage = trace["budget"]["usage"]
@@ -708,6 +815,8 @@ def assert_query_policy(view, *, expected_policy=None, terminal=True):
                 _kdd_receipt(action, query, receipt, artifacts, executions, available_artifacts)
             )
             _capability_model_cost(view, action, query)
+        elif v2 and action["kind"] == "source_fetch":
+            _source_fetch_receipt(view, trace, action, query)
         elif v2 and action["kind"] in {"entity_relations", "graph_neighbors", "graph_path"}:
             _require(
                 query.get("provider") == "fabric_graph"
@@ -745,6 +854,7 @@ def assert_query_policy(view, *, expected_policy=None, terminal=True):
                 isinstance(reserve, (int, float)) and math.isfinite(reserve) and reserve > 0,
                 "unknown sent intent has no conservative budget reservation",
             )
+            measured_calls += _fetch_known_prefix(query)
             unknown_calls += 1
             reserved_calls += reserve
         else:

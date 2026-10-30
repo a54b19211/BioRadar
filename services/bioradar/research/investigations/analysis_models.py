@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Annotated, Literal
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from bioradar.research.engine.schemas import RuntimeModel
 from bioradar.research.mining.models import ProviderRef
@@ -34,6 +34,11 @@ class QuestionPlan(RuntimeModel):
     limitations: list[Text] = Field(default_factory=list, max_length=8)
 
 
+class HistoricalAnalysisScope(RuntimeModel):
+    mode: Literal["public_history_reconstruction", "operational_replay"]
+    cutoff: AwareDatetime
+
+
 class QuestionAsk(RuntimeModel):
     question: str = Field(min_length=1, max_length=4000)
     title: str | None = Field(default=None, min_length=1, max_length=200)
@@ -41,6 +46,9 @@ class QuestionAsk(RuntimeModel):
     source_ids: list[str] = Field(default_factory=list, max_length=8)
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
+    historical_scope: HistoricalAnalysisScope | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     query_policy: Literal["baseline", "query_planner"] | None = None
     kdd_direction: Literal["research", "pipeline", "business", "public_health"] | None = Field(
         default=None, exclude_if=lambda value: value is None
@@ -54,6 +62,9 @@ class AnalysisCreate(RuntimeModel):
     source_ids: list[str] = Field(default_factory=list, max_length=8)
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
+    historical_scope: HistoricalAnalysisScope | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     query_policy: Literal["baseline", "query_planner"] | None = None
     kdd_direction: Literal["research", "pipeline", "business", "public_health"] | None = Field(
         default=None, exclude_if=lambda value: value is None
@@ -117,8 +128,26 @@ class ConditionalAnswer(RuntimeModel):
 class CoverageCheck(RuntimeModel):
     id: LocalId
     status: Literal["passed", "failed", "unknown"] = "unknown"
-    evidence_ids: list[LocalId] = Field(default_factory=list, max_length=10)
+    evidence_ids: list[LocalId] = Field(default_factory=list, max_length=32)
     reason: str = Field(default="", max_length=2000)
+
+
+class WarningAssessment(RuntimeModel):
+    decision: Literal["verify_now", "alert", "watch"]
+    supporting_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    opposing_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    critical_unknowns: list[Text] = Field(default_factory=list, max_length=8)
+    next_actions: list[Text] = Field(default_factory=list, max_length=6)
+    reason: Text
+
+
+class CompetingHypothesis(RuntimeModel):
+    id: LocalId
+    explanation: Text
+    supporting_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    opposing_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    discriminating_evidence_needed: Text
+    untested_conditions: list[Text] = Field(default_factory=list, max_length=8)
 
 
 class ModelReading(RuntimeModel):
@@ -133,6 +162,10 @@ class ModelReading(RuntimeModel):
 class PolicyReading(ModelReading):
     coverage_checks: list[CoverageCheck] = Field(default_factory=list, max_length=64)
     next_queries: list[PolicyPlannedQuery] = Field(max_length=2)
+    warning_assessment: WarningAssessment | None = Field(default=None, exclude_if=lambda value: value is None)
+    competing_hypotheses: list[CompetingHypothesis] | None = Field(
+        default=None, max_length=4, exclude_if=lambda value: value is None
+    )
 
 
 class ClaimUpdate(RuntimeModel):
@@ -224,6 +257,7 @@ class AnalysisEvidence(RuntimeModel):
         "snapshot_normalized"
     )
     history_binding: dict | None = None
+    source_context: dict | None = Field(default=None, exclude_if=lambda value: value is None)
     facts: dict = Field(default_factory=dict)
     field_locators: dict = Field(default_factory=dict)
     snapshot_id: str
@@ -234,6 +268,7 @@ class AnalysisEvidence(RuntimeModel):
     start: int
     end: int
     text_sha256: str
+    source_length: int | None = Field(default=None, ge=0, exclude_if=lambda value: value is None)
     passages: list[AnalysisPassage] = Field(default_factory=list)
     selection_hash: str | None = None
     publication_time: str | None = None
@@ -281,6 +316,10 @@ class AnalysisResult(RuntimeModel):
     report: dict | None = None
     mechanism_evaluation: dict | None = None
     query_policy: dict | None = None
+    warning_assessment: WarningAssessment | None = Field(default=None, exclude_if=lambda value: value is None)
+    competing_hypotheses: list[CompetingHypothesis] | None = Field(
+        default=None, max_length=4, exclude_if=lambda value: value is None
+    )
     limitations: list[str]
 
 

@@ -203,7 +203,8 @@ def test_research_documents_can_explore_without_fabricating_independent_studies(
     assert method(result, "research_tfidf_topics").candidates
     assert method(result, "research_evidence_balance").execution_status == "unsupported"
     assert all(
-        candidate.metrics["independent_study_count"] == 0
+        candidate.metrics["independent_study_count"] is None
+        and candidate.metrics["confirmed_independent_study_count"] == 0
         for candidate in method(result, "research_tfidf_topics").candidates
     )
 
@@ -350,7 +351,7 @@ def test_reordering_input_preserves_dataset_policy_versions_and_result_hash():
     first = run_mining(snapshot(rows), policy("business"))
     second = run_mining(snapshot(list(reversed(rows))), policy("business"))
     assert first.result_hash == second.result_hash
-    assert first.compute_version == "bioradar-mining-compute-v0.3"
+    assert first.compute_version == "bioradar-mining-compute-v0.4"
     assert kdd_versions(policy("business"))["__engine_compute__"] == first.compute_version
     manifest = copy.deepcopy(first.data_preparation)
     expected = manifest.pop("dataset_hash")
