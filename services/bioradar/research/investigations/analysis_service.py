@@ -1801,6 +1801,7 @@ class AnalysisService:
                 fixed["question"],
                 progress["evidence"],
                 AnalysisService._report_context(fixed, progress, reading),
+                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
             )
             draft = "\n".join(
                 [reading.get("conditional_answer", {}).get("answer", "")]
@@ -4094,6 +4095,7 @@ class AnalysisService:
                     fixed["question"],
                     current["evidence"],
                     self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True),
+                    input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                 )
                 if "quality_feedback" not in current:
                     report = checked.report or {}
@@ -4205,6 +4207,7 @@ class AnalysisService:
                     fixed["question"],
                     current["evidence"],
                     self._report_context(fixed, progress, preserved.model_dump(mode="json"), freeze=True),
+                    input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                 )
                 self._save_risk_report_packet(identifier, token, fixed, progress, packet)
                 try:
@@ -4268,6 +4271,7 @@ class AnalysisService:
                             self._shared_callback(identifier, token, fixed, progress),
                             targets=current["audit_plan"]["targets"],
                             loaded=loaded,
+                            input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                         )
                         candidate.report["support_audit"] = audit
                     candidate.report["quality_feedback"] = quality_feedback_biocheck(
@@ -4401,7 +4405,10 @@ class AnalysisService:
         loaded = None
         if report is None:
             context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
-            packet = build_packet(fixed["question"], progress["evidence"], context)
+            packet = build_packet(
+                fixed["question"], progress["evidence"], context,
+                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
+            )
             self._save_risk_report_packet(identifier, token, fixed, progress, packet)
             loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
             self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
@@ -4481,7 +4488,10 @@ class AnalysisService:
                 context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
                 packet = copy.deepcopy(
                     progress.get("report_risk_packets", {}).get(str(progress.get("active_report_round", 0)))
-                ) or build_packet(fixed["question"], progress["evidence"], context)
+                ) or build_packet(
+                    fixed["question"], progress["evidence"], context,
+                    input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
+                )
             review = report.get("verification") or {}
             if "support_audit_plan" not in progress:
                 try:
@@ -4498,6 +4508,7 @@ class AnalysisService:
                 self._shared_callback(identifier, token, fixed, progress),
                 targets=progress["support_audit_plan"]["targets"],
                 loaded=loaded,
+                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
             )
             report = {**report, "support_audit": audit}
             checked.report = progress["final_report"] = report

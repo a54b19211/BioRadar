@@ -448,6 +448,7 @@ def mechanism(service, identifier, token, fixed, progress, reading):
                     == "bioradar-research-input-v1" else {}
                 ),
             },
+            input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
         )
         if not reading.mechanism_candidate or not fixed.get("providers", {}).get("mech_evidence", {}).get(
             "available"
@@ -501,7 +502,10 @@ def mechanism(service, identifier, token, fixed, progress, reading):
             None,
         )
         if local is not None:
-            packet = build_packet(fixed["question"], progress["evidence"])
+            packet = build_packet(
+                fixed["question"], progress["evidence"],
+                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
+            )
             assessment.update(
                 mechanism_passage_bindings(
                     packet,

@@ -95,6 +95,11 @@ def test_new_frozen_flag_uses_existing_six_plan_schema_and_preserves_old_payload
     settings.analysis_kdd_enabled = True
     settings.analysis_query_policy_v2_max_steps = 32
     assert freeze_policy(settings)["initial_retrieval_version"] == BOUNDED_INITIAL_VERSION
+    current = freeze_policy(settings)
+    assert current["narrative_contract_version"] == "literal-narrative-observations-v2"
+    assert current["biocheck_input_version"] == "adopted-window-declared-audit-v1"
+    legacy = freeze_policy(settings, "baseline")
+    assert "narrative_contract_version" not in legacy and "biocheck_input_version" not in legacy
     assert "initial_retrieval_version" not in freeze_policy(settings, "baseline")
 
     data = fixed()

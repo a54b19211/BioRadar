@@ -194,6 +194,8 @@ def freeze_policy(settings, requested=None):
                 "pagination_version": PAGINATION_VERSION,
                 "pagination_cover_version": PAGINATION_COVER_VERSION,
                 "professional_retry_version": "biocheck-contract-repair-v1",
+                "biocheck_input_version": "adopted-window-declared-audit-v1",
+                "narrative_contract_version": "literal-narrative-observations-v2",
                 "final_assessment_version": "bioradar-research-final-v1",
                 "final_reference_repair_version": "bioradar-synthesis-reference-repair-v1",
                 "retrieval_allocation": {
