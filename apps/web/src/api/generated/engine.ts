@@ -4071,6 +4071,11 @@ export interface components {
              * @enum {string}
              */
             kdd_direction: "research" | "pipeline" | "business" | "public_health";
+            /**
+             * Narrative Contract Version
+             * @description Frozen literal business extraction contract; omitted preserves legacy v1.
+             */
+            narrative_contract_version?: ("literal-narrative-observations-v1" | "literal-narrative-observations-v2") | null;
             value_policy?: components["schemas"]["ValuePolicy"];
             /**
              * Monitor Changed Refs

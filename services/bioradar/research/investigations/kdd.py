@@ -34,15 +34,19 @@ def direction_for(question, explicit=None):
 
 def policy_for(fixed):
     direction = fixed["query_policy"]["direction"]
+    narrative_version = fixed["query_policy"].get("narrative_contract_version")
     saved = fixed.get("kdd_mining_policy")
     if saved:
         policy = KddPolicy.model_validate(saved)
         if policy.kdd_direction != direction:
             raise DomainError("analysis_dataset_scope_changed", "分析方向与固定计算策略不一致", 409)
+        if policy.narrative_contract_version != narrative_version:
+            raise DomainError("analysis_dataset_scope_changed", "数值提取契约与固定计算策略不一致", 409)
         return policy
     return KddPolicy(
         as_of=datetime.fromisoformat(fixed["evidence_time"]["cutoff"]),
         kdd_direction=direction,
+        narrative_contract_version=narrative_version,
         time_mode="availability_replay"
         if fixed.get("evidence_time", {}).get("mode") in {
             "operational_replay", "public_history_reconstruction"

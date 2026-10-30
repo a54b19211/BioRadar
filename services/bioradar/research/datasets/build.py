@@ -320,7 +320,9 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 )
                 gaps.add("notification_event_only_population_and_incidence_unknown")
             natural = (
-                extract_narrative_observations(record)
+                extract_narrative_observations(
+                    record, version=getattr(policy, "narrative_contract_version", None)
+                )
                 if direction == "business" and record.text_status == "inline_authorized"
                 else {"observations": [], "gaps": []}
             )
@@ -329,6 +331,8 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 for metric in (*record.metric_observations, *natural["observations"])
                 if metric.domain == direction
             ]
+            if getattr(policy, "narrative_contract_version", None) == "literal-narrative-observations-v2":
+                metrics = list({metric.observation_id: metric for metric in metrics}.values())
             if natural["gaps"]:
                 gaps.add("narrative_metric_scope_or_period_requires_review")
             if not metrics and not notice:

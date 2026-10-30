@@ -11765,6 +11765,22 @@
             ],
             "title": "Kdd Direction"
           },
+          "narrative_contract_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "literal-narrative-observations-v1",
+                  "literal-narrative-observations-v2"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Narrative Contract Version",
+            "description": "Frozen literal business extraction contract; omitted preserves legacy v1."
+          },
           "value_policy": {
             "$ref": "#/components/schemas/ValuePolicy"
           },

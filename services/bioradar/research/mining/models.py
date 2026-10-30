@@ -552,6 +552,13 @@ class ValuePolicy(FrozenModel):
 
 class KddPolicy(MiningPolicy):
     kdd_direction: Literal["research", "pipeline", "business", "public_health"]
+    narrative_contract_version: (
+        Literal["literal-narrative-observations-v1", "literal-narrative-observations-v2"] | None
+    ) = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Frozen literal business extraction contract; omitted preserves legacy v1.",
+    )
     value_policy: ValuePolicy = Field(default_factory=ValuePolicy)
     monitor_changed_refs: tuple[ProviderRef, ...] | None = Field(
         default=None,

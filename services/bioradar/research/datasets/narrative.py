@@ -61,7 +61,17 @@ class NarrativeExtraction(FrozenModel):
     observations: tuple[NarrativeObservation, ...] = Field(default=(), max_length=256)
 
 
-def narrative_extraction_schema():
+def narrative_version(version=None):
+    if version not in {None, NARRATIVE_VERSION, "literal-narrative-observations-v2"}:
+        raise ValueError("unknown literal narrative contract version")
+    return version or NARRATIVE_VERSION
+
+
+def narrative_extraction_schema(*, version=None):
+    if narrative_version(version) == "literal-narrative-observations-v2":
+        from bioradar.research.datasets.narrative_v2 import schema
+
+        return schema()
     return NarrativeExtraction.model_json_schema()
 
 
@@ -164,8 +174,12 @@ def _literal(record, span):
     }
 
 
-def validate_narrative_observations(raw, record):
+def validate_narrative_observations(raw, record, *, version=None):
     """LLM may select literal roles; it may not supply or calculate numeric answers."""
+    if narrative_version(version) == "literal-narrative-observations-v2":
+        from bioradar.research.datasets.narrative_v2 import validate
+
+        return validate(raw, record)
     extracted = NarrativeExtraction.model_validate(raw)
     qualified, gaps = [], []
     for index, row in enumerate(extracted.observations):
@@ -251,8 +265,12 @@ def validate_narrative_observations(raw, record):
     }
 
 
-def extract_narrative_observations(record):
+def extract_narrative_observations(record, *, version=None):
     """Unambiguous explicit roles with nearest preceding literal subject and period."""
+    if narrative_version(version) == "literal-narrative-observations-v2":
+        from bioradar.research.datasets.narrative_v2 import extract
+
+        return extract(record)
     text = record.normalized_text or ""
     subjects, periods = list(SUBJECT.finditer(text)), list(PERIOD.finditer(text))
     aliases = sorted(
