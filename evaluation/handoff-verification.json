@@ -7387,5 +7387,232 @@
         "tests/test_reading_claim_references.py": "8628e7986d5895f627329d8cf5133aa2e5ce8d58ab265e62817c758a2c982280"
       }
     }
+  },
+  "model_response_recovery_20261031": {
+    "base_commit": "11fc367fe90aa1e675f5b15b69f449d1d34db68c",
+    "scope": "Unified host response retention, safe parser diagnostics, and one explicit Mech-only same-request format retry; connection status consistency follows on the same branch.",
+    "repository": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar",
+    "branch": "codex/radar-history-replay-20261031",
+    "response_storage": {
+      "existing_table": "investigation_analyses",
+      "field": "progress.calls[].private_response",
+      "pending_parse_status": "response_received",
+      "format": "assistant-content-json-v1",
+      "captured": "message.content, reversible ASCII JSON; transport receipt and content digest",
+      "not_captured": [
+        "reasoning_content",
+        "request/response headers",
+        "model credentials"
+      ],
+      "public_projection": "Only safe diagnostic metadata; private_response and system_prompt excluded."
+    },
+    "technical_retry": {
+      "policy": "mech-format-retry-v1",
+      "scope": "Only declared MechEvidence model stages, once per analysis",
+      "eligible": "Persisted complete HTTP200/stop response, strict reparse proves assistant_content/json_syntax or assistant_root/non_object",
+      "same_request": [
+        "instruction",
+        "payload",
+        "response_schema",
+        "wire SHA",
+        "model parameters",
+        "output allowance"
+      ],
+      "transport_timeout": "May decrease with remaining execution time; separately recorded, original model parameters retained.",
+      "excluded": [
+        "BioCheck stages",
+        "missing raw response",
+        "sent/unconfirmed",
+        "transport failures",
+        "length",
+        "duplicate members",
+        "nonfinite numbers",
+        "wrong content type",
+        "scientific schema/semantic validation",
+        "insufficient budget"
+      ],
+      "record": "progress.mech_format_retry; public analysis.progress.diagnostics.mech_format_retry",
+      "cost": "Separate physical call IDs; both original failure and retry usage retained."
+    },
+    "checks_observed": {
+      "targeted_suite": {
+        "passed": 120,
+        "skipped": 0
+      },
+      "additional_transport_window": {
+        "pre_fix_failed": 1,
+        "post_fix_file_passed": 19,
+        "qualification": "The file overlaps the targeted suite; do not add the counts."
+      },
+      "real_pg_rq": {
+        "passed": 8,
+        "skipped": 0,
+        "responses": "Synthetic HTTP; real PostgreSQL and RQ worker",
+        "checkpoint_exit": "Full professional model_required flow exits after raw-response checkpoint, then recovers with exhausted time and no additional model/method POST.",
+        "daily_budget_sql": "Known receipts charged350; missing usage reserves650 in the controlled cases."
+      },
+      "required_final_checks": {
+        "BOOT": {
+          "passed": 61,
+          "skipped": 0
+        },
+        "contract_check_exit": 0,
+        "lint_exit": 0,
+        "web_check_exit": 0,
+        "path": "/tmp/bioradar-section17-20261031/final-model-response-checks/results.json",
+        "sha256": "8f1938290cab6f9e2eb9ff9524ac1676845a7ac3edd3b70b98e7dcb11f1735e6"
+      }
+    },
+    "actual_B4": {
+      "analysis_id": "4c6fad1d-f025-4d53-9ed8-2c2d91e79616",
+      "state": "blocked",
+      "error_code": "model_output_invalid",
+      "physical_generation_calls": 6,
+      "generation_tokens": 114566,
+      "known_failed_call_tokens": 32552,
+      "unknown_generation_calls": 0,
+      "old_assistant_response_available": false,
+      "eligible_for_new_retry": false,
+      "unchanged": true
+    },
+    "evidence": {
+      "model-content-host-targeted-v2.log": {
+        "path": "/tmp/bioradar-section17-20261031/model-content-host-targeted-v2.log",
+        "sha256": "f395c0ca321e5f7c41fe802afb7608908164283c40def1f7af3457c66e86d4f9"
+      },
+      "received-model-content-runtime-handoff.json": {
+        "path": "/tmp/bioradar-section17-20261031/received-model-content-runtime-handoff.json",
+        "sha256": "604840508add8d682b1fc5ba3f21d6567aeef9d934dbea8642c8555affe0c3a8"
+      },
+      "received-content-runtime-v2.log": {
+        "path": "/tmp/bioradar-section17-20261031/received-content-runtime-v2.log",
+        "sha256": "bbb0a3e3da6c9aef98b8f327799648b002252071cd941d2ef539ef6f8b25bca1"
+      },
+      "B4-model-content-failure-diagnosis.nonbody.json": {
+        "path": "/tmp/bioradar-section17-20261031/B4-model-content-failure-diagnosis.nonbody.json",
+        "sha256": "1f4b3c5f11596e48664f331e1cd8764fb3a5fabc8eb469337eafe01d39863d45"
+      },
+      "B4-postfix-offline-compatibility.nonbody.json": {
+        "path": "/tmp/bioradar-section17-20261031/B4-postfix-offline-compatibility.nonbody.json",
+        "sha256": "47e948986791da8e940705f1e4345dbbee1ed21b5f18a4982510c6f28008f4c8"
+      },
+      "model-retry-transport-window-before.log": {
+        "path": "/tmp/bioradar-section17-20261031/model-retry-transport-window-before.log",
+        "sha256": "dd94c51c9e8e125c4054a91946c926fa6dbde54f3a7567cbb6527b12c6c5891f"
+      },
+      "model-retry-transport-window-after.log": {
+        "path": "/tmp/bioradar-section17-20261031/model-retry-transport-window-after.log",
+        "sha256": "0526089e5759a4e2830efc116db23ae739a45400445ba1c3b22552e0ce666b77"
+      }
+    },
+    "new_paid_model_requests": 0,
+    "deployment": "No current main/API/worker deployment or old B4 execution changed. New formal run is coordinated separately.",
+    "runtime_nonauthor_review": {
+      "status": "accepted_finite_nonauthor_review",
+      "path": "/tmp/bioradar-section17-20261031/b-model-content-and-mech-retry-nonauthor-review.nonbody.json",
+      "sha256": "cf1988e66800dbcfbb9aad6fd9a39b6c3e487c03b1c81fc4c30daa7bf33b04c9",
+      "reviewed_function_hashes": [
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/adapters/reasoning_model.py",
+          "function": "_output_diagnostic",
+          "line": 218,
+          "sha256": "eb13eb54e8dc5d59d4581d9b4ef5bb39b85a38b196fa0a5f6ac59ca4a38a1caa"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/adapters/reasoning_model.py",
+          "function": "decode_received_content",
+          "line": 244,
+          "sha256": "b6fbc84b24a1b39a31fcb40e1d47550e63eb0af44df0c83ccf74d8eb53db1efc"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/adapters/reasoning_model.py",
+          "function": "_usage",
+          "line": 311,
+          "sha256": "3ed54a09a7f741d779853f4c179adf1b736ece8a2ae6b769538559f94b47808b"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/adapters/reasoning_model.py",
+          "function": "complete_json",
+          "line": 365,
+          "sha256": "4bdf4e62d1a0275509a17ce318cbd89b050465249bc7b9b8f74ad13824f82d7c"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/research/investigations/analysis_service.py",
+          "function": "_call",
+          "line": 2255,
+          "sha256": "14fd60ba9827a05164c7f34e8eb4f0112d1c30534788aa06057419c4e0d74779"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/research/investigations/analysis_service.py",
+          "function": "_shared_callback",
+          "line": 4183,
+          "sha256": "c57019a00b602414f119ed2362b69986e2ff9e893dc0bb5143230fca8319df34"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/research/investigations/professional.py",
+          "function": "_known_mech_format_failure",
+          "line": 13,
+          "sha256": "0ec32083db3a3ccb051cce937661ff5184dea7d8f3d1206e98a853febd31ee35"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/research/investigations/professional.py",
+          "function": "call_professional_model",
+          "line": 37,
+          "sha256": "58bbe7e4d10bd62928648e0bf2e94777fe01deb3c455b4d7202bffc782275249"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/research/investigations/professional.py",
+          "function": "_completed_mechanism_rpc",
+          "line": 502,
+          "sha256": "a62a6246106ccfeb0807a5ad3a65ebf4ea14c0e14ce99089a3c1492381f9f443"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/delivery/analysis_diagnostics.py",
+          "function": "_usage",
+          "line": 297,
+          "sha256": "6bc648704b11a627eaef441690990fd3ffdb69ec253d0beae312d988bbe95a57"
+        },
+        {
+          "path": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar/services/bioradar/delivery/analysis_diagnostics.py",
+          "function": "build_analysis_diagnostics",
+          "line": 373,
+          "sha256": "57035b31931da472b049a301052d57f0016092e1ca6a4c9ede32efd7d4ea73a1"
+        }
+      ]
+    },
+    "connection_status": {
+      "handoff": {
+        "path": "/tmp/bioradar-section17-20261031/c-weknora-connection-status-handoff.json",
+        "sha256": "aef42076905e6fa249e53f459abf92ce8924b968499dd608bdc77cf2b9507665"
+      },
+      "behavior": "Configuration by actual default query policy and real/demo scope; available is not a live-connection claim; unauthenticated/system summary omits KB/scope; scoped failures do not fall back to an aggregate ready label.",
+      "checks": {
+        "new_pure_and_mock_http_passed": 8,
+        "adjacent_controls_passed": 2,
+        "offline_UI_and_SSR_controls": 5
+      },
+      "scientific_or_live_connection_claim": false,
+      "nonauthor_review": {
+        "status": "accepted",
+        "path": "/tmp/bioradar-section17-20261031/weknora-connection-status-sol-nonauthor-review.json",
+        "sha256": "d3f5c4391f9a5f8150fe1b6a07e94f01386f55c84ae0166c7667762b6e36c1cc"
+      }
+    },
+    "reviewed_runtime_functions_unchanged_after_options_fix": true,
+    "source_files": {
+      "apps/web/src/api/research.ts": "a1737fe153ec3ccf44ac0991b284d461d6c716bd8b326c3dd84515fc0609f9e8",
+      "apps/web/src/pages/ConnectionsPage.vue": "07e70469483dd243f55312d4693f6172a9e07337338f4e3116457e557ba03602",
+      "services/bioradar/adapters/reasoning_model.py": "079fac61eb3225df5a277d885f103d6224816aaf722a6ff1e7687147db6fe963",
+      "services/bioradar/adapters/registry.py": "273c8bb42870a9610f32f960ec9731c280287ace5d2d966d6543d68b2648d08d",
+      "services/bioradar/adapters/weknora_kdd.py": "55ba7cbd31b0fd379e6fcb9c0c4702312d5e49e78799b2a87ca29da49ec3a124",
+      "services/bioradar/delivery/analysis_diagnostics.py": "db875284bfdcb04780cfb8e0b3e5812da9bb0dd5b9c8c4e9838eb1d3f569815e",
+      "services/bioradar/research/investigations/analysis_service.py": "343149811833c7909559a8773ece693aafb6df00a66dcd17d88fa80962626595",
+      "services/bioradar/research/investigations/professional.py": "82a52a7ddbbb45412d2c98eefdd8bef3c70e882288ced34a31278f99774006c0",
+      "scripts/check_connections_ui.cjs": "f5e495a0dafef567393e61a139bc80dcc00d3957b7c59e4c7fb00de5e9789dca",
+      "tests/test_model_response_retention.py": "2811123a51906c07e430edc0fc72ef82a1dc6e9553542f5e1707ecb87c29920b",
+      "tests/test_received_model_content_runtime.py": "2a623352f683c415c787fde73f702bc2001db512fc28dc689ab533d6e4182e34",
+      "tests/test_weknora_provider_status.py": "d85301f05903aaa2da94bcbad9bf69583ba0775c02a1ed6e0ad1d4a48441db6b"
+    },
+    "checked_at": "2026-10-31T12:33:30.702212+00:00"
   }
 }

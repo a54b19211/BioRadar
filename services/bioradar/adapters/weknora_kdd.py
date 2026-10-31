@@ -42,14 +42,33 @@ def retrieval_scope(settings, *, direction, is_demo=False):
 
 
 def search_status(settings, *, direction, is_demo=False):
+    """Configuration for one namespace, without probing or claiming a live connection."""
+    status = {
+        "provider": "weknora",
+        "configured": False,
+        "available": False,
+        "status": "not_configured",
+        "is_demo": is_demo,
+        "connection_checked": False,
+        "qualification": (
+            "仅表示当前真实或演示范围的检索配置可用，不代表服务已实连；"
+            "查询路由由雷达执行器负责。"
+        ),
+    }
     try:
         scope = retrieval_scope(settings, direction=direction, is_demo=is_demo)
     except DomainError as exc:
-        return {"available": False, "is_demo": is_demo, "error_code": exc.code}
-    available = bool(
-        getattr(settings, "weknora_kdd_url", None) and getattr(settings, "weknora_kdd_token", None)
-    )
-    return {"available": available, **scope}
+        return {**status, "error_code": exc.code}
+    token = getattr(settings, "weknora_kdd_token", None)
+    configured = bool(getattr(settings, "weknora_kdd_url", None) and token and token.get_secret_value())
+    return {
+        **status,
+        **scope,
+        "configured": configured,
+        "available": configured,
+        "status": "configured" if configured else "not_configured",
+        "error_code": None if configured else "weknora_kdd_not_configured",
+    }
 
 
 def _member(record, *, is_demo=False):

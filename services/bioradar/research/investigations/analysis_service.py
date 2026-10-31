@@ -356,7 +356,13 @@ class AnalysisService:
                     "pages_per_chain": 5 if self.settings.analysis_kdd_enabled else 1,
                 },
             },
-            "providers": self._provider_status(),
+            "providers": self._provider_status(
+                kdd=(
+                    self.settings.analysis_kdd_enabled
+                    and self.settings.analysis_query_policy == "query_planner"
+                ),
+                is_demo=is_demo,
+            ),
             "runtime": {
                 "history_replay_dispatch_policy": self.settings.history_replay_dispatch_policy,
                 "environment": self.settings.environment,
@@ -457,7 +463,11 @@ class AnalysisService:
             evidence=progress.get("evidence", row.fixed_input["evidence"]),
             queries=[{k: v for k, v in q.items() if k != "records"} for q in progress.get("queries", [])],
             calls=[
-                {k: v for k, v in call.items() if k not in {"payload", "output"}}
+                {
+                    k: v
+                    for k, v in call.items()
+                    if k not in {"payload", "output", "private_response", "system_prompt"}
+                }
                 for call in progress["calls"]
             ],
             result=AnalysisResult.model_validate(result) if result else None,
@@ -2261,11 +2271,13 @@ class AnalysisService:
         system_prompt=None,
         call_key=None,
         reserve_tokens=0,
+        retry_of_call_id=None,
     ):
         from bioradar.adapters.reasoning_model import (
             ModelCallError,
             ModelCallReceipt,
             complete_json,
+            decode_received_content,
             encode_request,
         )
 
@@ -2288,6 +2300,24 @@ class AnalysisService:
         elif stage == "compare":
             response_schema["properties"]["stance"]["enum"] = ["maintained", "revised", "unable_to_compare"]
         signature = canonical_hash([prompt, payload, response_schema, fixed["model_parameters"]])
+        retry_original = None
+        if retry_of_call_id is not None:
+            from bioradar.adapters.mech_evidence import _STAGES
+            from bioradar.research.investigations.professional import _known_mech_format_failure
+
+            retry_original = next((c for c in progress["calls"] if c["call_id"] == retry_of_call_id), None)
+            retry_policy = progress.get("mech_format_retry") or {}
+            if (
+                stage not in _STAGES.values()
+                or not _known_mech_format_failure(retry_original)
+                or retry_original["stage"] != stage
+                or retry_original["request_signature"] != signature
+                or retry_policy.get("original_call_id") != retry_of_call_id
+                or retry_policy.get("retry_call_key") != key
+            ):
+                raise DomainError(
+                    "analysis_call_input_changed", "技术重试未绑定原失败和同一输入，未发送", 409
+                )
         call = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == key), None)
         if call:
             if call_key is not None and call.get("request_signature", signature) != signature:
@@ -2296,6 +2326,30 @@ class AnalysisService:
                 )
             if call["status"] == "received":
                 return call["output"], progress
+            if call["status"] == "response_received":
+                saved = call.get("private_response") or {}
+                receipt = saved.get("receipt") or {}
+                if (
+                    receipt != call.get("receipt")
+                    or receipt.get("call_id") != call["call_id"]
+                    or receipt.get("stage") != stage
+                    or receipt.get("input_hash") != call["input_hash"]
+                    or receipt.get("prompt_version") != call["prompt_version"]
+                ):
+                    raise DomainError(
+                        "model_saved_response_invalid", "已收到响应未绑定本次调用，未重发请求", 409
+                    )
+                try:
+                    completion = decode_received_content(saved)
+                except ModelCallError as failure:
+                    call["status"], call["receipt"] = "failed", failure.receipt.model_dump(mode="json")
+                    self._checkpoint(identifier, token, progress)
+                    raise
+                call["status"], call["output"] = "received", completion.parsed
+                call["receipt"] = completion.receipt.model_dump(mode="json")
+                self._checkpoint(identifier, token, progress)
+                self._guard(identifier, token)
+                return completion.parsed, progress
             if call["status"] == "failed":
                 saved_receipt = call.get("receipt") or {}
                 if saved_receipt.get("error_code"):
@@ -2309,6 +2363,7 @@ class AnalysisService:
                             "本阶段模型调用已停止；原回执保留，未自动重发",
                             receipt,
                             409,
+                            private_response=call.get("private_response"),
                         )
                 raise DomainError("model_call_failed", "本阶段模型调用已失败，未自动重发", 409)
             if call["status"] in {"sent", "unconfirmed"}:
@@ -2316,7 +2371,9 @@ class AnalysisService:
         # Reading a confirmed receipt and saving its report do not send another request.
         self._guard(identifier, token, check_deadline=True)
         if call is None:
-            parameters = dict(fixed["model_parameters"])
+            parameters = dict(
+                retry_original["model_parameters"] if retry_original else fixed["model_parameters"]
+            )
             budget = analysis_budget(fixed, progress, datetime.now(UTC))
             if len(progress["calls"]) >= parameters["max_calls"]:
                 raise DomainError("analysis_model_budget", "达到本轮实际模型调用上限", 422)
@@ -2352,7 +2409,10 @@ class AnalysisService:
             except (ValueError, TypeError, RecursionError):
                 raise DomainError("model_input_invalid", "模型输入不是受支持的有限JSON对象", 422) from None
             remaining = (budget["limits"]["max_tokens"] or 10_000_000) - budget["usage"]["budgeted_tokens"]
-            output_cap = min(output_cap, remaining - input_upper)
+            if retry_original and remaining < input_upper + output_cap:
+                raise DomainError("analysis_token_budget", "剩余额度不足以原样重试，未缩小输出或发送", 422)
+            if retry_original is None:
+                output_cap = min(output_cap, remaining - input_upper)
             if output_cap < 128:
                 raise DomainError("analysis_token_budget", "剩余token预算不足以发送下一次有界请求", 422)
             parameters["max_output_tokens"] = output_cap
@@ -2364,6 +2424,13 @@ class AnalysisService:
                 payload=payload,
                 response_schema=response_schema,
             )
+            if retry_original and (
+                hashlib.sha256(request_wire).hexdigest() != retry_original["receipt"]["request_sha256"]
+                or parameters != retry_original["model_parameters"]
+            ):
+                raise DomainError(
+                    "analysis_call_input_changed", "技术重试请求字节或模型参数与原请求不符", 409
+                )
             request_bytes = len(request_wire)
             estimate = request_estimate(fixed, stage, request_bytes)
             input_upper = estimate["estimated_input_tokens"]
@@ -2393,6 +2460,13 @@ class AnalysisService:
                     else {}
                 ),
             }
+            if retry_original:
+                call.update(
+                    retry_of_call_id=retry_original["call_id"],
+                    retry_policy="mech-format-retry-v1",
+                    retry_reason="known_model_content_format_failure",
+                    original_request_sha256=retry_original["receipt"]["request_sha256"],
+                )
             if continuation:
                 call["report_continuation_id"] = continuation["id"]
                 call["continues_call_id"] = continuation["from_call_id"]
@@ -2426,9 +2500,10 @@ class AnalysisService:
                 "剩余总时间不足本阶段固定及已观察到的发送窗口，模型请求未发送",
             )
         reserve_automatic_call(self, identifier, token, fixed, progress, call, datetime.now(UTC))
-        call["model_parameters"]["timeout_seconds"] = min(
-            call["model_parameters"]["timeout_seconds"], max(1, int(seconds_left))
-        )
+        if retry_original is None:
+            call["model_parameters"]["timeout_seconds"] = min(
+                call["model_parameters"]["timeout_seconds"], max(1, int(seconds_left))
+            )
         actual_settings = self.settings.model_copy(
             update={
                 "semantic_llm_max_output_tokens": call["model_parameters"]["max_output_tokens"],
@@ -2465,6 +2540,21 @@ class AnalysisService:
         actual_settings = actual_settings.model_copy(
             update={"semantic_llm_timeout_seconds": call["transport_timeout_seconds"]}
         )
+
+        def save_response(saved):
+            receipt = saved["receipt"]
+            if (
+                receipt.get("call_id") != call["call_id"]
+                or receipt.get("stage") != stage
+                or receipt.get("input_hash") != call["input_hash"]
+                or receipt.get("prompt_version") != call["prompt_version"]
+            ):
+                raise DomainError("model_saved_response_invalid", "模型响应身份与原调用不符，未采用结果", 409)
+            call["private_response"] = copy.deepcopy(saved)
+            call["receipt"] = copy.deepcopy(receipt)
+            call["status"] = "response_received"
+            self._checkpoint(identifier, token, progress)
+
         try:
             completion = invoke(
                 actual_settings,
@@ -2475,10 +2565,13 @@ class AnalysisService:
                 call_id=call["call_id"],
                 input_hash=call["input_hash"],
                 prompt_version=call["prompt_version"],
+                on_response=save_response,
             )
         except ModelCallError as exc:
             call["status"] = "unconfirmed" if exc.receipt.status == "unconfirmed" else "failed"
             call["receipt"] = exc.receipt.model_dump(mode="json")
+            if exc.private_response is not None and "private_response" not in call:
+                call["private_response"] = copy.deepcopy(exc.private_response)
             self._checkpoint(identifier, token, progress)
             raise
         call["status"], call["output"] = "received", completion.parsed
@@ -4094,8 +4187,11 @@ class AnalysisService:
         return InvestigationService(self.engine).get(self.actor, saved["id"])
 
     def _shared_callback(self, identifier, token, fixed, progress):
+        from bioradar.research.investigations.professional import call_professional_model
+
         def call(stage, instruction, payload, response_schema=None, *, call_id=None):
-            output, _ = self._call(
+            output, _ = call_professional_model(
+                self,
                 identifier,
                 token,
                 stage,

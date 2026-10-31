@@ -12,6 +12,10 @@ export interface ResearchProvider {
   status?: string;
   state?: string;
   configured?: boolean;
+  available?: boolean;
+  connection_checked?: boolean;
+  is_demo?: boolean;
+  qualification?: string;
   enabled?: boolean;
   reason?: string;
   message?: string;

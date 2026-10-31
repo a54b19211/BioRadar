@@ -323,6 +323,20 @@ def _usage(calls, report):
             actual_tokens_basis=basis,
             attempted=attempted,
             finish_reason=receipt.get("finish_reason"),
+            output_diagnostic=_fields(
+                receipt.get("output_diagnostic"),
+                (
+                    "layer",
+                    "category",
+                    "content_type",
+                    "root_type",
+                    "exception_type",
+                    "position",
+                    "line",
+                    "column",
+                    "content_sha256",
+                ),
+            ),
             model=receipt.get("provider_model") or receipt.get("requested_model"),
             elapsed_ms=_number(receipt.get("elapsed_ms")),
         )
@@ -397,6 +411,23 @@ def build_analysis_diagnostics(analysis, *, progress=None, fixed=None):
         "queries": _queries(queries),
         "reading_repairs": _repair_rows(progress),
         "reading_validation_errors": _reading_validation_rows(progress),
+        "mech_format_retry": _fields(
+            progress["mech_format_retry"],
+            (
+                "policy_version",
+                "status",
+                "reason",
+                "error_code",
+                "original_call_key",
+                "original_call_id",
+                "original_request_signature",
+                "original_request_sha256",
+                "retry_call_key",
+                "max_total_retries",
+            ),
+        )
+        if isinstance(progress.get("mech_format_retry"), dict)
+        else None,
         "biocheck_issues": _biocheck_issues(report),
         "numeric_candidates": _numeric_candidates(analysis, progress),
         "usage": _usage(calls, report),

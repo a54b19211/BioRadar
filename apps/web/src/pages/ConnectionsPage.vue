@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from "vue";
-import { ElButton, ElTag } from "element-plus";
+import { ElButton, ElSwitch, ElTag } from "element-plus";
 import {
   getSystemStatus,
   type ProviderStatus,
@@ -15,6 +15,7 @@ const error = ref("");
 const scopeError = ref("");
 const authenticated = ref(false);
 const loading = ref(false);
+const isDemo = ref(false);
 let controller: AbortController | null = null;
 async function refresh() {
   controller?.abort();
@@ -44,7 +45,7 @@ async function refresh() {
     if (authenticated.value) {
       try {
         const options = await engineRequest<ResearchOptions>(
-          "/investigations/research-options",
+          "/investigations/research-options?is_demo=" + String(isDemo.value),
           { signal: current.signal },
         );
         if (!current.signal.aborted) research.value = options;
@@ -67,7 +68,7 @@ const labels: Record<string, string> = {
 };
 const statusLabels: Record<string, string> = {
   ready: "配置就绪",
-  available: "可调用",
+  available: "配置可用",
   connected: "已连接",
   configured: "已配置",
   not_configured: "未配置",
@@ -92,8 +93,13 @@ function providerState(provider: ProviderStatus) {
   const live = currentProvider(provider);
   const state = live?.status || live?.state;
   if (state) return statusLabels[state] || state;
+  if (live?.available === true) return "配置可用（未核实连接）";
+  if (live?.available === false)
+    return live.configured === false ? "未配置" : "当前范围不可用";
   if (live?.configured === true) return "已配置";
   if (live?.configured === false) return "未配置";
+  if (provider.id === "knowledge" && authenticated.value && !live)
+    return "当前范围状态待确认";
   if (provider.id === "data_fabric" && research.value)
     return "可补查 " + research.value.retrieval_sources.length + " 类来源";
   return statusLabels[provider.state] || provider.state || "状态待确认";
@@ -134,6 +140,16 @@ const providerEntries = computed(() => data.value?.providers ?? []);
         >前往研究空间 →</RouterLink
       >
     </p>
+    <div v-if="authenticated" class="notice">
+      能力范围：
+      <ElSwitch
+        v-model="isDemo"
+        active-text="演示资料"
+        inactive-text="真实资料"
+        @change="refresh"
+      />
+      <span>配置可用不代表服务已实连；实际调用以本版调查回执为准。</span>
+    </div>
     <p v-if="research" class="muted">
       研究模型：{{
         research.enabled && research.configured
@@ -156,6 +172,7 @@ const providerEntries = computed(() => data.value?.providers ?? []);
             {{
               currentProvider(provider)?.message ||
               currentProvider(provider)?.reason ||
+              currentProvider(provider)?.qualification ||
               provider.note
             }}
           </p>

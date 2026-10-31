@@ -48,6 +48,21 @@ class ModelUsage(BaseModel):
     total_tokens: int | None = None
 
 
+class ModelOutputDiagnostic(BaseModel):
+    """Safe parser metadata only; never an exception message or source excerpt."""
+
+    model_config = ConfigDict(extra="forbid")
+    layer: Literal["provider_response", "assistant_content", "assistant_root"]
+    category: str
+    content_type: str | None = None
+    root_type: str | None = None
+    exception_type: str | None = None
+    position: int | None = None
+    line: int | None = None
+    column: int | None = None
+    content_sha256: str | None = None
+
+
 class ModelCallReceipt(BaseModel):
     model_config = ConfigDict(extra="forbid")
     call_id: str
@@ -67,6 +82,9 @@ class ModelCallReceipt(BaseModel):
     request_sha256: str | None = None
     request_bytes: int | None = Field(default=None, ge=0, exclude_if=lambda value: value is None)
     response_sha256: str | None = None
+    output_diagnostic: ModelOutputDiagnostic | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     http_status: int | None = None
     finish_reason: str | None = None
     max_output_tokens: int
@@ -84,9 +102,12 @@ class ModelCompletion(BaseModel):
 
 
 class ModelCallError(DomainError):
-    def __init__(self, code: str, message: str, receipt: ModelCallReceipt, status_code=503):
+    def __init__(
+        self, code: str, message: str, receipt: ModelCallReceipt, status_code=503, *, private_response=None
+    ):
         super().__init__(code, message, status_code)
         self.receipt = receipt
+        self.private_response = private_response
 
 
 def model_parameters(settings: Settings) -> dict[str, Any]:
@@ -194,6 +215,99 @@ def _parse_json(value):
     )
 
 
+def _output_diagnostic(error, *, layer, content, content_sha256=None):
+    category = (
+        "json_syntax"
+        if isinstance(error, json.JSONDecodeError)
+        else "wrong_type"
+        if isinstance(error, TypeError)
+        else "recursion_limit"
+        if isinstance(error, RecursionError)
+        else "duplicate_member"
+        if str(error) == "duplicate JSON member"
+        else "nonfinite_number"
+        if str(error) in {"nonfinite JSON constant", "nonfinite JSON number"}
+        else "invalid_json"
+    )
+    return ModelOutputDiagnostic(
+        layer=layer,
+        category=category,
+        exception_type=type(error).__name__,
+        content_type=type(content).__name__,
+        content_sha256=content_sha256,
+        position=error.pos if isinstance(error, json.JSONDecodeError) else None,
+        line=error.lineno if isinstance(error, json.JSONDecodeError) else None,
+        column=error.colno if isinstance(error, json.JSONDecodeError) else None,
+    )
+
+
+def decode_received_content(saved):
+    """Strict local decoding of one privately saved response; no I/O or retry."""
+    try:
+        encoded = saved["content_json"]
+        if (
+            saved["format"] != "assistant-content-json-v1"
+            or not isinstance(encoded, str)
+            or not encoded.isascii()
+            or len(encoded) > MAX_RESPONSE_BYTES * 6
+            or hashlib.sha256(encoded.encode("ascii")).hexdigest() != saved["content_sha256"]
+            or any(
+                type(saved[key]) is not bool for key in ("content_present", "refused", "tool_calls_present")
+            )
+        ):
+            raise ValueError("invalid saved content")
+        content = _parse_json(encoded)
+        receipt = ModelCallReceipt.model_validate(saved["receipt"])
+        if receipt.status != "completed" or receipt.http_status != 200 or not receipt.response_sha256:
+            raise ValueError("unconfirmed saved transport")
+    except (KeyError, TypeError, ValueError, RecursionError):
+        raise DomainError(
+            "model_saved_response_invalid", "已保存模型响应身份或内容不完整，未重发请求", 409
+        ) from None
+
+    def fail(code, message, diagnostic=None):
+        receipt.status, receipt.error_code = "failed", code
+        receipt.output_diagnostic = diagnostic
+        raise ModelCallError(code, message, receipt, private_response=saved)
+
+    if receipt.provider_model != receipt.requested_model:
+        fail("model_identity_mismatch", "模型服务返回的模型标识与配置不一致")
+    if saved["refused"]:
+        fail("model_refused", "模型拒绝本次分析，未生成研判")
+    if receipt.finish_reason == "length":
+        fail("model_output_truncated", "模型输出达到token上限，截断结果不作为成功")
+    if receipt.finish_reason != "stop" or saved["tool_calls_present"]:
+        fail("model_output_incomplete", "模型未按固定JSON任务完成，未执行额外工具")
+    if (
+        receipt.usage.completion_tokens is not None
+        and receipt.usage.completion_tokens > receipt.max_output_tokens
+    ):
+        fail("model_output_budget", "模型返回用量超过请求预算，未采用结果")
+    try:
+        parsed = _parse_json(content)
+    except (ValueError, TypeError, RecursionError) as error:
+        fail(
+            "model_output_invalid",
+            "模型没有返回合法JSON对象，未生成研判",
+            _output_diagnostic(
+                error, layer="assistant_content", content=content, content_sha256=saved["content_sha256"]
+            ),
+        )
+    if not isinstance(parsed, dict):
+        fail(
+            "model_output_invalid",
+            "模型没有返回合法JSON对象，未生成研判",
+            ModelOutputDiagnostic(
+                layer="assistant_root",
+                category="non_object",
+                content_type=type(content).__name__,
+                root_type=type(parsed).__name__,
+                content_sha256=saved["content_sha256"],
+            ),
+        )
+    return ModelCompletion(content=content, parsed=parsed, receipt=receipt)
+
+
 def _usage(value) -> ModelUsage:
     if not isinstance(value, dict):
         return ModelUsage()
@@ -259,6 +373,7 @@ def complete_json(
     input_hash: str,
     prompt_version: str,
     client: httpx.Client | None = None,
+    on_response=None,
 ) -> ModelCompletion:
     """Caller first persists its call intent; this function never reissues a POST."""
     began = time.monotonic()
@@ -365,31 +480,28 @@ def complete_json(
             receipt.usage = _usage(response_body.get("usage"))
             receipt.finish_reason = choice.get("finish_reason")
             content = message.get("content")
-        except (KeyError, IndexError, TypeError, ValueError, RecursionError):
+        except (KeyError, IndexError, TypeError, ValueError, RecursionError) as error:
+            receipt.output_diagnostic = _output_diagnostic(
+                error, layer="provider_response", content=bytes(raw)
+            )
             fail("model_protocol_error", "模型响应格式或用量字段无效")
-        if receipt.provider_model != parameters["model"]:
-            fail("model_identity_mismatch", "模型服务返回的模型标识与配置不一致")
-        if message.get("refusal"):
-            fail("model_refused", "模型拒绝本次分析，未生成研判")
-        if receipt.finish_reason == "length":
-            fail("model_output_truncated", "模型输出达到token上限，截断结果不作为成功")
-        if receipt.finish_reason != "stop" or message.get("tool_calls"):
-            fail("model_output_incomplete", "模型未按固定JSON任务完成，未执行额外工具")
-        if (
-            receipt.usage.completion_tokens is not None
-            and receipt.usage.completion_tokens > receipt.max_output_tokens
-        ):
-            fail("model_output_budget", "模型返回用量超过请求预算，未采用结果")
-        try:
-            parsed = _parse_json(content)
-            if not isinstance(parsed, dict):
-                raise ValueError("expected object")
-        except (ValueError, TypeError, RecursionError):
-            fail("model_output_invalid", "模型没有返回合法JSON对象，未生成研判")
-        receipt.status = "completed"
+        receipt.status = "completed"  # Transport received; the content is still unvalidated.
         receipt.completed_at = datetime.now(UTC)
         receipt.elapsed_ms = max(0, round((time.monotonic() - began) * 1000))
-        return ModelCompletion(content=content, parsed=parsed, receipt=receipt)
+        # ASCII JSON reversibly preserves NUL/surrogates that PostgreSQL cannot store directly.
+        content_json = json.dumps(content, ensure_ascii=True, separators=(",", ":"), allow_nan=False)
+        private_response = {
+            "format": "assistant-content-json-v1",
+            "content_json": content_json,
+            "content_sha256": hashlib.sha256(content_json.encode("ascii")).hexdigest(),
+            "content_present": "content" in message,
+            "refused": bool(message.get("refusal")),
+            "tool_calls_present": bool(message.get("tool_calls")),
+            "receipt": receipt.model_dump(mode="json"),
+        }
+        if on_response is not None:
+            on_response(private_response)
+        return decode_received_content(private_response)
     finally:
         if owned:
             session.close()

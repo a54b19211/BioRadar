@@ -10,6 +10,87 @@ from bioradar.api.errors import DomainError
 from bioradar.research.mining.models import canonical_hash
 
 
+def _known_mech_format_failure(call):
+    """Reproduce only syntax/root-object failures from the exact saved assistant content."""
+    from bioradar.adapters.reasoning_model import ModelCallError, decode_received_content
+
+    if not call or call.get("status") != "failed" or not call.get("private_response"):
+        return False
+    try:
+        decode_received_content(call["private_response"])
+    except ModelCallError as error:
+        diagnostic = error.receipt.output_diagnostic
+        return (
+            error.code == "model_output_invalid"
+            and error.receipt.finish_reason == "stop"
+            and error.receipt.http_status == 200
+            and diagnostic is not None
+            and (diagnostic.layer, diagnostic.category)
+            in {("assistant_content", "json_syntax"), ("assistant_root", "non_object")}
+            and error.receipt.model_dump(mode="json") == call.get("receipt")
+        )
+    except DomainError:
+        pass
+    return False
+
+
+def call_professional_model(
+    service, identifier, token, stage, schema, fixed, progress, payload, *, system_prompt, call_key
+):
+    """One explicit host technical retry per analysis; Pan and scientific validation are excluded."""
+    from bioradar.adapters.mech_evidence import _STAGES
+    from bioradar.adapters.reasoning_model import ModelCallError
+
+    args = (identifier, token, stage, schema, fixed, progress, payload)
+    options = {"system_prompt": system_prompt, "call_key": call_key}
+    if stage not in _STAGES.values():
+        return service._call(*args, **options)
+
+    def retry(entry):
+        saved = next((c for c in progress["calls"] if c.get("call_key") == entry["retry_call_key"]), None)
+        if entry["status"] == "not_sent" and saved is None:
+            raise DomainError(entry["error_code"], "一次技术重试已因预算停止，原失败回执保留", 409)
+        try:
+            output = service._call(
+                *args,
+                system_prompt=system_prompt,
+                call_key=entry["retry_call_key"],
+                retry_of_call_id=entry["original_call_id"],
+            )
+        except DomainError as error:
+            saved = next((c for c in progress["calls"] if c.get("call_key") == entry["retry_call_key"]), None)
+            entry.update(status=saved["status"] if saved else "not_sent", error_code=error.code)
+            service._checkpoint(identifier, token, progress)
+            raise
+        entry.update(status="received", error_code=None)
+        service._checkpoint(identifier, token, progress)
+        return output
+
+    entry = progress.get("mech_format_retry")
+    if entry and entry["original_call_key"] == call_key:
+        return retry(entry)
+    try:
+        return service._call(*args, **options)
+    except ModelCallError:
+        original = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == call_key), None)
+        if entry is not None or not _known_mech_format_failure(original):
+            raise
+        entry = {
+            "policy_version": "mech-format-retry-v1",
+            "original_call_key": call_key,
+            "original_call_id": original["call_id"],
+            "original_request_signature": original["request_signature"],
+            "original_request_sha256": original["receipt"]["request_sha256"],
+            "reason": "known_model_content_format_failure",
+            "retry_call_key": call_key + ":format-retry",
+            "status": "prepared",
+            "max_total_retries": 1,
+        }
+        progress["mech_format_retry"] = entry
+        service._checkpoint(identifier, token, progress)
+        return retry(entry)
+
+
 def _configuration(settings, name):
     return (
         getattr(settings, name + "_transport", "local"),
@@ -419,7 +500,7 @@ def load_provider(service, identifier, token, fixed, progress, name):
 
 
 def _completed_mechanism_rpc(identifier, fixed, progress, packet):
-    """Only this operation's confirmed response can bypass a new-work reservation."""
+    """Replay this fixed operation or its received callback before reserving new work."""
     import hashlib
 
     from bioradar.adapters.mech_evidence import _case
@@ -470,10 +551,45 @@ def _completed_mechanism_rpc(identifier, fixed, progress, packet):
         "arguments_hash": hashlib.sha256(_canonical(arguments)).hexdigest(),
     }
     exchanges = state.get("exchanges", [])
-    return (
-        state.get("binding") == binding
-        and bool(exchanges)
-        and (exchanges[-1].get("response") or {}).get("status") == "completed"
+    if state.get("binding") != binding or not exchanges:
+        return False
+    exchange = exchanges[-1]
+    response = exchange.get("response") or {}
+    if response.get("status") == "completed":
+        return True
+    if exchange.get("status") != "received" or response.get("status") != "model_required":
+        return False
+    from bioradar.adapters.mech_evidence import _STAGES
+
+    required = response.get("model_call") or {}
+    target = _STAGES.get(required.get("stage"))
+    if target is None or not required.get("call_id"):
+        return False
+    key = "mech_evidence:" + operation_id + ":" + required["call_id"]
+    keys = {key}
+    retry = progress.get("mech_format_retry") or {}
+    if retry.get("original_call_key") == key and retry.get("retry_call_key"):
+        keys.add(retry["retry_call_key"])
+    signature = canonical_hash(
+        [
+            required.get("instruction"),
+            required.get("payload"),
+            required.get("schema") or {"type": "object"},
+            fixed["model_parameters"],
+        ]
+    )
+    # Re-enter only this fixed callback's already received output. _call still
+    # validates saved identity/content; any subsequent request uses normal budgets.
+    return any(
+        call.get("call_key") in keys
+        and call["stage"] == target
+        and call.get("request_signature") == signature
+        and (
+            call["status"] == "received"
+            or call["status"] == "response_received"
+            and bool(call.get("private_response"))
+        )
+        for call in progress.get("calls", [])
     )
 
 
