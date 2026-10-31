@@ -352,6 +352,7 @@ class AnalysisService:
             },
             "providers": self._provider_status(),
             "runtime": {
+                "history_replay_dispatch_policy": self.settings.history_replay_dispatch_policy,
                 "environment": self.settings.environment,
                 "workspace_id": actor.workspace_id,
                 "database_name": self.engine.database.url.database
@@ -808,8 +809,32 @@ class AnalysisService:
         except (KeyError, TypeError, ValueError):
             return False
         return same_cutoff and all(
-            left.get(key) == right.get(key) for key in ("study_id", "mode", "run_id", "history_request_id")
+            left.get(key) == right.get(key)
+            for key in (
+                "study_id",
+                "mode",
+                "run_id",
+                "history_request_id",
+                "history_series_id",
+                "history_scope_hash",
+            )
         )
+
+    @staticmethod
+    def _forward_historical_context(left, right):
+        """A new supervised daily child may inherit an earlier same-series report."""
+        if not left or not right or left.get("mode") != "public_history_reconstruction":
+            return False
+        if (right.get("mode") != left["mode"] or left.get("study_id") != right.get("study_id")) or not all(
+            left.get(key) and left.get(key) == right.get(key)
+            for key in ("history_series_id", "history_scope_hash")
+        ):
+            return False
+        try:
+            before, after = (datetime.fromisoformat(value["cutoff"]) for value in (left, right))
+            return before.tzinfo is not None and after.tzinfo is not None and before < after
+        except (KeyError, TypeError, ValueError):
+            return False
 
     def start(
         self,
@@ -855,6 +880,11 @@ class AnalysisService:
                 "cutoff": cutoff.isoformat(),
                 "study_id": historical_context.get("study_id"),
                 "run_id": historical_context.get("run_id"),
+                **{
+                    key: historical_context[key]
+                    for key in ("history_series_id", "history_scope_hash")
+                    if historical_context.get(key)
+                },
                 **(
                     {"history_request_id": historical_context["history_request_id"]}
                     if historical_context.get("history_request_id")
@@ -978,12 +1008,17 @@ class AnalysisService:
                     retry.fixed_input.get("evidence_time"), evidence_time
                 ):
                     raise DomainError("analysis_retry_invalid", "重试与固定历史研究时点不相容", 422)
-                if parent is not None and not self._same_historical_context(
-                    parent.fixed_input.get("evidence_time"), evidence_time
+                if parent is not None and not (
+                    self._same_historical_context(parent.fixed_input.get("evidence_time"), evidence_time)
+                    or retry is None
+                    and parent.state in {"completed", "needs_review"}
+                    and self._forward_historical_context(
+                        parent.fixed_input.get("evidence_time"), evidence_time
+                    )
                 ):
                     if body.parent_analysis_id or retry is not None:
                         raise DomainError("analysis_parent_invalid", "父版不属于同一固定历史研究时点", 422)
-                    # Automatic historical comparison can only see the same historical input.
+                    # Exact-cutoff input or a strictly earlier server-owned daily lineage only.
                     candidates = session.scalars(
                         select(InvestigationAnalysisRecord)
                         .where(
@@ -998,6 +1033,10 @@ class AnalysisService:
                             candidate
                             for candidate in candidates
                             if self._same_historical_context(
+                                candidate.fixed_input.get("evidence_time"), evidence_time
+                            )
+                            or retry is None
+                            and self._forward_historical_context(
                                 candidate.fixed_input.get("evidence_time"), evidence_time
                             )
                         ),

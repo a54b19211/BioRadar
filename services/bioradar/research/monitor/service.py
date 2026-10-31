@@ -18,6 +18,7 @@ from bioradar.adapters.fabric_monitor import (
     followup_plan,
     project_record,
     search_records,
+    select_history_versions,
 )
 from bioradar.api.errors import DomainError
 from bioradar.research.engine.auth import DevelopmentAccess
@@ -419,9 +420,10 @@ class MonitorService:
                         updated_at=row.updated_at,
                         run_id=row.run_id,
                         snapshot_id=row.snapshot_id,
-                        from_after=p["after"],
-                        next_after=p["next_after"],
-                        max_seq=p["max_seq"],
+                        from_after=p.get("after"),
+                        next_after=p.get("next_after"),
+                        max_seq=p.get("max_seq"),
+                        historical_sampling=p.get("historical_sampling"),
                         changed_versions=len(p["manifest"]),
                         selection_summary=p.get("selection_summary"),
                         window_records=len((p.get("snapshot") or {}).get("records", [])),
@@ -590,7 +592,7 @@ class MonitorService:
             )
         return records, ["graph_evidence_or_neighborhood_is_bounded"]
 
-    def _mining_policy(self, source_id, now, *, changed_refs=None):
+    def _mining_policy(self, source_id, now, *, changed_refs=None, mode="current"):
         direction = getattr(self.settings, "monitor_kdd_directions", {}).get(source_id)
         model = KddPolicy if direction else DiscoveryPolicy
         values = (
@@ -601,6 +603,8 @@ class MonitorService:
                 "monitor_changed_refs": changed_refs or None,
             }
         )
+        if mode == "public_history_reconstruction":
+            values.update(time_mode="availability_replay", availability_basis=mode)
         current_start = now - timedelta(days=getattr(self.settings, "monitor_current_window_days", 30))
         return model(
             as_of=now,
@@ -685,9 +689,282 @@ class MonitorService:
                 question += "\n需补证范围：" + "；".join(candidate.data_gaps[:6])
         return question[:4000]
 
+    def _save_history(self, replay):
+        with Session(self.engine.database) as session, session.begin():
+            state = self._state(session, lock=True)
+            self._guard(state)
+            values = copy.deepcopy(state.source_progress)
+            values["_history_replay"] = copy.deepcopy(replay)
+            state.source_progress = values
+
+    def advance_history_day(self, *, mode, cutoff, source_ids, topic_ids=()):
+        """One explicit public-time step using real collection, batch and RQ receipts."""
+        cutoff = datetime.fromisoformat(cutoff) if isinstance(cutoff, str) else cutoff
+        if (
+            mode != "public_history_reconstruction"
+            or not isinstance(cutoff, datetime)
+            or cutoff.tzinfo is None
+            or cutoff > datetime.now(UTC)
+        ):
+            raise DomainError("history_replay_invalid", "日推进需要明确历史公开模式和过去UTC时点", 422)
+        cutoff = cutoff.astimezone(UTC).isoformat()
+        sources, topics = sorted(set(source_ids)), sorted(set(topic_ids))
+        if not sources or not set(sources).issubset(self.permitted()):
+            raise DomainError("source_not_authorized", "历史集合包含未许可来源", 403)
+        if not self.claim():
+            return {"status": "waiting", "reason": "paused_or_busy", "mode": mode, "cutoff": cutoff}
+        error = None
+        try:
+            with Session(self.engine.database) as session:
+                values = copy.deepcopy(self._state(session).source_progress)
+            scope_hash = canonical_hash(
+                {
+                    "sources": sources,
+                    "is_demo": self.settings.monitor_is_demo,
+                    "instance": self.reader.demo_source_instance or "fixture"
+                    if self.settings.monitor_is_demo
+                    else self.reader.source_instance,
+                }
+            )
+            replay = values.get("_history_replay")
+            if replay is None:
+                if any(value.get("initialized") or value.get("active_batch_id") for value in values.values()):
+                    raise DomainError("history_replay_workspace", "历史回放必须使用专属工作空间", 409)
+                replay = {
+                    "mode": mode,
+                    "scope_hash": scope_hash,
+                    "source_ids": sources,
+                    "is_demo": self.settings.monitor_is_demo,
+                    "last_committed_cutoff": None,
+                    "current_records": {},
+                }
+            if replay["mode"] != mode or replay["scope_hash"] != scope_hash:
+                raise DomainError("history_replay_scope_changed", "回放来源与模式已冻结", 409)
+            day = replay.get("pending_day")
+            if day and day["cutoff"] != cutoff and day["status"] != "completed":
+                raise DomainError("history_replay_pending", "先恢复原固定历史日", 409)
+            if day and day["cutoff"] == cutoff:
+                if day.get("requested_topic_ids", day["topic_ids"]) != topics:
+                    raise DomainError("history_replay_scope_changed", "同日专题集合已冻结", 409)
+                if day["status"] == "completed":
+                    return copy.deepcopy(day)
+            else:
+                if replay["last_committed_cutoff"] and cutoff <= replay["last_committed_cutoff"]:
+                    raise DomainError("history_replay_nonmonotonic", "新日必须严格晚于已完成历史日", 409)
+                day = {
+                    "mode": mode,
+                    "cutoff": cutoff,
+                    "scope_hash": scope_hash,
+                    "status": "prepared",
+                    "collections": {},
+                    "batch_ids": [],
+                    "run_ids": [],
+                    "topic_ids": sorted(set(topics) | set(day["topic_ids"] if day else [])),
+                    "requested_topic_ids": topics,
+                    "topic_receipts": {},
+                    "previous_records": copy.deepcopy(replay["current_records"]),
+                }
+                replay["pending_day"] = day
+                self._save_history(replay)
+            for source in sources:
+                if source in day["collections"]:
+                    continue
+                collection = self.reader.collect(
+                    source_id=source,
+                    is_demo=self.settings.monitor_is_demo,
+                    mode=mode,
+                    cutoff=datetime.fromisoformat(cutoff),
+                )
+                collection["cutoff"] = cutoff
+                selected, ambiguous = select_history_versions(
+                    self.reader, collection, previous=replay["current_records"].get(source, [])
+                )
+                day["collections"][source] = {
+                    "receipt_id": canonical_hash([scope_hash, cutoff, source, collection]),
+                    "collection": collection,
+                    "selected_refs": [self.reader.ref(r).model_dump(mode="json") for r in selected],
+                    "ambiguous_refs": ambiguous,
+                    "status": "collected",
+                }
+                replay["current_records"][source] = selected
+                self._save_history(replay)  # Received collection always precedes mining/adoption.
+            for source in sources:
+                identifier = self.accept_history_collection(source)
+                self.advance(identifier)
+            with Session(self.engine.database) as session:
+                replay = copy.deepcopy(self._state(session).source_progress["_history_replay"])
+                states = [
+                    session.get(MonitorBatch, identifier).state
+                    for identifier in replay["pending_day"]["batch_ids"]
+                ]
+            day = replay["pending_day"]
+            with Session(self.engine.database) as session:
+                created = [
+                    lead.payload.get("auto_topic", {}).get("topic_id")
+                    for lead in session.scalars(
+                        select(MonitorLead).where(MonitorLead.batch_id.in_(day["batch_ids"]))
+                    )
+                ]
+            day["topic_ids"] = sorted(set(day["topic_ids"]) | {topic for topic in created if topic})
+            if any(state != "completed" for state in states):
+                day["status"] = "blocked" if "blocked" in states else "waiting"
+            else:
+                from bioradar.topics.service import TopicService
+
+                service = TopicService(self.engine, self.reader)
+                service._active_monitor = self
+                for topic in day["topic_ids"]:
+                    if day["topic_receipts"].get(topic, {}).get("status") == "completed":
+                        continue
+                    day["topic_receipts"][topic] = service.advance_history_day(
+                        topic, mode=mode, cutoff=cutoff
+                    )
+                    self._save_history(replay)
+                receipts = list(day["topic_receipts"].values())
+                day["status"] = (
+                    "blocked"
+                    if any(r["status"] == "blocked" for r in receipts)
+                    else "waiting"
+                    if any(r["status"] != "completed" for r in receipts)
+                    else "completed"
+                )
+            if day["status"] == "completed":
+                replay["last_committed_cutoff"] = cutoff
+            self._save_history(replay)
+            return copy.deepcopy(day)
+        except DomainError as exc:
+            error = exc.code
+            raise
+        finally:
+            self.release(error)
+
+    def accept_history_collection(self, source_id):
+        """Freeze an actual received collection into the ordinary monitor batch table."""
+        if source_id not in self.permitted():
+            raise DomainError("source_not_authorized", "历史来源当前已无读取许可", 403)
+        with Session(self.engine.database) as session:
+            replay = copy.deepcopy(self._state(session).source_progress.get("_history_replay") or {})
+        day = replay.get("pending_day") or {}
+        if source_id not in day.get("collections", {}):
+            raise DomainError("history_collection_not_frozen", "该来源没有已收到的固定历史集合", 409)
+        receipt = day["collections"][source_id]
+        if receipt.get("batch_id"):
+            return receipt["batch_id"]
+        cutoff = datetime.fromisoformat(day["cutoff"])
+        mode = replay["mode"]
+        prior = {r["source_record_id"]: r for r in day["previous_records"].get(source_id, [])}
+        current = replay["current_records"].get(source_id, [])
+        changed = [
+            r for r in current if r["version_id"] != prior.get(r["source_record_id"], {}).get("version_id")
+        ]
+        originals = [r for values in replay["current_records"].values() for r in values]
+        originals.extend(
+            old
+            for native, old in prior.items()
+            if any(r["source_record_id"] == native and r["version_id"] != old["version_id"] for r in changed)
+        )
+        records = [
+            project_record(self.reader, r, as_of=cutoff, mode=mode, cutoff=cutoff, kdd=True)
+            for r in originals
+        ]
+        records = [r for r in records if r is not None]
+        limit = min(self.settings.monitor_context_records, self.settings.engine_max_records)
+        omitted = max(0, len(records) - limit)
+        records, bytes_omitted = byte_window(records[:limit], self.settings.engine_max_snapshot_bytes // 2)
+        snapshot = (
+            build_snapshot(
+                records,
+                is_demo=self.settings.monitor_is_demo,
+                as_of=cutoff,
+                omitted=omitted + bytes_omitted,
+                mode=mode,
+            )
+            if changed
+            else None
+        )
+        context = {
+            "mode": mode,
+            "cutoff": day["cutoff"],
+            "history_series_id": canonical_hash([self.actor.workspace_id, replay["scope_hash"]]),
+            "history_scope_hash": replay["scope_hash"],
+        }
+        manifest = [
+            {k: r[k] for k in ("source_id", "source_record_id", "version_id", "raw_sha256", "is_demo")}
+            for r in changed
+        ]
+        refs = [self.reader.ref(r).model_dump(mode="json") for r in changed]
+        payload = {
+            "monitor_version": MONITOR_VERSION,
+            "feature_adoption": {
+                "status": "not_adopted",
+                "gaps": ["historical_external_features_not_proven_at_cutoff"],
+            },
+            "historical_context": context,
+            "historical_collection": copy.deepcopy(receipt["collection"]),
+            "historical_sampling": {
+                "mode": mode,
+                "cutoff": day["cutoff"],
+                "source_ids": replay["source_ids"],
+                "receipt_id": receipt["receipt_id"],
+                "coverage": receipt["collection"]["coverage"],
+                "excluded_counts": receipt["collection"].get("excluded_counts", {}),
+                "ambiguous_refs": receipt["ambiguous_refs"],
+            },
+            "manifest": manifest,
+            "changed_refs": [list(self.reader.ref(r).version_key) for r in changed],
+            "context_update_refs": refs,
+            "changed_text_hashes": sorted(
+                {r.normalized_text_hash for r in records if r.normalized_text_hash}
+            ),
+            "evidence": [evidence_row(self.reader, r) for r in originals],
+            "historical_selected_records": [
+                {k: v for k, v in r.items() if k != "raw_content"} for r in current
+            ],
+            "snapshot": snapshot.model_dump(mode="json") if snapshot else None,
+            "policy": self._mining_policy(source_id, cutoff, changed_refs=refs, mode=mode).model_dump(
+                mode="json"
+            ),
+            "limitations": [
+                *LIMITATIONS,
+                "historical_collection_is_not_a_current_heads_or_change_feed",
+                "historical_external_features_not_proven_at_cutoff",
+            ],
+            "selected_leads": [],
+            "investigation_ids": [],
+        }
+        payload["selection_summary"] = self._selection_summary(payload)
+        identifier = str(uuid4())
+        with Session(self.engine.database) as session, session.begin():
+            state = self._state(session, lock=True)
+            self._guard(state)
+            values = copy.deepcopy(state.source_progress)
+            current_day = values["_history_replay"]["pending_day"]
+            if current_day["cutoff"] != day["cutoff"]:
+                raise DomainError("history_replay_conflict", "历史日已变化", 409)
+            if current_day["collections"][source_id].get("batch_id"):
+                return current_day["collections"][source_id]["batch_id"]
+            session.add(
+                MonitorBatch(
+                    id=identifier,
+                    workspace_id=self.actor.workspace_id,
+                    batch_key=canonical_hash([replay["scope_hash"], day["cutoff"], source_id]),
+                    source_id=source_id,
+                    is_demo=self.settings.monitor_is_demo,
+                    state="accepted",
+                    payload=payload,
+                    updated_at=datetime.now(UTC),
+                )
+            )
+            current_day["collections"][source_id]["batch_id"] = identifier
+            current_day["batch_ids"].append(identifier)
+            state.source_progress = values
+        return identifier
+
     def accept_page(self, source_id):
         with Session(self.engine.database) as session:
             progress = copy.deepcopy(self._state(session).source_progress)
+        if progress.get("_history_replay"):
+            raise DomainError("history_replay_workspace", "该工作空间只接受显式历史日推进", 409)
         stream = self.stream_key(source_id)
         current = progress.get(stream, {})
         if current.get("active_batch_id"):
@@ -1219,12 +1496,22 @@ class MonitorService:
         if snapshot is None:
             self._complete(identifier, payload)
             return
+        if payload.get("historical_context") and "feature_adoption" not in payload:
+            payload = {
+                **payload,
+                "feature_adoption": {
+                    "status": "not_adopted",
+                    "gaps": ["historical_external_features_not_proven_at_cutoff"],
+                },
+            }
+            self._save_batch(identifier, payload=payload)
         key = "monitor-snapshot:" + identifier
         adopted = self._saved_response("snapshot.create", key)
         if adopted is None:
             if (
                 ("kdd_direction" in payload["policy"] or "discovery_directions" in payload["policy"])
                 and self.settings.weknora_kdd_url
+                and not payload.get("historical_context")
                 and "feature_adoption" not in payload
             ):
                 self.engine._authorize_snapshot(self.actor, snapshot)
@@ -1356,6 +1643,8 @@ class MonitorService:
                 direction = item.metrics.get("kdd_direction") or payload.get("policy", {}).get(
                     "kdd_direction"
                 )
+                if payload.get("historical_context"):
+                    body["historical_context"] = copy.deepcopy(payload["historical_context"])
                 if direction:
                     body["kdd_direction"] = direction
                     body["question"] = self._candidate_question(item, direction)
@@ -1936,6 +2225,9 @@ class MonitorService:
                     "key": "monitor-analysis:" + canonical_hash([lead_key, batch_id]),
                     "body": analysis_request.model_dump(mode="json"),
                 }
+                if batch.get("historical_context"):
+                    intent["historical_context"] = copy.deepcopy(batch["historical_context"])
+                    intent["body"]["source_ids"] = list(batch["historical_sampling"]["source_ids"])
                 latest["analysis_intent"] = intent
                 self._save_lead(lead_id, payload=latest)
             _, analysis = AnalysisService(self.engine, self.reader).start(
@@ -1943,6 +2235,7 @@ class MonitorService:
                 investigation_id,
                 AnalysisCreate.model_validate(intent["body"]),
                 intent["key"],
+                historical_context=intent.get("historical_context"),
                 origin={
                     "source": "monitor",
                     "batch_id": batch_id,
@@ -1968,6 +2261,14 @@ class MonitorService:
                             source_id=plan["source_id"],
                             is_demo=self.settings.monitor_is_demo,
                             term=plan["term"],
+                            **(
+                                {
+                                    "mode": batch["historical_context"]["mode"],
+                                    "cutoff": datetime.fromisoformat(batch["historical_context"]["cutoff"]),
+                                }
+                                if batch.get("historical_context")
+                                else {}
+                            ),
                         )
                     except DomainError as exc:
                         receipt = {
@@ -2049,6 +2350,10 @@ class MonitorService:
 
     def _propagate_context_updates(self, identifier, payload, snapshot_id):
         """Append current versions to exactly linked existing investigations, even without a new lead."""
+        if payload.get("historical_context"):
+            # Historical revisions belong to the new day's analyses, never current auto-updates.
+            payload["context_updates_complete"] = True
+            return True
         if payload.get("context_updates_complete"):
             return True
         refs = [ProviderRef.model_validate(ref) for ref in payload.get("context_update_refs", [])]
@@ -2199,6 +2504,21 @@ class MonitorService:
             self._guard(state)
             row = session.get(MonitorBatch, identifier, with_for_update=True)
             values = copy.deepcopy(state.source_progress)
+            if payload.get("historical_context"):
+                replay = values["_history_replay"]
+                day = replay["pending_day"]
+                receipt = day["collections"].get(row.source_id, {})
+                if (
+                    day["cutoff"] != payload["historical_context"]["cutoff"]
+                    or receipt.get("batch_id") != identifier
+                ):
+                    raise DomainError("history_replay_conflict", "固定历史日或批次已变化", 409)
+                receipt["status"], receipt["run_id"] = "completed", row.run_id
+                if row.run_id and row.run_id not in day["run_ids"]:
+                    day["run_ids"].append(row.run_id)
+                state.source_progress = values
+                row.payload, row.state, row.updated_at = payload, "completed", datetime.now(UTC)
+                return
             stream = self.stream_key(row.source_id)
             source = values.get(stream, {})
             if source.get("active_batch_id") != identifier:
@@ -2412,6 +2732,9 @@ class MonitorService:
     def tick(self):
         if not self.settings.monitor_enabled or not DevelopmentAccess(self.settings).enabled:
             return {"state": "disabled"}
+        with Session(self.engine.database) as session:
+            if self._state(session).source_progress.get("_history_replay"):
+                return {"state": "history_step_required"}
         if not self.claim():
             return {"state": "paused_or_busy"}
         error, source, allowed, offset = None, None, [], 0

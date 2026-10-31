@@ -491,14 +491,14 @@
     }
   },
   "latest_verification": {
-    "checked_at": "2026-10-30T22:24:32.366590+00:00",
-    "status": "engineering_reviewed_ready_for_fresh_R4",
-    "details": "r4_coordinated_defect_fixes_20261031",
+    "checked_at": "2026-10-31T06:54:31.514773+00:00",
+    "status": "isolated_history_engineering_checked",
+    "details": "public_history_daily_execution_20261031",
     "source_roots": {
-      "radar": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar"
+      "radar": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar"
     },
-    "scope": "Confirmed R3 defects corrected, nonauthor SOL reviewed, and actual a008 R4 target verified. Legacy real receipts replay exactly; native inputs and existing PostgreSQL/RQ fault paths pass. Fresh real R4 research is separate.",
-    "deployment_evidence": "Final code prepared on isolated F; existing branch can fast-forward after documentation commit. No old task or production service changed."
+    "scope": "Historical daily execution through existing PG/RQ and topic/investigation path. Formal historical warning effects remain separate.",
+    "deployment_evidence": "Four required checks passed on isolated branch; no main merge or running-service switch."
   },
   "application_version": "0.5.0",
   "checked_at": "2026-10-18T06:48:03.684101+00:00",
@@ -7095,5 +7095,81 @@
     },
     "model_calls": 0,
     "deployment": "No existing main service changed."
+  },
+  "public_history_daily_execution_20261031": {
+    "checked_at": "2026-10-31T06:54:31.514773+00:00",
+    "base_commit": "923e98e884276435664bd12b9becfd3f861ec9d6",
+    "branch": "codex/radar-history-replay-20261031",
+    "repository": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar",
+    "implemented": [
+      "Explicit public-history cutoff through received collection, snapshot, mining RQ, topic, follow-up and evidence reads",
+      "Same-day recovery and forward-only new days; no current watermark/ACK is fabricated",
+      "Prior fixed records retained on partial sources; later semantic events and identity decisions excluded at earlier cutoff",
+      "Earlier completed report may flow forward only in server-owned same-series/scope lineage",
+      "Current tick rejected at historical workspace before claim, including unbound topics"
+    ],
+    "dispatch_policy": {
+      "version": "history-new-visible-evidence-v1",
+      "explicit_behavior_change": true,
+      "rule_blocks_unchanged": 15,
+      "no_new_visible_versions": {
+        "daily_evaluation": "completed",
+        "needed_and_risk": "retained",
+        "assessment": "deferred",
+        "model_posts": 0
+      },
+      "budget_clock": "actual execution time, not historical cutoff"
+    },
+    "checks": {
+      "topic_method_targeted": {
+        "passed": 16,
+        "skipped": 0
+      },
+      "runtime_targeted": {
+        "passed": 13,
+        "skipped": 0,
+        "postgres_and_rq": "real isolated runtime; synthetic source/model responses"
+      },
+      "BOOT": {
+        "passed": 43
+      },
+      "contract_check": "passed",
+      "lint": "passed",
+      "web_check": "passed",
+      "rule_byte_checks": 15
+    },
+    "evidence": {
+      "methods": {
+        "path": "/tmp/bioradar-section16-20261031/d135-topic-methods-handoff.v3.json",
+        "sha256": "d5dfb2c3524373acd732517c32fc07242e4f5a300c1281a65e862903a9a4c698"
+      },
+      "runtime": {
+        "path": "/tmp/bioradar-section16-20261031/d135-runtime-handoff.json",
+        "sha256": "28ee7a00dd19760653a3b03cfcbdac12c92a8813b08f3ad089d01e8378e20cab"
+      },
+      "nonauthor_business_review": {
+        "path": "/tmp/bioradar-section16-20261031/d135-c-final-nonauthor-review.json",
+        "sha256": "0d6a588610af6973e8ce7f99c781ca2c89d7fd810c477d166e3550ff35f29d72"
+      },
+      "required_checks": {
+        "path": "/tmp/bioradar-section16-20261031/d135-final-make/results.json",
+        "sha256": "47f0ee800ef8dc36ee2013e7675acb86de553752de61a9d42e153c18737f5455"
+      },
+      "delivery": {
+        "path": "/tmp/bioradar-section16-20261031/d135-final-make/delivery-handoff.v2.json",
+        "sha256": "94a7623d060125c69d3ec88bf59f34ae145b984cb535f0cf88eac02770a734b1"
+      },
+      "model_contract_comparison": {
+        "path": "/tmp/bioradar-section16-20261031/d135-model-contract-comparison.json",
+        "sha256": "07c28d227ce670478504bfcb057017cb8e7c8251b09fbc5efcacc3c7ffa7139c"
+      }
+    },
+    "model_contracts": {
+      "prompt_schema_nodes_compared": 31,
+      "all_unchanged": true,
+      "historical_inputs": "Actual evidence dates, versions and prior reports can differ; unchanged prompt/schema is not proof of identical token distribution."
+    },
+    "scientific_scope": "Engineering source/clock/recovery validation only. No formal historical cases, scientific outcomes or hidden oracle read by implementation/review agents.",
+    "deployment": "Isolated branch; existing 923 calibration/smoke runtime and production unchanged."
   }
 }

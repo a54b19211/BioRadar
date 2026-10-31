@@ -13306,16 +13306,49 @@
             "title": "Snapshot Id"
           },
           "from_after": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "From After"
           },
           "next_after": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Next After"
           },
           "max_seq": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Max Seq"
+          },
+          "historical_sampling": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Historical Sampling"
           },
           "changed_versions": {
             "type": "integer",
@@ -13377,9 +13410,6 @@
           "updated_at",
           "run_id",
           "snapshot_id",
-          "from_after",
-          "next_after",
-          "max_seq",
           "changed_versions",
           "window_records",
           "investigation_ids",
@@ -16431,7 +16461,10 @@
         "properties": {
           "scope": {
             "type": "string",
-            "const": "committed_adoptions",
+            "enum": [
+              "committed_adoptions",
+              "verified_historical_availability"
+            ],
             "title": "Scope",
             "default": "committed_adoptions"
           },
@@ -16841,6 +16874,18 @@
               }
             ],
             "title": "Tracking"
+          },
+          "evidence_time": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Time"
           }
         },
         "additionalProperties": false,
@@ -17533,7 +17578,14 @@
             "title": "Source Id"
           },
           "after": {
-            "type": "integer",
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "After",
             "default": 0
           },
@@ -17823,6 +17875,18 @@
               }
             ],
             "title": "Tracking"
+          },
+          "evidence_time": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Time"
           }
         },
         "additionalProperties": false,

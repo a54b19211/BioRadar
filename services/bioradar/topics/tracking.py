@@ -81,7 +81,12 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
         environment.extend(attention.get("environment_signals", []))
         if group_key not in seen:
             # The first adopted exposure time is explicit. It is not an invented event date.
-            raw = value.get("received_at") or value.get("first_seen_at") or as_of.isoformat()
+            raw = (
+                value.get("exposure_available_at")
+                or value.get("received_at")
+                or value.get("first_seen_at")
+                or as_of.isoformat()
+            )
             try:
                 when = datetime.fromisoformat(raw.replace("Z", "+00:00"))
                 if when.tzinfo is None:

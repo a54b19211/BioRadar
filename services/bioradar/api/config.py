@@ -89,6 +89,9 @@ class Settings(BaseSettings):
     topic_hourly_investigations: int = Field(default=2, ge=0, le=100)
     topic_daily_model_tokens: int = Field(default=262144, ge=0, le=100_000_000)
     automatic_daily_model_tokens: int = Field(default=1048576, ge=0, le=100_000_000)
+    history_replay_dispatch_policy: Literal["history-new-visible-evidence-v1"] = (
+        "history-new-visible-evidence-v1"
+    )
 
     # Server-only model access. These credentials never enter a browser request.
     semantic_llm_enabled: bool = False

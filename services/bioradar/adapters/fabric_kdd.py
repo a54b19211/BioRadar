@@ -46,12 +46,13 @@ def source_date(value):
     return parsed
 
 
-def enrich_record(reader, record, base, *, as_of):
+def enrich_record(reader, record, base, *, as_of, source_available_at=None):
     """Map verified native fields without a model, guessed dates or entity resolution."""
     fields = record.get("facts") or {}
     gaps, changes = set(base.missing_fields), {}
     received = record.get("received_at")
-    known = datetime.fromisoformat(received.replace("Z", "+00:00")) if received else base.observed_at
+    received_known = datetime.fromisoformat(received.replace("Z", "+00:00")) if received else base.observed_at
+    known = source_available_at or received_known
     provenance = SectionProvenance(
         schema_version=VERSION, provider_ref=reader.ref(record), available_at=known
     )
@@ -210,7 +211,7 @@ def enrich_record(reader, record, base, *, as_of):
                     mapping_ref=reader.ref(record),
                     mapping_version="sec.cik.native-field.v1",
                     mapping_status="confirmed",
-                    mapping_available_at=known,
+                    mapping_available_at=received_known,
                 ),
             )
             gaps.update(

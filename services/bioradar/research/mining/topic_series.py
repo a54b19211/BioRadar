@@ -10,7 +10,7 @@ from statistics import median
 
 from bioradar.research.mining.methods_text import STOP, is_structured_json, phrase_spans
 from bioradar.research.mining.models import TimeExpression, canonical_hash
-from bioradar.research.mining.prepare import time_interval
+from bioradar.research.mining.prepare import public_availability, time_interval
 from bioradar.research.mining.signals import assess_records
 from bioradar.research.mining.temporal import batch_bursts
 
@@ -60,8 +60,26 @@ def _time(raw):
         return None
 
 
-def project_contribution(record, history, definition, *, as_of):
+def project_contribution(record, history, definition, *, as_of, evidence_time=None):
     """Reduce existing validated EngineRecord fields without copying prose or guessing identities."""
+    temporal = {}
+    if evidence_time is not None:
+        mode = evidence_time["mode"]
+        cutoff = datetime.fromisoformat(evidence_time["cutoff"].replace("Z", "+00:00"))
+        if cutoff.tzinfo is None or cutoff != as_of:
+            raise ValueError("historical availability cutoff mismatch")
+        if mode == "public_history_reconstruction":
+            available = public_availability(record)
+        elif mode == "operational_replay":
+            available = record.observed_at
+        else:
+            raise ValueError("historical availability mode required")
+        if available is None or available > cutoff:
+            raise ValueError("historical availability unknown or after cutoff")
+        temporal = {
+            "exposure_available_at": available.isoformat(),
+            "exposure_time_basis": mode,
+        }
     facts, site = history["facts"], source_site(history)
     narrative = record.normalized_text or ""
     if is_structured_json(narrative):
@@ -179,6 +197,7 @@ def project_contribution(record, history, definition, *, as_of):
         "parser_version": history["parser_version"],
         "facts": retained,
         "observation": raw_schema,
+        **temporal,
     }
     value["content_fingerprint"] = canonical_hash(
         {

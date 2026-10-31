@@ -129,9 +129,10 @@ class MonitorBatchView(RuntimeModel):
     updated_at: datetime
     run_id: str | None
     snapshot_id: str | None
-    from_after: int
-    next_after: int
-    max_seq: int
+    from_after: int | None = None
+    next_after: int | None = None
+    max_seq: int | None = None
+    historical_sampling: dict | None = Field(default=None, exclude_if=lambda value: value is None)
     changed_versions: int
     window_records: int
     scope_complete: bool = False

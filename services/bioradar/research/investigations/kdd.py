@@ -45,6 +45,13 @@ def policy_for(fixed):
             raise DomainError("analysis_dataset_scope_changed", "数值提取契约与固定计算策略不一致", 409)
         if policy.source_intelligence_version != source_version:
             raise DomainError("analysis_dataset_scope_changed", "来源资料契约与固定计算策略不一致", 409)
+        clock = fixed.get("evidence_time", {})
+        if clock.get("mode") in {"operational_replay", "public_history_reconstruction"} and (
+            policy.as_of != datetime.fromisoformat(clock["cutoff"])
+            or policy.time_mode != "availability_replay"
+            or policy.availability_basis != clock["mode"]
+        ):
+            raise DomainError("analysis_dataset_scope_changed", "计算策略与固定历史时点不一致", 409)
         return policy
     return KddPolicy(
         as_of=datetime.fromisoformat(fixed["evidence_time"]["cutoff"]),

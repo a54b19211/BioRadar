@@ -90,8 +90,22 @@ def expression(value):
     )
 
 
-def project_record(reader, record, *, as_of, bootstrap=False, kdd=False):
+def project_record(reader, record, *, as_of, bootstrap=False, kdd=False, mode="current", cutoff=None):
     """Native registration identity is not a drug/program or independent-study claim."""
+    if mode != "current":
+        validate_record(record, record["source_id"], record["is_demo"], mode, cutoff or as_of)
+        if record.get("document_evidence") is not None:
+            from bioradar.adapters.fabric_document import context_at
+
+            record = {
+                **record,
+                "document_evidence": context_at(
+                    record["document_evidence"],
+                    mode=mode,
+                    cutoff=(cutoff or as_of).isoformat(),
+                    text=record["clean_text"],
+                ),
+            }
     collection = {
         "items": [record],
         "source_id": record["source_id"],
@@ -102,6 +116,13 @@ def project_record(reader, record, *, as_of, bootstrap=False, kdd=False):
     if base is None:
         return None
     result = base.records[0]
+    source_available_at = time_upper(record["received_at"])
+    if mode == "public_history_reconstruction":
+        from bioradar.research.mining.prepare import public_availability
+
+        source_available_at = public_availability(result)
+        if source_available_at is None or source_available_at > (cutoff or as_of):
+            raise history_error()
     facts = record["facts"]
     updated = record.get("source_updated_at")
     recent_revision = updated and time_upper(updated) and time_upper(updated) >= as_of - timedelta(days=30)
@@ -128,7 +149,7 @@ def project_record(reader, record, *, as_of, bootstrap=False, kdd=False):
     provenance = SectionProvenance(
         schema_version=PROJECTION_VERSION,
         provider_ref=reader.ref(record),
-        available_at=time_upper(record["received_at"]),
+        available_at=source_available_at,
     )
     entities, assertions, events = [], [], []
     trial_id = facts.get("trial_id")
@@ -246,10 +267,26 @@ def project_record(reader, record, *, as_of, bootstrap=False, kdd=False):
     )
     from bioradar.adapters.fabric_kdd import enrich_record
 
-    return enrich_record(reader, record, projected, as_of=as_of)
+    if mode != "current":
+        projected = projected.model_copy(
+            update={
+                "upstream_status": {
+                    **projected.upstream_status,
+                    "projection_mode": mode,
+                    "source_field_available_at": source_available_at.isoformat(),
+                }
+            }
+        )
+    return enrich_record(
+        reader,
+        record,
+        projected,
+        as_of=as_of,
+        source_available_at=source_available_at if mode != "current" else None,
+    )
 
 
-def build_snapshot(records, *, is_demo, as_of, omitted=0):
+def build_snapshot(records, *, is_demo, as_of, omitted=0, mode="current"):
     # Selection is bounded before this function; keep old/new versions for actual revisions.
     by_ref = {tuple(r.record_ref.version_key): r for r in records}
     records = tuple(by_ref[key] for key in sorted(by_ref))
@@ -263,7 +300,7 @@ def build_snapshot(records, *, is_demo, as_of, omitted=0):
         snapshot_id="monitor-" + canonical_hash([r.record_ref.model_dump(mode="json") for r in records])[:24],
         source_instance=instance,
         is_demo=is_demo,
-        observed_at=as_of,
+        observed_at=as_of if mode == "current" else max(record.observed_at for record in records),
         coverage_mode="bounded_sample",
         records=records,
         coverage=tuple(
@@ -271,7 +308,11 @@ def build_snapshot(records, *, is_demo, as_of, omitted=0):
                 source_instance=instance,
                 source_id=source,
                 mode="bounded_sample",
-                scope_description="持续采用日志的有界跨源计算窗口，不是原站全库或独立研究分母。",
+                scope_description=(
+                    "持续采用日志的有界跨源计算窗口，不是原站全库或独立研究分母。"
+                    if mode == "current"
+                    else "固定公开可用时点的有界原件集合，不是来源当前头或全库覆盖。"
+                ),
                 record_count=count,
                 reasons=("bounded_monitor_window", "source_independence_unresolved"),
             )
@@ -279,6 +320,38 @@ def build_snapshot(records, *, is_demo, as_of, omitted=0):
         ),
         metadata_gaps=("monitor_scope_is_not_source_coverage", "omitted_window_records:" + str(omitted)),
     )
+
+
+def select_history_versions(reader, collection, *, previous=()):
+    """Select only strictly ordered public versions; absence is never withdrawal."""
+    from bioradar.research.mining.prepare import public_availability
+
+    cutoff = collection["cutoff"]
+    cutoff = datetime.fromisoformat(cutoff) if isinstance(cutoff, str) else cutoff
+    grouped, old = {}, {}
+    for record in [*previous, *collection["items"]]:
+        validate_record(
+            record, collection["source_id"], collection["is_demo"], "public_history_reconstruction", cutoff
+        )
+        data = reader.snapshot({**collection, "items": [record]})
+        upper = public_availability(data.records[0]) if data else None
+        if upper is None or upper > cutoff:
+            raise history_error()
+        key = record["source_record_id"]
+        grouped.setdefault(key, {})[record["version_id"]] = (upper, record)
+    for record in previous:
+        old[record["source_record_id"]] = record
+    selected, ambiguous = [], []
+    for native, versions in sorted(grouped.items()):
+        upper = max(value[0] for value in versions.values())
+        latest = [record for when, record in versions.values() if when == upper]
+        if len(latest) == 1:
+            selected.append(latest[0])
+        else:
+            ambiguous.extend(reader.ref(record).model_dump(mode="json") for record in latest)
+            if native in old:
+                selected.append(old[native])
+    return selected, ambiguous
 
 
 def followup_plan(records, candidate, *, limit=2):
@@ -331,15 +404,17 @@ def followup_plan(records, candidate, *, limit=2):
     return plans[:limit]
 
 
-def search_records(reader, *, source_id, is_demo, term):
+def search_records(reader, *, source_id, is_demo, term, mode="current", cutoff=None):
     """One bounded page, not a collect-then-discard full-corpus search."""
-    now = datetime.now(UTC)
+    if mode != "current" and (cutoff is None or cutoff.tzinfo is None):
+        raise history_error()
+    now = cutoff if cutoff is not None else datetime.now(UTC)
     page = reader._get(
         "/api/history/records",
         {
             "source_id": source_id,
             "is_demo": str(is_demo).lower(),
-            "mode": "current",
+            "mode": mode,
             "cutoff": now.isoformat(),
             "terms": term,
             "limit": 3,
@@ -353,7 +428,7 @@ def search_records(reader, *, source_id, is_demo, term):
     ):
         raise history_error()
     for record in page["items"]:
-        validate_record(record, source_id, is_demo, "current", now)
+        validate_record(record, source_id, is_demo, mode, now)
     coverage = dict(page.get("coverage") or {})
     coverage["complete"] = False
     coverage["followup_limit"] = 3

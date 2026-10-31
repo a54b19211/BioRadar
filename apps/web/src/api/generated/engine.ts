@@ -4708,11 +4708,15 @@ export interface components {
             /** Snapshot Id */
             snapshot_id: string | null;
             /** From After */
-            from_after: number;
+            from_after?: number | null;
             /** Next After */
-            next_after: number;
+            next_after?: number | null;
             /** Max Seq */
-            max_seq: number;
+            max_seq?: number | null;
+            /** Historical Sampling */
+            historical_sampling?: {
+                [key: string]: unknown;
+            } | null;
             /** Changed Versions */
             changed_versions: number;
             /** Window Records */
@@ -5838,9 +5842,9 @@ export interface components {
             /**
              * Scope
              * @default committed_adoptions
-             * @constant
+             * @enum {string}
              */
-            scope: "committed_adoptions";
+            scope: "committed_adoptions" | "verified_historical_availability";
             /** Seed Complete */
             seed_complete: boolean;
             /** Source Watermarks */
@@ -6008,6 +6012,10 @@ export interface components {
             automation_status: "not_needed" | "deferred" | "saved" | "needs_review" | "blocked" | "waiting_budget";
             /** Tracking */
             tracking?: {
+                [key: string]: unknown;
+            } | null;
+            /** Evidence Time */
+            evidence_time?: {
                 [key: string]: unknown;
             } | null;
         };
@@ -6240,7 +6248,7 @@ export interface components {
              * After
              * @default 0
              */
-            after: number;
+            after: number | null;
             /** Scan Max Seq */
             scan_max_seq?: number | null;
             /**
@@ -6338,6 +6346,10 @@ export interface components {
             data_gaps: string[];
             /** Tracking */
             tracking?: {
+                [key: string]: unknown;
+            } | null;
+            /** Evidence Time */
+            evidence_time?: {
                 [key: string]: unknown;
             } | null;
         };

@@ -65,7 +65,7 @@ class TopicControl(RuntimeModel):
 
 class TopicSourceProgress(RuntimeModel):
     source_id: str
-    after: int = 0
+    after: int | None = 0
     scan_max_seq: int | None = None
     seed_complete: bool = False
     last_success_at: datetime | None = None
@@ -92,6 +92,7 @@ class TopicView(RuntimeModel):
     latest_evaluation_id: str | None = None
     data_gaps: list[str]
     tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    evidence_time: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class TopicRiskReviewView(RuntimeModel):
@@ -201,7 +202,7 @@ class TopicEvidence(RuntimeModel):
 
 
 class TopicCoverage(RuntimeModel):
-    scope: Literal["committed_adoptions"] = "committed_adoptions"
+    scope: Literal["committed_adoptions", "verified_historical_availability"] = "committed_adoptions"
     seed_complete: bool
     source_watermarks: dict[str, int]
     source_errors: dict[str, str]
@@ -245,6 +246,7 @@ class TopicEvaluation(RuntimeModel):
         "not_needed", "deferred", "saved", "needs_review", "blocked", "waiting_budget"
     ] = "not_needed"
     tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    evidence_time: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class TopicEvaluationList(RuntimeModel):
