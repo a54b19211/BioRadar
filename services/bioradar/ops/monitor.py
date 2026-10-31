@@ -20,6 +20,47 @@ from bioradar.topics.service import TopicService
 logger = logging.getLogger(__name__)
 
 
+def _tick(settings, database):
+    if not settings.data_fabric_url or not settings.data_fabric_history_read_token:
+        return
+    with httpx.Client(
+        base_url=settings.data_fabric_url,
+        trust_env=False,
+        headers={
+            "Authorization": "Bearer " + settings.data_fabric_history_read_token.get_secret_value()
+        },
+    ) as client:
+        reader = FabricHistoryReader(
+            client,
+            source_instance=settings.data_fabric_source_instance,
+            demo_source_instance=settings.data_fabric_demo_source_instance,
+            authorization_ref=DevelopmentAccess(settings).actor().grant_ref,
+            max_records=settings.engine_max_records,
+            max_bytes=settings.engine_max_snapshot_bytes,
+            max_seconds=90,
+        )
+        engine = EngineService(database, settings)
+        if settings.monitor_enabled:
+            try:
+                result = MonitorService(engine, reader).tick()
+                TopicService(engine, reader).tick()
+                logger.info(
+                    "Monitor tick state=%s code=%s", result["state"], result.get("error_code", "none")
+                )
+            except Exception as exc:
+                logger.warning("Monitor tick incomplete type=%s", type(exc).__name__)
+
+        # Accepted investigations need maintenance even when new discovery is disabled or fails.
+        from bioradar.research.investigations.analysis_service import AnalysisService
+
+        try:
+            dispatched = AnalysisService(engine, reader).recover(limit=4)
+        except Exception as exc:
+            logger.warning("Research recovery incomplete type=%s", type(exc).__name__)
+        else:
+            logger.info("Research recovery dispatched=%s", dispatched)
+
+
 def main():
     logging.basicConfig(level=logging.INFO)
     parser = argparse.ArgumentParser(description=__doc__)
@@ -70,42 +111,10 @@ def main():
                 raise SystemExit(1) from None
             return
         while not stop.is_set():
-            if (
-                settings.monitor_enabled
-                and settings.data_fabric_url
-                and settings.data_fabric_history_read_token
-            ):
-                try:
-                    with httpx.Client(
-                        base_url=settings.data_fabric_url,
-                        trust_env=False,
-                        headers={
-                            "Authorization": "Bearer "
-                            + settings.data_fabric_history_read_token.get_secret_value()
-                        },
-                    ) as client:
-                        reader = FabricHistoryReader(
-                            client,
-                            source_instance=settings.data_fabric_source_instance,
-                            demo_source_instance=settings.data_fabric_demo_source_instance,
-                            authorization_ref=DevelopmentAccess(settings).actor().grant_ref,
-                            max_records=settings.engine_max_records,
-                            max_bytes=settings.engine_max_snapshot_bytes,
-                            max_seconds=90,
-                        )
-                        engine = EngineService(database, settings)
-                        result = MonitorService(engine, reader).tick()
-                        # Topics seed independently; a global monitor ACK cannot skip their history.
-                        TopicService(engine, reader).tick()
-                        from bioradar.research.investigations.analysis_service import AnalysisService
-
-                        AnalysisService(engine, reader).recover(limit=4)
-                        logger.info(
-                            "Monitor tick state=%s code=%s", result["state"], result.get("error_code", "none")
-                        )
-                except Exception as exc:
-                    # PG outcome may be unknown: the next tick reconciles durable ids, never new write keys.
-                    logger.warning("Monitor tick incomplete type=%s", type(exc).__name__)
+            try:
+                _tick(settings, database)
+            except Exception as exc:
+                logger.warning("Monitor tick setup incomplete type=%s", type(exc).__name__)
             stop.wait(settings.monitor_poll_seconds)
     finally:
         database.dispose()

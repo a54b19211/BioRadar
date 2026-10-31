@@ -211,10 +211,122 @@ def normalize_fetch_request(request):
     )
 
 
-def read_fetch_version(reader, run, version_id, *, cutoff):
-    """Resolve one actual version returned by the known run, never a search or guessed native ID."""
-    from bioradar.adapters.fabric_history import validate_record
+def collect_fetch_version_bindings(reader, run, *, cutoff, version_ids=None):
+    """Resolve exact run versions through the existing bounded, authorized collection."""
+    checked = _run(
+        run,
+        run.get("source_id"),
+        is_demo=run.get("is_demo", False),
+        demo_instance_id=run.get("demo_instance_id"),
+    )
+    wanted = list(checked["version_ids"] if version_ids is None else version_ids)
+    if (
+        checked["state"] not in {"completed", "partial"}
+        or len(set(wanted)) != len(wanted)
+        or not set(wanted).issubset(checked["version_ids"])
+    ):
+        raise DomainError("history_fetch_binding_invalid", "补采版本绑定范围与原运行不符", 422)
+    result = {
+        "run_id": checked["id"],
+        "source_id": checked["source_id"],
+        "is_demo": checked["is_demo"],
+        "mode": "current",
+        "cutoff": cutoff.isoformat(),
+        "requested_version_ids": wanted,
+        "bindings": {},
+        "missing_version_ids": [],
+    }
+    if wanted:
+        collection = reader.collect(
+            source_id=checked["source_id"],
+            is_demo=checked["is_demo"],
+            mode="current",
+            cutoff=cutoff,
+            run_id=checked["id"],
+        )
+        coverage = collection.get("coverage", {})
+        try:
+            as_of = coverage.get("as_of")
+            as_of = datetime.fromisoformat(as_of) if isinstance(as_of, str) else as_of
+        except ValueError:
+            as_of = None
+        if (
+            collection.get("source_id") != checked["source_id"]
+            or collection.get("is_demo") is not checked["is_demo"]
+            or collection.get("cutoff") != cutoff
+            or coverage.get("run_id") != checked["id"]
+            or as_of != cutoff
+        ):
+            raise DomainError("history_fetch_binding_invalid", "原件集合不是同一补采范围和截止时间", 502)
+        for record in collection["items"]:
+            version = record["version_id"]
+            if version not in wanted:
+                continue  # A newer head never substitutes for the requested run version.
+            binding = {
+                "source_id": record["source_id"],
+                "source_record_id": record["source_record_id"],
+                "version_id": version,
+                "is_demo": record["is_demo"],
+            }
+            if version in result["bindings"] and result["bindings"][version] != binding:
+                raise DomainError("history_fetch_binding_ambiguous", "同一补采版本返回了不同原生身份", 502)
+            result["bindings"][version] = binding
+    result["missing_version_ids"] = sorted(set(wanted) - result["bindings"].keys())
+    return result
 
+
+def validate_fetch_version_bindings(run, value, *, cutoff, version_ids=None):
+    """Validate saved metadata before reusing it; never infer a native ID."""
+    checked = _run(
+        run,
+        run.get("source_id"),
+        is_demo=run.get("is_demo", False),
+        demo_instance_id=run.get("demo_instance_id"),
+    )
+    required = set(checked["version_ids"] if version_ids is None else version_ids)
+    invalid = not isinstance(value, dict) or any(
+        value.get(key) != expected
+        for key, expected in {
+            "run_id": checked["id"],
+            "source_id": checked["source_id"],
+            "mode": "current",
+            "cutoff": cutoff.isoformat(),
+        }.items()
+    )
+    if invalid or value.get("is_demo") is not checked["is_demo"]:
+        raise DomainError("history_fetch_binding_invalid", "已存补采绑定的范围发生变化", 409)
+    wanted, bindings = value.get("requested_version_ids"), value.get("bindings")
+    if (
+        not isinstance(wanted, list)
+        or any(not isinstance(v, str) for v in wanted)
+        or len(set(wanted)) != len(wanted)
+        or not set(wanted).issubset(checked["version_ids"])
+        or not required.issubset(wanted)
+        or not isinstance(bindings, dict)
+        or not set(bindings).issubset(wanted)
+        or value.get("missing_version_ids") != sorted(set(wanted) - bindings.keys())
+    ):
+        raise DomainError("history_fetch_binding_invalid", "已存补采版本归属不完整或已变化", 409)
+    for version, binding in bindings.items():
+        if (
+            not isinstance(binding, dict)
+            or set(binding) != {"source_id", "source_record_id", "version_id", "is_demo"}
+            or binding.get("version_id") != version
+            or binding.get("source_id") != checked["source_id"]
+            or binding.get("is_demo") is not checked["is_demo"]
+            or not isinstance(binding.get("source_record_id"), str)
+            or not binding["source_record_id"]
+        ):
+            raise DomainError("history_fetch_binding_invalid", "已存原生版本绑定不符合原运行", 409)
+    if required - bindings.keys():
+        raise DomainError(
+            "history_fetch_binding_missing", "补采目标版本缺少确切原生身份，未用新版本替代", 409
+        )
+    return bindings
+
+
+def read_fetch_version(reader, run, version_id, *, cutoff, binding=None):
+    """Read the actual native/version pair obtained from the same known fetch run."""
     checked = _run(
         run,
         run.get("source_id"),
@@ -223,17 +335,14 @@ def read_fetch_version(reader, run, version_id, *, cutoff):
     )
     if version_id not in checked["version_ids"]:
         raise DomainError("history_fetch_response_invalid", "原文版本不属于已收补采运行", 422)
-    value = reader._get(
-        "/api/history/versions/" + quote(version_id, safe=""),
-        {
-            "source_id": checked["source_id"],
-            "is_demo": str(checked["is_demo"]).lower(),
-            "mode": "current",
-            "cutoff": cutoff.isoformat(),
-        },
-    )
-    record = value.get("record", value) if isinstance(value, dict) else value
-    record = validate_record(record, checked["source_id"], checked["is_demo"], "current", cutoff)
-    if record["version_id"] != version_id:
-        raise DomainError("history_fetch_response_invalid", "补采原文版本与运行回执不一致", 502)
-    return record
+    if (
+        not isinstance(binding, dict)
+        or set(binding) != {"source_id", "source_record_id", "version_id", "is_demo"}
+        or binding.get("source_id") != checked["source_id"]
+        or binding.get("version_id") != version_id
+        or binding.get("is_demo") is not checked["is_demo"]
+        or not isinstance(binding.get("source_record_id"), str)
+        or not binding["source_record_id"]
+    ):
+        raise DomainError("history_fetch_binding_invalid", "缺少同源确切原生版本绑定，未猜测编号", 422)
+    return reader.read_version(binding, mode="current", cutoff=cutoff)

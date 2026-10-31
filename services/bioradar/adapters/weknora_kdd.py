@@ -288,6 +288,30 @@ def features_for_snapshot(settings, snapshot, *, direction, timeout_seconds=30, 
     }
 
 
+def _search_candidate_identifiers(item):
+    """Preserve bounded provider identifiers for diagnosis, never search text or metadata."""
+    if not isinstance(item, dict):
+        return {}
+    fields = ("source_instance", "source_id", "source_record_id", "version_id", "raw_sha256")
+    identity = item.get("identity")
+    result = {}
+    if isinstance(identity, dict):
+        result["identity"] = {
+            key: value for key in fields
+            if isinstance(value := identity.get(key), str)
+            and 0 < len(value) <= 400 and not any(ord(character) < 32 for character in value)
+        }
+    for key in (
+        "id", "candidate_id", "knowledge_id", "publication_id", "chunk_id", "index_version", "source_scope"
+    ):
+        value = item.get(key)
+        if isinstance(value, str) and 0 < len(value) <= 400 and not any(ord(c) < 32 for c in value):
+            result[key] = value
+    if type(item.get("is_demo")) is bool:
+        result["is_demo"] = item["is_demo"]
+    return result
+
+
 def search_candidates(
     settings,
     query,
@@ -353,18 +377,39 @@ def search_candidates(
         reader.max_requests = (
             composite_limit if previous_limit is None else min(previous_limit, composite_limit)
         )
+    expected_instance = (
+        (getattr(reader, "demo_source_instance", None) or "fixture")
+        if is_demo else getattr(reader, "source_instance", None)
+    )
     for item in values:
         identity = item.get("identity") if isinstance(item, dict) else None
         if (
             not isinstance(identity, dict)
-            or identity.get("source_instance") != getattr(reader, "source_instance", None)
+            or identity.get("source_instance") != expected_instance
             or item.get("source_scope") != source_scope
             or item.get("is_demo", False) is not is_demo
             or not all(identity.get(k) for k in ("source_id", "source_record_id", "version_id", "raw_sha256"))
         ):
-            candidates.append(
-                {"binding_status": "unbound", "binding_reason": "fixed_source_identity_missing"}
-            )
+            mismatches = []
+            if not isinstance(identity, dict):
+                mismatches.append("identity_missing")
+            else:
+                if not identity.get("source_instance"):
+                    mismatches.append("source_instance_missing")
+                elif identity["source_instance"] != expected_instance:
+                    mismatches.append("source_instance_mismatch")
+                for key in ("source_id", "source_record_id", "version_id", "raw_sha256"):
+                    if not identity.get(key):
+                        mismatches.append(key + "_missing")
+            if isinstance(item, dict):
+                if item.get("source_scope") != source_scope:
+                    mismatches.append("source_scope_mismatch")
+                if item.get("is_demo", False) is not is_demo:
+                    mismatches.append("is_demo_mismatch")
+            candidates.append({
+                "binding_status": "unbound", "binding_reason": "fixed_source_identity_missing",
+                "binding_mismatch_codes": mismatches, **_search_candidate_identifiers(item),
+            })
             continue
         candidate, original = _bind(
             reader,
@@ -374,12 +419,11 @@ def search_candidates(
             is_demo=is_demo,
             reads=reads,
         )
-        candidate.update(
-            knowledge_id=item.get("knowledge_id"),
-            chunk_id=item.get("chunk_id"),
-            index_version=item.get("index_version"),
-            score=item.get("score"),
-        )
+        candidate.update(_search_candidate_identifiers(item))
+        if type(item.get("score")) in (int, float):
+            candidate["score"] = item["score"]
+        if candidate.get("binding_status") != "bound":
+            candidate["binding_mismatch_codes"] = [candidate["binding_reason"]]
         candidates.append(candidate)
         if original is not None and not any(x["version_id"] == original["version_id"] for x in records):
             records.append(original)

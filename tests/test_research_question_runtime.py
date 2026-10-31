@@ -1356,3 +1356,43 @@ def test_final_repair_resumes_after_saved_initial_check_without_reserving_finish
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
         assert row.progress["calls"][:5] == saved_calls
+
+
+def test_blocked_analysis_exports_receipts_without_manufacturing_a_report(runtime, database, monkeypatch):
+    from bioradar.research.history import service as history_module
+
+    make, _, view, _, model, settings, _ = runtime
+    accepted = start(runtime, budget=AnalysisBudget(max_tokens=128))
+    make().execute(accepted["id"], accepted["input_hash"])
+    assert model.requests == []
+    settings.data_fabric_url = "http://127.0.0.1"
+    settings.data_fabric_history_read_token = SecretStr("SYNTHETIC")
+
+    @contextmanager
+    def reader(*args, **kwargs):
+        yield make().reader
+
+    monkeypatch.setattr(history_module, "history_reader", reader)
+    app = create_app(settings)
+    headers = {"Authorization": "Bearer " + CREDENTIAL}
+    path = f"/api/engine/investigations/{view['id']}/analyses/{accepted['id']}"
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        app.state.database = database
+        try:
+            saved = client.get(path, headers=headers)
+            assert saved.status_code == 200
+            analysis = saved.json()
+            assert analysis["state"] == "blocked"
+            assert analysis["error_code"] == "analysis_token_budget"
+            assert analysis["result"] is None
+            exported = client.get(path + "/export?format=json", headers=headers)
+            assert exported.status_code == 200
+            assert exported.json()["analysis"] == analysis
+            assert exported.json()["delivery"] is None
+            markdown = client.get(path + "/export?format=markdown", headers=headers)
+            assert markdown.status_code == 409
+            assert markdown.json()["error"]["code"] == "analysis_report_unavailable"
+            assert client.get(path, headers=headers).json() == analysis
+            assert model.requests == []
+        finally:
+            app.state.database = None

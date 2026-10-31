@@ -5,10 +5,12 @@ from datetime import UTC, datetime
 
 from bioradar.adapters.fabric_fetch import (
     FETCH_VERSION,
+    collect_fetch_version_bindings,
     normalize_fetch_request,
     poll_fetch,
     read_fetch_version,
     submit_fetch,
+    validate_fetch_version_bindings,
 )
 from bioradar.api.errors import DomainError
 from bioradar.research.investigations.analysis import analysis_budget
@@ -81,14 +83,14 @@ def _charge(service, progress, receipt, before, *, extra=0):
     return count
 
 
-def _intent(receipt):
+def _intent(receipt, *, reserve=1):
     state = receipt["usage"]["fetch"]
     receipt["status"] = "sent"
     receipt["cost"] = {
         "tool_calls": None,
         "known_tool_calls": state.get("known_tool_calls", 0),
         "tokens": 0,
-        "reserved_tool_calls": 1,
+        "reserved_tool_calls": reserve,
     }
 
 
@@ -136,7 +138,11 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
         raise DomainError("analysis_input_changed", "已存补采动作的参数发生变化，未重新提交", 409)
     if receipt["status"] in {"failed", "unavailable", "empty", "unconfirmed"}:
         return receipt
-    if state.get("poll_status") == "sent" or (state.get("version_intent") or {}).get("status") == "sent":
+    if (
+        state.get("poll_status") == "sent"
+        or (state.get("version_intent") or {}).get("status") == "sent"
+        or (state.get("binding_intent") or {}).get("status") == "sent"
+    ):
         receipt.update(status="unconfirmed", error_code="history_fetch_read_outcome_unconfirmed")
         service._checkpoint(identifier, token, progress)
         return receipt
@@ -234,6 +240,45 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
     cutoff = datetime.fromisoformat(state["read_cutoff"])
     originals = receipt.setdefault("records", [])
     received = {item["version_id"] for item in originals}
+    remaining = [version for version in run["version_ids"] if version not in received]
+    bindings = {}
+    if remaining:
+        if state.get("version_bindings") is None:
+            _authorize(service, fixed, request)
+            service._guard(identifier, token, check_deadline=True)
+            before = service._tool_start(fixed, progress)
+            state["binding_intent"] = {"status": "sent"}
+            maximum = getattr(service.reader, "max_requests", None)
+            reserve = (
+                max(1, maximum - service.reader.requests_made)
+                if maximum is not None
+                else len(run["version_ids"])
+            )
+            _intent(receipt, reserve=reserve)
+            service._checkpoint(identifier, token, progress)
+            try:
+                service._guard(identifier, token, check_deadline=True)
+                state["version_bindings"] = collect_fetch_version_bindings(
+                    service.reader, run, cutoff=cutoff, version_ids=remaining
+                )
+                state["binding_intent"]["status"] = "received"
+                receipt["status"] = "prepared"
+            except DomainError as exc:
+                state["binding_intent"]["status"] = "failed"
+                receipt.update(status="failed", error_code=exc.code)
+                raise
+            finally:
+                _charge(service, progress, receipt, before)
+                service._checkpoint(identifier, token, progress)
+        try:
+            bindings = validate_fetch_version_bindings(
+                run, state["version_bindings"], cutoff=cutoff, version_ids=remaining
+            )
+        except DomainError as exc:
+            state["binding_error_code"] = exc.code
+            receipt.update(status="failed", error_code=exc.code)
+            service._checkpoint(identifier, token, progress)
+            raise
     for version in run["version_ids"]:
         if version in received:
             continue
@@ -245,7 +290,9 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
         service._checkpoint(identifier, token, progress)
         try:
             service._guard(identifier, token, check_deadline=True)
-            original = read_fetch_version(service.reader, run, version, cutoff=cutoff)
+            original = read_fetch_version(
+                service.reader, run, version, cutoff=cutoff, binding=bindings[version]
+            )
             originals.append(original)
             state["version_intent"]["status"] = "received"
             receipt["status"] = "prepared"

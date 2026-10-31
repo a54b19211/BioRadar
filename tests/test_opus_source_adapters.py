@@ -316,6 +316,22 @@ def test_fetch_known_pending_run_resumes_get_only_and_counts_actual_requests(mon
             return httpx.Response(202, json=run())
         if "/runs/" in request.url.path:
             return httpx.Response(200, json=run("completed", ["1" * 64]))
+        if request.url.path == "/api/history/records":
+            assert request.url.params["run_id"] == "SYNTHETIC-run"
+            return httpx.Response(
+                200,
+                json={
+                    "schema_version": "datafabric.history.collection.v1",
+                    "items": [original()],
+                    "coverage": {
+                        "run_id": "SYNTHETIC-run",
+                        "as_of": request.url.params["cutoff"],
+                        "max_seq": 1,
+                    },
+                    "excluded_counts": {},
+                },
+            )
+        assert request.url.params["source_record_id"] == original()["source_record_id"]
         return httpx.Response(200, json={"record": original()})
 
     with httpx.Client(base_url="http://synthetic.invalid", transport=httpx.MockTransport(respond)) as client:
@@ -339,10 +355,10 @@ def test_fetch_known_pending_run_resumes_get_only_and_counts_actual_requests(mon
             host, "SYNTHETIC-analysis", "SYNTHETIC-lease", f, p, action, 0
         )
         assert result["status"] == "read" and result["new_versions"] == 1
-        assert result["cost"]["tool_calls"] == p["tool_usage"]["tool_calls"] == 3
+        assert result["cost"]["tool_calls"] == p["tool_usage"]["tool_calls"] == 4
         assert result["usage"]["fetch"]["run"]["coverage"]["complete"] is True
         fetch_execution.execute_source_fetch(host, "SYNTHETIC-analysis", "SYNTHETIC-lease", f, p, action, 0)
-    assert [method for method, _ in calls] == ["POST", "GET", "GET"]
+    assert [method for method, _ in calls] == ["POST", "GET", "GET", "GET"]
 
 
 def test_fetch_unknown_post_is_never_resent_and_demo_or_history_never_post(monkeypatch):

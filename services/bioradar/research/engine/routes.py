@@ -462,7 +462,11 @@ def create_engine_router(settings: Settings) -> APIRouter:
 
             return {
                 "analysis": analysis.model_dump(mode="json"),
-                "delivery": build_report_delivery(analysis.model_dump(mode="json")),
+                "delivery": (
+                    build_report_delivery(analysis.model_dump(mode="json"))
+                    if analysis.result is not None
+                    else None
+                ),
                 "warning": "有出处的机器分析，专业方法评价或模型核验不等于人工批准。",
             }
 
