@@ -6702,6 +6702,19 @@
               "product_recall"
             ]
           },
+          "source_intelligence_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "public-health-source-intelligence-v1"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Intelligence Version",
+            "description": "Retain public-health source statements and information events separately from metrics."
+          },
           "discovery_directions": {
             "items": {
               "type": "string",
@@ -11755,6 +11768,19 @@
               "product_recall"
             ]
           },
+          "source_intelligence_version": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "public-health-source-intelligence-v1"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Intelligence Version",
+            "description": "Retain public-health source statements and information events separately from metrics."
+          },
           "kdd_direction": {
             "type": "string",
             "enum": [
@@ -13055,7 +13081,8 @@
               "bioradar-mining-compute-v1",
               "bioradar-mining-compute-v0.2",
               "bioradar-mining-compute-v0.3",
-              "bioradar-mining-compute-v0.4"
+              "bioradar-mining-compute-v0.4",
+              "bioradar-mining-compute-v0.5"
             ],
             "title": "Compute Version",
             "default": "bioradar-mining-compute-v0.4"

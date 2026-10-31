@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import PolicyTracePanel from "./PolicyTracePanel.vue";
+import { queryPolicyArtifactAnchor, type QueryPolicyArtifactRef } from "../../api/queryPolicy";
 import type { ResearchAnalysisView, ResearchBudgetView, ResearchProvider } from "../../api/research";
 
 const props = defineProps<{ analysis: ResearchAnalysisView }>();
@@ -39,6 +40,44 @@ const waitingReasons: Record<string, string> = {
 const budgetPools: Record<string, string> = { manual: "手动研究", monitor: "无对象监测", topic: "专题跟踪", material_update: "资料自动更新" };
 const budgetWait = computed(() => props.analysis.progress?.budget_wait);
 const fetchWait = computed(() => props.analysis.progress?.waiting_fetch);
+const materialImpact = computed(() => props.analysis.progress?.material_update_impact);
+const currentPolicy = computed(() => props.analysis.query_policy ?? props.analysis.result?.query_policy);
+const readingBasis = computed(() => props.analysis.query_policy?.synthesis_reading_basis
+  ?? props.analysis.result?.query_policy?.synthesis_reading_basis);
+const synthesisStop = computed(() => props.analysis.query_policy?.synthesis_stop_reason
+  ?? props.analysis.result?.query_policy?.synthesis_stop_reason);
+const artifactKinds: Record<string, string> = {
+  source_documents: "固定来源资料", analysis_dataset: "加工后的分析数据",
+  pattern_result: "实际模式计算", professional_assessment: "专业评价结果",
+};
+function retainedArtifactLink(ref: QueryPolicyArtifactRef) {
+  const policy = currentPolicy.value;
+  const artifact = policy?.artifacts?.find(item => item.id === ref.id && item.version === ref.version
+    && item.kind === "professional_assessment");
+  return artifact && policy?.artifact_results?.[artifact.id] != null
+    ? "#" + queryPolicyArtifactAnchor(ref) : undefined;
+}
+const reportAsOf = computed(() => materialImpact.value?.report_as_of);
+const impactStates: Record<string, string> = {
+  equivalent_inputs: "已比较的分析输入等同",
+  affects_dependency: "新版本影响既有依据，需更新分析",
+  impact_pending: "有新版本等待判断",
+};
+const impactReasons: Record<string, string> = {
+  fixed_version_mapping_incomplete: "新固定版本的身份映射不完整",
+  previous_fixed_version_unavailable: "此前固定版本暂不可用",
+  complete_source_inputs_unavailable: "完整授权内容暂不可用",
+  actual_dependency_source_inputs_changed: "实际支持、反证、限制或计算依据所用的来源输入已变化",
+  complete_fixed_inputs_equal: "本次完整固定输入等同",
+  changed_context_or_unmapped_dependency: "背景资料有变化，或尚不能确定其与旧判断的依赖关系",
+};
+function impactRef(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return "未提供固定版本身份";
+  const ref = value as Record<string, unknown>;
+  return [ref.provider || ref.source_id, ref.object_id || ref.source_record_id, ref.adopted_version || ref.version_id]
+    .filter((part): part is string => typeof part === "string" && part.length > 0).join(" / ") || "未提供固定版本身份";
+}
+
 function time(value: string) {
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString("zh-CN", { hour12: false });
@@ -103,6 +142,67 @@ function providerState(value: ResearchProvider) {
       已有回执与材料保留；这段等待不表示调查失败，也不计作执行时间。
     </p>
     <p v-else-if="analysis.progress?.budget_pool" class="muted">本轮预算池：{{ budgetPools[analysis.progress.budget_pool] || analysis.progress.budget_pool }}。</p>
+    <section v-if="materialImpact" class="material-update-impact notice" role="status" aria-label="材料新版本影响判断">
+      <strong>{{ impactStates[materialImpact.status] || "有新版本等待判断" }}</strong>
+      <p v-if="materialImpact.status === 'equivalent_inputs'">系统只确认下述依据报告的本次已比较输入等同；这不代表下方其他版本已经完成比较或重新研判。原报告及核验状态保持原记录。</p>
+      <p v-else-if="materialImpact.status === 'affects_dependency'">已发现影响下述依据报告的输入变化，复查结果另行保存；下方已有报告仍绑定自身原固定材料，尚未据此更新。</p>
+      <p v-else>有新版本等待判断；下方已有报告仍绑定自身原固定材料，尚未据此更新。可沿本页已有追问或补查入口提出复核。</p>
+      <p>本次影响比较依据的报告：{{ materialImpact.parent_analysis_id || "未记录，未推测对应报告" }}；该报告资料截止：{{ reportAsOf ? time(reportAsOf) : "未提供，未补成当前时点" }}。本次影响检查记录的修订号：{{ materialImpact.checked_revision }}。</p>
+      <details v-if="materialImpact.decisions?.length" class="no-print">
+        <summary>查看版本变化与影响依据（{{ materialImpact.decisions.length }} 条）</summary>
+        <ul><li v-for="decision in materialImpact.decisions" :key="decision.entry_id + ':' + decision.revision">
+          {{ impactStates[decision.status] || "影响尚待判断" }} · 修订 {{ decision.revision }} · {{ impactReasons[decision.reason] || decision.reason }}
+          <p>原版本：{{ decision.old_refs?.length ? decision.old_refs.map(impactRef).join('；') : impactRef(decision.old_ref) }}；新版本：{{ impactRef(decision.new_ref) }}。</p>
+          <span v-if="decision.affected_claim_ids?.length">受影响命题／计算依据：{{ decision.affected_claim_ids.join('、') }}。</span>
+        </li></ul>
+      </details>
+    </section>
+    <section v-if="readingBasis" class="retained-reading notice" role="status" aria-label="此前阅读草稿的输入范围">
+      <strong>此前阅读草稿（综合未完成）</strong>
+      <p>尚未纳入后续结果，不能作为当前结论。下方文字只保留原阅读输入下的草稿，不表示后续材料或专业产物已经被综合、核验或解决原有缺口。</p>
+      <p>原阅读调用：{{ readingBasis.call_key }}；
+        调用记录：{{ readingBasis.call_index != null ? '第 ' + (readingBasis.call_index + 1) + ' 条' : '旧记录未提供' }}。
+        原阅读后的查询边界：{{ readingBasis.after_query_index != null ? '第 ' + (readingBasis.after_query_index + 1) + ' 条记录' : '未记录' }}；
+        策略步号：{{ readingBasis.after_decision_step ?? '未记录' }}。
+      </p>
+      <p v-if="readingBasis.input_evidence">原阅读输入包含 {{ readingBasis.input_evidence.length }} 个选定片段、
+        {{ readingBasis.input_artifact_refs?.length ?? '数量未记录的' }} 个固定产物；这是输入范围，不是事实覆盖或专业核验范围。</p>
+      <p v-else>旧记录未保存原阅读输入清单，不能据此推断已纳入后续材料。</p>
+      <p v-if="synthesisStop">综合停止原因：{{ waitingReasons[synthesisStop] || synthesisStop }}。</p>
+      <p v-if="readingBasis.qualification" class="muted">{{ readingBasis.qualification }}</p>
+      <template v-if="readingBasis.not_incorporated">
+        <p>后续取得、尚未纳入此草稿：{{ readingBasis.not_incorporated.evidence.length }} 个选定片段、
+          {{ readingBasis.not_incorporated.artifacts.length }} 个固定产物。</p>
+        <ul v-if="readingBasis.not_incorporated.artifacts.length">
+          <li v-for="artifact in readingBasis.not_incorporated.artifacts" :key="artifact.id + ':' + artifact.version">
+            {{ artifactKinds[artifact.kind] || artifact.kind }} · {{ artifact.provider || '提供方未记录' }}；
+            原样状态：{{ artifact.status ?? '未记录实际状态' }}；
+            {{ artifact.id }} / {{ artifact.version }}。
+            <a v-if="retainedArtifactLink(artifact)" class="no-print" :href="retainedArtifactLink(artifact)">查看这份专业产物记录</a>
+            <span v-else class="muted">未找到可展开的对应专业产物记录，未猜测入口。</span>
+          </li>
+        </ul>
+        <details v-if="readingBasis.not_incorporated.evidence.length" class="no-print">
+          <summary>查看尚未纳入的后续片段</summary>
+          <ul><li v-for="item in readingBasis.not_incorporated.evidence" :key="item.evidence_key">
+            {{ item.evidence_key }} · {{ item.source_id || '来源未记录' }} · {{ impactRef(item.record_ref) }}；
+            选定窗口 {{ item.start ?? '未记录' }}–{{ item.end ?? '未记录' }}（Unicode 字符）。
+          </li></ul>
+        </details>
+      </template>
+      <details class="no-print">
+        <summary>原阅读输入与回执身份</summary>
+        <p>调用 ID：{{ readingBasis.call_id }}；原阅读输入哈希：{{ readingBasis.reading_evidence_hash }}。</p>
+        <ul><li v-for="item in readingBasis.input_evidence" :key="item.evidence_key">
+          {{ item.evidence_key }} · {{ item.source_id || '来源未记录' }} · {{ impactRef(item.record_ref) }}；
+          选定窗口 {{ item.start ?? '未记录' }}–{{ item.end ?? '未记录' }}（Unicode 字符）；
+          片段 SHA-256 {{ item.text_sha256 || '未记录' }}。
+        </li></ul>
+        <ul><li v-for="artifact in readingBasis.input_artifact_refs" :key="artifact.id + ':' + artifact.version">
+          {{ artifact.id }} / {{ artifact.version }}
+        </li></ul>
+      </details>
+    </section>
     <div class="research-usage">
       <span>调用 {{ number(usage.calls) }}<template v-if="limits.max_calls != null"> / {{ number(limits.max_calls) }}</template> 次</span>
       <span>检索 {{ number(usage.queries) }}<template v-if="limits.max_queries != null"> / {{ number(limits.max_queries) }}</template> 次</span>

@@ -84,6 +84,45 @@ export interface QueryPolicyDecision {
   } | null;
 }
 
+export interface RetainedReadingEvidence {
+  evidence_key: string;
+  record_ref: Record<string, unknown>;
+  source_id?: string | null;
+  selection_hash?: string | null;
+  text_sha256?: string | null;
+  start?: number | null;
+  end?: number | null;
+}
+
+export interface RetainedReadingBasis {
+  call_key: string;
+  call_id: string;
+  reading_evidence_hash: string;
+  status: string;
+  qualification: string;
+  coverage_version?: "retained-reading-coverage-v1";
+  cannot_use_as_current_conclusion?: true;
+  call_index?: number | null;
+  after_query_index?: number | null;
+  after_decision_step?: number | null;
+  input_evidence?: RetainedReadingEvidence[];
+  input_artifact_refs?: QueryPolicyArtifactRef[];
+  not_incorporated?: {
+    evidence: RetainedReadingEvidence[];
+    artifacts: (QueryPolicyArtifactRef & {
+      kind: string;
+      provider?: string | null;
+      status: string | null;
+      query_index?: number | null;
+      decision_step?: number | null;
+    })[];
+  };
+}
+
+export function queryPolicyArtifactAnchor(ref: QueryPolicyArtifactRef) {
+  return "policy-artifact-" + encodeURIComponent(ref.id) + "-" + encodeURIComponent(ref.version);
+}
+
 export interface QueryPolicyTrace {
   execution_version: string;
   schema_version?: string;
@@ -91,6 +130,8 @@ export interface QueryPolicyTrace {
   direction_basis?: string;
   artifacts?: QueryPolicyArtifact[];
   artifact_results?: Record<string, unknown>;
+  synthesis_stop_reason?: string;
+  synthesis_reading_basis?: RetainedReadingBasis | null;
   execution?: { action_id: string; kind: string; input_refs: QueryPolicyArtifactRef[]; output_refs: QueryPolicyArtifactRef[] }[];
   requested: string;
   effective: string;

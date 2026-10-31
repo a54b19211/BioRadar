@@ -1,5 +1,6 @@
 """Four-direction KDD computation over fixed analysis units, without I/O."""
 
+import copy
 import re
 import warnings
 from collections import Counter, defaultdict
@@ -14,6 +15,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from bioradar.research.datasets.build import build_dataset, unit_records
+from bioradar.research.datasets.intelligence import SOURCE_INTELLIGENCE_VERSION
 from bioradar.research.mining.common import support
 from bioradar.research.mining.evaluation import evaluate_patterns
 from bioradar.research.mining.methods_text import _analyzer
@@ -32,6 +34,8 @@ from bioradar.research.mining.prepare import ref_key, snapshot_hash
 from bioradar.research.mining.signals import with_attention
 
 KDD_COMPUTE_VERSION = "bioradar-mining-compute-v0.4"
+SOURCE_INTELLIGENCE_COMPUTE_VERSION = "bioradar-mining-compute-v0.5"
+SOURCE_INTELLIGENCE_METHOD_VERSION = "attributed-source-claim-with-retained-intelligence-v2"
 VERSIONS = {
     "research_tfidf_topics": "conditioned-tfidf-nmf-v2",
     "research_embedding_clusters": "fixed-embedding-unit-clusters-v1",
@@ -65,13 +69,32 @@ DIRECTION_METHODS = {
 MAX_CLUSTER_UNITS = 1000
 
 
+def _method_version(policy, method):
+    if (
+        method == "public_health_source_claims"
+        and getattr(policy, "source_intelligence_version", None) == SOURCE_INTELLIGENCE_VERSION
+    ):
+        return SOURCE_INTELLIGENCE_METHOD_VERSION
+    return VERSIONS[method]
+
+
 def kdd_versions(policy: KddPolicy | DiscoveryPolicy) -> dict[str, str]:
     directions = (
         policy.discovery_directions if isinstance(policy, DiscoveryPolicy) else (policy.kdd_direction,)
     )
-    return {
+    versions = {
         "__engine_compute__": KDD_COMPUTE_VERSION,
-    } | {method: VERSIONS[method] for direction in directions for method in DIRECTION_METHODS[direction]}
+    } | {
+        method: _method_version(policy, method)
+        for direction in directions
+        for method in DIRECTION_METHODS[direction]
+    }
+    if (
+        getattr(policy, "source_intelligence_version", None) == SOURCE_INTELLIGENCE_VERSION
+        and "public_health" in directions
+    ):
+        versions["__engine_compute__"] = SOURCE_INTELLIGENCE_COMPUTE_VERSION
+    return versions
 
 
 def _candidate(dataset, method, key, title, units, *, metrics=None, kind="association", gaps=(), score=0.0):
@@ -79,9 +102,9 @@ def _candidate(dataset, method, key, title, units, *, metrics=None, kind="associ
     independent_records = unit_records(dataset, [unit for unit in units if unit["independent_study"]])
     studies = {ref_key(item.record.study_cluster_ref) for item in independent_records if item.confirmed_study}
     value = Candidate(
-        candidate_key=canonical_hash([method, VERSIONS[method], key]),
+        candidate_key=canonical_hash([method, _method_version(dataset.prepared.policy, method), key]),
         method_id=method,
-        method_version=VERSIONS[method],
+        method_version=_method_version(dataset.prepared.policy, method),
         group_key=canonical_hash(key),
         kind=kind,
         title=title,
@@ -117,7 +140,7 @@ def _result(
 ):
     return MethodResult(
         method_id=method,
-        method_version=VERSIONS[method],
+        method_version=_method_version(dataset.prepared.policy, method),
         readiness="ready" if ready else ("unsupported" if reasons and not candidates else "exploratory_only"),
         execution_status="unsupported"
         if reasons and not candidates
@@ -871,6 +894,54 @@ def _source_claims(dataset):
                 gaps=("claim_truth_and_source_independence_require_verification",),
             )
         )
+    if (
+        dataset.direction == "public_health"
+        and getattr(dataset.prepared.policy, "source_intelligence_version", None)
+        == SOURCE_INTELLIGENCE_VERSION
+    ):
+        retained = copy.deepcopy(
+            sorted(
+                (
+                    unit
+                    for unit in dataset.units
+                    if unit["unit_kind"] in {"source_statement", "source_information_event"}
+                ),
+                key=lambda unit: unit["unit_id"],
+            )
+        )
+        version_identities = {
+            (
+                member["source_instance"],
+                *(
+                    member["record_ref"][field]
+                    for field in ("provider", "object_type", "object_id", "adopted_version")
+                ),
+            )
+            for unit in retained
+            for member in unit["members"]
+        }
+        result = _result(
+            dataset,
+            method,
+            candidates,
+            statistics={
+                "source_intelligence_version": SOURCE_INTELLIGENCE_VERSION,
+                "retained_source_units": retained,
+                "retained_source_unit_count": len(retained),
+                "retained_source_version_count": len(version_identities),
+                "source_statement_count": sum(unit["unit_kind"] == "source_statement" for unit in retained),
+                "source_information_event_count": sum(
+                    unit["unit_kind"] == "source_information_event" for unit in retained
+                ),
+                "retention_qualification": (
+                    "source_material_retention_not_cases_confirmed_events_or_independent_studies"
+                ),
+                "retention_builds_candidates": False,
+            },
+            ready=False,
+            reasons=() if candidates or retained else ("no_checkable_claim_or_retained_source_material",),
+        )
+        return result
     return _result(
         dataset,
         method,
@@ -1047,7 +1118,7 @@ def run_kdd(snapshot: NormalizedSnapshot, policy: KddPolicy) -> MiningResult:
     )
     payload = {
         "schema_version": "bioradar.engine.result.v1",
-        "compute_version": KDD_COMPUTE_VERSION,
+        "compute_version": kdd_versions(policy)["__engine_compute__"],
         "snapshot_hash": snapshot_hash(snapshot),
         "policy_hash": canonical_hash(policy),
         "method_results": [outcome.model_dump(mode="json") for outcome in outcomes],
@@ -1170,7 +1241,7 @@ def run_discovery(snapshot: NormalizedSnapshot, policy: DiscoveryPolicy) -> Mini
     }
     payload = dict(
         schema_version="bioradar.engine.result.v1",
-        compute_version=KDD_COMPUTE_VERSION,
+        compute_version=kdd_versions(policy)["__engine_compute__"],
         snapshot_hash=snapshot_hash(snapshot),
         policy_hash=canonical_hash(policy),
         method_results=tuple(outcomes),

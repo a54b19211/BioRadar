@@ -25,7 +25,7 @@ function load(relative) {
   return context.exports;
 }
 const kdd = load("apps/web/src/api/kdd.ts");
-const Summary = compileComponent("apps/web/src/components/engine/KddRunSummary.vue", { "../../api/kdd": kdd });
+const Summary = compileComponent("apps/web/src/components/engine/KddRunSummary.vue", { "../../api/kdd": kdd, "../../api/engine": { engineRequest() { throw new Error("UI check must not make HTTP"); } } });
 const slot = { setup(_props, { slots }) { return () => Vue.h("section", slots.default?.()); } };
 const Detail = compileComponent("apps/web/src/components/engine/CandidateDetail.vue", {
   "../../api/kdd": kdd,
@@ -170,6 +170,53 @@ async function main() {
   const multiPrint = printableText(multiHtml);
   assert.match(multiPrint, /不能相加当作文档数/);
   assert.equal((multiPrint.match(/该方向合格分析单位 2/g) || []).length, 4);
+  const materialRef = { provider: "fixture", object_type: "document", object_id: "medical-advice",
+    adopted_version: "fixed-v1", version_source: "provider", content_hash: "a".repeat(64), authorization_ref: "fixture-grant" };
+  const statement = { unit_id: "source-unit", unit_kind: "source_statement",
+    dimensions: { material_type: "medical_advisory", statement_status: "source_reported", source_state: [], evidence_status: "unverified" },
+    independent_study: false, members: [{ source_id: "fixture-source", record_ref: materialRef }],
+    features: { window: "baseline", qualification: "attributed_material_not_confirmed_health_event_or_numeric_observation",
+      body_ref: { record_ref: materialRef, text_hash: "b".repeat(64), normalization_version: "fixture-v1" },
+      excerpt: { quote: "SYNTHETIC 医疗提醒：就诊请携带既往用药清单。", start: 0, end: "SYNTHETIC 医疗提醒：就诊请携带既往用药清单。".length,
+        offset_basis: "fixed_normalized_unicode", text_hash: "b".repeat(64) }, omitted_text_character_count: 17,
+      claims: [], source_context: { attribution: "named_institution", claimed_origin: "SYNTHETIC 医疗机构", verification_status: "unverified" } } };
+  const information = { ...statement, unit_id: "source-correction", unit_kind: "source_information_event",
+    dimensions: { ...statement.dimensions, source_state: ["deleted"] },
+    features: { window: "baseline", body_ref: statement.features.body_ref,
+      qualification: "attributed_information_context_not_proof_of_health_claim_or_risk",
+      event: { event_type: "correction", target_ref: materialRef, description: "SYNTHETIC 更正此前说明。" },
+      basis_status: "unavailable", temporal_status: "event_time_unknown" } };
+  const retained = result("public_health");
+  retained.data_preparation = { ...retained.data_preparation, excluded_records: [], retained_source_version_count: 1,
+    quantitative_qualified_count: 0, quantitative_exclusions: [{ record_ref: materialRef, reason: "typed_metric_observations_not_supplied" }] };
+  retained.method_results = [{ method_id: "public_health_source_claims", method_version: "future-retention-control",
+    execution_status: "success", readiness: "exploratory_only", candidates: [], excluded_records: [], truncated_count: 0,
+    statistics: { retained_source_units: [statement, information], retained_source_version_count: 1, retention_builds_candidates: false } }];
+  retained.candidates = []; retained.pattern_evaluations = []; retained.selection_decisions = [];
+  const materialBefore = JSON.stringify(retained);
+  const retainedHtml = await render(Summary, { result: retained, snapshotId: "fixed-snapshot" });
+  assert.match(retainedHtml, /保留的非数值来源材料/);
+  assert.match(retainedHtml, /来源信息事件（非疾病事件确认）/);
+  assert.match(retainedHtml, /来源陈述材料/);
+  assert.match(retainedHtml, /未进入数值计算不等于整份资料被丢弃/);
+  assert.match(retainedHtml, /SYNTHETIC 医疗提醒：就诊请携带既往用药清单。/);
+  assert.match(retainedHtml, /窗口之外另有 17 个字符/);
+  assert.match(retainedHtml, /查看该版本固定采用文本/);
+  assert.match(retainedHtml, /关联原版本/);
+  assert.doesNotMatch(retainedHtml, /class="investigation-create"|retained_source_units/);
+  assert.match(printableText(retainedHtml), /不额外生成候选/);
+  assert.match(printableText(retainedHtml), /未进入数值计算的条目/);
+  assert.equal(JSON.stringify(retained), materialBefore);
+  const adoptedRecord = { record_ref: materialRef, normalized_text_hash: "b".repeat(64), normalization_version: "fixture-v1",
+    text_status: "inline_authorized", normalized_text: "SYNTHETIC fixed adopted source" };
+  assert.equal(kdd.retainedSourceRecord({ records: [adoptedRecord] }, statement), adoptedRecord);
+  for (const [field, value] of [["adopted_version", "different-version"], ["authorization_ref", "different-grant"], ["content_hash", "different-hash"]]) {
+    assert.equal(kdd.retainedSourceRecord({ records: [{ ...adoptedRecord, record_ref: { ...materialRef, [field]: value } }] }, statement), null);
+  }
+  assert.equal(kdd.retainedSourceRecord({ records: [{ ...adoptedRecord, normalized_text_hash: "changed-text" }] }, statement), null);
+  assert.equal(kdd.retainedSourceRecord({ records: [{ ...adoptedRecord, normalization_version: "changed-normalization" }] }, statement), null);
+  assert.equal(kdd.retainedSourceRecord({ records: [adoptedRecord] }, { ...statement, features: {} }), null);
+
   console.log("KDD UI controls passed: four units, real scope, full candidates, capacity/value distinction, legacy gaps, printable summary; no HTTP.");
 }
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

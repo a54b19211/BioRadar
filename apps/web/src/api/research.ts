@@ -55,7 +55,27 @@ export interface ResearchMaterialScope {
   qualification: string;
 }
 
+export interface ResearchMaterialUpdateImpact {
+  version: "dependency-aware-material-update-v1";
+  parent_analysis_id: string;
+  report_currentness?: "prior_fixed_materials";
+  report_as_of?: string | null;
+  checked_revision: number;
+  status: "equivalent_inputs" | "affects_dependency" | "impact_pending";
+  decisions: {
+    entry_id: string;
+    revision: number;
+    old_ref: unknown;
+    old_refs?: unknown[];
+    new_ref: unknown;
+    status: "equivalent_inputs" | "affects_dependency" | "impact_pending";
+    reason: string;
+    affected_claim_ids: string[];
+  }[];
+}
+
 export interface ResearchProgress {
+  material_update_impact?: ResearchMaterialUpdateImpact | null;
   waiting_fetch?: { reason: string; action_id?: string | null; next_poll_at: string } | null;
   budget_pool?: "manual" | "monitor" | "topic" | "material_update";
   budget_wait?: {

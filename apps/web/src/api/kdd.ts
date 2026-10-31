@@ -15,6 +15,7 @@ const methodNames: Record<string, string> = {
   business_metric_change: "商业：同口径期间指标变化",
   public_health_metric_change: "公卫：同口径地区指标变化",
   public_health_notifications: "公卫：真实通报模式（非病例率）",
+  public_health_source_claims: "公卫：待核来源说法与保留材料",
   pipeline_graph_hints: "管线：固定图背景假说与补证",
 };
 export function methodLabel(id: string, known?: Record<string, string>): string {
@@ -53,6 +54,18 @@ const labels: Record<string, string> = {
   exploratory_content_followup: "探索内容待补证",
   exploratory_content_followup_not_supported_pattern: "仅作探索性内容补证，尚无获支持的模式",
   descriptive_pattern: "描述性模式符合本轮条件",
+  source_statement: "来源陈述材料", source_information_event: "来源信息事件（非疾病事件确认）",
+  source_claim: "可检验的来源说法（待核）",
+  unverified: "尚未证实", source_confirmed: "来源身份已核实，非说法成立",
+  source_reported: "来源报告，非事实确认", unverified_source_claim: "来源说法尚未证实",
+  deleted: "已删除", retracted: "已撤回", corrects: "更正", retracts: "撤回",
+  correction: "更正", retraction: "撤回", supplement: "补充", repost: "转载",
+  supplements: "补充", reposts: "转载", reported_deletion: "来源报告删除",
+  official_denial: "来源发布辟谣／否认", moderation: "内容管理记录", access_failure: "来源访问失败",
+  source_material_retention_not_cases_confirmed_events_or_independent_studies: "仅保留来源材料，不代表病例、确认事件或独立研究",
+  attributed_material_not_confirmed_health_event_or_numeric_observation: "归属于来源的材料，非已确认公卫事件或数值观察",
+  attributed_information_context_not_proof_of_health_claim_or_risk: "来源信息环境记录，不证明健康说法或风险",
+  no_checkable_claim_or_retained_source_material: "本轮没有可检验说法或合格保留材料",
   capacity_deferred: "审阅容量暂缓", redundancy_deferred: "相同依据暂缓",
   undetermined: "尚未确定", low: "低", medium: "中", high: "高",
   routine: "常规", soon: "近期核查", immediate: "及时核查",
@@ -142,6 +155,13 @@ const fieldLabels: Record<string, string> = {
   unit: "单位", analysis_unit: "分析单位", key_fields: "主键字段", dimensions: "比较条件",
   count: "数量", unit_count: "单位数", record_count: "记录数", support_count: "支持单位数",
   input_count: "输入数", qualified_count: "合格数", excluded_count: "排除数",
+  retained_source_version_count: "保留资料版本数", retained_source_unit_count: "保留材料单位数",
+  source_statement_count: "来源陈述材料数", source_information_event_count: "来源信息事件数",
+  quantitative_qualified_count: "数值合格单位数", quantitative_exclusions: "未进入数值计算的条目",
+  material_type: "材料类型", statement_status: "说法状态", source_state: "来源状态",
+  attribution: "来源归属", claimed_origin: "来源声称的出处", verification_status: "来源核实状态",
+  source_independence: "来源独立性", retention_qualification: "材料保留资格",
+  retention_builds_candidates: "材料保留是否生成候选", source_intelligence_version: "来源材料契约版本",
   population_known: "总体是否已知", complete: "是否完整", is_complete: "是否完整",
   known: "是否已知", source_total: "来源报告总数", total_reported: "来源报告总数",
   numerator: "分子", denominator: "分母", value: "值", metric: "指标",
@@ -215,6 +235,18 @@ function fieldValue(key: string, value: unknown): string {
 export function facts(value: unknown): { key: string; label: string; value: string }[] {
   const row = object(value);
   return row ? Object.entries(row).map(([key, item]) => ({ key, label: fieldLabel(key), value: fieldValue(key, item) })) : [];
+}
+export function retainedSourceRecord(snapshot: unknown, unit: KddObject): KddObject | null {
+  const body = object(object(unit.features)?.body_ref);
+  const expected = object(body?.record_ref);
+  const refFields = ["provider", "object_type", "object_id", "adopted_version", "version_source", "content_hash", "authorization_ref"];
+  if (!expected || refFields.some(key => !text(expected[key])) || !text(body?.text_hash) || !text(body?.normalization_version)) return null;
+  return objects(object(snapshot)?.records).find(record => {
+    const actual = object(record.record_ref);
+    return actual && refFields.every(key => actual[key] === expected[key])
+      && record.normalized_text_hash === body?.text_hash
+      && record.normalization_version === body?.normalization_version;
+  }) ?? null;
 }
 export function preparation(result: unknown): KddObject | null {
   return object(object(result)?.data_preparation);

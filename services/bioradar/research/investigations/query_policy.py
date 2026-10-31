@@ -196,6 +196,9 @@ def freeze_policy(settings, requested=None):
                 "professional_retry_version": "biocheck-contract-repair-v1",
                 "biocheck_input_version": "adopted-window-declared-audit-v1",
                 "narrative_contract_version": "literal-narrative-observations-v2",
+                "narrative_proposal_version": "literal-narrative-proposal-v1",
+                "source_intelligence_version": "public-health-source-intelligence-v1",
+                "material_impact_version": "dependency-aware-material-update-v1",
                 "final_assessment_version": "bioradar-research-final-v1",
                 "final_reference_repair_version": "bioradar-synthesis-reference-repair-v1",
                 "retrieval_allocation": {

@@ -474,7 +474,7 @@ onUnmounted(() => {
           <p v-if="selectedRun.error" class="error-panel">
             {{ selectedRun.error.message }}
           </p>
-          <KddRunSummary v-if="selectedRun.result" :result="selectedRun.result" :policy="selectedRun.original_policy" :method-labels="methodLabels" />
+          <KddRunSummary v-if="selectedRun.result" :result="selectedRun.result" :policy="selectedRun.original_policy" :method-labels="methodLabels" :snapshot-id="selectedRun.snapshot_id" />
           <div v-if="selectedRun.result" class="candidate-scope">
             <label>显示范围
               <select v-model="candidateScope" aria-label="候选显示范围">

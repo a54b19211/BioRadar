@@ -98,8 +98,11 @@ def test_new_frozen_flag_uses_existing_six_plan_schema_and_preserves_old_payload
     current = freeze_policy(settings)
     assert current["narrative_contract_version"] == "literal-narrative-observations-v2"
     assert current["biocheck_input_version"] == "adopted-window-declared-audit-v1"
+    assert current["narrative_proposal_version"] == "literal-narrative-proposal-v1"
+    assert current["source_intelligence_version"] == "public-health-source-intelligence-v1"
     legacy = freeze_policy(settings, "baseline")
     assert "narrative_contract_version" not in legacy and "biocheck_input_version" not in legacy
+    assert "narrative_proposal_version" not in legacy and "source_intelligence_version" not in legacy
     assert "initial_retrieval_version" not in freeze_policy(settings, "baseline")
 
     data = fixed()

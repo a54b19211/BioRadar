@@ -6750,5 +6750,136 @@
     ],
     "next": "Coordinator freezes final Radar commit and executes the original real R4 tasks in new independent databases. Engineering pass is not a scientific PASS.",
     "test_compatibility_commit": "1422e3bc2ea3937888c4515c459ccbefc38e57e1"
+  },
+  "source_intelligence_isolated_20261031": {
+    "branch": "codex/radar-intelligence-units-20261031",
+    "base_commit": "b7bb8c25c1bc8e97be942f668df9769d45953d8c",
+    "worktree": "/home/zk_test/zk_projects/.bioradar-kdd-integration/radar-intelligence-units",
+    "deployment": "isolated_only_not_merged_into_P_or_R4",
+    "changes": [
+      "Retain version-bound public-health source statements and information events separately from numeric eligibility.",
+      "Clarify future literal narrative proposals while leaving v2 qualification unchanged.",
+      "Persist deterministic material-change impact; unresolved context changes stay pending without an automatic full rerun.",
+      "Mark retained early reading as not current and expose the actual unincorporated evidence/professional artifacts.",
+      "Bind new-task dataset and result hashes after all narrative extraction receipts are included.",
+      "Keep original report text/checks unchanged and add currentness metadata to page, JSON and Markdown."
+    ],
+    "versions": {
+      "source_intelligence": "public-health-source-intelligence-v1",
+      "narrative_proposal": "literal-narrative-proposal-v1",
+      "narrative_qualification": "literal-narrative-observations-v2",
+      "material_impact": "dependency-aware-material-update-v1",
+      "reading_coverage": "retained-reading-coverage-v1"
+    },
+    "checks": {
+      "boot": "43 passed",
+      "contracts": "passed",
+      "lint": "passed",
+      "web": "typecheck and production build passed",
+      "source_and_host_combined": "55 passed; one historical version expectation corrected and its targeted test passed",
+      "material_impact": "15 pure + 4 actual PostgreSQL checks passed",
+      "reading_fallback": "17 pure checks passed",
+      "delivery_and_dataset": "16 passed plus the final source-label test passed",
+      "legacy_material_recovery": "5 actual PostgreSQL checks passed",
+      "legacy_hash_compatibility": "four directions, discovery and three old request/cache forms unchanged",
+      "new_source_queue": "actual PostgreSQL/RQ persistence and duplicate dispatch checked"
+    },
+    "actual_dependencies": {
+      "query_planner": "a008894949f55c52c577150885bcc09be39cb5ac",
+      "qa_data_factory": "0349160e565aa25bf837a4c6bcaa63dd9c044c6d"
+    },
+    "dependency_scope": "Real freeze/constructor/adapter and factory CLI/import compatibility; factory is not the Fabric HTTP source service.",
+    "check_evidence": [
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/release-boot.log",
+        "sha256": "6a01aac8e37519792fd28f386398641bf9c09582a2ab0eb423956e6009929c16"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/release-contract.log",
+        "sha256": "acce2b1a026c0bc8533df7a1c01c4ee3606fceb80f127898ffa3f3b776b10958"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/release-web.log",
+        "sha256": "e92dd94d1e7815cbb8cf5d260413dcad764adff3a8294003da06148a6da08bb9"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/code-lint-final.log",
+        "sha256": "4d4a3f4db51fc00d550fed1a88e3c56c0455155023d3c8f6e370c0e0bcb94c05"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/source-host-native-combined-v1.log",
+        "sha256": "13fe606463a13c612a435ca22e0000d53e82cf65e73b7e0b2b3b41a565acc71c"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/native-who-new-frozen-version-v2.log",
+        "sha256": "cfe4e30fb833f316767cb96d4a6ddeb4c8c0c61537c9b736ea93fe19f0cb306a"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/material-impact-pure.log",
+        "sha256": "7fb9897ad677afd657e6582802e3b0c418a41b77ada6abd38e745bdee004127f"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/material-impact-native-v1.log",
+        "sha256": "5fb48e59f5b357a928a1758990476d8703b6e912be39c7685be08b4cdefd22f9"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/release-delivery-dataset.log",
+        "sha256": "a45422c0f63a7a6bc174451a93110db39d1e28ea70e4b7bad8f3f4e4176260d7"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/delivery-source-label-final.log",
+        "sha256": "ea9b1d7c75bf0e59695268c382cf78a254d1fafd18cf213ead16a88ba8d3f939"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/legacy-material-recovery.log",
+        "sha256": "725e41ea8b0ba42d83deba856f7288e8dae5cbc82e839e52b23781bc97e03997"
+      }
+    ],
+    "independent_reviews": [
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-complete-dataset-hash-nonauthor-review.json",
+        "sha256": "1be4af65838190348c69f175c3c2c29e251f263d0113b024a4db68375ce8485f"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-fallback-ui-nonauthor-review.json",
+        "sha256": "2add16220ccdd937cca43d6c32cae8115e1c0e43d2b8bdd7851fa3c698ae5088"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-material-impact-nonauthor-review.json",
+        "sha256": "855dde098ff7e3eae3f2e4bd9760fe70f15444ba9a47b2bea7463d1911b1e753"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-proposal-build-nonauthor-review.json",
+        "sha256": "b29924679c00b601cc56f08edccb7c44f796a1d4aa9e6ef7af9455c3972c1d76"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-two-proposal-probe-nonauthor-review.json",
+        "sha256": "c0ca1cfd0d3303b2d2da287517bfa75cd2dfc22c8fc986a8dcb8da781d90a0d1"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/b-intelligence-host-nonauthor-review.json",
+        "sha256": "cd1701266babc0588121b1a9f23fc56c5bac600de0db3b28b24aaac3154eff6c"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/b-source-intelligence-method-nonauthor-review.json",
+        "sha256": "064511bd0b533edc58d41f5d281b49f52a117bee547735718c8fc9d500b43069"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/c-delivery-currentness-final-nonauthor-review.json",
+        "sha256": "169f20a073b6f78523b3426c283c81d3c149e32f66a88c9107101e95699e67ab"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/c-delivery-impact-nonauthor-review.json",
+        "sha256": "82c3e7933ff783dadb1071ef70d157953f607c8b32f4c23086b952d890e3b05d"
+      }
+    ],
+    "real_proposal_probe": "Authorized separately after this code is committed; at most two calls, no retry or R4 scoring changes.",
+    "limits": [
+      "No R4 rerun, deployment or production configuration change.",
+      "impact_pending does not claim a source change is irrelevant or resolved.",
+      "A source statement or source deletion is not a confirmed clinical event.",
+      "This release does not claim validated scientific or intelligence-routing performance.",
+      "Existing R4 failures and old saved receipts remain unchanged."
+    ]
   }
 }

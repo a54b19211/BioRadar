@@ -146,3 +146,81 @@ def test_legacy_unbound_assessment_is_only_a_system_prefix_and_body_remains_exac
     forged["assessment_prefix"] = "PASS\n"
     with pytest.raises(AssertionError):
         expected_delivery_markdown(view, forged, body)
+
+
+@pytest.mark.parametrize("status", ["impact_pending", "affects_dependency", "equivalent_inputs"])
+def test_material_update_currentness_stays_outside_saved_body_and_preserves_old_failure(status):
+    view = _view()
+    view["progress"]["material_update_impact"] = {
+        "version": "dependency-aware-material-update-v1",
+        "status": status,
+        "parent_analysis_id": "SYNTHETIC-earlier-completed-analysis",
+        "checked_revision": 4,
+        "report_as_of": "2025-01-01T00:00:00+00:00",
+        "report_currentness": "prior_fixed_materials",
+        "decisions": [],
+    }
+    original = copy.deepcopy(view)
+    body = view["result"]["report"]["final_text"]
+    delivery = build_report_delivery(view)
+    markdown = render_report_markdown(view)
+    bounds = delivery["body_range"]
+    assert markdown[bounds["start"] : bounds["end"]] == body
+    assert delivery["body_text_sha256"] == view["result"]["report"]["text_sha256"]
+    assert delivery["verification_status"] == "FAIL" and delivery["verification_text_matches"]
+    assert "本稿仍绑定原固定材料" in delivery["material_update_prefix"]
+    assert "影响比较依据报告：SYNTHETIC-earlier-completed-analysis" in delivery["material_update_prefix"]
+    assert "2025-01-01T00:00:00+00:00" in delivery["material_update_prefix"]
+    assert expected_delivery_markdown(view, delivery, body) == markdown
+    assert view == original
+    altered = copy.deepcopy(delivery)
+    altered["material_update_prefix"] = "已根据最新材料完成核验。"
+    with pytest.raises(AssertionError):
+        expected_delivery_markdown(view, altered, body)
+
+
+def test_early_reading_export_lists_unincorporated_professional_result_without_rewriting_the_body():
+    view = _view()
+    view["query_policy"] = {
+        "synthesis_reading_basis": {
+            "coverage_version": "retained-reading-coverage-v1",
+            "cannot_use_as_current_conclusion": True,
+            "call_key": "SYNTHETIC-reading-1",
+            "after_query_index": 0,
+            "input_evidence": [{"evidence_key": "qabc123"}],
+            "input_artifact_refs": [],
+            "not_incorporated": {
+                "evidence": [
+                    {
+                        "evidence_key": "SYNTHETIC-new",
+                        "source_id": "SYNTHETIC-feed",
+                        "record_ref": {"object_id": "SYNTHETIC-original", "adopted_version": "v2"},
+                    }
+                ],
+                "artifacts": [
+                    {"id": "professional:SYNTHETIC", "version": "actual-fixed-version", "status": "partial"}
+                ],
+            },
+        }
+    }
+    original = copy.deepcopy(view)
+    body = view["result"]["report"]["final_text"]
+    delivery = build_report_delivery(view)
+    markdown = render_report_markdown(view)
+    prefix = delivery["reading_coverage_prefix"]
+    assert "尚未纳入后续结果，不能作为当前结论" in prefix
+    assert "SYNTHETIC-reading-1" in prefix and "SYNTHETIC-new" in prefix
+    assert "原查询边界：0" in prefix
+    assert "来源：SYNTHETIC-feed" in prefix and "原件ID：SYNTHETIC-original" in prefix
+    assert "份材料选段" in prefix
+    assert "原状态：partial" in prefix and "actual-fixed-version" in prefix
+    assert "/api/engine/investigations/investigation-1/analyses/analysis-1/export" in prefix
+    bounds = delivery["body_range"]
+    assert markdown[bounds["start"] : bounds["end"]] == body
+    assert delivery["verification_status"] == "FAIL" and delivery["verification_text_matches"]
+    assert delivery["saved_hash_matches"] and view == original
+    assert expected_delivery_markdown(view, delivery, body) == markdown
+    altered = copy.deepcopy(delivery)
+    altered["reading_coverage_prefix"] = altered["reading_coverage_prefix"].replace("partial", "PASS")
+    with pytest.raises(AssertionError):
+        expected_delivery_markdown(view, altered, body)

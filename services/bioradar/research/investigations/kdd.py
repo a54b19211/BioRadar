@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from bioradar.api.errors import DomainError
-from bioradar.research.datasets.build import DATASET_VERSION, build_dataset
+from bioradar.research.datasets.build import build_dataset, dataset_version
 from bioradar.research.engine.auth import DevelopmentAccess
 from bioradar.research.mining.kdd import kdd_versions, run_kdd
 from bioradar.research.mining.models import KddPolicy, NormalizedSnapshot, SnapshotCoverage, canonical_hash
@@ -35,6 +35,7 @@ def direction_for(question, explicit=None):
 def policy_for(fixed):
     direction = fixed["query_policy"]["direction"]
     narrative_version = fixed["query_policy"].get("narrative_contract_version")
+    source_version = fixed["query_policy"].get("source_intelligence_version")
     saved = fixed.get("kdd_mining_policy")
     if saved:
         policy = KddPolicy.model_validate(saved)
@@ -42,11 +43,14 @@ def policy_for(fixed):
             raise DomainError("analysis_dataset_scope_changed", "分析方向与固定计算策略不一致", 409)
         if policy.narrative_contract_version != narrative_version:
             raise DomainError("analysis_dataset_scope_changed", "数值提取契约与固定计算策略不一致", 409)
+        if policy.source_intelligence_version != source_version:
+            raise DomainError("analysis_dataset_scope_changed", "来源资料契约与固定计算策略不一致", 409)
         return policy
     return KddPolicy(
         as_of=datetime.fromisoformat(fixed["evidence_time"]["cutoff"]),
         kdd_direction=direction,
         narrative_contract_version=narrative_version,
+        source_intelligence_version=source_version,
         time_mode="availability_replay"
         if fixed.get("evidence_time", {}).get("mode") in {
             "operational_replay", "public_history_reconstruction"
@@ -233,7 +237,7 @@ def extend_context(fixed, progress, context, reading=None):
         {
             "id": "radar.dataset.prepare",
             "kind": "dataset_prepare",
-            "version": DATASET_VERSION,
+            "version": dataset_version(policy),
             "directions": sorted(DIRECTIONS),
             "input_requirements": ["source_documents"],
         },
@@ -433,6 +437,27 @@ def extend_context(fixed, progress, context, reading=None):
     return value
 
 
+
+def _dataset_payload(data, snapshot, fixed, progress):
+    """Bind new-task extraction diagnostics to the same complete dataset returned to callers."""
+    complete = (
+        fixed.get("query_policy", {}).get("narrative_proposal_version") == "literal-narrative-proposal-v1"
+    )
+    if progress.get("narrative_extractions"):
+        refs = {canonical_hash(record.record_ref.model_dump(mode="json")) for record in snapshot.records}
+        extractions = [
+            copy.deepcopy(value)
+            for value in progress["narrative_extractions"].values()
+            if value.get("record_ref") is not None and canonical_hash(value["record_ref"]) in refs
+        ]
+        data["narrative_extractions"] = sorted(extractions, key=canonical_hash) if complete else extractions
+    if complete:
+        data["dataset_hash"] = canonical_hash({
+            key: value for key, value in data.items() if key != "dataset_hash"
+        })
+    return data
+
+
 def execute_action(service, identifier, token, fixed, progress, action, step):
     """Replay pure computation or a professional step through the existing analysis job."""
     from bioradar.research.investigations.analysis_models import AnalysisQueryReceipt
@@ -513,19 +538,9 @@ def execute_action(service, identifier, token, fixed, progress, action, step):
             "snapshot_ids": source["snapshot_ids"],
         }
         if action["kind"] == "dataset_prepare":
-            if args["capability_version"] != DATASET_VERSION:
+            if args["capability_version"] != dataset_version(policy_for(fixed)):
                 raise DomainError("analysis_method_changed", "数据加工版本与固定动作不同", 409)
-            data = build_dataset(snapshot, policy).manifest()
-            if progress.get("narrative_extractions"):
-                refs = {
-                    canonical_hash(record.record_ref.model_dump(mode="json")) for record in snapshot.records
-                }
-                data["narrative_extractions"] = [
-                    copy.deepcopy(value)
-                    for value in progress["narrative_extractions"].values()
-                    if value.get("record_ref") is not None
-                    and canonical_hash(value["record_ref"]) in refs
-                ]
+            data = _dataset_payload(build_dataset(snapshot, policy).manifest(), snapshot, fixed, progress)
             artifact = {
                 **base,
                 "id": "dataset:" + data["dataset_hash"][:24],
@@ -539,6 +554,16 @@ def execute_action(service, identifier, token, fixed, progress, action, step):
             if args["capability_version"] != canonical_hash(kdd_versions(policy)):
                 raise DomainError("analysis_method_changed", "计算方法与固定动作不同", 409)
             result = run_kdd(snapshot, policy)
+            if fixed["query_policy"].get("narrative_proposal_version") == "literal-narrative-proposal-v1":
+                preparation = dict(result.data_preparation)
+                summary = preparation.pop("selection_summary")
+                hash_scope = preparation.pop("dataset_hash_scope")
+                preparation = _dataset_payload(preparation, snapshot, fixed, progress)
+                preparation.update(selection_summary=summary, dataset_hash_scope=hash_scope)
+                result = result.model_copy(update={"data_preparation": preparation})
+                result = result.model_copy(update={
+                    "result_hash": canonical_hash(result.model_dump(mode="json", exclude={"result_hash"}))
+                })
             if result.data_preparation["dataset_hash"] != inputs[0]["version"]:
                 raise DomainError("analysis_dataset_scope_changed", "运行输入不再是已采用的分析数据", 409)
             artifact = {

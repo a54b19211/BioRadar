@@ -52,14 +52,29 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
     ):
         return snapshot
     version = narrative_version(fixed["query_policy"].get("narrative_contract_version"))
+    proposal_version = fixed["query_policy"].get("narrative_proposal_version")
+    if proposal_version is not None:
+        from bioradar.research.datasets.narrative_proposal import PROPOSAL_VERSION
+
+        if proposal_version != PROPOSAL_VERSION or version != "literal-narrative-observations-v2":
+            raise DomainError(
+                "narrative_proposal_version_invalid", "数值提议说明版本与固定校验契约不一致", 409
+            )
     saved = progress.setdefault("narrative_extractions", {})
     records = []
     selected = 0
     for record in snapshot.records:
-        key = canonical_hash(
-            [record.record_ref.model_dump(mode="json"), record.normalized_text_hash, version]
-        )
+        key_parts = [record.record_ref.model_dump(mode="json"), record.normalized_text_hash, version]
+        if proposal_version is not None:
+            key_parts.append(proposal_version)
+        key = canonical_hash(key_parts)
         cached = saved.get(key)
+        if (
+            cached is not None
+            and proposal_version is not None
+            and cached.get("proposal_version") != proposal_version
+        ):
+            raise DomainError("narrative_source_changed", "已存数值提议与固定说明版本不一致", 409)
         if cached is None and allow_model and _needs_selection(record, version=version):
             selected += 1
             if selected > reading_limits(fixed)["search_limit"]:
@@ -71,6 +86,7 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
                     "text_sha256": record.normalized_text_hash,
                     "call_key": "narrative:" + key,
                     "extractor_version": version,
+                    **({"proposal_version": proposal_version} if proposal_version is not None else {}),
                 }
                 service._checkpoint(identifier, token, progress)
                 records.append(record)
@@ -94,12 +110,18 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
                 from bioradar.research.datasets.narrative_v2 import selection_payload
 
                 payload = selection_payload(record)
+            schema = narrative_extraction_schema(version=version)
+            if proposal_version is not None:
+                from bioradar.research.datasets.narrative_proposal import proposal_payload, proposal_schema
+
+                payload = proposal_payload(record, version=proposal_version)
+                schema = proposal_schema(version=proposal_version)
             try:
                 output, _ = service._call(
                     identifier,
                     token,
                     "narrative_extract",
-                    narrative_extraction_schema(version=version),
+                    schema,
                     fixed,
                     progress,
                     payload,
@@ -138,6 +160,7 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
                     "text_sha256": record.normalized_text_hash,
                     "call_key": "narrative:" + key,
                     "extractor_version": version,
+                    **({"proposal_version": proposal_version} if proposal_version is not None else {}),
                 }
             cached.update(
                 record_ref=record.record_ref.model_dump(mode="json"),
@@ -145,6 +168,8 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
                 call_key="narrative:" + key,
                 extractor_version=version,
             )
+            if proposal_version is not None:
+                cached["proposal_version"] = proposal_version
             saved[key] = cached
             service._checkpoint(identifier, token, progress)
         if cached and cached.get("observations"):

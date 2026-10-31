@@ -378,7 +378,10 @@ def _same_time(left, right):
 
 def _dataset(payload):
     _require(isinstance(payload, dict), "dataset payload is not visible")
-    _require(payload.get("schema_version") == "bioradar-analysis-dataset-v1", "unknown dataset schema")
+    _require(
+        payload.get("schema_version") in {"bioradar-analysis-dataset-v1", "bioradar-analysis-dataset-v2"},
+        "unknown dataset schema",
+    )
     unhashed = {"dataset_hash", "selection_summary", "dataset_hash_scope"}
     _require(
         payload.get("dataset_hash") == _hash({k: v for k, v in payload.items() if k not in unhashed}),
@@ -408,7 +411,10 @@ def _dataset(payload):
 def _pattern(payload):
     _require(isinstance(payload, dict), "pattern payload is not visible")
     _require(
-        payload.get("compute_version") in {"bioradar-mining-compute-v0.3", "bioradar-mining-compute-v0.4"},
+        payload.get("compute_version") in {
+                    "bioradar-mining-compute-v0.3", "bioradar-mining-compute-v0.4",
+                    "bioradar-mining-compute-v0.5",
+                },
         "not a saved KDD computation",
     )
     _require(

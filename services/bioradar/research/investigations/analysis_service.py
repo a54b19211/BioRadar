@@ -412,6 +412,11 @@ class AnalysisService:
                 "budget_pool": row.fixed_input.get("execution_budget", {}).get("pool"),
                 "budget_wait": copy.deepcopy(progress.get("budget_wait")),
                 "waiting_fetch": copy.deepcopy(progress.get("waiting_fetch")),
+                **(
+                    {"material_update_impact": copy.deepcopy(progress["material_update_impact"])}
+                    if "material_update_impact" in progress
+                    else {}
+                ),
                 "model_output_adjustments": copy.deepcopy(progress.get("model_output_adjustments", {})),
                 **(
                     {
@@ -650,10 +655,77 @@ class AnalysisService:
             parent_id = parent.id if parent else None
             basis = copy.deepcopy((parent or latest).fixed_input)
             question = basis["question"]
+            prior_id = (parent or latest).id
+            prior_revision = (parent or latest).based_on_revision
+            prior_progress = copy.deepcopy((parent or latest).progress)
+            prior_result = copy.deepcopy((parent or latest).result)
+            latest_id, latest_state = latest.id, latest.state
         view = InvestigationService(self.engine).get(self.actor, investigation_id)
         if view.status != "open":
             return None
         prior_policy = basis.get("query_policy") or {}
+        version = prior_policy.get("material_impact_version")
+        updates = [
+            entry
+            for entry in view.entries
+            if entry.kind == "material"
+            and entry.revision > prior_revision
+            and not entry.payload.machine_analysis_id
+        ]
+        if (
+            version is not None
+            and latest_state not in {"queued", "running"}
+            and updates
+            and all(
+                entry.payload.automation is not None and entry.payload.stance == "context"
+                for entry in updates
+            )
+        ):
+            from bioradar.research.investigations.material_impact import evaluate_material_impact
+
+            with Session(self.engine.database) as session:
+                prior_sources = sorted(
+                    set(basis.get("snapshot_ids", []))
+                    | {item["snapshot_id"] for item in prior_progress.get("evidence", [])}
+                )
+                new_sources = sorted({entry.payload.snapshot_id for entry in updates})
+
+                def records(identifiers):
+                    return [
+                        record
+                        for identifier in identifiers
+                        for record in NormalizedSnapshot.model_validate(
+                            self.engine._snapshot(session, self.actor, identifier).payload
+                        ).records
+                    ]
+
+                impact = evaluate_material_impact(
+                    basis,
+                    prior_progress,
+                    prior_result,
+                    [
+                        {
+                            "entry_id": entry.id,
+                            "revision": entry.revision,
+                            "new_ref": entry.payload.support.record_ref.model_dump(mode="json"),
+                        }
+                        for entry in updates
+                    ],
+                    records(prior_sources),
+                    records(new_sources),
+                )
+            impact["parent_analysis_id"] = prior_id
+            with Session(self.engine.database) as session, session.begin():
+                saved = session.get(InvestigationAnalysisRecord, latest_id, with_for_update=True)
+                if saved.state != latest_state or saved.state in {"queued", "running"}:
+                    return None
+                metadata = copy.deepcopy(saved.progress)
+                metadata["material_update_impact"] = impact
+                if impact["status"] != "affects_dependency":
+                    metadata["material_update_checked_revision"] = impact["checked_revision"]
+                saved.progress = metadata
+            if impact["status"] != "affects_dependency":
+                return None
         requested_budget = basis.get("requested_budget")
         body = AnalysisCreate(
             expected_revision=view.revision,
@@ -1267,6 +1339,17 @@ class AnalysisService:
                                 DateTime(timezone=True),
                             )
                         ).label("checked"),
+                        func.max(
+                            func.coalesce(
+                                cast(
+                                    InvestigationAnalysisRecord.progress[
+                                        "material_update_checked_revision"
+                                    ].astext,
+                                    Integer,
+                                ),
+                                0,
+                            )
+                        ).label("impact_revision"),
                     )
                     .where(InvestigationAnalysisRecord.workspace_id == self.actor.workspace_id)
                     .group_by(InvestigationAnalysisRecord.investigation_id)
@@ -1293,7 +1376,9 @@ class AnalysisService:
                     session.scalars(
                         select(latest.c.id)
                         .join(material, latest.c.id == material.c.id)
-                        .where(material.c.revision > latest.c.revision)
+                        .where(
+                            material.c.revision > func.greatest(latest.c.revision, latest.c.impact_revision)
+                        )
                         .order_by(
                             latest.c.checked.asc().nullsfirst(), material.c.revision.desc(), latest.c.id
                         )
@@ -4526,6 +4611,7 @@ class AnalysisService:
         """Deliver a prior, source-bound reading when final synthesis is known incomplete."""
         from bioradar.adapters.reasoning_model import ModelCallError
         from bioradar.research.investigations.analysis import validate_claims
+        from bioradar.research.investigations.reading_coverage import retained_reading_coverage
         from bioradar.research.investigations.reading_execution import retained_policy_reading
 
         known_invalid_response = (
@@ -4556,6 +4642,7 @@ class AnalysisService:
         note = (
             "最终综合未完成，以下保留此前阅读草稿；只确认引用对应原先读过的固定材料，"
             "未完成通用或专业核验，新增材料及后续缺口未因此视为已解决。"
+            "该草稿不能作为当前结论；原阅读输入及未纳入的新证据、计算和专业产物分别列出。"
         )
         if note not in progress["limitations"]:
             progress["limitations"].append(note)
@@ -4566,6 +4653,7 @@ class AnalysisService:
             "reading_evidence_hash": progress["query_policy"]["reading_evidence_hash"],
             "status": "unfinished_reading_draft",
             "qualification": note,
+            **retained_reading_coverage(progress, original),
         }
         result = AnalysisResult(
             claims=validate_claims(reading.claims, progress["evidence"]),

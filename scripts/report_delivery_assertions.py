@@ -73,9 +73,64 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
         else ""
     )
     assert delivery.get("assessment_prefix", "") == assessment_prefix
+    impact = (view.get("progress") or {}).get("material_update_impact") or {}
+    impact_prefix = ""
+    if impact:
+        notes = {
+            "equivalent_inputs": "本次已比较的分析输入等同，未重新生成或核验报告。",
+            "affects_dependency": "原分析依据发生变化，新版复查另行保存；本稿尚未据此更新。",
+        }
+        note = notes.get(impact.get("status"), "有新版本等待判断；本稿尚未据此更新。")
+        cutoff = _escape(impact.get("report_as_of") or "未提供，未补成当前时点")
+        parent = _escape(impact.get("parent_analysis_id") or "未记录")
+        impact_prefix = (
+            f"> 材料更新记录：{note} 本稿仍绑定原固定材料。"
+            f"本次影响比较依据报告：{parent}；该报告资料截止：{cutoff}。\n\n"
+        )
+        assert delivery["report_currentness"] == "prior_fixed_materials"
+    else:
+        assert "material_update_prefix" not in delivery and "report_currentness" not in delivery
+    assert delivery.get("material_update_prefix", "") == impact_prefix
+    policy = view.get("query_policy") or (view.get("result") or {}).get("query_policy") or {}
+    basis = policy.get("synthesis_reading_basis") or {}
+    reading_prefix = ""
+    if basis.get("cannot_use_as_current_conclusion"):
+        missing = basis.get("not_incorporated") or {}
+        lines = [
+            "> 保留的早期阅读稿：尚未纳入后续结果，不能作为当前结论。",
+            "> 原阅读记录：" + _escape(basis.get("call_key") or basis.get("call_id") or "未记录")
+            + "；原查询边界：" + _escape(
+                str(basis["after_query_index"]) if basis.get("after_query_index") is not None else "未记录"
+            ),
+            "> 原输入：" + str(len(basis.get("input_evidence", []))) + " 份材料选段、"
+            + str(len(basis.get("input_artifact_refs", []))) + " 份分析产物。",
+        ]
+        for item in missing.get("evidence", []):
+            ref = item.get("record_ref") or {}
+            lines.append(
+                "> 尚未纳入原件：" + _escape(item.get("evidence_key") or ref.get("object_id"))
+                + "；来源：" + _escape(item.get("source_id") or "未记录")
+                + "；原件ID：" + _escape(ref.get("object_id") or "未记录")
+                + "；固定版本：" + _escape(ref.get("adopted_version"))
+            )
+        for item in missing.get("artifacts", []):
+            lines.append(
+                "> 尚未纳入产物：" + _escape(item.get("id")) + "；版本：" + _escape(item.get("version"))
+                + "；原状态：" + _escape(item.get("status") or "未记录") + "。完成不代表核验通过。"
+            )
+        if view.get("investigation_id") and view.get("id"):
+            inv, identifier = (quote(str(view[key]), safe="") for key in ("investigation_id", "id"))
+            lines.append(
+                f"> 可读入口：[本版完整调查与产物记录]"
+                f"(/api/engine/investigations/{inv}/analyses/{identifier}/export)。"
+            )
+        reading_prefix = "\n".join(lines) + "\n\n"
+    else:
+        assert "reading_coverage_prefix" not in delivery
+    assert delivery.get("reading_coverage_prefix", "") == reading_prefix
     assert delivery["body_range"] == {
-        "start": len(prefix) + len(assessment_prefix),
-        "end": len(prefix) + len(assessment_prefix) + len(body),
+        "start": len(prefix) + len(assessment_prefix) + len(impact_prefix) + len(reading_prefix),
+        "end": len(prefix) + len(assessment_prefix) + len(impact_prefix) + len(reading_prefix) + len(body),
         "unit": "unicode_code_points",
     }
     evidence = {item["key"]: item for item in view["evidence"]}
@@ -154,4 +209,4 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
     assert delivery["source_index_markdown"] == appendix, (
         "source appendix differs from independently checked metadata"
     )
-    return prefix + assessment_prefix + body + appendix
+    return prefix + assessment_prefix + impact_prefix + reading_prefix + body + appendix

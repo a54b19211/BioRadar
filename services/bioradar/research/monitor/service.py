@@ -607,6 +607,7 @@ class MonitorService:
             current_start=current_start,
             baseline_end=current_start,
             discovery_mode="stock_and_incremental",
+            source_intelligence_version="public-health-source-intelligence-v1",
             limits=ResourceLimits(
                 max_records=self.settings.engine_max_records,
                 review_capacity=12,

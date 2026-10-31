@@ -15,6 +15,8 @@ function object(value: unknown): Record<string, unknown> {
 function list(value: unknown): unknown[] { return Array.isArray(value) ? value : []; }
 function text(value: unknown) { return typeof value === "string" ? value : ""; }
 const savedReport = computed(() => props.analysis.result?.report);
+const retainedReading = computed(() => props.analysis.query_policy?.synthesis_reading_basis
+  ?? props.analysis.result?.query_policy?.synthesis_reading_basis);
 const generationError = computed(() => text(savedReport.value?.generation_error));
 const verificationErrorCode = computed(() => text(savedReport.value?.error_code));
 const verificationError = computed(() => generationError.value ? "" : text(savedReport.value?.verification_error)
@@ -363,8 +365,8 @@ const reviewStatus: Record<string, string> = {
       <details><summary>本次机制评价完整记录</summary><pre class="source-text">{{ JSON.stringify(analysis.result.mechanism_evaluation, null, 2) }}</pre></details>
     </section>
     <details class="structured-analysis" :open="!analysis.result.report">
-      <summary>{{ analysis.result.report ? "查看报告生成前的结构化分析与引文记录" : "查看本版分析与原文依据" }}</summary>
-      <p class="muted">{{ analysis.result.report ? "这部分保留报告生成前的分析；上方核验状态对应上方报告正文。" : "本版分析与证据记录，研究人员判断另存。" }}</p>
+      <summary>{{ retainedReading ? "查看此前阅读草稿及其原始引用" : analysis.result.report ? "查看报告生成前的结构化分析与引文记录" : "查看本版分析与原文依据" }}</summary>
+      <p class="muted">{{ retainedReading ? "尚未纳入后续结果，不能作为当前结论；这里只保留原阅读输入下的草稿和引用。" : analysis.result.report ? "这部分保留报告生成前的分析；上方核验状态对应上方报告正文。" : "本版分析与证据记录，研究人员判断另存。" }}</p>
     <p v-if="genericReviewRan && analysis.result.review.status === 'needs_review'" class="error-panel" role="alert">
       通用复核仍有待核问题。请查看下方逐项复核，以下草稿不能直接作为已核实结论。
     </p>
@@ -372,7 +374,7 @@ const reviewStatus: Record<string, string> = {
       当前稿已完成通用复核，但本次流程仍有未完成事项。请查看版本比较和运行记录中的原因。
     </p>
     <p v-if="!genericReviewRan" class="muted">前期结构化分析未单独通用核验<template v-if="analysis.result.report">，最终正文核验见上方</template>。</p>
-    <h3>{{ analysis.result.report ? "分析摘要" : "对研究问题的回答" }}</h3>
+    <h3>{{ retainedReading ? "此前阅读草稿（综合未完成）" : analysis.result.report ? "分析摘要" : "对研究问题的回答" }}</h3>
     <p class="investigation-prose">{{ analysis.result.conditional_answer.answer }}</p>
     <template v-if="analysis.result.conditional_answer.conditions.length">
       <h4>成立条件</h4>

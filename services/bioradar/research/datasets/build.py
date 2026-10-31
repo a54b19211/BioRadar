@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC
 
+from bioradar.research.datasets.intelligence import public_health_applicability, source_units
 from bioradar.research.datasets.narrative import applicable_directions, extract_narrative_observations
 from bioradar.research.mining.methods_pipeline import context_key
 from bioradar.research.mining.methods_text import is_structured_json
@@ -27,6 +28,15 @@ UNIT_CONTRACTS = {
     "business": "source_qualified_company_x_metric_x_comparable_period",
     "public_health": "region_x_indicator_x_period_x_population",
 }
+
+
+def dataset_version(policy):
+    return (
+        "bioradar-analysis-dataset-v2"
+        if getattr(policy, "source_intelligence_version", None)
+        and getattr(policy, "kdd_direction", None) == "public_health"
+        else DATASET_VERSION
+    )
 
 
 def _known(record):
@@ -71,6 +81,7 @@ class AnalysisDataset:
     units: tuple[dict, ...]
     exclusions: tuple[dict, ...]
     gaps: tuple[str, ...]
+    quantitative_exclusions: tuple[dict, ...] = ()
 
     def manifest(self):
         units = [
@@ -79,7 +90,7 @@ class AnalysisDataset:
             for unit in self.units
         ]
         value = {
-            "schema_version": DATASET_VERSION,
+            "schema_version": dataset_version(self.prepared.policy),
             "direction": self.direction,
             "unit_contract": UNIT_CONTRACTS[self.direction],
             "input_count": len(self.prepared.snapshot.records),
@@ -91,7 +102,10 @@ class AnalysisDataset:
             "denominator": {
                 "kind": "qualified_adopted_units",
                 "count": sum(
-                    unit["unit_kind"] not in {"graph_relation_hint", "source_claim"} for unit in units
+                    unit["unit_kind"] not in {
+                        "graph_relation_hint", "source_claim", "source_statement", "source_information_event"
+                    }
+                    for unit in units
                 ),
                 "excluded_graph_hint_units": sum(
                     unit["unit_kind"] == "graph_relation_hint" for unit in units
@@ -117,13 +131,31 @@ class AnalysisDataset:
                 "sources": [c.model_dump(mode="json") for c in self.prepared.snapshot.coverage],
             },
             "versions": {
-                "dataset": DATASET_VERSION,
+                "dataset": dataset_version(self.prepared.policy),
                 "identity_rule": "source-qualified-native-or-confirmed-mapping-v1",
                 "feature_aggregation": "unique-fixed-texts-equal-weight-v1",
             },
             "as_of": self.prepared.policy.as_of.isoformat(),
             "time_mode": self.prepared.policy.time_mode,
         }
+        if dataset_version(self.prepared.policy) != DATASET_VERSION:
+            source_kinds = {"source_statement", "source_information_event"}
+            value.update(
+                unit_contract="fixed_source_statements_and_information_events_or_qualified_public_health_metrics",
+                retained_source_version_count=sum(u["unit_kind"] == "source_statement" for u in units),
+                source_statement_count=sum(u["unit_kind"] == "source_statement" for u in units),
+                source_information_event_count=sum(
+                    u["unit_kind"] == "source_information_event" for u in units
+                ),
+                quantitative_qualified_count=sum(
+                    u["unit_kind"] == "region_indicator_period_population" for u in units
+                ),
+                quantitative_exclusions=list(self.quantitative_exclusions),
+            )
+            value["denominator"]["excluded_source_intelligence_units"] = sum(
+                u["unit_kind"] in source_kinds for u in units
+            )
+            value["versions"]["source_intelligence"] = self.prepared.policy.source_intelligence_version
         return value | {"dataset_hash": canonical_hash(value)}
 
 
@@ -136,12 +168,29 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
     ]
     gaps = set(prepared.limitations)
     groups = defaultdict(list)
+    source_mode = dataset_version(policy) != DATASET_VERSION
+    relevance = public_health_applicability(prepared) if source_mode else {}
+    retained = [
+        unit
+        for item in prepared.history
+        for unit in (
+            source_units(item, relevance.get(item.record.record_ref.version_key), policy)
+            if source_mode else ()
+        )
+    ]
+    retained_refs = {
+        canonical_hash(member["record_ref"]) for unit in retained for member in unit["members"]
+    }
+    quantitative_exclusions = []
 
     def exclude(item, reason, section=None):
         value = {"record_ref": item.record.record_ref.model_dump(mode="json"), "reason": reason}
         if section is not None:
             value["section_id"] = section
-        exclusions.append(value)
+        if source_mode and canonical_hash(value["record_ref"]) in retained_refs:
+            quantitative_exclusions.append(value)
+        else:
+            exclusions.append(value)
         gaps.add(reason)
 
     items = prepared.history if direction == "pipeline" else prepared.records
@@ -151,6 +200,12 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
             exclude(item, "record_deleted_or_retracted")
             continue
         applicability = applicable_directions(record)
+        if source_mode:
+            if record.record_ref.version_key in relevance:
+                applicability["public_health"] = relevance[record.record_ref.version_key]["reason"]
+            else:
+                exclude(item, "direction_not_applicable_to_visible_content_or_typed_fields")
+                continue
         if record.source_id == "external_archive" and direction not in applicability:
             exclude(item, "direction_not_applicable_to_visible_content_or_typed_fields")
             continue
@@ -424,7 +479,7 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 meta["superseded_by"] = [list(ref) for ref in sorted(replacements)]
             elif replacements:
                 gaps.add("metric_correction_cycle_or_multiple_replacements_unresolved")
-    units = []
+    units = list(retained)
     text_budget = policy.limits.max_text_characters
     for key, members in sorted(groups.items()):
         meta = members[0][1]
@@ -532,9 +587,10 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
     return AnalysisDataset(
         prepared,
         direction,
-        tuple(units),
+        tuple(sorted(units, key=lambda unit: unit["unit_id"])) if source_mode else tuple(units),
         tuple(sorted(exclusions, key=canonical_hash)),
         tuple(sorted(gaps)),
+        tuple(sorted(quantitative_exclusions, key=canonical_hash)),
     )
 
 

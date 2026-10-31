@@ -551,6 +551,11 @@ class ValuePolicy(FrozenModel):
 
 
 class KddPolicy(MiningPolicy):
+    source_intelligence_version: Literal["public-health-source-intelligence-v1"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Retain public-health source statements and information events separately from metrics.",
+    )
     kdd_direction: Literal["research", "pipeline", "business", "public_health"]
     narrative_contract_version: (
         Literal["literal-narrative-observations-v1", "literal-narrative-observations-v2"] | None
@@ -571,6 +576,11 @@ class KddPolicy(MiningPolicy):
 
 
 class DiscoveryPolicy(MiningPolicy):
+    source_intelligence_version: Literal["public-health-source-intelligence-v1"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Retain public-health source statements and information events separately from metrics.",
+    )
     discovery_directions: tuple[Literal["research", "pipeline", "business", "public_health"], ...] = Field(
         min_length=1, max_length=4
     )
@@ -643,6 +653,7 @@ class MiningResult(FrozenModel):
         "bioradar-mining-compute-v0.2",
         "bioradar-mining-compute-v0.3",
         "bioradar-mining-compute-v0.4",
+        "bioradar-mining-compute-v0.5",
     ] = ENGINE_COMPUTE_VERSION
     snapshot_hash: str
     policy_hash: str

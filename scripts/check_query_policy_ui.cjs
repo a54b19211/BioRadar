@@ -44,14 +44,17 @@ function loadApi(relative) {
   return context.exports;
 }
 const kddApi = loadApi("apps/web/src/api/kdd.ts");
+const queryPolicyApi = loadApi("apps/web/src/api/queryPolicy.ts");
 const kddSummary = compileComponent("apps/web/src/components/engine/KddRunSummary.vue", {
   "../../api/kdd": kddApi,
+  "../../api/engine": { engineRequest() { throw new Error("Offline UI check must not make HTTP"); } },
 });
 const policyPanel = compileComponent("apps/web/src/components/engine/PolicyTracePanel.vue", {
-  "../../api/kdd": kddApi, "./KddRunSummary.vue": { default: kddSummary },
+  "../../api/kdd": kddApi, "../../api/queryPolicy": queryPolicyApi,
+  "./KddRunSummary.vue": { default: kddSummary },
 });
 const progressPanel = compileComponent("apps/web/src/components/engine/ResearchProgress.vue", {
-  "./PolicyTracePanel.vue": { default: policyPanel },
+  "./PolicyTracePanel.vue": { default: policyPanel }, "../../api/queryPolicy": queryPolicyApi,
 });
 function render(policy, queries = []) {
   return renderToString(Vue.createSSRApp(policyPanel, { policy, queries }));
@@ -152,6 +155,39 @@ async function main() {
   assert.doesNotMatch(printed, /逐步动作、真实回执与下一决策/);
   assert.doesNotMatch(printed, /策略版本与原始轨迹/);
   assert.equal(printableText('<div class="no-print"><p>hidden ancestor</p></div><p>visible</p>').trim(), "visible");
+  const impactAnalysis = {
+    id: "latest-failed-analysis", state: "needs_review", calls: [], queries: [], providers: {}, budget: { limits: {}, usage: {} },
+    query_policy: { evidence_time: { mode: "current", cutoff: "2026-02-03T00:00:00Z" } },
+    result: { report: { status: "FAIL", final_text: "SYNTHETIC immutable later report" } },
+    progress: { material_update_impact: { version: "dependency-aware-material-update-v1", parent_analysis_id: "prior-analysis",
+      report_currentness: "prior_fixed_materials", report_as_of: "2026-01-02T00:00:00Z", checked_revision: 8, status: "impact_pending", decisions: [{ entry_id: "source-version-change", revision: 8,
+        old_ref: { provider: "fixture", object_id: "source", adopted_version: "v1" },
+        new_ref: { provider: "fixture", object_id: "source", adopted_version: "v2" },
+        status: "impact_pending", reason: "changed_context_or_unmapped_dependency", affected_claim_ids: ["calculation"] }] } },
+  };
+  const impactBefore = JSON.stringify(impactAnalysis);
+  const impactHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: impactAnalysis }));
+  assert.match(printableText(impactHtml), /有新版本等待判断/);
+  assert.match(printableText(impactHtml), /下方已有报告仍绑定自身原固定材料/);
+  assert.match(printableText(impactHtml), /本次影响比较依据的报告：prior-analysis/);
+  assert.doesNotMatch(impactHtml, /涉及本版命题/);
+  assert.match(impactHtml, /受影响命题／计算依据：calculation/);
+  assert.match(printableText(impactHtml), /该报告资料截止/);
+  assert.ok(printableText(impactHtml).includes(new Date("2026-01-02T00:00:00Z").toLocaleString("zh-CN", { hour12: false })));
+  assert.match(impactHtml, /fixture \/ source \/ v1/);
+  assert.match(impactHtml, /fixture \/ source \/ v2/);
+  assert.equal(JSON.stringify(impactAnalysis), impactBefore, "Impact projection never edits the prior report/state/hash inputs");
+  const equivalentAnalysis = JSON.parse(impactBefore);
+  equivalentAnalysis.progress.material_update_impact.status = "equivalent_inputs";
+  const equivalentHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: equivalentAnalysis }));
+  assert.match(equivalentHtml, /系统只确认下述依据报告的本次已比较输入等同/);
+  assert.match(equivalentHtml, /这不代表下方其他版本已经完成比较或重新研判/);
+  const missingBasis = JSON.parse(impactBefore);
+  delete missingBasis.progress.material_update_impact.parent_analysis_id;
+  delete missingBasis.progress.material_update_impact.report_as_of;
+  const missingBasisHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: missingBasis }));
+  assert.match(printableText(missingBasisHtml), /未记录，未推测对应报告/);
+  assert.match(printableText(missingBasisHtml), /该报告资料截止：未提供，未补成当前时点/);
   const styles = fs.readFileSync(path.join(root, "apps/web/src/style.css"), "utf8");
   assert.match(styles, /@media print[\s\S]*?\.no-print[\s\S]*?display:\s*none\s*!important/);
   trace.effective = "baseline";
@@ -194,6 +230,53 @@ async function main() {
   assert.match(kddPrinted, /未训练启发式/);
   assert.match(kddPrinted, /本地数据加工和计算各计一次工具动作、零模型调用/);
 
+  const laterArtifact = { id: "professional:offline-later", version: "offline-later-version",
+    kind: "professional_assessment", provider: "mech_evidence", status: "completed" };
+  const retainedBasis = {
+    call_key: "read_plan:before-later-results", call_id: "offline-read-call", reading_evidence_hash: "original-reading-hash",
+    status: "unfinished_reading_draft", qualification: "SYNTHETIC original reading qualification",
+    coverage_version: "retained-reading-coverage-v1", cannot_use_as_current_conclusion: true,
+    call_index: 2, after_query_index: 0, after_decision_step: 1,
+    input_evidence: [{ evidence_key: "original-input", source_id: "europe_pmc",
+      record_ref: { provider: "fabric", object_id: "original-document", adopted_version: "original-version" },
+      text_sha256: "original-window-hash", selection_hash: "original-selection-hash", start: 0, end: 16 }],
+    input_artifact_refs: refs,
+    not_incorporated: {
+      evidence: [{ evidence_key: "later-input", source_id: "europe_pmc",
+        record_ref: { provider: "fabric", object_id: "later-document", adopted_version: "later-fixed-version" },
+        text_sha256: "later-window-hash", selection_hash: "later-selection-hash", start: 16, end: 32 }],
+      artifacts: [laterArtifact],
+    },
+  };
+  const retainedAnalysis = {
+    state: "needs_review", calls: [], queries: [], budget: { limits: {}, usage: {} },
+    result: { report: null, conditional_answer: { answer: "SYNTHETIC exact earlier reading answer" } },
+    query_policy: { ...v2, synthesis_stop_reason: "analysis_token_budget", synthesis_reading_basis: retainedBasis,
+      artifacts: [...v2.artifacts, laterArtifact],
+      artifact_results: { ...v2.artifact_results, [laterArtifact.id]: { status: "completed", overall: { verdict: "insufficient" } } },
+    },
+  };
+  const retainedBefore = JSON.stringify(retainedAnalysis);
+  const retainedHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: retainedAnalysis }));
+  const retainedPrinted = printableText(retainedHtml);
+  assert.match(retainedPrinted, /此前阅读草稿（综合未完成）/);
+  assert.match(retainedPrinted, /尚未纳入后续结果，不能作为当前结论/);
+  assert.match(retainedHtml, /read_plan:before-later-results/);
+  assert.match(retainedHtml, /original-document \/ original-version/);
+  assert.match(retainedHtml, /later-document \/ later-fixed-version/);
+  assert.match(retainedPrinted, /原样状态：completed/);
+  const artifactAnchor = queryPolicyApi.queryPolicyArtifactAnchor(laterArtifact);
+  assert.ok(retainedHtml.includes('href="#' + artifactAnchor + '"'));
+  assert.ok(retainedHtml.includes('id="' + artifactAnchor + '"'));
+  assert.match(retainedHtml, /阅读这份固定专业产物记录/);
+  assert.match(retainedHtml, /insufficient/);
+  assert.equal(JSON.stringify(retainedAnalysis), retainedBefore, "Showing the old draft must not change its answer, refs or professional results");
+  const mismatchedArtifact = JSON.parse(retainedBefore);
+  mismatchedArtifact.query_policy.synthesis_reading_basis.not_incorporated.artifacts[0].version = "unmatched-version";
+  const mismatchedHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: mismatchedArtifact }));
+  assert.doesNotMatch(mismatchedHtml, /查看这份专业产物记录/);
+  assert.match(mismatchedHtml, /未找到可展开的对应专业产物记录，未猜测入口/);
+
   const historyWrites = [];
   const history = historyPage(async (url, options) => {
     historyWrites.push({ url, options });
@@ -215,6 +298,8 @@ async function main() {
     "history_uses_server_frozen_scope_and_never_retries_unknown_write",
     "v2_capability_receipt_artifact_and_next_observation_visible",
     "v2_print_keeps_real_processing_scope_and_scientific_limits",
+    "impact_comparison_names_its_parent_report_without_relabeling_the_displayed_later_report",
+    "retained_reading_input_boundary_later_results_and_exact_artifact_record_links_remain_separate",
   ], qualification: "Offline UI controls only." }));
 }
 

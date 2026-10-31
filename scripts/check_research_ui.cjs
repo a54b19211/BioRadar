@@ -417,6 +417,17 @@ async function main() {
   const noReport = await renderReport("PASS", "needs_review", [], {}, { report: null });
   assert.doesNotMatch(noReport, /核验后反馈与未补齐问题/);
   assert.doesNotMatch(noReport, /BioCheck 原核验通过/);
+  const retainedReading = await renderReport("PASS", "needs_review", [], {}, {
+    report: null,
+    query_policy: { synthesis_reading_basis: { call_key: "read_plan:original", call_id: "original-call",
+      reading_evidence_hash: "original-input-hash", status: "unfinished_reading_draft",
+      qualification: "SYNTHETIC original reading basis" } },
+  }, { state: "needs_review" });
+  assert.match(retainedReading, /此前阅读草稿（综合未完成）/);
+  assert.match(retainedReading, /尚未纳入后续结果，不能作为当前结论/);
+  assert.match(retainedReading, /Earlier structured answer/);
+  assert.doesNotMatch(retainedReading, /对研究问题的回答/);
+  assert.doesNotMatch(retainedReading, /BioCheck 原核验通过/);
 
   const citedBody = "Original body [qreal] [record:S1] [qmissing] <not-html>";
   const fixedRef = { source_id: "who_don", source_record_id: "notice", adopted_version: "frozen-version" };
@@ -587,6 +598,7 @@ async function main() {
     "manual_topic_close_requires_reason_and_preserves_revision_gate",
     "fixed_document_windows_computation_professional_and_source_fetch_labels_match_actual_actions",
     "legacy_unbound_assessment_status_preserves_exact_body_and_missing_id_label",
+    "retained_reading_answer_remains_an_unfinished_old_draft_without_a_current_conclusion_label",
   ] }));
 }
 module.exports = { renderReport };

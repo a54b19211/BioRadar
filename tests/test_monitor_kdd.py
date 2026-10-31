@@ -58,6 +58,7 @@ def test_direction_policy_is_explicit_and_unconfigured_branch_discovers_all_doma
         discovery_directions=("research", "pipeline", "business", "public_health"),
         as_of=AS_OF,
         discovery_mode="stock_and_incremental",
+        source_intelligence_version="public-health-source-intelligence-v1",
         limits=ResourceLimits(max_records=2000, review_capacity=12, max_candidates_per_method=30),
     )
     assert old.model_dump(mode="json") == expected.model_dump(mode="json")
@@ -196,7 +197,8 @@ def test_who_kdd_monitor_accepts_runs_and_starts_frozen_direction_analysis(runti
         batch = session.scalar(select(MonitorBatch))
         lead = session.scalar(select(MonitorLead))
         assert run.policy["kdd_direction"] == "public_health"
-        assert run.result["compute_version"] == "bioradar-mining-compute-v0.4"
+        assert run.policy["source_intelligence_version"] == "public-health-source-intelligence-v1"
+        assert run.result["compute_version"] == "bioradar-mining-compute-v0.5"
         assert batch.state == "completed"
         assert lead.payload["kdd_direction"] == "public_health"
         assert lead.payload["candidate"]["method_id"] == "public_health_notifications"

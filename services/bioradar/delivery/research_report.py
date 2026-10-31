@@ -155,18 +155,82 @@ def _index_markdown(rows, digest):
     return "\n".join(lines) + "\n"
 
 
+def _material_impact_prefix(impact):
+    if not impact:
+        return ""
+    status = impact.get("status")
+    note = (
+        "本次已比较的分析输入等同，未重新生成或核验报告。"
+        if status == "equivalent_inputs"
+        else "原分析依据发生变化，新版复查另行保存；本稿尚未据此更新。"
+        if status == "affects_dependency"
+        else "有新版本等待判断；本稿尚未据此更新。"
+    )
+    cutoff = _escape(impact.get("report_as_of") or "未提供，未补成当前时点")
+    parent = _escape(impact.get("parent_analysis_id") or "未记录")
+    return (
+        f"> 材料更新记录：{note} 本稿仍绑定原固定材料。"
+        f"本次影响比较依据报告：{parent}；该报告资料截止：{cutoff}。\n\n"
+    )
+
+
+
+def _reading_coverage_prefix(analysis):
+    policy = _object(analysis.get("query_policy")) or _object(
+        _object(analysis.get("result")).get("query_policy")
+    )
+    basis = _object(policy.get("synthesis_reading_basis"))
+    if not basis.get("cannot_use_as_current_conclusion"):
+        return ""
+    missing = _object(basis.get("not_incorporated"))
+    lines = [
+        "> 保留的早期阅读稿：尚未纳入后续结果，不能作为当前结论。",
+        "> 原阅读记录：" + _escape(basis.get("call_key") or basis.get("call_id") or "未记录")
+        + "；原查询边界：" + _escape(
+            str(basis["after_query_index"]) if basis.get("after_query_index") is not None else "未记录"
+        ),
+        "> 原输入：" + str(len(basis.get("input_evidence", []))) + " 份材料选段、"
+        + str(len(basis.get("input_artifact_refs", []))) + " 份分析产物。",
+    ]
+    for item in missing.get("evidence", []):
+        ref = _object(item.get("record_ref"))
+        lines.append(
+            "> 尚未纳入原件：" + _escape(item.get("evidence_key") or ref.get("object_id"))
+            + "；来源：" + _escape(item.get("source_id") or "未记录")
+            + "；原件ID：" + _escape(ref.get("object_id") or "未记录")
+            + "；固定版本：" + _escape(ref.get("adopted_version"))
+        )
+    for item in missing.get("artifacts", []):
+        lines.append(
+            "> 尚未纳入产物：" + _escape(item.get("id")) + "；版本：" + _escape(item.get("version"))
+            + "；原状态：" + _escape(item.get("status") or "未记录") + "。完成不代表核验通过。"
+        )
+    if analysis.get("investigation_id") and analysis.get("id"):
+        inv, identifier = (quote(str(analysis[key]), safe="") for key in ("investigation_id", "id"))
+        lines.append(
+            f"> 可读入口：[本版完整调查与产物记录]"
+            f"(/api/engine/investigations/{inv}/analyses/{identifier}/export)。"
+        )
+    return "\n".join(lines) + "\n\n"
+
+
 def build_report_delivery(analysis):
     """Pure JSON metadata; never changes the analysis, report text, or evidence identities."""
     body, report, kind = _body(analysis)
     digest = hashlib.sha256(body.encode()).hexdigest()
     saved_hash = report.get("text_sha256")
     verification = _object(report.get("verification"))
-    prefix = scope_markdown(_object(analysis.get("progress")).get("material_scope"))
+    progress = _object(analysis.get("progress"))
+    prefix = scope_markdown(progress.get("material_scope"))
+    impact = _object(progress.get("material_update_impact"))
+    impact_prefix = _material_impact_prefix(impact)
+    reading_prefix = _reading_coverage_prefix(analysis)
     projected = assessment_result_view(_object(analysis.get("result")))
     binding = projected.get("assessment_binding")
     note = assessment_binding_note(projected)
     assessment_prefix = "> " + note + "\n\n" if note else ""
     rows = _citation_rows(body, analysis, report)
+    body_start = len(prefix) + len(assessment_prefix) + len(impact_prefix) + len(reading_prefix)
     return {
         "schema_version": SCHEMA_VERSION,
         "body_kind": kind,
@@ -176,8 +240,8 @@ def build_report_delivery(analysis):
         "verification_status": report.get("status"),
         "verification_text_matches": verification.get("draft") == body if verification else None,
         "body_range": {
-            "start": len(prefix) + len(assessment_prefix),
-            "end": len(prefix) + len(assessment_prefix) + len(body),
+            "start": body_start,
+            "end": body_start + len(body),
             "unit": "unicode_code_points",
         },
         "source_index": rows,
@@ -188,6 +252,11 @@ def build_report_delivery(analysis):
             if binding is not None
             else {}
         ),
+        **(
+            {"material_update_prefix": impact_prefix, "report_currentness": "prior_fixed_materials"}
+            if impact else {}
+        ),
+        **({"reading_coverage_prefix": reading_prefix} if reading_prefix else {}),
         "source_index_markdown": _index_markdown(rows, digest),
         "qualification": "系统来源索引未纳入原正文核验；文字核验通过不等于传言属实、证据覆盖完整或人工批准。",
     }
@@ -200,6 +269,8 @@ def render_report_markdown(analysis):
     return (
         delivery["scope_prefix"]
         + delivery.get("assessment_prefix", "")
+        + delivery.get("material_update_prefix", "")
+        + delivery.get("reading_coverage_prefix", "")
         + body
         + delivery["source_index_markdown"]
     )

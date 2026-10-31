@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import KddRunSummary from "./KddRunSummary.vue";
 import { kddLabel, object, text } from "../../api/kdd";
+import { queryPolicyArtifactAnchor } from "../../api/queryPolicy";
 import type {
   PolicyQueryReceipt,
   QueryPolicyArtifactRef,
@@ -179,10 +180,15 @@ function actionText(decision: QueryPolicyDecision) {
       <template v-if="kdd">
         <KddRunSummary v-if="computationResult" :result="computationResult" :policy="computationPolicy" />
         <p v-else class="notice">本轮尚未保存可展示的加工或计算结果；不能将能力可用当作已经执行。</p>
-        <p v-for="artifact in professionalArtifacts" :key="artifact.id" class="muted">
-          <strong>专业评价：</strong>{{ artifact.provider || "提供方未记录" }} · {{ artifactStatus(artifact.id) }}；
-          固定版本 {{ artifact.version.slice(0, 12) }}。评价执行状态与科学结论分别保存，具体结论见本版专业评价和报告核验。
-        </p>
+        <article v-for="artifact in professionalArtifacts" :id="queryPolicyArtifactAnchor(artifact)" :key="artifact.id" class="professional-artifact">
+          <p class="muted"><strong>专业评价：</strong>{{ artifact.provider || "提供方未记录" }} · {{ artifactStatus(artifact.id) }}；
+            {{ artifact.id }}，固定版本 {{ artifact.version }}。评价执行状态与科学结论分别保存，取得产物不表示已纳入当前草稿。
+          </p>
+          <details v-if="policy.artifact_results?.[artifact.id] != null" class="no-print">
+            <summary>阅读这份固定专业产物记录</summary>
+            <pre class="source-text">{{ JSON.stringify(policy.artifact_results[artifact.id], null, 2) }}</pre>
+          </details>
+        </article>
         <p v-if="computedPatterns.length > 1" class="muted">本轮保留 {{ computedPatterns.length }} 个固定计算版本，上方显示最近保存的加工或计算结果；旧产物和动作仍在轨迹中。</p>
       </template>
       <details :open="policy.status === 'blocked'" class="no-print">

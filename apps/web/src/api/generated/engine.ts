@@ -2079,6 +2079,11 @@ export interface components {
              *     ]
              */
             urgent_event_types: string[];
+            /**
+             * Source Intelligence Version
+             * @description Retain public-health source statements and information events separately from metrics.
+             */
+            source_intelligence_version?: "public-health-source-intelligence-v1" | null;
             /** Discovery Directions */
             discovery_directions: ("research" | "pipeline" | "business" | "public_health")[];
             value_policy?: components["schemas"]["ValuePolicy"];
@@ -4067,6 +4072,11 @@ export interface components {
              */
             urgent_event_types: string[];
             /**
+             * Source Intelligence Version
+             * @description Retain public-health source statements and information events separately from metrics.
+             */
+            source_intelligence_version?: "public-health-source-intelligence-v1" | null;
+            /**
              * Kdd Direction
              * @enum {string}
              */
@@ -4607,7 +4617,7 @@ export interface components {
              * @default bioradar-mining-compute-v0.4
              * @enum {string}
              */
-            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2" | "bioradar-mining-compute-v0.3" | "bioradar-mining-compute-v0.4";
+            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2" | "bioradar-mining-compute-v0.3" | "bioradar-mining-compute-v0.4" | "bioradar-mining-compute-v0.5";
             /** Snapshot Hash */
             snapshot_hash: string;
             /** Policy Hash */

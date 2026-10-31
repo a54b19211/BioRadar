@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref, watch } from "vue";
+import { engineRequest } from "../../api/engine";
 import {
   object, objects, count, text, strings, preparation, selectionCounts,
-  facts, readable, kddLabel, methodLabel, representationScope, preparationDirections,
+  facts, readable, kddLabel, methodLabel, representationScope, preparationDirections, retainedSourceRecord,
 } from "../../api/kdd";
 
-const props = defineProps<{ result: unknown; policy?: unknown; methodLabels?: Record<string, string> }>();
+const props = defineProps<{ result: unknown; policy?: unknown; methodLabels?: Record<string, string>; snapshotId?: string }>();
 const data = computed(() => preparation(props.result));
 const directions = computed(() => preparationDirections(props.result));
 const isMulti = computed(() => directions.value.length > 0);
 const units = computed(() => objects(data.value?.units));
 const excluded = computed(() => objects(data.value?.excluded_records));
+const quantitativeExcluded = computed(() => objects(data.value?.quantitative_exclusions));
 const methods = computed(() => objects(object(props.result)?.method_results));
 const selections = computed(() => selectionCounts(props.result));
 const selectionSummary = computed(() => object(data.value?.selection_summary));
@@ -22,6 +24,40 @@ const unitContract = computed(() => readable(data.value?.unit_contract));
 const limitations = computed(() => strings(object(props.result)?.limitations));
 const valueRules = computed(() => facts(object(props.policy)?.value_policy));
 const comparison = computed(() => representationScope(props.result));
+const retainedMethods = computed(() => methods.value.filter(method => retainedUnits(method).length > 0));
+const sourceText = ref("");
+const sourceError = ref("");
+const sourceBusy = ref(false);
+let sourceRequest = 0;
+watch(() => [props.result, props.snapshotId], () => {
+  sourceRequest++; sourceText.value = ""; sourceError.value = ""; sourceBusy.value = false;
+});
+function retainedUnits(method: Record<string, unknown>) {
+  return objects(object(method.statistics)?.retained_source_units);
+}
+function methodFacts(method: Record<string, unknown>) {
+  return facts(Object.fromEntries(Object.entries(object(method.statistics) ?? {}).filter(([key]) => key !== "retained_source_units")));
+}
+async function openSource(unit: Record<string, unknown>) {
+  if (!props.snapshotId) return;
+  const request = ++sourceRequest;
+  const snapshotId = props.snapshotId;
+  const result = props.result;
+  sourceText.value = ""; sourceError.value = ""; sourceBusy.value = true;
+  try {
+    const data = await engineRequest<{ id: string; snapshot: unknown }>(`/snapshots/${encodeURIComponent(snapshotId)}`);
+    if (request !== sourceRequest || props.snapshotId !== snapshotId || props.result !== result) return;
+    if (data.id !== snapshotId) throw new Error("固定资料快照身份不匹配，未展示其他快照内容。");
+    const record = retainedSourceRecord(data.snapshot, unit);
+    if (!record) throw new Error("固定原件的完整版本或采用文本哈希不匹配，未展示其他版本。");
+    if (record.text_status !== "inline_authorized" || !text(record.normalized_text)) throw new Error("该固定版本未提供可读的授权文本；来源状态与身份仍保留。");
+    sourceText.value = text(record.normalized_text);
+  } catch (error) {
+    if (request === sourceRequest && props.snapshotId === snapshotId && props.result === result) sourceError.value = error instanceof Error ? error.message : "读取固定材料失败";
+  } finally {
+    if (request === sourceRequest && props.snapshotId === snapshotId && props.result === result) sourceBusy.value = false;
+  }
+}
 function members(unit: Record<string, unknown>) {
   const rows = objects(unit.members);
   if (!rows.length) return "未提供成员记录";
@@ -63,6 +99,8 @@ function download() {
         <div><span>输入资料</span><strong>{{ count(data.input_count) ?? "未记录" }}</strong></div>
         <div><span>{{ isMulti ? "各方向单位条目" : "合格分析单位" }}</span><strong>{{ count(data.qualified_count) ?? "未记录" }}</strong></div>
         <div><span>{{ isMulti ? "各方向排除条目" : "排除记录" }}</span><strong>{{ Array.isArray(data.excluded_records) ? excluded.length : "未记录" }}</strong></div>
+        <div v-if="count(data.quantitative_qualified_count) !== null"><span>数值合格单位</span><strong>{{ count(data.quantitative_qualified_count) }}</strong></div>
+        <div v-if="count(data.retained_source_version_count) !== null"><span>保留资料版本</span><strong>{{ count(data.retained_source_version_count) }}</strong></div>
         <div><span>实际执行方法</span><strong>{{ methodCount }} / {{ methods.length }}</strong></div>
       </div>
       <p v-if="isMulti" class="notice">同一批输入分别进入各方向的资格判断。各方向的单位身份、分母与排除口径独立，不能相加当作文档数、独立研究数或一个共同总体；所有方向共用本轮审阅容量。</p>
@@ -72,6 +110,8 @@ function download() {
           <p>收到原批次输入 {{ count(entry.data.input_count) ?? "未记录" }} 条；该方向合格分析单位 {{ count(entry.data.qualified_count) ?? "未记录" }}；排除条目 {{ Array.isArray(entry.data.excluded_records) ? entry.data.excluded_records.length : "未记录" }}。</p>
           <p><strong>分析单位：</strong>{{ readable(entry.data.unit_contract) }}</p>
           <p><strong>该方向分母：</strong>{{ readable(entry.data.denominator) }}</p>
+          <p v-if="count(entry.data.retained_source_version_count) !== null">保留资料版本 {{ count(entry.data.retained_source_version_count) }}；数值合格单位 {{ count(entry.data.quantitative_qualified_count) ?? "未记录" }}。材料保留与数值资格分别判断。</p>
+          <details v-if="objects(entry.data.quantitative_exclusions).length"><summary>未进入该方向数值计算的条目</summary><ul><li v-for="(item, index) in objects(entry.data.quantitative_exclusions)" :key="index">{{ reason(item) }}</li></ul><p>未进入数值计算不等于整份资料被丢弃；符合条件的来源材料仍保留。</p></details>
           <ul v-if="strings(entry.data.unknown_reasons).length" class="notice"><li v-for="item in strings(entry.data.unknown_reasons)" :key="item">{{ kddLabel(item) }}</li></ul>
           <details>
             <summary>该方向的单位成员、排除与覆盖</summary>
@@ -98,6 +138,10 @@ function download() {
         </tbody></table>
         <p class="muted">完整成员与特征版本保存在本次固定结果中，可由上方下载。预览数量不改变实际计算范围。</p>
       </details>
+      <details v-if="!isMulti && quantitativeExcluded.length"><summary>未进入数值计算的条目</summary>
+        <ul><li v-for="(item, index) in quantitativeExcluded" :key="index">{{ reason(item) }}</li></ul>
+        <p>未进入数值计算不等于整份资料被丢弃；符合条件的来源材料仍保留。</p>
+      </details>
       <details v-if="!isMulti && excluded.length"><summary>哪些资料没有进入分析</summary>
         <ul><li v-for="(item, index) in excluded" :key="index">{{ reason(item) }}</li></ul>
       </details>
@@ -121,7 +165,7 @@ function download() {
       <tbody><tr v-for="method in methods" :key="text(method.method_id)">
         <td>{{ methodLabel(text(method.method_id), methodLabels) }}
           <details v-if="object(method.statistics) && Object.keys(object(method.statistics) ?? {}).length"><summary>计算口径与数据表示</summary>
-            <dl class="kdd-definition"><template v-for="item in facts(method.statistics)" :key="item.key"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></template></dl>
+            <dl class="kdd-definition"><template v-for="item in methodFacts(method)" :key="item.key"><dt>{{ item.label }}</dt><dd>{{ item.value }}</dd></template></dl>
           </details>
         </td>
         <td>{{ kddLabel(text(method.execution_status)) }} · {{ kddLabel(text(method.readiness)) }}</td>
@@ -129,6 +173,35 @@ function download() {
         <td>排除 {{ Array.isArray(method.excluded_records) ? method.excluded_records.length : "未记录" }}；截断 {{ count(method.truncated_count) ?? "未记录" }}</td>
       </tr></tbody>
     </table>
+    <section v-for="method in retainedMethods" :key="'retained-' + text(method.method_id)" class="retained-materials notice" aria-label="保留的非数值来源材料">
+      <h4>保留的非数值来源材料 · {{ methodLabel(text(method.method_id), methodLabels) }}</h4>
+      <p>保留 {{ retainedUnits(method).length }} 个材料单位。材料可读与数值资格、候选入选分别记录；这些单位不额外生成候选，不占用模式审阅容量，也不代表病例、确认事件、独立研究或风险解除。</p>
+      <details v-for="unit in retainedUnits(method)" :key="unitName(unit)">
+        <summary>{{ kddLabel(text(unit.unit_kind)) }} · {{ members(unit) }}</summary>
+        <p>材料类型：{{ readable(object(unit.dimensions)?.material_type) }}；说法状态：{{ readable(object(unit.dimensions)?.statement_status) }}；来源状态：{{ readable(object(unit.dimensions)?.source_state) }}。</p>
+        <p>资料时间窗：{{ readable(object(unit.features)?.window) }}；{{ readable(object(unit.features)?.qualification) }}。</p>
+        <p v-if="object(object(unit.features)?.source_context)">来源归属：{{ readable(object(unit.features)?.source_context) }}</p>
+        <p v-if="object(unit.dimensions)?.evidence_status">真实性状态：{{ readable(object(unit.dimensions)?.evidence_status) }}。</p>
+        <blockquote v-if="text(object(object(unit.features)?.excerpt)?.quote)">{{ text(object(object(unit.features)?.excerpt)?.quote) }}</blockquote>
+        <p v-if="unit.unit_kind === 'source_statement' && object(unit.features)?.excerpt === null" class="muted">本版未提供可展示的授权原文窗口；未补写原文或推定全文长度。</p>
+        <p v-if="count(object(unit.features)?.omitted_text_character_count)" class="muted">本原文窗口之外另有 {{ count(object(unit.features)?.omitted_text_character_count) }} 个字符；可按固定版本读取，不将窗口视作全文复核。</p>
+        <ul v-if="objects(object(unit.features)?.claims).length"><li v-for="(claim, index) in objects(object(unit.features)?.claims)" :key="index">来源原句（待核）：{{ claim.text }}</li></ul>
+        <p v-if="count(object(unit.features)?.omitted_claim_count)" class="muted">另有 {{ count(object(unit.features)?.omitted_claim_count) }} 条来源说法未在此预览。</p>
+        <template v-if="object(object(unit.features)?.event)">
+          <p>信息事件类型：{{ readable(object(object(unit.features)?.event)?.event_type || object(object(unit.features)?.event)?.relation_type) }}。</p>
+          <p v-if="text(object(object(unit.features)?.event)?.description)">{{ text(object(object(unit.features)?.event)?.description) }}</p>
+          <p v-if="object(object(unit.features)?.event)?.target_ref || object(object(unit.features)?.event)?.target">关联原版本：{{ readable(object(object(unit.features)?.event)?.target_ref || object(object(unit.features)?.event)?.target) }}</p>
+          <p v-else-if="object(object(unit.features)?.event)?.target_source_id || object(object(unit.features)?.event)?.target_source_record_id">关联来源：{{ text(object(object(unit.features)?.event)?.target_source_id) || "来源未提供" }} / {{ text(object(object(unit.features)?.event)?.target_source_record_id) || "原件编号未提供" }}；目标版本：{{ text(object(object(unit.features)?.event)?.target_version_id) || "未提供，未补猜" }}。</p>
+          <p>定位状态：{{ readable(object(unit.features)?.basis_status) }}；时间状态：{{ readable(object(unit.features)?.temporal_status) }}。</p>
+        </template>
+        <ul v-if="objects(object(unit.features)?.information_event_gaps).length"><li v-for="(gap, index) in objects(object(unit.features)?.information_event_gaps)" :key="index">尚未采用的信息事件：{{ readable(gap.reason) }}</li></ul>
+        <p class="muted">固定原件与文本依据：{{ readable(object(unit.features)?.body_ref) }}</p>
+        <button v-if="snapshotId" type="button" class="text-link no-print" :disabled="sourceBusy" @click="openSource(unit)">查看该版本固定采用文本</button>
+        <p v-else class="muted">原件入口见本版调查的固定材料列表；此处不将未提供的原文或时间补成事实。</p>
+      </details>
+    </section>
+    <p v-if="sourceError" class="error-inline">{{ sourceError }}</p>
+    <section v-if="sourceText" class="retained-source-text"><h4>固定采用文本（资料原件，未据此宣称全文已核验）</h4><pre>{{ sourceText }}</pre></section>
     <section v-if="comparison" class="kdd-comparison">
       <h4>向量与 TF-IDF 的实际比较范围</h4>
       <p>TF-IDF 实际参与 {{ comparison.textCount ?? "未记录" }} 个单位，向量方法实际参与 {{ comparison.vectorCount ?? "未记录" }} 个单位；共同 {{ comparison.sharedCount ?? "未记录" }} 个。TF-IDF 拟合采用 {{ comparison.fitCount ?? "未记录" }} 个单位，拟合时点和版本见方法口径。</p>
@@ -148,6 +221,7 @@ function download() {
   </section>
 </template>
 <style scoped>
+.retained-materials details { margin: 10px 0; }.retained-source-text pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .direction-dataset { border-top: 1px solid var(--line, #dce5e9); padding: 12px 0; }
 .kdd-summary { min-width: 0; border: 1px solid var(--line, #dce5e9); border-radius: 10px; padding: 16px; margin: 16px 0; overflow-wrap: anywhere; }
 .kdd-heading, .kdd-selection { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; }
