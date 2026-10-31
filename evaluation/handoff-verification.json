@@ -6873,13 +6873,81 @@
         "sha256": "82c3e7933ff783dadb1071ef70d157953f607c8b32f4c23086b952d890e3b05d"
       }
     ],
-    "real_proposal_probe": "Authorized separately after this code is committed; at most two calls, no retry or R4 scoring changes.",
+    "real_proposal_probe": {
+      "model_calls": 2,
+      "total_tokens": 11815,
+      "cases": [
+        {
+          "qualified": 2,
+          "rejected": 0
+        },
+        {
+          "qualified": 2,
+          "rejected": 0
+        }
+      ],
+      "cache_restore_new_calls": 0,
+      "durable_dataset_and_pattern_hashes": "passed",
+      "unit_kind_counts": {
+        "company_metric_period": 4,
+        "source_claim": 2
+      },
+      "task_state": "blocked",
+      "stop_reason": "isolated_engineering_probe_finished",
+      "report_generated": false,
+      "scope": "Two new synthetic layouts, no retries, no R4 rerun/rescore, no scientific/report completion claim.",
+      "summary_path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/real-proposal-summary.nonbody.json",
+      "summary_sha256": "aed783218cdc08a92ee6f7eda2580bdde93422cb517e41b542930069e96ed113",
+      "independent_review_path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/real-proposal-results-nonauthor.json",
+      "independent_review_sha256": "5520b9ec7473e7fc0fbe15e2fe98fd7739441babb6b782d034790e6c1b8c2660"
+    },
     "limits": [
       "No R4 rerun, deployment or production configuration change.",
       "impact_pending does not claim a source change is irrelevant or resolved.",
       "A source statement or source deletion is not a confirmed clinical event.",
       "This release does not claim validated scientific or intelligence-routing performance.",
       "Existing R4 failures and old saved receipts remain unchanged."
+    ],
+    "implementation_commit": "61cbae4c50d84c7d53d7e752a997043878c45aab",
+    "runtime_cleanup": {
+      "scope": "This isolated fix/test batch only; R4 workers are intentionally untouched.",
+      "remaining_engine_test_schema_count": 0,
+      "remaining_own_rq_queue_count": 0,
+      "remaining_own_runtime_pids": [],
+      "real_probe_worker_queue": "None: redis_url disabled in probe Settings; actual execute used the test process and a dedicated random PG schema.",
+      "real_probe_process_exited": true,
+      "additional_model_calls_after_probe": 0,
+      "process_check": "Actual argv executable/module inspected; transient -c audit/controller commands excluded.",
+      "earlier_transient_audit_pid_exited": true
+    },
+    "known_dependency_notice": {
+      "package_lock_changed": false,
+      "npm_audit_moderate": 3,
+      "chain": [
+        "openapi-typescript",
+        "@redocly/openapi-core",
+        "minimatch"
+      ],
+      "report_path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/npm-audit-summary.nonbody.json",
+      "action": "Recorded only; dependency migration is outside this coordinated fix."
+    },
+    "final_reviews": [
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-complete-dataset-hash-nonauthor-final.json",
+        "sha256": "eff3a3acb1108fede6e388a8d79ad4c5283b8aa1bb4c09d971b9223c418a0505"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/c-delivery-currentness-final-nonauthor-review.json",
+        "sha256": "169f20a073b6f78523b3426c283c81d3c149e32f66a88c9107101e95699e67ab"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/a-fallback-ui-nonauthor-review.json",
+        "sha256": "2add16220ccdd937cca43d6c32cae8115e1c0e43d2b8bdd7851fa3c698ae5088"
+      },
+      {
+        "path": "/tmp/bioradar-opus-20261031/intelligence-units-followup/real-proposal-results-nonauthor.json",
+        "sha256": "5520b9ec7473e7fc0fbe15e2fe98fd7739441babb6b782d034790e6c1b8c2660"
+      }
     ]
   }
 }
