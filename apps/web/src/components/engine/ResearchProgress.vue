@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import PolicyTracePanel from "./PolicyTracePanel.vue";
+import ResearchDiagnostics from "./ResearchDiagnostics.vue";
 import { queryPolicyArtifactAnchor, type QueryPolicyArtifactRef } from "../../api/queryPolicy";
 import type { ResearchAnalysisView, ResearchBudgetView, ResearchProvider } from "../../api/research";
 
@@ -227,6 +228,7 @@ function providerState(value: ResearchProvider) {
         <span v-if="call.receipt?.elapsed_ms != null">{{ (call.receipt.elapsed_ms / 1000).toFixed(1) }} 秒</span>
       </li>
     </ol>
+    <ResearchDiagnostics v-if="analysis.progress?.diagnostics" :diagnostics="analysis.progress.diagnostics" />
     <PolicyTracePanel :policy="analysis.query_policy ?? analysis.result?.query_policy" :queries="analysis.queries" />
     <details v-if="analysis.providers && Object.keys(analysis.providers).length" class="no-print">
       <summary>本版共享服务状态</summary>

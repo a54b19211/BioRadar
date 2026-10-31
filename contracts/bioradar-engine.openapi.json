@@ -4305,6 +4305,16 @@
               }
             ]
           },
+          "current_judgment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HypothesisJudgment"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "limitations": {
             "items": {
               "type": "string"
@@ -10377,6 +10387,42 @@
         ],
         "title": "HistoryTrainingRun"
       },
+      "HypothesisJudgment": {
+        "properties": {
+          "least_refuted_hypothesis_id": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Least Refuted Hypothesis Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "next_discriminating_evidence": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Next Discriminating Evidence"
+          },
+          "qualification": {
+            "type": "string",
+            "const": "这是模型判断，未证实",
+            "title": "Qualification",
+            "default": "这是模型判断，未证实"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "least_refuted_hypothesis_id",
+          "reason",
+          "next_discriminating_evidence"
+        ],
+        "title": "HypothesisJudgment"
+      },
       "InitialQuery": {
         "properties": {
           "source_id": {
@@ -13675,6 +13721,27 @@
             },
             "type": "array",
             "title": "Record Outcomes"
+          },
+          "runtime_configuration": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runtime Configuration"
           },
           "limitations": {
             "items": {

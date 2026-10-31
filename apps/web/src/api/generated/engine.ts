@@ -1140,6 +1140,7 @@ export interface components {
                 [key: string]: unknown;
             } | null;
             topic_risk_reassessment?: components["schemas"]["TopicRiskReassessment"] | null;
+            current_judgment?: components["schemas"]["HypothesisJudgment"] | null;
             /** Limitations */
             limitations: string[];
         };
@@ -3490,6 +3491,21 @@ export interface components {
             /** Run Id */
             run_id: string;
         };
+        /** HypothesisJudgment */
+        HypothesisJudgment: {
+            /** Least Refuted Hypothesis Id */
+            least_refuted_hypothesis_id: string;
+            /** Reason */
+            reason: string;
+            /** Next Discriminating Evidence */
+            next_discriminating_evidence: string;
+            /**
+             * Qualification
+             * @default 这是模型判断，未证实
+             * @constant
+             */
+            qualification: "这是模型判断，未证实";
+        };
         /** InitialQuery */
         InitialQuery: {
             /** Source Id */
@@ -4837,6 +4853,10 @@ export interface components {
             record_outcomes: {
                 [key: string]: unknown;
             }[];
+            /** Runtime Configuration */
+            runtime_configuration?: {
+                [key: string]: number | null;
+            } | null;
             /** Limitations */
             limitations: string[];
         };

@@ -25,6 +25,7 @@ export interface ResearchOptions {
   unavailable_reason?: string | null;
   retrieval_sources: string[];
   limits: Record<string, number>;
+  limits_by_policy?: Partial<Record<"baseline" | "query_planner", Record<string, number>>>;
   providers?: Record<string, ResearchProvider>;
 }
 
@@ -74,7 +75,30 @@ export interface ResearchMaterialUpdateImpact {
   }[];
 }
 
+export interface ResearchAnalysisDiagnostics {
+  analysis_id?: string | null;
+  investigation_id?: string | null;
+  state?: string | null;
+  error_code?: string | null;
+  report_status?: string | null;
+  execution_limits: Record<string, number>;
+  queries: Record<string, unknown>[];
+  reading_repairs: Record<string, unknown>[];
+  biocheck_issues: Record<string, unknown>[];
+  numeric_candidates: Record<string, unknown>[];
+  usage: {
+    total_tokens: number | null;
+    known_total_tokens: number;
+    unknown_usage_calls: number;
+    verified_pass_report: boolean;
+    verified_pass_total_tokens: number | null;
+    stages: Record<string, unknown>[];
+    calls: Record<string, unknown>[];
+  };
+}
+
 export interface ResearchProgress {
+  diagnostics?: ResearchAnalysisDiagnostics | null;
   material_update_impact?: ResearchMaterialUpdateImpact | null;
   waiting_fetch?: { reason: string; action_id?: string | null; next_poll_at: string } | null;
   budget_pool?: "manual" | "monitor" | "topic" | "material_update";
@@ -200,6 +224,13 @@ export interface ResearchWarningAssessment {
   next_actions: string[];
   reason: string;
 }
+export interface ResearchHypothesisJudgment {
+  least_refuted_hypothesis_id: string;
+  reason: string;
+  next_discriminating_evidence: string;
+  qualification: "这是模型判断，未证实";
+}
+
 export interface ResearchCompetingHypothesis {
   id: string;
   explanation: string;
@@ -234,6 +265,7 @@ export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluati
   query_policy?: QueryPolicyTrace | null;
   warning_assessment?: ResearchWarningAssessment | null;
   competing_hypotheses?: ResearchCompetingHypothesis[] | null;
+  current_judgment?: ResearchHypothesisJudgment | null;
   assessment_binding?: ResearchAssessmentBinding | null;
   coverage_issues?: { check_id: string; source: string; status: "unknown" }[];
   reading_manifest?: ResearchReadingManifestItem[];
@@ -249,6 +281,7 @@ export interface ResearchCall {
       completion_tokens?: number | null;
       total_tokens?: number | null;
     };
+    request_bytes?: number | null;
     elapsed_ms?: number;
     error_code?: string | null;
     [key: string]: unknown;

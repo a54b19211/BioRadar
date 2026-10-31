@@ -20,13 +20,17 @@ from test_initial_language_retrieval import context, fixed, plans, progress, sav
 def paged():
     data, state, items = fixed(), progress(), plans()[:1]
     data["query_policy"].update(
-        pagination_version=PAGINATION_VERSION, pagination_cover_version=PAGINATION_COVER_VERSION,
+        pagination_version=PAGINATION_VERSION,
+        pagination_cover_version=PAGINATION_COVER_VERSION,
     )
     request = context(data, state, items)
     checks = copy.deepcopy(request["checks"])
     gap = {
-        "id": "gap:target", "question": "SYNTHETIC specific unsolved comparison",
-        "required": True, "status": "unknown", "evidence_ids": [],
+        "id": "gap:target",
+        "question": "SYNTHETIC specific unsolved comparison",
+        "required": True,
+        "status": "unknown",
+        "evidence_ids": [],
     }
     checks.append(gap)
     parent = copy.deepcopy(request["candidates"][0])
@@ -37,7 +41,10 @@ def paged():
     query.update(
         has_more=True,
         pagination={
-            "has_more": True, "next_cursor": "SYNTHETIC-opaque-next", "max_seq": 29, "page_number": 1,
+            "has_more": True,
+            "next_cursor": "SYNTHETIC-opaque-next",
+            "max_seq": 29,
+            "page_number": 1,
         },
     )
     return data, state, checks, parent, query
@@ -46,7 +53,7 @@ def paged():
 def test_continuation_inherits_only_current_unmet_parent_gaps_and_keeps_exact_query_identity():
     data, state, checks, parent, query = paged()
     before = copy.deepcopy((data, state, checks))
-    action, = pagination_candidates(data, state, checks)
+    (action,) = pagination_candidates(data, state, checks)
     assert "gap:target" in action["covers"]
     args = action["arguments"]
     assert args["cursor"] == query["pagination"]["next_cursor"]
@@ -57,7 +64,7 @@ def test_continuation_inherits_only_current_unmet_parent_gaps_and_keeps_exact_qu
     assert (data, state, checks) == before
     old = copy.deepcopy(data)
     old["query_policy"].pop("pagination_cover_version")
-    legacy, = pagination_candidates(old, state, checks)
+    (legacy,) = pagination_candidates(old, state, checks)
     assert "gap:target" not in legacy["covers"]
     assert action["id"] == legacy["id"]
     assert semantic_key(action["kind"], action["arguments"]) == semantic_key(
@@ -65,10 +72,18 @@ def test_continuation_inherits_only_current_unmet_parent_gaps_and_keeps_exact_qu
     )
 
 
-@pytest.mark.parametrize("change", [
-    "passed", "no_longer_declared", "not_originally_declared", "unknown_parent",
-    "mismatched_query", "duplicated_parent", "unknown_receipt",
-])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "passed",
+        "no_longer_declared",
+        "not_originally_declared",
+        "unknown_parent",
+        "mismatched_query",
+        "duplicated_parent",
+        "unknown_receipt",
+    ],
+)
 def test_gap_is_never_invented_from_a_missing_invalid_or_satisfied_parent(change):
     data, state, checks, _, query = paged()
     decision = state["query_policy"]["decisions"][0]
@@ -92,12 +107,12 @@ def test_gap_is_never_invented_from_a_missing_invalid_or_satisfied_parent(change
         assert candidates == []
 
 
-def test_native_score_uses_parent_gap_without_forcing_a_page_ahead_of_an_equivalent_new_query():
+def test_native_selection_prioritizes_actual_page_and_retains_parent_gap_scores():
     directory = os.environ.get("BIORADAR_QUERY_PLANNER_TEST_PROJECT_DIR")
     if not directory:
         pytest.fail("Native query-planner is required")
     data, state, checks, _, _ = paged()
-    page, = pagination_candidates(data, state, checks)
+    (page,) = pagination_candidates(data, state, checks)
     ordinary = copy.deepcopy(page)
     ordinary["id"] = "SYNTHETIC-ordinary-query"
     args = ordinary["arguments"]
@@ -114,4 +129,4 @@ def test_native_score_uses_parent_gap_without_forcing_a_page_ahead_of_an_equival
         gap = next(item for item in score["checks"] if item["check_id"] == "gap:target")
         assert gap["expected_contribution"] > 0
     assert scores[page["id"]]["score"] == scores[ordinary["id"]]["score"]
-    assert result["action"]["id"] == sorted(scores)[0]
+    assert result["action"]["id"] == page["id"]

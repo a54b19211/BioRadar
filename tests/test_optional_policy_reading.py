@@ -86,7 +86,7 @@ def test_optional_read_skips_rather_than_shrinking_normal_output(monkeypatch):
     def narrow_budget(fixed, progress, *args, **kwargs):
         captured.update(kwargs)
         # This permits a tiny response but is one token short of the requested normal cap.
-        fixed["budget"]["max_tokens"] = 10000 + kwargs["request_tokens"] + kwargs["following_tokens"] - 1
+        fixed["budget"]["max_tokens"] = kwargs["request_tokens"] - 1
         return actual_budget(fixed, progress, *args, **kwargs)
 
     service._optional_budget = narrow_budget

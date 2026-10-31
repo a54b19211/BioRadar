@@ -322,6 +322,15 @@ async function exportAnalysis(format: "json" | "markdown" = "json") {
   } catch (value) { if (current(generation, id) && selected.value?.id === view.id) fail(value); }
   finally { if (current(generation, id)) exporting.value = false; }
 }
+function exportDiagnostics() {
+  const view = selected.value;
+  if (!view?.progress?.diagnostics) return;
+  const content = JSON.stringify(view.progress.diagnostics, null, 2);
+  const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = "研究诊断-" + view.id + ".json";
+  link.click(); URL.revokeObjectURL(url);
+}
 async function printAnalysis() {
   const view = selected.value;
   if (!view || printing.value) return;
@@ -385,6 +394,7 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
         <div class="analysis-actions no-print">
           <ElButton text :loading="exporting" @click="exportAnalysis('markdown')">下载研报</ElButton>
           <ElButton text :loading="exporting" @click="exportAnalysis('json')">下载完整记录</ElButton>
+          <ElButton v-if="selected.progress?.diagnostics" text @click="exportDiagnostics">下载无原文诊断</ElButton>
           <ElButton text :loading="printing" @click="printAnalysis">打印本版</ElButton>
         </div>
       </div>

@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from bioradar.research.mining.models import ProviderRef, SignalContext, canonical_hash
-from bioradar.research.mining.signals import affirmed_event_anchors, source_groups
+from bioradar.research.mining.signals import REACTION, affirmed_event_anchors, source_groups
 
 TRACKING_VERSION = "source-evidence-heat-lifecycle-v2"
 
@@ -163,7 +163,7 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
         {
             re.sub(r"[\s：:；;，,]+", "", re.sub(r"^(?:转发|转载|网传|据称)[:：\s]*", "", claim["text"]))
             for claim in claims
-            if affirmed_event_anchors(claim)
+            if affirmed_event_anchors(claim) and not REACTION.search(claim["text"])
         }
     )
     # Versions/origin labels and environment reactions are not new risk semantics.
@@ -217,6 +217,11 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
             set(risk.get("critical_gaps", [])) | {"source_unavailable_not_evidence_of_resolution"}
         )
     unresolved = risk["status"] == "unresolved" or bool(risk.get("critical_gaps"))
+    reaction_present = bool(environment)
+    negative_signals = [
+        signal for value in values for signal in (value.get("attention") or {}).get("negative_signals", [])
+    ]
+    not_found_present = any(signal.get("kind") == "not_found" for signal in negative_signals)
     new_independent = new_groups & confirmed
     semantic_changed = (
         bool(old.get("_evidence_fingerprint"))
@@ -233,12 +238,22 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
         phase = "warming"
     elif new_independent and old.get("_seen_source_groups"):
         phase = "high" if len(confirmed) >= 3 else "warming"
-    elif not new_independent and quiet >= 2 and not unresolved:
+    elif (
+        not new_independent
+        and quiet >= 2
+        and not unresolved
+        and not reaction_present
+        and not not_found_present
+    ):
         phase = "dormant"
     elif not new_independent and old:
         phase = "cooling"
+    if (reaction_present or not_found_present) and phase == "dormant":
+        phase = "cooling"
     cadence = (
-        1
+        min(base_cadence, 1 if definition["domain"] == "public_health" else 24)
+        if reaction_present or not_found_present
+        else 1
         if unresolved and definition["domain"] == "public_health"
         else max(1, base_cadence // 2)
         if phase in {"warming", "high"}
@@ -287,6 +302,7 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
         "correction": {"status": correction_status, "refs": corrections, "counterevidence_refs": counter},
         "risk": risk,
         "environment_signals": environment,
+        "negative_signals": negative_signals,
         "model_update": {"needed": needed, "reasons": reasons, "status": "ready" if needed else "not_needed"},
         "_seen_source_groups": seen,
         "_source_groups_by_identity": identity_groups,
@@ -295,12 +311,19 @@ def update_tracking(values, definition, previous, *, as_of, source_errors=None):
         "_manual_closed": bool(old.get("_manual_closed")),
         "assessment_reason": reasons or ["pure_exposure_update_no_new_evidence_reason_for_model"],
     }
+    if old.get("hypothesis_comparison"):
+        result["hypothesis_comparison"] = copy.deepcopy(old["hypothesis_comparison"])
+        judgment = result["hypothesis_comparison"]
+        judgment["current_basis_unchanged"] = bool(
+            judgment.get("current_basis_unchanged")
+            and judgment.get("evidence_fingerprint") == evidence_fingerprint
+        )
     return result
 
 
-def hypothesis_comparison(hypotheses, claims):
-    """Validate explicit evidence assignments; do not elect a least-refuted winner."""
-    known = {row["claim_id"] for row in claims}
+def hypothesis_comparison(hypotheses, claims, *, model_judgment=None):
+    """Reuse the actual synthesis judgment; evidence counts never elect a hypothesis."""
+    known = {row.get("id", row.get("claim_id")) for row in claims}
     result = []
     for item in hypotheses:
         row = copy.deepcopy(item)
@@ -312,11 +335,23 @@ def hypothesis_comparison(hypotheses, claims):
         row.setdefault("discriminating_evidence", [])
         row.pop("winner", None)
         result.append(row)
-    return {
+    comparison = {
         "hypotheses": result,
         "selection": "not_automatically_ranked",
         "qualification": "support_counterevidence_testability_and_gaps_are_parallel",
     }
+    if model_judgment is not None:
+        from bioradar.research.investigations.analysis_models import HypothesisJudgment
+
+        judgment = HypothesisJudgment.model_validate(model_judgment).model_dump(mode="json")
+        if judgment["least_refuted_hypothesis_id"] not in {row["id"] for row in result}:
+            raise ValueError("model judgment references an undeclared hypothesis")
+        comparison.update(
+            selection="model_judgment_unverified",
+            current_judgment=judgment,
+            qualification="这是模型判断，未证实",
+        )
+    return comparison
 
 
 def automatic_topic_definition(candidate, records, *, source_instance):

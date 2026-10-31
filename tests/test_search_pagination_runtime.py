@@ -247,7 +247,10 @@ def test_native_executor_reads_next_page_and_received_restart_does_not_repeat_it
     with Session(database) as session:
         saved = session.get(InvestigationAnalysisRecord, accepted["id"])
         assert sum(len(q["records"]) for q in saved.progress["queries"] if q.get("pagination")) == 3
-        assert saved.fixed_input["query_policy"]["action_limits"]["document_search"] == 8
+        assert (
+            saved.fixed_input["query_policy"]["action_limits"]["document_search"]
+            == settings.analysis_v2_action_limits["document_search"]
+        )
         assert saved.fixed_input["query_policy"]["initial_retrieval_version"] == BOUNDED_INITIAL_VERSION
     posts = len(model.requests)
     make().execute(accepted["id"], accepted["input_hash"])

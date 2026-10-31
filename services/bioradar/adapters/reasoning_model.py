@@ -65,6 +65,7 @@ class ModelCallReceipt(BaseModel):
     completed_at: datetime | None = None
     elapsed_ms: int = 0
     request_sha256: str | None = None
+    request_bytes: int | None = Field(default=None, ge=0, exclude_if=lambda value: value is None)
     response_sha256: str | None = None
     http_status: int | None = None
     finish_reason: str | None = None
@@ -293,6 +294,7 @@ def complete_json(
         )
     except (ValueError, TypeError, RecursionError):
         fail("model_input_invalid", "模型输入不是受支持的有限JSON对象", state="not_sent", status=422)
+    receipt.request_bytes = len(encoded)
     if len(encoded) > parameters["max_input_bytes"]:
         fail("model_input_budget", "模型输入超过字节预算，请缩小采用范围", state="not_sent", status=422)
     receipt.request_sha256 = hashlib.sha256(encoded).hexdigest()

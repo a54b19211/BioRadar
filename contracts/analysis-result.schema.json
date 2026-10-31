@@ -472,6 +472,42 @@
       "title": "GenericReview",
       "type": "object"
     },
+    "HypothesisJudgment": {
+      "additionalProperties": false,
+      "properties": {
+        "least_refuted_hypothesis_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Least Refuted Hypothesis Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "next_discriminating_evidence": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Next Discriminating Evidence",
+          "type": "string"
+        },
+        "qualification": {
+          "const": "这是模型判断，未证实",
+          "default": "这是模型判断，未证实",
+          "title": "Qualification",
+          "type": "string"
+        }
+      },
+      "required": [
+        "least_refuted_hypothesis_id",
+        "reason",
+        "next_discriminating_evidence"
+      ],
+      "title": "HypothesisJudgment",
+      "type": "object"
+    },
     "TopicRiskReassessment": {
       "additionalProperties": false,
       "properties": {
@@ -957,6 +993,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/TopicRiskReassessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "current_judgment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HypothesisJudgment"
         },
         {
           "type": "null"

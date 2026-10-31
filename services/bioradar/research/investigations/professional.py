@@ -342,7 +342,11 @@ def load_provider(service, identifier, token, fixed, progress, name):
                 checkpoint=checkpoint,
                 provider_version=version,
                 guard=guard,
-                max_model_calls=service.settings.professional_max_steps,
+                max_model_calls=(
+                    fixed["model_parameters"]["max_calls"]
+                    if name == "biocheck" and operation == "verify" and arguments.get("mode") == "paragraph"
+                    else service.settings.professional_max_steps
+                ),
                 max_request_bytes=service.settings.professional_http_max_bytes,
             )
         service._use_provider(identifier, token, fixed, progress, name, result["provider_version"])
@@ -445,7 +449,8 @@ def mechanism(service, identifier, token, fixed, progress, reading):
                         "research_scope": {"evidence_time": copy.deepcopy(fixed["evidence_time"])},
                     }
                     if fixed.get("query_policy", {}).get("research_contract_version")
-                    == "bioradar-research-input-v1" else {}
+                    == "bioradar-research-input-v1"
+                    else {}
                 ),
             },
             input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
@@ -503,7 +508,8 @@ def mechanism(service, identifier, token, fixed, progress, reading):
         )
         if local is not None:
             packet = build_packet(
-                fixed["question"], progress["evidence"],
+                fixed["question"],
+                progress["evidence"],
                 input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
             )
             assessment.update(

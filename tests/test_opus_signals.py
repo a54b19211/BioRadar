@@ -32,8 +32,8 @@ def test_chinese_noise_is_not_a_feature_but_anonymous_checkable_rumor_is_retaine
     assessment = assess_records([row])
     assert assessment["automatic_investigation_allowed"]
     assert assessment["evidence_level"] == "unverified"
-    assert assessment["importance"] == "low"
-    assert assessment["urgency"] == "routine"
+    assert assessment["importance"] == "medium"
+    assert assessment["urgency"] == "soon"
     assert assessment["independent_study_count"] is None
     emerging = record(
         "new-combination",
@@ -84,7 +84,7 @@ def test_reposts_do_not_count_as_independent_sources_and_deletion_does_not_raise
     assert confirmed["importance"] == "medium" and confirmed["urgency"] == "soon"
     assert confirmed["independent_study_count"] is None
     severe = record("severe", "河西医院报告2名医护人员感染。", source_family="hospital-c")
-    assert assess_records([first, severe])["urgency"] == "immediate"
+    assert assess_records([first, severe])["urgency"] == "soon"  # Independence alone is not confirmation.
     unverified = severe.model_copy(update={"source_independence_status": "unresolved", "source_family": None})
     urgent_check = assess_records([unverified])
     assert urgent_check["importance"] == "medium" and urgent_check["evidence_level"] == "unverified"
@@ -92,7 +92,8 @@ def test_reposts_do_not_count_as_independent_sources_and_deletion_does_not_raise
     assert assess_records([first, negated])["urgency"] != "immediate"
     denial = record("denial", "河西医院辟谣2名医护人员感染的说法。", source_family="hospital-c")
     denied = assess_records([denial])
-    assert denied["importance"] == "low" and not denied["potentially_serious"]
+    assert denied["importance"] == "medium" and denied["potentially_serious"]
+    assert any(row["kind"] == "reaction" for row in denied["negative_signals"])
     unknown_cause = record(
         "unknown-cause",
         "河西医院报告2名医护人员感染，病原尚未确认。",

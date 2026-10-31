@@ -310,6 +310,23 @@ def supports_bounded_retry(core, kind):
     )
 
 
+def supports_paragraph_verification(core):
+    caps = getattr(core, "capabilities", {})
+    if isinstance(caps, dict) and caps:
+        policy = caps.get("paragraph_verification", {})
+        return (
+            caps.get("provider_version") == getattr(core, "provider_version", None)
+            and policy.get("argument") == "mode"
+            and policy.get("value") == "paragraph"
+            and policy.get("retry_on") == "length"
+            and policy.get("max_retries_per_paragraph") == 1
+        )
+    import inspect
+
+    verify = getattr(core, "verify", None)
+    return callable(verify) and "mode" in inspect.signature(verify).parameters
+
+
 def _unsent_verification_budget(exc, max_verify_retries):
     if max_verify_retries != 1 or exc.code not in {
         "analysis_model_budget",
@@ -327,6 +344,11 @@ def _contract_call(core, operation, *args, **kwargs):
     try:
         return getattr(core, operation)(*args, **kwargs)
     except ValueError as exc:
+        completion_error = getattr(core, "VerificationCompletionError", None)
+        if isinstance(completion_error, type) and isinstance(exc, completion_error):
+            raise DomainError(
+                "verification_incomplete", "段落核验未完整结束；正文及各段回执保留。", 502
+            ) from exc
         for name, initial, exhausted in (
             ("PlanReferenceError", "plan_reference_invalid", "plan_repair_exhausted"),
             ("VerificationContractError", "verification_contract_invalid", "verification_repair_exhausted"),
@@ -345,7 +367,11 @@ def _callback(call, *, verify_target=None, allow_plan_repair=False):
 
     def invoke(stage, instruction, payload, response_schema=None, *, call_id=None):
         nonlocal checks
-        if stage == "verify":
+        paragraph_stage = stage in {"verify_paragraph", "verify_paragraph_retry", "verify_coverage"}
+        if paragraph_stage:
+            prefix = "biocheck_recheck" if verify_target == "biocheck_recheck" else "biocheck_verify"
+            target = prefix + stage.removeprefix("verify")
+        elif stage == "verify":
             checks += 1
             if checks > (1 if verify_target is not None else 2):
                 raise DomainError("biocheck_stage_invalid", "BioCheck 超过一次修订复查范围", 502)
@@ -360,15 +386,26 @@ def _callback(call, *, verify_target=None, allow_plan_repair=False):
                 target = None
         if target is None or not isinstance(instruction, str) or not isinstance(payload, dict):
             raise DomainError("biocheck_stage_invalid", "BioCheck 请求阶段不符合接入约定", 502)
+        if paragraph_stage and call_id is None:
+            call_id = (
+                target
+                + ":"
+                + hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+            )
         keywords = {"call_id": call_id} if call_id is not None else {}
-        output = (
-            call(target, instruction, payload, response_schema, **keywords)
-            if response_schema is not None
-            else call(target, instruction, payload, **keywords)
-        )
+        try:
+            output = (
+                call(target, instruction, payload, response_schema, **keywords)
+                if response_schema is not None
+                else call(target, instruction, payload, **keywords)
+            )
+        except ModelCallError as exc:
+            if paragraph_stage and exc.receipt.status == "failed" and exc.receipt.finish_reason == "length":
+                return {"finish_reason": "length", "output": None}
+            raise
         if not isinstance(output, dict):
             raise DomainError("biocheck_response_invalid", "BioCheck 模型回执不是JSON对象", 502)
-        return output
+        return {"finish_reason": "stop", "output": output} if paragraph_stage else output
 
     return invoke
 
@@ -413,7 +450,16 @@ def _result(packet, draft, review, initial, revision, version, **extra):
 
 
 def _optional_repair(
-    core, packet, draft, initial, invoke, repair, *, max_verify_retries=0, recheck_invoke=None
+    core,
+    packet,
+    draft,
+    initial,
+    invoke,
+    repair,
+    *,
+    max_verify_retries=0,
+    recheck_invoke=None,
+    verification_mode="whole",
 ):
     if not repair or not initial.get("problem_units"):
         return draft, initial, None, {}
@@ -438,6 +484,7 @@ def _optional_repair(
             candidate,
             recheck_invoke or invoke,
             **_retry_kwargs(max_verify_retries, "max_verify_retries"),
+            **({"mode": "paragraph"} if verification_mode == "paragraph" else {}),
         )
         return candidate, review, revision, {}
     except DomainError as exc:
@@ -453,7 +500,8 @@ def _optional_repair(
         contract_stop = (
             revision is not None
             and not isinstance(exc, ModelCallError)
-            and exc.code in {"verification_contract_invalid", "verification_repair_exhausted"}
+            and exc.code
+            in {"verification_contract_invalid", "verification_repair_exhausted", "verification_incomplete"}
         )
         if not budget_stop and not contract_stop:
             raise
@@ -476,20 +524,34 @@ def _optional_repair(
 
 
 def check_biocheck(
-    settings, packet, draft, call, *, repair=True, loaded=None, max_verify_retries=0, verify_target=None
+    settings,
+    packet,
+    draft,
+    call,
+    *,
+    repair=True,
+    loaded=None,
+    max_verify_retries=0,
+    verify_target=None,
+    verification_mode="whole",
 ):
     """Check this exact draft; one optional local revision is rechecked in full."""
     core, version = load_biocheck(settings) if loaded is None else loaded
     if core is None:
         return _unavailable(packet, draft, version=version)
     verify_options = _retry_kwargs(max_verify_retries, "max_verify_retries")
+    if verification_mode == "paragraph":
+        verify_options = {"mode": "paragraph"}
+
     invoke = _callback(call, verify_target=(verify_target or "biocheck_check") if verify_options else None)
     recheck_invoke = _callback(call, verify_target="biocheck_recheck") if verify_options else None
     try:
         try:
             initial = _contract_call(core, "verify", copy.deepcopy(packet), draft, invoke, **verify_options)
         except ModelCallError as exc:
-            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            budget_stop = _unsent_verification_budget(
+                exc, 1 if verification_mode == "paragraph" else max_verify_retries
+            )
             if not budget_stop and (
                 exc.receipt.status != "failed"
                 or exc.code
@@ -512,11 +574,14 @@ def check_biocheck(
                 **({"verification_stop_reason": "not_sent_budget"} if budget_stop else {}),
             }
         except DomainError as exc:
-            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            budget_stop = _unsent_verification_budget(
+                exc, 1 if verification_mode == "paragraph" else max_verify_retries
+            )
             if not budget_stop and exc.code not in {
                 "method_input_invalid",
                 "verification_contract_invalid",
                 "verification_repair_exhausted",
+                "verification_incomplete",
             }:
                 raise
             # A completed HTTP method rejection is a known failed verification,
@@ -540,6 +605,7 @@ def check_biocheck(
             repair,
             max_verify_retries=max_verify_retries,
             recheck_invoke=recheck_invoke,
+            verification_mode=verification_mode,
         )
         return _result(
             packet,
@@ -556,7 +622,15 @@ def check_biocheck(
 
 
 def run_biocheck(
-    settings, packet, call, *, repair=True, loaded=None, max_plan_retries=0, max_verify_retries=0
+    settings,
+    packet,
+    call,
+    *,
+    repair=True,
+    loaded=None,
+    max_plan_retries=0,
+    max_verify_retries=0,
+    verification_mode="whole",
 ):
     """Compose using the upstream bound plan, verify, and revise at most once."""
     core, version = load_biocheck(settings) if loaded is None else loaded
@@ -564,6 +638,9 @@ def run_biocheck(
         return _unavailable(packet, version=version)
     plan_options = _retry_kwargs(max_plan_retries, "max_plan_retries")
     verify_options = _retry_kwargs(max_verify_retries, "max_verify_retries")
+    if verification_mode == "paragraph":
+        verify_options = {"mode": "paragraph"}
+
     invoke = _callback(
         call,
         verify_target="biocheck_check" if verify_options else None,
@@ -579,7 +656,9 @@ def run_biocheck(
         try:
             initial = _contract_call(core, "verify", copy.deepcopy(packet), draft, invoke, **verify_options)
         except ModelCallError as exc:
-            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            budget_stop = _unsent_verification_budget(
+                exc, 1 if verification_mode == "paragraph" else max_verify_retries
+            )
             if not budget_stop and (
                 exc.receipt.status != "failed"
                 or exc.code
@@ -602,11 +681,14 @@ def run_biocheck(
                 **({"verification_stop_reason": "not_sent_budget"} if budget_stop else {}),
             }
         except DomainError as exc:
-            budget_stop = _unsent_verification_budget(exc, max_verify_retries)
+            budget_stop = _unsent_verification_budget(
+                exc, 1 if verification_mode == "paragraph" else max_verify_retries
+            )
             if not budget_stop and exc.code not in {
                 "method_input_invalid",
                 "verification_contract_invalid",
                 "verification_repair_exhausted",
+                "verification_incomplete",
             }:
                 raise
             # A completed HTTP method rejection is a known failed verification,
@@ -630,6 +712,7 @@ def run_biocheck(
             repair,
             max_verify_retries=max_verify_retries,
             recheck_invoke=recheck_invoke,
+            verification_mode=verification_mode,
         )
         return _result(
             packet,
@@ -1064,10 +1147,15 @@ class _HTTPMethods:
             call,
         )
 
-    def verify(self, packet, draft, call, *, max_verify_retries=0):
+    def verify(self, packet, draft, call, *, max_verify_retries=0, mode="whole"):
         return self._run(
             "verify",
-            {"packet": packet, "draft": draft, **self._retry_options("verify", max_verify_retries)},
+            {
+                "packet": packet,
+                "draft": draft,
+                **self._retry_options("verify", max_verify_retries),
+                **({"mode": "paragraph"} if mode == "paragraph" else {}),
+            },
             call,
         )
 

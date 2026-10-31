@@ -1,17 +1,47 @@
 """Fixed-document reads and the one recorded structural retry, using the host ledger."""
 
 import copy
+import re
 from datetime import UTC, datetime
 
+from pydantic import ValidationError
+
 from bioradar.api.errors import DomainError
-from bioradar.research.investigations.analysis import analysis_budget
+from bioradar.research.investigations.analysis import SYSTEM_PROMPT, analysis_budget
 from bioradar.research.investigations.analysis_models import AnalysisQueryReceipt, PolicyReading
-from bioradar.research.investigations.execution_budget import reading_limits
+from bioradar.research.investigations.execution_budget import reading_limits, request_estimate
 from bioradar.research.mining.models import canonical_hash
+
+_REPAIR_PROMPT = (
+    "只修复所列JSON字段的结构或引用标识，返回changes。只能修改field_paths中的精确路径，"
+    "不能改写未出错字段、命题正文、结论或删去反证。引用只能使用给定合法编号；"
+    "没有足够信息就返回空changes，保留原输出待核，不猜原文。"
+)
+_REPAIR_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["changes"],
+    "properties": {
+        "changes": {
+            "type": "array",
+            "maxItems": 8,
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["path", "operation"],
+                "properties": {
+                    "path": {"type": "array", "minItems": 1, "items": {"type": ["string", "integer"]}},
+                    "operation": {"type": "string", "enum": ["replace", "remove"]},
+                    "value": {},
+                },
+            },
+        }
+    },
+}
 
 
 def _reference_feedback(raw, payload):
-    """Describe rejected links using only IDs actually supplied in the original model request."""
+    """Use only supplied IDs, never the evidence text or whole rejected claim."""
     allowed = {
         item["evidence_key"]: [passage["id"] for passage in item["passages"]] for item in payload["evidence"]
     }
@@ -35,6 +65,147 @@ def _reference_feedback(raw, payload):
     return errors, allowed
 
 
+def _at_path(value, path):
+    for part in path:
+        value = value[part]
+    return value
+
+
+def _repair_fields(raw, payload, code):
+    errors, allowed, fields = [], {}, []
+    if code in {"analysis_reference_invalid", "analysis_passage_invalid"}:
+        errors, allowed = _reference_feedback(raw, payload)
+        for error in errors:
+            names = (
+                ["evidence_key", "passage_id"] if error["reason"] == "unknown_evidence" else ["passage_id"]
+            )
+            for name in names:
+                fields.append({"path": [*error["path"], name], "error_code": error["reason"]})
+    else:
+        try:
+            PolicyReading.model_validate(raw)
+        except ValidationError as error:
+            fields = [
+                {"path": list(item["loc"]), "error_code": item["type"]}
+                for item in error.errors(include_url=False, include_context=False, include_input=False)
+                if item["loc"]
+            ]
+    unique = []
+    for field in fields:
+        if any(field["path"] == item["path"] for item in unique):
+            continue
+        # Only safe scalar identifiers/enums are repeated. Prose, quotes, arrays
+        # and objects are represented by their type/hash, never sent in full.
+        try:
+            value = _at_path(raw, field["path"])
+        except (KeyError, IndexError, TypeError):
+            field["invalid_part"] = {"type": "missing"}
+        else:
+            safe = field["path"][-1] in {
+                "id",
+                "evidence_key",
+                "passage_id",
+                "status",
+                "kind",
+                "role",
+                "gap_id",
+                "source_id",
+            }
+            field["invalid_part"] = (
+                value
+                if safe and isinstance(value, str) and re.fullmatch(r"[A-Za-z0-9:_.-]{1,80}", value)
+                else {"type": type(value).__name__, "sha256": canonical_hash(value)}
+            )
+        unique.append(field)
+    return unique[:8], errors[:8], allowed
+
+
+def _apply_reading_patches(raw, output, paths):
+    if not isinstance(output, dict) or set(output) != {"changes"}:
+        raise DomainError("analysis_reading_invalid", "引用修复未返回受限字段补丁，原输出保留待核", 422)
+    changes = output["changes"]
+    if not isinstance(changes, list) or not 1 <= len(changes) <= 8:
+        raise DomainError("analysis_reading_invalid", "引用修复没有有效的受限字段补丁", 422)
+    result, used = copy.deepcopy(raw), []
+    for change in changes:
+        if not isinstance(change, dict) or set(change) - {"path", "operation", "value"}:
+            raise DomainError("analysis_reading_invalid", "引用修复字段格式无效", 422)
+        path = change.get("path")
+        if (
+            not isinstance(path, list)
+            or not path
+            or path not in paths
+            or path in used
+            or any(type(part) not in {str, int} for part in path)
+            or any(path[: len(prior)] == prior or prior[: len(path)] == path for prior in used)
+        ):
+            raise DomainError("analysis_reading_invalid", "修复试图修改未诊断字段，原输出保留待核", 422)
+        try:
+            parent = _at_path(result, path[:-1])
+            if change.get("operation") == "replace" and "value" in change:
+                parent[path[-1]] = copy.deepcopy(change["value"])
+            elif change.get("operation") == "remove" and "value" not in change:
+                del parent[path[-1]]
+            else:
+                raise TypeError
+        except (KeyError, IndexError, TypeError):
+            raise DomainError("analysis_reading_invalid", "引用修复路径或操作无效", 422) from None
+        used.append(path)
+    return result
+
+
+def _reading_repair_estimates(service, fixed, original, payload):
+    from bioradar.adapters.reasoning_model import encode_request
+
+    receipt = original.get("receipt") or {}
+    parameters = original.get("model_parameters") or fixed["model_parameters"]
+    original_bytes = original.get("request_bytes") or receipt.get("request_bytes")
+    if original_bytes is None:
+        original_bytes = len(
+            encode_request(
+                service.settings.model_copy(
+                    update={"semantic_llm_max_output_tokens": parameters["max_output_tokens"]}
+                ),
+                stage=original["stage"],
+                system_prompt=original.get("system_prompt") or SYSTEM_PROMPT,
+                payload=original["payload"],
+                response_schema=original["response_schema"],
+            )
+        )
+    actual = (receipt.get("usage") or {}).get("prompt_tokens")
+    if type(actual) is int and actual >= 0:
+        original_input = {"tokens": actual, "basis": "received_prompt_tokens"}
+    else:
+        estimate = request_estimate(fixed, original["stage"], original_bytes)
+        original_input = {"tokens": estimate["estimated_input_tokens"], "basis": estimate["basis"]}
+    repair_bytes = len(
+        encode_request(
+            service.settings.model_copy(
+                update={
+                    "semantic_llm_max_output_tokens": min(
+                        2048, fixed["model_parameters"]["max_output_tokens"]
+                    )
+                }
+            ),
+            stage="read_plan_repair",
+            system_prompt=_REPAIR_PROMPT,
+            payload=payload,
+            response_schema=_REPAIR_SCHEMA,
+        )
+    )
+    estimate = request_estimate(fixed, "read_plan_repair", repair_bytes)
+    return {
+        "original_request_bytes": original_bytes,
+        "repair_request_bytes": repair_bytes,
+        "original_input_token_estimate": original_input,
+        "repair_input_token_estimate": {
+            "tokens": estimate["estimated_input_tokens"],
+            "basis": estimate["basis"],
+        },
+        "max_input_ratio": 0.2,
+    }
+
+
 def validated_policy_output(
     service,
     identifier,
@@ -52,101 +223,170 @@ def validated_policy_output(
     from bioradar.research.investigations.analysis import parse_policy_reading, validate_policy_reading
     from bioradar.research.investigations.query_policy import normalize_policy_coverage
 
+    strict = fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1"
+
     def parse(value):
         normalized, adjustments = parse_policy_reading(value)
         normalized, issues = normalize_policy_coverage(normalized, declared, progress["evidence"])
-        reading = validate_policy_reading(normalized, progress["evidence"], fixed["search_scope"])
+        reading = validate_policy_reading(
+            normalized, progress["evidence"], fixed["search_scope"], strict_references=strict
+        )
         return reading, adjustments, issues
 
     try:
         result = parse(raw)
     except DomainError as exc:
-        if (
-            exc.code
-            not in {"analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid"}
-            or fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1"
-        ):
+        if not strict or exc.code not in {
+            "analysis_reading_invalid",
+            "analysis_reference_invalid",
+            "analysis_passage_invalid",
+        }:
             raise
         repairs = progress.setdefault("reading_repairs", {})
-        entry = repairs.setdefault(
-            key,
-            {
+        entry = repairs.get(key)
+        if entry is None:
+            # A second evidence refresh does not create another repair allowance.
+            if repairs:
+                repair_keys = {item.get("repair_call_key") for item in repairs.values()}
+                if any(item.get("status") in {"sent", "unconfirmed"} for item in repairs.values()) or any(
+                    call.get("call_key") in repair_keys and call.get("status") in {"sent", "unconfirmed"}
+                    for call in progress["calls"]
+                ):
+                    raise DomainError(
+                        "model_call_outcome_unconfirmed", "既有读取修复结果未知，未再发请求", 409
+                    )
+                repairs[key] = {
+                    "attempts": 0,
+                    "reason": exc.code,
+                    "original_call_key": key,
+                    "status": "invalid",
+                    "repair_error_code": "analysis_reading_repair_exhausted",
+                }
+                service._checkpoint(identifier, token, progress)
+                raise
+            fields, errors, allowed = _repair_fields(raw, payload, exc.code)
+            entry = repairs[key] = {
                 "attempts": 1,
                 "reason": exc.code,
+                "error_code": exc.code,
                 "original_call_key": key,
                 "repair_call_key": key + ":structure-repair",
                 "status": "prepared",
-            },
-        )
-        if exc.code in {"analysis_reference_invalid", "analysis_passage_invalid"}:
-            errors, allowed = _reference_feedback(raw, payload)
-            entry.setdefault("reference_errors", errors)
-            entry.setdefault("allowed_reference_ids", allowed)
-        service._checkpoint(identifier, token, progress)
-        repair_payload = {
-            "task": "repair_structured_reading",
-            "original_request": copy.deepcopy(payload),
-            "invalid_output": copy.deepcopy(raw),
-            "validation_error": exc.code,
-            "instruction": (
-                "上一份阅读结果结构不符合给定协议。重新对照同一批固定原文完成一次阅读，"
-                "只输出指定JSON。原文、引用编号与范围不可改造；未知保持未知，不猜片段位置，"
-                "不能靠删除矛盾或更正来规避格式错误。"
-            ),
-        }
-        if "reference_errors" in entry:
-            repair_payload.update(
-                reference_errors=copy.deepcopy(entry["reference_errors"]),
-                allowed_reference_ids=copy.deepcopy(entry["allowed_reference_ids"]),
-            )
-            repair_payload["instruction"] += (
-                "本次错误链接和合法编号已列出。片段编号是原样标识，不能按自然段自行增加p002等编号，"
-                "也不能仅凭编号相近换链接。逐条重读同一材料后选择确实支持该命题的已有片段；"
-                "找不到支持时保留不确定或撤回该项支持，并明确缺口。"
-            )
+                "response_format": "field_patches",
+                "field_paths": [field["path"] for field in fields],
+                "reference_errors": errors,
+                "allowed_reference_ids": allowed,
+                "original_request_sha256": canonical_hash(payload),
+                "original_output_sha256": canonical_hash(raw),
+            }
+            entry["repair_payload"] = {
+                "task": "repair_structured_reading_fields",
+                "error_code": exc.code,
+                "field_paths": entry["field_paths"],
+                "invalid_fields": fields,
+                "allowed_reference_ids": allowed,
+            }
+            if errors:
+                entry["repair_payload"]["reference_errors"] = errors
+            entry["repair_payload_sha256"] = canonical_hash(entry["repair_payload"])
         saved = next(
-            (call for call in progress["calls"] if call.get("call_key") == entry["repair_call_key"]), None
+            (call for call in progress["calls"] if call.get("call_key") == entry.get("repair_call_key")), None
         )
+        if not entry.get("repair_call_key"):
+            raise
         try:
+            compact = entry.get("response_format") == "field_patches"
+            if compact and (
+                entry.get("original_request_sha256") != canonical_hash(payload)
+                or entry.get("original_output_sha256") != canonical_hash(raw)
+                or entry.get("repair_payload_sha256") != canonical_hash(entry["repair_payload"])
+            ):
+                raise DomainError("analysis_call_input_changed", "读取修复原输入发生变化，未复用输出", 409)
             if entry["status"] == "not_sent" and saved is None:
                 raise DomainError(entry["repair_error_code"], "本次有界修复已停止，原解读与回执保留", 409)
-            if (
-                optional
-                and saved is None
-                and not service._optional_budget(
+            if saved is not None and saved["status"] != "prepared":
+                # Old full-reading receipts and new field-patch receipts both
+                # replay their exact stored envelope before any fresh budget check.
+                repaired, _ = service._call(
+                    identifier,
+                    token,
+                    "read_plan_repair",
+                    saved.get("response_schema", PolicyReading),
                     fixed,
                     progress,
-                    1,
-                    following=1,
-                    request_tokens=(
-                        service._reading_payload_tokens(fixed, repair_payload, PolicyReading)
-                        - 128
-                        + fixed["model_parameters"]["max_output_tokens"]
-                    ),
-                    following_tokens=following_tokens,
+                    saved["payload"],
+                    call_key=entry["repair_call_key"],
+                    system_prompt=saved.get("system_prompt"),
                 )
-            ):
-                raise DomainError(
-                    "analysis_finishing_budget_reserved", "剩余额度用于交付已有解读，未发送可选引用修复", 409
+            else:
+                if not compact:
+                    if saved is None:
+                        raise DomainError(
+                            "analysis_reading_invalid", "旧读取修复缺少原调用，原输出保留待核", 422
+                        )
+                    service._not_sent_call(
+                        identifier,
+                        token,
+                        fixed,
+                        progress,
+                        saved,
+                        "analysis_token_budget",
+                        "旧整份读取修复未发送；不得重新发送原文或绕过20%上限",
+                    )
+                original = next(call for call in progress["calls"] if call.get("call_key") == key)
+                entry.update(_reading_repair_estimates(service, fixed, original, entry["repair_payload"]))
+                service._checkpoint(identifier, token, progress)
+                required = entry["repair_input_token_estimate"]["tokens"]
+                if (
+                    not entry["field_paths"]
+                    or required * 5 > entry["original_input_token_estimate"]["tokens"]
+                ):
+                    entry["stop_reason"] = "repair_input_over_twenty_percent"
+                    if saved is not None:
+                        service._not_sent_call(
+                            identifier,
+                            token,
+                            fixed,
+                            progress,
+                            saved,
+                            "analysis_token_budget",
+                            "读取修复超过原请求输入20%，未发送；原输出及错误保留待核",
+                        )
+                    raise DomainError("analysis_token_budget", "读取修复超过原请求输入20%，未发送", 409)
+                if (
+                    optional
+                    and saved is None
+                    and not service._optional_budget(
+                        fixed,
+                        progress,
+                        1,
+                        request_tokens=required + min(2048, fixed["model_parameters"]["max_output_tokens"]),
+                    )
+                ):
+                    raise DomainError(
+                        "analysis_finishing_budget_reserved", "本次实际修复请求额度不足，未发送", 409
+                    )
+                repaired, _ = service._call(
+                    identifier,
+                    token,
+                    "read_plan_repair",
+                    _REPAIR_SCHEMA,
+                    fixed,
+                    progress,
+                    entry["repair_payload"],
+                    call_key=entry["repair_call_key"],
+                    system_prompt=_REPAIR_PROMPT,
                 )
-            repaired, _ = service._call(
-                identifier,
-                token,
-                "read_plan_repair",
-                PolicyReading,
-                fixed,
-                progress,
-                repair_payload,
-                call_key=entry["repair_call_key"],
-                **(
-                    {"reserve_tokens": following_tokens + service._final_token_allowance(fixed, progress)}
-                    if optional
-                    else {}
-                ),
+            saved = next(
+                call for call in progress["calls"] if call.get("call_key") == entry["repair_call_key"]
             )
+            entry["repair_call_id"] = saved["call_id"]
+            corrected = _apply_reading_patches(raw, repaired, entry["field_paths"]) if compact else repaired
+            result = parse(corrected)
         except DomainError as failure:
             saved = next(
-                (call for call in progress["calls"] if call.get("call_key") == entry["repair_call_key"]), None
+                (call for call in progress["calls"] if call.get("call_key") == entry.get("repair_call_key")),
+                None,
             )
             entry["status"] = (
                 "unconfirmed"
@@ -154,21 +394,14 @@ def validated_policy_output(
                 else "not_sent"
                 if service._report_budget_stop(failure)
                 or failure.code == "analysis_finishing_budget_reserved"
+                else "invalid"
+                if failure.code
+                in {"analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid"}
                 else "failed"
             )
             entry["repair_error_code"] = failure.code
             if saved is not None:
                 entry["repair_call_id"] = saved["call_id"]
-            service._checkpoint(identifier, token, progress)
-            raise
-        entry["repair_call_id"] = next(
-            c["call_id"] for c in progress["calls"] if c.get("call_key") == entry["repair_call_key"]
-        )
-        try:
-            result = parse(repaired)
-        except DomainError as failure:
-            entry["status"] = "invalid"
-            entry["repair_error_code"] = failure.code
             service._checkpoint(identifier, token, progress)
             raise
         entry["status"] = "validated"
@@ -226,7 +459,10 @@ def execute_document_read(service, identifier, token, fixed, progress, action, s
     receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
     requested = _visible_requests(fixed, progress, action, step)
     if receipt is None:
-        if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
+        if (
+            fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+            and len(progress["queries"]) >= fixed["budget"]["max_queries"]
+        ):
             raise DomainError("analysis_query_budget", "本轮取证动作额度已用完", 422)
         receipt = AnalysisQueryReceipt(
             index=len(progress["queries"]),
@@ -385,10 +621,27 @@ def retained_policy_reading(fixed, progress):
                 or source.get("stage") != "read_plan_repair"
                 or not received(source)
                 or source.get("call_id") != repair.get("repair_call_id")
-                or source["payload"].get("original_request") != payload
-                or source["payload"].get("invalid_output") != original.get("output")
             ):
                 return None
+            if repair.get("response_format") == "field_patches":
+                if (
+                    repair.get("original_request_sha256") != canonical_hash(payload)
+                    or repair.get("original_output_sha256") != canonical_hash(original.get("output"))
+                    or repair.get("repair_payload_sha256") != canonical_hash(source["payload"])
+                    or source["payload"].get("field_paths") != repair.get("field_paths")
+                ):
+                    return None
+                reading_output = _apply_reading_patches(
+                    original["output"], source["output"], repair["field_paths"]
+                )
+            elif source["payload"].get("original_request") != payload or source["payload"].get(
+                "invalid_output"
+            ) != original.get("output"):
+                return None
+            else:
+                reading_output = source["output"]
+        else:
+            reading_output = source["output"]
         rows = progress["evidence"]
         by_key = {item["key"]: item for item in rows}
         requested = [item["evidence_key"] for item in payload["evidence"]]
@@ -421,9 +674,15 @@ def retained_policy_reading(fixed, progress):
         }
         if canonical_hash(semantic_reading_state(selected, context)) != fingerprint:
             return None
-        normalized, _ = parse_policy_reading(source["output"])
+        normalized, _ = parse_policy_reading(reading_output)
         normalized, _ = normalize_policy_coverage(normalized, payload.get("coverage_checks", []), selected)
-        parsed = validate_policy_reading(normalized, selected, fixed["search_scope"])
+        parsed = validate_policy_reading(
+            normalized,
+            selected,
+            fixed["search_scope"],
+            strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+            == "bioradar-research-input-v1",
+        )
         if parsed.model_dump(mode="json") != state.get("reading"):
             return None
         return parsed, original

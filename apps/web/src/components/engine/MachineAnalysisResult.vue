@@ -203,7 +203,13 @@ const reviewStatus: Record<string, string> = {
     </section>
     <section v-if="analysis.result.competing_hypotheses?.length" class="competing-hypotheses">
       <h3>并列解释与可检验缺口</h3>
-      <p class="muted">以下保留竞争解释，不由算法宣布胜者。</p>
+      <div v-if="analysis.result.current_judgment" class="notice">
+        <p><strong>当前反证最少的假说：{{ analysis.result.current_judgment.least_refuted_hypothesis_id }}</strong></p>
+        <p>{{ analysis.result.current_judgment.reason }}</p>
+        <p>下一条最能区分各假说的证据：{{ analysis.result.current_judgment.next_discriminating_evidence }}</p>
+        <p>{{ analysis.result.current_judgment.qualification }}。这不证明假说成立或风险已经解除。</p>
+      </div>
+      <p v-else class="muted">本版未保存可用的当前假说判断；并列解释仍分别保留，不自行挑选胜者。</p>
       <article v-for="item in analysis.result.competing_hypotheses" :key="item.id" class="investigation-entry">
         <h4>{{ item.id }} · {{ item.explanation }}</h4>
         <p><strong>支持：</strong>{{ citedClaims(item.supporting_claim_ids).join("；") || "未列出" }}</p>

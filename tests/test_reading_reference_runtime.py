@@ -56,14 +56,26 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
         wire = json.loads(request.content)
         payload = json.loads(wire["messages"][1]["content"])
         posts.append(payload["task"])
-        if payload["task"] != "repair_structured_reading":
-            return model.handler(request)
-        value = copy.deepcopy(payload["invalid_output"])
-        assert value["claims"][0]["evidence_links"][0]["passage_id"] == "SYNTHETIC-missing-passage"
-        if case == "received_recovery":
-            # A controlled corrected callback, not a claimed scientific/model improvement.
-            link = value["claims"][0]["evidence_links"][0]
-            link["passage_id"] = payload["allowed_reference_ids"][link["evidence_key"]][0]
+        if payload["task"] != "repair_structured_reading_fields":
+            response = model.handler(request)
+            if payload["task"] == "read_plan":
+                body = response.json()
+                body["usage"] = {"prompt_tokens": 30000, "completion_tokens": 50, "total_tokens": 30050}
+                return httpx.Response(200, json=body)
+            return response
+        assert "invalid_output" not in payload and "original_request" not in payload
+        assert payload["invalid_fields"][0]["invalid_part"] == "SYNTHETIC-missing-passage"
+        value = {
+            "changes": [
+                {
+                    "path": payload["field_paths"][0],
+                    "operation": "replace",
+                    "value": next(iter(payload["allowed_reference_ids"].values()))[0]
+                    if case == "received_recovery"
+                    else "SYNTHETIC-still-missing",
+                }
+            ]
+        }
         return httpx.Response(
             200,
             json={
@@ -84,7 +96,8 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
             checkpoint(identifier, token, progress, **kwargs)
             state = progress.get("query_policy", {})
             if (
-                case == "invalid_optional" and state.get("reading")
+                case == "invalid_optional"
+                and state.get("reading")
                 and not state.get("refresh_not_semantically_reviewed")
             ):
                 prior.update(
@@ -99,7 +112,7 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
         if case == "received_recovery":
             with pytest.raises(RuntimeError):
                 service.execute(accepted["id"], accepted["input_hash"])
-            assert posts.count("repair_structured_reading") == 1
+            assert posts.count("repair_structured_reading_fields") == 1
             with Session(database) as session:
                 saved = session.get(InvestigationAnalysisRecord, accepted["id"]).progress
                 assert saved["calls"][-1]["stage"] == "read_plan_repair"
@@ -114,7 +127,7 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
         assert result.state in {"completed", "needs_review"}, result.model_dump(mode="json")
         with Session(database) as session:
             saved = copy.deepcopy(session.get(InvestigationAnalysisRecord, accepted["id"]).progress)
-        assert posts.count("repair_structured_reading") == 1
+        assert posts.count("repair_structured_reading_fields") == 1
         repair = next(iter(saved["reading_repairs"].values()))
         invalid_call = next(c for c in saved["calls"] if c.get("call_key") == repair["original_call_key"])
         assert invalid_call["status"] == "received"

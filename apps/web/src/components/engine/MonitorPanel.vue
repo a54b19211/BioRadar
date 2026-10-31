@@ -254,7 +254,7 @@ onUnmounted(() => { disposed = true; ++generation; clearTimeout(timer); });
     <p v-if="batches?.next_cursor || leads?.next_cursor" class="muted">这里只显示最近一页，完整计算和调查记录仍在原列表中保留。</p>
     <details v-if="status">
       <summary>查看本轮处理预算与范围</summary>
-      <dl><template v-for="(value, key) in status.limits" :key="key"><dt>{{ key }}</dt><dd>{{ value }}</dd></template></dl>
+      <dl><template v-for="(value, key) in status.limits" :key="key"><dt>{{ key === "investigations_per_batch" ? "每批自动调查上限" : key }}</dt><dd>{{ value }}</dd></template></dl>
       <ul><li v-for="item in status.limitations" :key="item">{{ item }}</li></ul>
     </details>
   </section>

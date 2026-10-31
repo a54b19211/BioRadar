@@ -107,7 +107,25 @@ def risk_http(runtime):
                 for row in payload.get("query_context", {}).get("coverage_checks", [])
             ]
         else:
-            result.update(warning_assessment=None, competing_hypotheses=[])
+            result.update(
+                warning_assessment=None,
+                competing_hypotheses=[
+                    {
+                        "id": "SYNTHETIC-H1",
+                        "explanation": "SYNTHETIC bounded surveillance explanation.",
+                        "supporting_claim_ids": ["C1"],
+                        "opposing_claim_ids": [],
+                        "discriminating_evidence_needed": "SYNTHETIC independent repeated assay.",
+                        "untested_conditions": ["SYNTHETIC later interval remains unknown."],
+                    }
+                ],
+                current_judgment={
+                    "least_refuted_hypothesis_id": "SYNTHETIC-H1",
+                    "reason": "SYNTHETIC current adopted evidence supports the bounded explanation.",
+                    "next_discriminating_evidence": "SYNTHETIC independent repeated assay.",
+                    "qualification": "这是模型判断，未证实",
+                },
+            )
             result["topic_risk_reassessment"] = bound_analysis(state.scope)["result"][
                 "topic_risk_reassessment"
             ]
@@ -373,7 +391,13 @@ def test_real_topic_rq_receipts_adopt_risk_once_after_lost_response_and_reopen_f
             session.get(TopicEvaluationRecord, evaluation.id).result["tracking"]["risk"]["status"]
             == "unresolved"
         )
-    assert service.evaluation(actor, topic_id, evaluation.id).tracking == original_evaluation["tracking"]
+    current_tracking = service.evaluation(actor, topic_id, evaluation.id).tracking
+    comparison = current_tracking.pop("hypothesis_comparison")
+    assert comparison["current_judgment"] == final.result.current_judgment.model_dump(mode="json")
+    assert comparison["analysis_id"] == analysis_id
+    assert comparison["selection"] == "model_judgment_unverified"
+    assert current_tracking == original_evaluation["tracking"]
+    assert resolved.tracking["hypothesis_comparison"] == comparison
     assert (meter.stages, meter.operations) == posts
     # A changed question cannot carry a scoped resolution to another event or population.
     changed = resolved.definition.model_copy(

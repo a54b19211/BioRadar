@@ -45,7 +45,6 @@ from bioradar.research.investigations.analysis import (
     evidence_basis_identity,
     freeze_passages,
     freeze_payload,
-    generation_input_allowances,
     material_context_identity,
     material_context_payload,
     needs_revision,
@@ -55,12 +54,10 @@ from bioradar.research.investigations.analysis import (
     render_report,
     report_context,
     source_excerpt,
-    support_audit_input_allowance,
     validate_reading,
     validate_synthesis,
     validate_update,
     validated_result,
-    verification_input_allowance,
 )
 from bioradar.research.investigations.analysis_models import (
     ANALYSIS_VERSION,
@@ -299,10 +296,59 @@ class AnalysisService:
             "limits": {
                 **self._budget_limits(),
                 "manual_analyses_per_hour": self.settings.analysis_manual_per_hour,
-                "evidence_versions": MAX_EVIDENCE,
-                "evidence_characters": MAX_CHARACTERS,
-                "records_per_query": 3,
+                "evidence_versions": self.settings.analysis_v2_max_evidence
+                if self.settings.analysis_kdd_enabled
+                else MAX_EVIDENCE,
+                "evidence_characters": self.settings.analysis_v2_max_characters
+                if self.settings.analysis_kdd_enabled
+                else MAX_CHARACTERS,
+                "records_per_query": self.settings.analysis_v2_records_per_query
+                if self.settings.analysis_kdd_enabled
+                else 3,
+                "document_search": self.settings.analysis_v2_action_limits.get(
+                    "document_search", self.settings.analysis_max_queries
+                ),
+                "document_read": self.settings.analysis_v2_action_limits.get(
+                    "document_read", self.settings.analysis_query_policy_v2_max_steps
+                ),
+                "pages_per_chain": 5,
+                "monitor_investigations_per_batch": self.settings.monitor_investigations_per_batch,
                 "support_audit_calls": 1,
+            },
+            "limits_by_policy": {
+                "baseline": {
+                    "evidence_versions": MAX_EVIDENCE,
+                    "evidence_characters": MAX_CHARACTERS,
+                    "records_per_query": 3,
+                    "document_search": self.settings.analysis_max_queries,
+                    "document_read": 0,
+                    "pages_per_chain": 1,
+                },
+                "query_planner": {
+                    "evidence_versions": self.settings.analysis_v2_max_evidence
+                    if self.settings.analysis_kdd_enabled
+                    else MAX_EVIDENCE,
+                    "evidence_characters": self.settings.analysis_v2_max_characters
+                    if self.settings.analysis_kdd_enabled
+                    else MAX_CHARACTERS,
+                    "records_per_query": self.settings.analysis_v2_records_per_query
+                    if self.settings.analysis_kdd_enabled
+                    else 3,
+                    "document_search": min(
+                        self.settings.analysis_max_queries,
+                        self.settings.analysis_v2_action_limits.get(
+                            "document_search", self.settings.analysis_max_queries
+                        ),
+                    )
+                    if self.settings.analysis_kdd_enabled
+                    else self.settings.analysis_max_queries,
+                    "document_read": self.settings.analysis_v2_action_limits.get(
+                        "document_read", self.settings.analysis_query_policy_v2_max_steps
+                    )
+                    if self.settings.analysis_kdd_enabled
+                    else 0,
+                    "pages_per_chain": 5 if self.settings.analysis_kdd_enabled else 1,
+                },
             },
             "providers": self._provider_status(),
             "runtime": {
@@ -344,17 +390,22 @@ class AnalysisService:
             "weknora": retrieval,
         }
         if kdd:
-            from bioradar.adapters.fabric_fetch import FETCH_VERSION
+            from bioradar.adapters.fabric_fetch import FETCH_VERSION, demo_fetch_available
 
             result["fabric_fetch"] = {
                 "provider": "data_fabric",
                 "version": FETCH_VERSION,
                 "available": bool(
-                    not is_demo
-                    and self.settings.data_fabric_url
-                    and self.settings.data_fabric_history_fetch_token
+                    demo_fetch_available(self.settings)
+                    if is_demo
+                    else self.settings.data_fabric_url and self.settings.data_fabric_history_fetch_token
                 ),
-                "scope": "current_real_sources_only",
+                "scope": "isolated_simulation" if is_demo else "current_real_sources_only",
+                **(
+                    {"demo_instance_id": self.settings.data_fabric_demo_fetch_instance_id}
+                    if is_demo and demo_fetch_available(self.settings)
+                    else {}
+                ),
             }
         return result
 
@@ -379,6 +430,7 @@ class AnalysisService:
 
     @classmethod
     def _view(cls, row, *, fixed_version_refs=None):
+        from bioradar.delivery.analysis_diagnostics import build_analysis_diagnostics
         from bioradar.research.investigations.kdd import material_scope
 
         progress = row.progress
@@ -418,6 +470,11 @@ class AnalysisService:
                     else {}
                 ),
                 "model_output_adjustments": copy.deepcopy(progress.get("model_output_adjustments", {})),
+                "diagnostics": build_analysis_diagnostics(
+                    {"id": row.id, "state": row.state, "result": result, "query_policy": policy_view},
+                    progress=progress,
+                    fixed=row.fixed_input,
+                ),
                 **(
                     {
                         "material_scope": material_scope(
@@ -976,6 +1033,14 @@ class AnalysisService:
                     limitations.append("历史分析已排除没有固定历史原件身份的材料。")
                 evidence = admitted
             parameters = model_parameters(self.settings)
+            if self.settings.analysis_token_stage_ratios:
+                parameters["token_calibration"] = {
+                    "version": self.settings.analysis_token_calibration_version,
+                    "ratios": dict(self.settings.analysis_token_stage_ratios),
+                    "margin": 1.2,
+                    "model": parameters["model"],
+                    "model_revision": parameters["model_revision"],
+                }
             parameters["min_send_seconds"] = min(
                 self.settings.analysis_min_call_seconds, parameters["timeout_seconds"]
             )
@@ -1808,7 +1873,12 @@ class AnalysisService:
         findings = result if synthesis_schema(fixed) is not ModelSynthesis else state.get("reading") or {}
         research_findings = {
             name: copy.deepcopy(findings[name])
-            for name in ("warning_assessment", "competing_hypotheses", "topic_risk_reassessment")
+            for name in (
+                "warning_assessment",
+                "competing_hypotheses",
+                "current_judgment",
+                "topic_risk_reassessment",
+            )
             if findings.get(name)
         }
         if synthesis_schema(fixed) is not ModelSynthesis and (fixed.get("origin") or {}).get(
@@ -1866,57 +1936,15 @@ class AnalysisService:
         return context
 
     def _final_token_allowance(self, fixed, progress):
-        final_calls = (
-            4
-            if fixed.get("providers", {}).get("biocheck", {}).get("available")
-            else int(fixed.get("parent_result") is not None)
-        )
-        if not final_calls:
-            return 0
-        source_bytes = sum(len(e["text"].encode()) for e in progress["evidence"])
-        if (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
-            and final_calls == 4
-        ):
-            from bioradar.adapters.biocheck import build_packet
-
-            reading = progress.get("query_policy", {}).get("reading") or {}
-            packet = build_packet(
-                fixed["question"],
-                progress["evidence"],
-                AnalysisService._report_context(fixed, progress, reading),
-                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
-            )
-            draft = "\n".join(
-                [reading.get("conditional_answer", {}).get("answer", "")]
-                + [claim["text"] for claim in reading.get("claims", [])]
-            )
-            maximum = fixed["model_parameters"]["max_input_bytes"]
-            if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2":
-                # Finishing stages do not all resend the verifier's expanded input.
-                # These estimates use current materials/draft; each send still enforces
-                # its complete encoded input and the remaining hard task budget.
-                generation = generation_input_allowances(self.settings, packet, draft, maximum)
-                verify_input = verification_input_allowance(packet, draft, maximum)
-                audit_input = support_audit_input_allowance(packet, draft, maximum)
-                return (
-                    generation["plan"] + generation["write"] + verify_input + audit_input + 128 * final_calls
-                )
-            return final_calls * (verification_input_allowance(packet, draft, maximum) + 128)
-        return final_calls * (min(fixed["model_parameters"]["max_input_bytes"], source_bytes + 4096) + 128)
+        # Later inputs do not exist yet. Each actual request is priced in _call.
+        return 0
 
     def _optional_budget(self, fixed, progress, calls, *, following=0, request_tokens=0, following_tokens=0):
         budget = analysis_budget(fixed, progress, datetime.now(UTC))
-        final_calls = (
-            4
-            if fixed.get("providers", {}).get("biocheck", {}).get("available")
-            else int(fixed.get("parent_result") is not None)
-        )
         return (
-            len(progress["calls"]) + calls + following + final_calls <= budget["limits"]["max_calls"]
+            len(progress["calls"]) + calls <= budget["limits"]["max_calls"]
             and (budget["limits"]["max_tokens"] or 10_000_000) - budget["usage"]["budgeted_tokens"]
-            >= self._final_token_allowance(fixed, progress) + request_tokens + following_tokens
+            >= request_tokens
         )
 
     def _not_sent_call(self, identifier, token, fixed, progress, call, code, message, *, started_at=None):
@@ -2014,107 +2042,49 @@ class AnalysisService:
             budget = analysis_budget(fixed, progress, datetime.now(UTC))
             if len(progress["calls"]) >= parameters["max_calls"]:
                 raise DomainError("analysis_model_budget", "达到本轮实际模型调用上限", 422)
-            # This is a conservative reservation, never reported as actual provider token usage.
+            from bioradar.research.investigations.execution_budget import request_estimate
+
+            stage_cap = {
+                "read_plan_repair": 2048,
+                "biocheck_verify_paragraph": 12288,
+                "biocheck_recheck_paragraph": 12288,
+                "biocheck_verify_paragraph_retry": 16384,
+                "biocheck_recheck_paragraph_retry": 16384,
+                "biocheck_verify_coverage": 8192,
+                "biocheck_recheck_coverage": 8192,
+            }.get(stage, parameters["max_output_tokens"])
+            output_cap = min(parameters["max_output_tokens"], stage_cap)
             try:
-                input_upper = (
-                    len(
-                        encode_request(
-                            self.settings,
-                            stage=stage,
-                            system_prompt=prompt,
-                            payload=payload,
-                            response_schema=response_schema,
-                        )
+                request_bytes = len(
+                    encode_request(
+                        self.settings.model_copy(update={"semantic_llm_max_output_tokens": output_cap}),
+                        stage=stage,
+                        system_prompt=prompt,
+                        payload=payload,
+                        response_schema=response_schema,
                     )
-                    + 1024
                 )
+                estimate = request_estimate(fixed, stage, request_bytes)
+                input_upper = estimate["estimated_input_tokens"]
             except (ValueError, TypeError, RecursionError):
                 raise DomainError("model_input_invalid", "模型输入不是受支持的有限JSON对象", 422) from None
             remaining = (budget["limits"]["max_tokens"] or 10_000_000) - budget["usage"]["budgeted_tokens"]
-            reserved = reserve_tokens
-            if (
-                stage.startswith("mech_")
-                or stage in {"revise", "recheck", "compare"}
-                or stage == "synthesize"
-                and fixed.get("query_context_version") == "semantic-v2"
-                and fixed.get("query_policy", {}).get("effective") == "query_planner"
-            ):
-                reserved = self._final_token_allowance(fixed, progress)
-            if stage in {"biocheck_write", "biocheck_revise"}:
-                # Generation and verification use different payloads. Reserve the
-                # remaining stages before allocating this request's bounded output.
-                # Received calls return above and are never reserved a second time.
-                verification_input = verification_input_allowance(
-                    payload, progress.get("final_candidate", ""), parameters["max_input_bytes"]
-                )
-                following_calls = 1 + int(
-                    progress.get("final_report_plan", {}).get("reserve_support_audit", False)
-                )
-                audit_input = (
-                    support_audit_input_allowance(
-                        payload, progress.get("final_candidate", ""), parameters["max_input_bytes"]
-                    )
-                    if following_calls == 2
-                    else 0
-                )
-                # Reserve each remaining stage's own input and minimum output.
-                # Its full output allowance is recomputed from actual receipts;
-                # do not reserve a second full verifier for the selected-claims audit.
-                reserved = verification_input + audit_input + 128 * following_calls
-                if len(progress["calls"]) + 1 + following_calls > parameters["max_calls"]:
-                    raise DomainError(
-                        "analysis_model_budget", "剩余调用不足以生成后核验，未发送生成请求", 422
-                    )
-            if stage == "biocheck_plan_repair":
-                # Repair only an actually rejected plan; retain room to write and check it.
-                audit_reserved = progress.get("final_report_plan", {}).get("reserve_support_audit", False)
-                following = 2 + int(audit_reserved)
-                source = {k: payload[k] for k in ("question", "evidence", "assessment") if k in payload}
-                draft = progress.get("final_candidate", "")
-                maximum = parameters["max_input_bytes"]
-                write_input = min(
-                    maximum,
-                    len(json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode())
-                    + len(draft.encode())
-                    + 8192,
-                )
-                reserved = (
-                    write_input
-                    + verification_input_allowance(source, draft, maximum)
-                    + (support_audit_input_allowance(source, draft, maximum) if audit_reserved else 0)
-                    + 128 * following
-                )
-                if len(progress["calls"]) + 1 + following > parameters["max_calls"]:
-                    raise DomainError(
-                        "analysis_model_budget", "计划修复后已无生成和核验额度，未发送修复", 422
-                    )
-            final_minimum = 3 + int(progress.get("final_report_plan", {}).get("reserve_support_audit", False))
-            if stage == "biocheck_plan" and len(progress["calls"]) + final_minimum > parameters["max_calls"]:
-                raise DomainError(
-                    "analysis_model_budget", "剩余调用不足以完成最终规划、生成、核验与所选片段复核", 422
-                )
-            if stage in {
-                "biocheck_check",
-                "biocheck_recheck",
-                "biocheck_verify_repair",
-                "biocheck_recheck_repair",
-            } and progress.get("final_report_plan", {}).get("reserve_support_audit"):
-                reserved = (
-                    support_audit_input_allowance(
-                        payload, payload.get("draft", ""), parameters["max_input_bytes"]
-                    )
-                    + 128
-                )
-            if stage in {"biocheck_verify_repair", "biocheck_recheck_repair"}:
-                following = int(progress.get("final_report_plan", {}).get("reserve_support_audit", False))
-                if len(progress["calls"]) + 1 + following > parameters["max_calls"]:
-                    raise DomainError(
-                        "analysis_model_budget", "核验回执修复后已无片段复核额度，未发送修复", 422
-                    )
-            output_cap = min(parameters["max_output_tokens"], remaining - input_upper - reserved)
+            output_cap = min(output_cap, remaining - input_upper)
             if output_cap < 128:
                 raise DomainError("analysis_token_budget", "剩余token预算不足以发送下一次有界请求", 422)
             parameters["max_output_tokens"] = output_cap
+            # The final cap changes the wire JSON too; retain its exact byte count.
+            request_bytes = len(
+                encode_request(
+                    self.settings.model_copy(update={"semantic_llm_max_output_tokens": output_cap}),
+                    stage=stage,
+                    system_prompt=prompt,
+                    payload=payload,
+                    response_schema=response_schema,
+                )
+            )
+            estimate = request_estimate(fixed, stage, request_bytes)
+            input_upper = estimate["estimated_input_tokens"]
             call = {
                 "stage": stage,
                 "call_key": key,
@@ -2128,6 +2098,8 @@ class AnalysisService:
                 "prompt_version": fixed["prompt_version"],
                 "model_parameters": parameters,
                 "token_upper_bound": input_upper + output_cap,
+                "request_bytes": request_bytes,
+                "input_estimate": estimate,
                 **(
                     {"action_id": progress["active_professional_action"]}
                     if progress.get("active_professional_action")
@@ -2224,7 +2196,9 @@ class AnalysisService:
     @staticmethod
     def _policy_budget(fixed, progress):
         from bioradar.research.investigations.professional import http_ledger
+        from bioradar.research.investigations.query_policy import search_query_count
 
+        query_count = search_query_count(fixed, progress)
         ledger = http_ledger(progress)
         by_action = {}
         for item in ledger:
@@ -2276,7 +2250,7 @@ class AnalysisService:
                 "unknown_tool_calls": len(uncertain),
                 "reserved_tool_calls": reserved,
                 "budgeted_tool_calls": known + reserved,
-                "queries": len(progress.get("queries", [])),
+                "queries": query_count,
                 "relation_access": usage.get("relation_access", 0),
                 "preparation_tool_calls": usage.get("preparation_tool_calls", 0),
                 "route_action_tool_calls": route_calls,
@@ -2290,7 +2264,7 @@ class AnalysisService:
             },
             "remaining": {
                 "tool_calls": max(0, limits.get("max_tool_calls", 64) - known - reserved),
-                "queries": max(0, limits.get("max_queries", 6) - len(progress.get("queries", []))),
+                "queries": max(0, limits.get("max_queries", 6) - query_count),
             },
         }
 
@@ -2405,18 +2379,22 @@ class AnalysisService:
 
     def _reading_payload_tokens(self, fixed, payload, schema):
         from bioradar.adapters.reasoning_model import encode_request
+        from bioradar.research.investigations.execution_budget import estimate_input_tokens
 
         return (
-            len(
-                encode_request(
-                    self.settings,
-                    stage=payload["task"],
-                    system_prompt=SYSTEM_PROMPT,
-                    payload=payload,
-                    response_schema=schema.model_json_schema(),
-                )
+            estimate_input_tokens(
+                fixed,
+                payload["task"],
+                len(
+                    encode_request(
+                        self.settings,
+                        stage=payload["task"],
+                        system_prompt=SYSTEM_PROMPT,
+                        payload=payload,
+                        response_schema=schema.model_json_schema(),
+                    )
+                ),
             )
-            + 1024
             + 128
         )
 
@@ -2608,24 +2586,19 @@ class AnalysisService:
         state["reading_evidence_hash"] = fingerprint
         state.pop("refresh_stopped_reason", None)
         state.pop("refresh_not_semantically_reviewed", None)
-        current = {e["key"] for e in progress["evidence"]}
-        checks, seen_checks = [], set()
-        declared_ids = {item["id"] for item in declared.get("checks", [])}
-        for item in getattr(reading, "coverage_checks", []):
-            check = item.model_dump(mode="json")
-            if check["id"] not in declared_ids or check["id"] in seen_checks:
-                raise DomainError("analysis_policy_coverage_invalid", "覆盖判断引用未声明或重复的检查", 422)
-            seen_checks.add(check["id"])
-            if check["status"] == "passed" and (
-                not check["evidence_ids"] or not set(check["evidence_ids"]).issubset(current)
-            ):
-                check.update(status="unknown", reason="覆盖声明缺少本轮已读证据；未视为已通过。")
-            checks.append(check)
-        if checks:
-            merged = {item["id"]: item for item in state["checks"]}
-            for check in checks:
-                merged.setdefault(check["id"], {}).update(check)
-            state["checks"] = list(merged.values())
+        from bioradar.research.investigations.query_policy import normalize_policy_coverage
+
+        normalized, issues = normalize_policy_coverage(
+            reading.model_dump(mode="json"), declared.get("checks", []), progress["evidence"]
+        )
+        known_issues = state.setdefault("coverage_issues", [])
+        for issue in issues:
+            if issue not in known_issues:
+                known_issues.append(issue)
+        merged = {item["id"]: item for item in state["checks"]}
+        for check in normalized.get("coverage_checks", []):
+            merged[check["id"]].update(check)
+        state["checks"] = list(merged.values())
         self._checkpoint(identifier, token, progress)
         return True
 
@@ -2703,15 +2676,23 @@ class AnalysisService:
         )
 
     def _execute_policy_action(self, identifier, token, fixed, progress, action, step):
-        from bioradar.research.investigations.query_policy import pagination_enabled, semantic_key
+        from bioradar.research.investigations.query_policy import (
+            pagination_enabled,
+            search_query_count,
+            semantic_key,
+        )
 
+        kdd = fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2"
+        continuation = action["kind"] == "document_search" and bool(action["arguments"].get("cursor"))
         limits = fixed.get("query_policy", {}).get("action_limits", {})
         if not any(q.get("action_id") == action["id"] for q in progress.get("queries", [])):
             limit = limits.get(action["kind"])
             used = sum(
                 q.get("kind", "document_search") == action["kind"] for q in progress.get("queries", [])
             )
-            if limit is not None and used >= limit:
+            if kdd and action["kind"] == "document_search":
+                used = search_query_count(fixed, progress)
+            if limit is not None and used >= limit and not (kdd and continuation):
                 raise DomainError("analysis_action_budget", "本类研究动作已达固定上限，未新增请求", 422)
         if action["kind"] == "source_fetch":
             from bioradar.research.investigations.fetch_execution import execute_source_fetch
@@ -2742,8 +2723,10 @@ class AnalysisService:
                 raise DomainError("analysis_query_invalid", "目录与续页只接受明确的Fabric原件动作", 422)
             catalog_plan = self._catalog_discovery_plan(fixed, progress, action)
         if receipt is None:
-            if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
-                raise DomainError("analysis_query_budget", "本轮研究动作预算已用尽", 422)
+            if (not kdd or action["kind"] == "document_search" and not continuation) and search_query_count(
+                fixed, progress
+            ) >= fixed["budget"]["max_queries"]:
+                raise DomainError("analysis_query_budget", "本轮新查询预算已用尽", 422)
             if kind == "document_search":
                 if provider not in {"fabric", "weknora"}:
                     raise DomainError("analysis_query_invalid", "查询候选须明确指定一个已知来源提供方", 422)
@@ -2788,6 +2771,8 @@ class AnalysisService:
                 relaxed_from=arguments.get("relaxed_from"),
                 relaxation_reason=arguments.get("relaxation_reason"),
             ).model_dump(mode="json")
+            if continuation:
+                receipt["usage"] = {"search_cursor": arguments["cursor"]}
             progress["queries"].append(receipt)
             self._checkpoint(identifier, token, progress)
         if receipt["status"] in {"sent", "unconfirmed"}:
@@ -3071,9 +3056,12 @@ class AnalysisService:
         return self._mechanism(identifier, token, fixed, progress, reading)
 
     def _policy_research(self, identifier, token, fixed, progress):
+        from bioradar.research.investigations.analysis_models import ResearchQuestionPlan
         from bioradar.research.investigations.query_policy import (
             build_policy_context,
             decide,
+            pagination_candidates,
+            question_named_objects,
             question_plan_payload,
             validate_frozen_policy,
             validate_initial_plans,
@@ -3081,10 +3069,17 @@ class AnalysisService:
 
         state = progress["query_policy"]
         external = fixed["query_policy"].get("effective") == "query_planner"
+        plan_schema = (
+            ResearchQuestionPlan
+            if fixed["query_policy"].get("research_contract_version") == "bioradar-research-input-v1"
+            else QuestionPlan
+        )
         decisions = state.get("decisions", [])
         terminal = (
             decisions[-1]
-            if decisions and decisions[-1].get("decision") in {"complete", "insufficient"}
+            if decisions
+            and decisions[-1].get("decision") in {"complete", "insufficient"}
+            and decisions[-1].get("state_summary", {}).get("terminal", True)
             else None
         )
         if terminal is not None and state.get("pending_action") is None and state.get("reading"):
@@ -3110,13 +3105,14 @@ class AnalysisService:
                     identifier,
                     token,
                     "question_plan",
-                    QuestionPlan,
+                    plan_schema,
                     fixed,
                     progress,
                     question_plan_payload(fixed),
                 )
                 plans = validate_initial_plans(raw, fixed)
-                for text in QuestionPlan.model_validate(raw).limitations:
+                state["named_objects"] = question_named_objects(fixed, raw.get("named_objects", []))
+                for text in plan_schema.model_validate(raw).limitations:
                     limitation = "初始查找阶段：" + text
                     if limitation not in progress["limitations"]:
                         progress["limitations"].append(limitation)
@@ -3247,12 +3243,22 @@ class AnalysisService:
                 state["reading_manifest"] = copy.deepcopy(context.get("reading_manifest", []))
             state["checks"] = copy.deepcopy(context.get("checks", state.get("checks", [])))
             if state["budget"]["remaining"]["queries"] == 0 or state.get("refresh_stopped_reason"):
-                context["candidates"] = []
+                if external and not state.get("refresh_stopped_reason"):
+                    context["candidates"] = [
+                        item
+                        for item in context["candidates"]
+                        if item["kind"] != "document_search" or item["arguments"].get("cursor")
+                    ]
+                else:
+                    context["candidates"] = []
                 if (
-                    not external and state["budget"]["remaining"]["queries"] == 0
-                    and not progress.get("query_relaxation") and not progress.get("initial_relaxation")
+                    not external
+                    and state["budget"]["remaining"]["queries"] == 0
+                    and not progress.get("query_relaxation")
+                    and not progress.get("initial_relaxation")
                     and any(
-                        q.get("provider", "fabric") == "fabric" and q["status"] == "empty"
+                        q.get("provider", "fabric") == "fabric"
+                        and q["status"] == "empty"
                         and len(q.get("plan", {}).get("terms", [])) > 1
                         for q in progress["queries"]
                     )
@@ -3269,6 +3275,23 @@ class AnalysisService:
                 policy=fixed["query_policy"]["effective"],
                 planner=lambda request: decide_query(self.settings, request),
             )
+            if choice.get("state_summary", {}).get("execution_state") == "awaiting_host_candidates":
+                rebuilt = pagination_candidates(fixed, progress, context["checks"])
+                existing = {item["id"] for item in context["candidates"]}
+                context["candidates"].extend(item for item in rebuilt if item["id"] not in existing)
+                choice = decide(
+                    context,
+                    policy=fixed["query_policy"]["effective"],
+                    planner=lambda request: decide_query(self.settings, request),
+                )
+                if choice.get("state_summary", {}).get("execution_state") == "awaiting_host_candidates":
+                    state["continuation_wait"] = copy.deepcopy(choice["state_summary"])
+                    self._checkpoint(identifier, token, progress)
+                    raise DomainError(
+                        "analysis_continuation_unavailable",
+                        "续页回执已保留，尚无可执行的授权候选；研究未标完成",
+                        409,
+                    )
             action = choice.get("action")
             if choice["decision"] == "continue":
                 if action is None or not any(c == action for c in context.get("candidates", [])):
@@ -3939,7 +3962,13 @@ class AnalysisService:
             risk_scope = (fixed.get("origin") or {}).get("topic_risk_scope")
             try:
                 validate_synthesis(
-                    raw, progress["evidence"], parent=None, schema=schema, topic_risk_scope=risk_scope
+                    raw,
+                    progress["evidence"],
+                    parent=None,
+                    schema=schema,
+                    topic_risk_scope=risk_scope,
+                    strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                    == "bioradar-research-input-v1",
                 )
             except DomainError as exc:
                 round_ = progress.get("active_report_round", 0)
@@ -3960,13 +3989,17 @@ class AnalysisService:
                 )
                 if enhanced:
                     if exc.code not in {
-                        "analysis_output_invalid", "analysis_assessment_invalid",
-                        "analysis_reference_invalid", "analysis_passage_invalid",
+                        "analysis_output_invalid",
+                        "analysis_assessment_invalid",
+                        "analysis_reference_invalid",
+                        "analysis_passage_invalid",
                     }:
                         raise
                     payload = final_reference_repair_payload(
-                        initial["payload"], raw,
-                        validation_error=exc.code, topic_risk_scope=risk_scope,
+                        initial["payload"],
+                        raw,
+                        validation_error=exc.code,
+                        topic_risk_scope=risk_scope,
                     )
                 else:
                     errors = claim_assessment_errors(raw, topic_risk_scope=risk_scope)
@@ -3977,13 +4010,21 @@ class AnalysisService:
                     ):
                         raise
                     payload = assessment_repair_payload(
-                        initial["payload"], raw,
-                        validation_error=exc.code, topic_risk_scope=risk_scope,
+                        initial["payload"],
+                        raw,
+                        validation_error=exc.code,
+                        topic_risk_scope=risk_scope,
                     )
                 if saved is not None:
                     payload = copy.deepcopy(saved["payload"])
                 repaired, _ = self._call(
-                    identifier, token, stage, schema, fixed, progress, payload,
+                    identifier,
+                    token,
+                    stage,
+                    schema,
+                    fixed,
+                    progress,
+                    payload,
                     call_key=stage + ":assessment-repair",
                 )
                 if enhanced:
@@ -3998,6 +4039,8 @@ class AnalysisService:
                     parent=None,
                     schema=schema,
                     topic_risk_scope=risk_scope,
+                    strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                    == "bioradar-research-input-v1",
                 )
                 return repaired
             return raw
@@ -4023,7 +4066,12 @@ class AnalysisService:
         return (
             {
                 name: getattr(parsed, name)
-                for name in ("warning_assessment", "competing_hypotheses", "topic_risk_reassessment")
+                for name in (
+                    "warning_assessment",
+                    "competing_hypotheses",
+                    "current_judgment",
+                    "topic_risk_reassessment",
+                )
             }
             if isinstance(parsed, FinalResearchSynthesis)
             else {}
@@ -4051,6 +4099,8 @@ class AnalysisService:
             parent=None,
             schema=synthesis_schema(fixed),
             topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+            strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+            == "bioradar-research-input-v1",
         )
         checked = AnalysisResult(
             claims=verified,
@@ -4323,6 +4373,7 @@ class AnalysisService:
                             repair=False,
                             loaded=loaded,
                             max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
+                            verification_mode=progress["final_report_plan"].get("verification_mode", "whole"),
                             verify_target="biocheck_recheck",
                         )
                         report.update(
@@ -4433,13 +4484,18 @@ class AnalysisService:
 
     def _freeze_report_retries(self, identifier, token, progress, loaded):
         """Pin opt-in arguments before a professional operation is first prepared."""
-        from bioradar.adapters.biocheck import supports_bounded_retry
+        from bioradar.adapters.biocheck import supports_bounded_retry, supports_paragraph_verification
 
         plan = progress["final_report_plan"]
         if not plan.pop("retry_policy_pending", False):
             return
         plan["max_plan_retries"] = int(supports_bounded_retry(loaded[0], "plan"))
-        plan["max_verify_retries"] = int(supports_bounded_retry(loaded[0], "verify"))
+        plan["verification_mode"] = "paragraph" if supports_paragraph_verification(loaded[0]) else "whole"
+        plan["max_verify_retries"] = (
+            0
+            if plan["verification_mode"] == "paragraph"
+            else int(supports_bounded_retry(loaded[0], "verify"))
+        )
         self._checkpoint(identifier, token, progress)
 
     def _saved_final_report(self, identifier, token, fixed, progress, checked, raw):
@@ -4491,7 +4547,9 @@ class AnalysisService:
         if report is None:
             context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
             packet = build_packet(
-                fixed["question"], progress["evidence"], context,
+                fixed["question"],
+                progress["evidence"],
+                context,
                 input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
             )
             self._save_risk_report_packet(identifier, token, fixed, progress, packet)
@@ -4506,6 +4564,7 @@ class AnalysisService:
                 repair=progress["final_report_plan"]["repair"],
                 max_plan_retries=progress["final_report_plan"].get("max_plan_retries", 0),
                 max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
+                verification_mode=progress["final_report_plan"].get("verification_mode", "whole"),
             )
             progress["final_report"] = report
             self._checkpoint(identifier, token, progress)
@@ -4542,6 +4601,8 @@ class AnalysisService:
                 limitations=progress["limitations"],
                 schema=synthesis_schema(fixed),
                 topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                == "bioradar-research-input-v1",
             )
             checked.review.checked_sections = [
                 "claims",
@@ -4574,7 +4635,9 @@ class AnalysisService:
                 packet = copy.deepcopy(
                     progress.get("report_risk_packets", {}).get(str(progress.get("active_report_round", 0)))
                 ) or build_packet(
-                    fixed["question"], progress["evidence"], context,
+                    fixed["question"],
+                    progress["evidence"],
+                    context,
                     input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                 )
             review = report.get("verification") or {}
@@ -4620,19 +4683,22 @@ class AnalysisService:
             and failure.receipt.http_status == 200
             and failure.code in {"model_output_invalid", "model_output_truncated", "model_protocol_error"}
         )
-        if (
-            fixed.get("query_policy", {}).get("final_reference_repair_version")
-            != "bioradar-synthesis-reference-repair-v1"
-            or not (
-                self._report_budget_stop(failure)
-                or known_invalid_response
-                or not isinstance(failure, ModelCallError) and failure.code in {
-                    "analysis_output_invalid", "analysis_assessment_invalid",
-                    "analysis_reference_invalid", "analysis_passage_invalid",
-                    "analysis_unbound_claim", "analysis_reference_repair_invalid",
-                    "analysis_reference_repair_context_invalid",
-                }
-            )
+        if fixed.get("query_policy", {}).get(
+            "final_reference_repair_version"
+        ) != "bioradar-synthesis-reference-repair-v1" or not (
+            self._report_budget_stop(failure)
+            or known_invalid_response
+            or not isinstance(failure, ModelCallError)
+            and failure.code
+            in {
+                "analysis_output_invalid",
+                "analysis_assessment_invalid",
+                "analysis_reference_invalid",
+                "analysis_passage_invalid",
+                "analysis_unbound_claim",
+                "analysis_reference_repair_invalid",
+                "analysis_reference_repair_context_invalid",
+            }
         ):
             raise failure
         retained = retained_policy_reading(fixed, progress)
@@ -4726,6 +4792,8 @@ class AnalysisService:
                 parent=None,
                 schema=synthesis_schema(fixed),
                 topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                == "bioradar-research-input-v1",
             )
         except DomainError as exc:
             return self._retained_reading_draft(identifier, token, fixed, progress, exc), progress
@@ -4742,6 +4810,8 @@ class AnalysisService:
                 parent=None,
                 schema=synthesis_schema(fixed),
                 topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                == "bioradar-research-input-v1",
             )
             checked = AnalysisResult(
                 claims=verified,
@@ -4782,6 +4852,8 @@ class AnalysisService:
                 limitations=progress["limitations"],
                 schema=synthesis_schema(fixed),
                 topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                == "bioradar-research-input-v1",
             )
         has_parent = fixed.get("parent_result") is not None
         checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
@@ -4827,6 +4899,8 @@ class AnalysisService:
                     parent=None,
                     schema=synthesis_schema(fixed),
                     topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                    strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                    == "bioradar-research-input-v1",
                 )
                 rechecked, progress = self._call(
                     identifier,
@@ -4852,6 +4926,8 @@ class AnalysisService:
                     limitations=progress["limitations"],
                     schema=synthesis_schema(fixed),
                     topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                    strict_references=fixed.get("query_policy", {}).get("research_contract_version")
+                    == "bioradar-research-input-v1",
                 )
                 raw = revised
                 checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
@@ -4945,7 +5021,7 @@ class AnalysisService:
                     and synthesis_schema(fixed) is ModelSynthesis
                 ):
                     reading_context = progress.get("query_policy", {}).get("reading") or {}
-                    for name in ("warning_assessment", "competing_hypotheses"):
+                    for name in ("warning_assessment", "competing_hypotheses", "current_judgment"):
                         if reading_context.get(name):
                             result[name] = copy.deepcopy(reading_context[name])
                 if fixed.get("execution_version") == "query-step-v1":
@@ -5018,8 +5094,8 @@ class AnalysisService:
                 progress["finished_at"] = datetime.now(UTC).isoformat()
                 row.progress = copy.deepcopy(progress)
                 row.completed_at, row.lease_until, row.execution_token = datetime.now(UTC), None, None
-                row.error_code = (
-                    progress.get("comparison_error_code") or progress.get("synthesis_stop_reason")
+                row.error_code = progress.get("comparison_error_code") or progress.get(
+                    "synthesis_stop_reason"
                 )
             return identifier
         except SQLAlchemyError:

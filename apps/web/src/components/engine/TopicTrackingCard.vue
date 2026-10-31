@@ -10,6 +10,13 @@ const evidence = computed(() => object(value.value.evidence));
 const heat = computed(() => object(value.value.heat));
 const correction = computed(() => object(value.value.correction));
 const risk = computed(() => object(value.value.risk));
+const hypothesisComparison = computed(() => object(value.value.hypothesis_comparison));
+const currentJudgment = computed(() => object(hypothesisComparison.value.current_judgment));
+const negativeLabels: Record<string, string> = {
+  not_found: "未发现：热度可降、风险未排除",
+  excluded: "明确排除（仍需核对范围与依据）",
+  reaction: "反应信号，不等于反证或风险解除",
+};
 const update = computed(() => object(value.value.model_update));
 const lifecycle: Record<string, string> = { incipient: "初现", warming: "升温", high: "高关注", cooling: "降温", dormant: "休眠", closed: "已结束跟踪" };
 const levels: Record<string, string> = { unverified: "原始说法未证实", independent_sources: "已有独立来源支持记录", institution_confirmed: "已有机构来源核实记录", comparable_numeric: "已有可比较数值", unknown: "证据强度未知" };
@@ -61,6 +68,21 @@ const environmentLabels: Record<string, string> = { deletion: "删除／撤回�
     <div v-if="rows(value.environment_signals).length" class="notice">
       <strong>环境反应（不作为传言真伪或风险解除的证明）</strong>
       <ul><li v-for="(item, index) in rows(value.environment_signals)" :key="index">{{ environmentLabels[text(item.kind)] || item.kind }} · {{ ref(item.record_ref) }}</li></ul>
+    </div>
+    <div v-if="rows(value.negative_signals).length" class="notice">
+      <strong>未发现、明确排除与反应信号</strong>
+      <ul><li v-for="(item, index) in rows(value.negative_signals)" :key="index">
+        {{ negativeLabels[text(item.kind)] || item.kind }} · {{ ref(item.record_ref) }}
+      </li></ul>
+    </div>
+    <div v-if="Object.keys(currentJudgment).length" class="notice">
+      <strong v-if="hypothesisComparison.current_basis_unchanged === false">旧依据下判断，等待新研判</strong>
+      <strong v-else-if="hypothesisComparison.current_basis_unchanged === true">本版依据下的模型假说比较</strong>
+      <strong v-else>判断依据是否仍一致未记录，不能视为当前判断</strong>
+      <p>反证最少的假说：{{ currentJudgment.least_refuted_hypothesis_id }}。</p>
+      <p>{{ currentJudgment.reason }}</p>
+      <p>下一条区分证据：{{ currentJudgment.next_discriminating_evidence }}</p>
+      <p>这是模型判断，未证实；不能据此自动解除风险。</p>
     </div>
     <details v-if="rows(evidence.basis_refs).length || rows(correction.refs).length || rows(correction.counterevidence_refs).length">
       <summary>固定证据、更正与反证身份</summary>

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
     data_fabric_research_url: str | None = None
     data_fabric_history_read_token: SecretStr | None = None
     data_fabric_history_fetch_token: SecretStr | None = None
+    data_fabric_demo_fetch_url: str | None = None
+    data_fabric_demo_fetch_instance_id: str | None = Field(default=None, min_length=1, max_length=200)
     data_fabric_graph_query_token: SecretStr | None = None
     data_fabric_graph_query_url: str | None = None
 
@@ -80,7 +82,7 @@ class Settings(BaseSettings):
     monitor_pending_runs: int = Field(default=2, ge=1, le=8)
     monitor_hourly_investigations: int = Field(default=6, ge=0, le=100)
     monitor_cooldown_minutes: int = Field(default=60, ge=1, le=1440)
-    monitor_investigations_per_batch: int = Field(default=2, ge=1, le=5)
+    monitor_investigations_per_batch: int = Field(default=1, ge=1, le=5)
 
     topic_max_auto_active: int = Field(default=20, ge=0, le=1000)
     topic_hourly_investigations: int = Field(default=2, ge=0, le=100)
@@ -108,8 +110,10 @@ class Settings(BaseSettings):
     analysis_auto_enabled: bool = False
     analysis_max_calls: int = Field(default=16, ge=1, le=32)
     analysis_max_tokens: int = Field(default=262144, ge=1, le=10_000_000)
-    analysis_max_seconds: int = Field(default=1800, ge=1, le=1800)
+    analysis_max_seconds: int = Field(default=1800, ge=1, le=3600)
     analysis_min_call_seconds: int = Field(default=60, ge=1, le=180)
+    analysis_token_calibration_version: str | None = Field(default=None, min_length=1, max_length=200)
+    analysis_token_stage_ratios: dict[str, float] = Field(default_factory=dict)
     analysis_max_queries: int = Field(default=6, ge=0, le=32)
     analysis_max_tool_calls: int = Field(default=64, ge=1, le=256)
     analysis_query_policy: Literal["baseline", "query_planner"] = "baseline"
@@ -122,8 +126,8 @@ class Settings(BaseSettings):
 
     analysis_v2_action_limits: dict[str, int] = Field(
         default_factory=lambda: {
-            "document_read": 16,
-            "document_search": 8,
+            "document_read": 32,
+            "document_search": 16,
             "source_fetch": 2,
             "dataset_prepare": 4,
             "analysis_run": 4,
@@ -133,6 +137,19 @@ class Settings(BaseSettings):
             "graph_path": 2,
         }
     )
+
+    @model_validator(mode="after")
+    def token_calibration(self):
+        import math
+
+        if self.analysis_token_stage_ratios and not self.analysis_token_calibration_version:
+            raise ValueError("Measured token ratios require a calibration version")
+        if any(
+            not name or not math.isfinite(ratio) or not 0 < ratio <= 2
+            for name, ratio in self.analysis_token_stage_ratios.items()
+        ):
+            raise ValueError("Token calibration ratios must be finite, positive and at most two")
+        return self
 
     @field_validator("analysis_v2_action_limits")
     @classmethod
@@ -205,7 +222,12 @@ class Settings(BaseSettings):
             raise ValueError("Analysis search requires explicit source identifiers")
         return sorted(set(value))
 
-    @field_validator("data_fabric_url", "data_fabric_research_url", "data_fabric_graph_query_url")
+    @field_validator(
+        "data_fabric_url",
+        "data_fabric_research_url",
+        "data_fabric_graph_query_url",
+        "data_fabric_demo_fetch_url",
+    )
     @classmethod
     def local_fabric(cls, value: str | None) -> str | None:
         from urllib.parse import urlsplit

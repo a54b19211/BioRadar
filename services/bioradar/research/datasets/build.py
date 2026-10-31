@@ -87,6 +87,11 @@ class AnalysisDataset:
         units = [
             {key: value for key, value in unit.items() if key != "features"}
             | {"feature_hash": canonical_hash(unit["features"])}
+            | (
+                {"correction_links": unit["features"]["correction_links"]}
+                if unit["features"].get("correction_links")
+                else {}
+            )
             for unit in self.units
         ]
         value = {
@@ -102,8 +107,12 @@ class AnalysisDataset:
             "denominator": {
                 "kind": "qualified_adopted_units",
                 "count": sum(
-                    unit["unit_kind"] not in {
-                        "graph_relation_hint", "source_claim", "source_statement", "source_information_event"
+                    unit["unit_kind"]
+                    not in {
+                        "graph_relation_hint",
+                        "source_claim",
+                        "source_statement",
+                        "source_information_event",
                     }
                     for unit in units
                 ),
@@ -175,16 +184,15 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
         for item in prepared.history
         for unit in (
             source_units(item, relevance.get(item.record.record_ref.version_key), policy)
-            if source_mode else ()
+            if source_mode
+            else ()
         )
     ]
-    retained_refs = {
-        canonical_hash(member["record_ref"]) for unit in retained for member in unit["members"]
-    }
+    retained_refs = {canonical_hash(member["record_ref"]) for unit in retained for member in unit["members"]}
     quantitative_exclusions = []
 
-    def exclude(item, reason, section=None):
-        value = {"record_ref": item.record.record_ref.model_dump(mode="json"), "reason": reason}
+    def exclude(item, reason, section=None, **details):
+        value = {"record_ref": item.record.record_ref.model_dump(mode="json"), "reason": reason, **details}
         if section is not None:
             value["section_id"] = section
         if source_mode and canonical_hash(value["record_ref"]) in retained_refs:
@@ -390,6 +398,19 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 metrics = list({metric.observation_id: metric for metric in metrics}.values())
             if natural["gaps"]:
                 gaps.add("narrative_metric_scope_or_period_requires_review")
+                for rejected in natural["gaps"]:
+                    exclude(
+                        item,
+                        "narrative_observation_rejected",
+                        observation_index=rejected["observation_index"],
+                        issues=rejected.get("issues")
+                        or [
+                            {
+                                "stage": "scope",
+                                "reason": rejected["reason"],
+                            }
+                        ],
+                    )
             if not metrics and not notice:
                 exclude(item, "typed_metric_observations_not_supplied")
             for metric in metrics:
@@ -467,16 +488,41 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
             continue
         targets = {}
         present = {item.record.record_ref.version_key for item, _ in members}
-        for item, _ in members:
+        for item, meta in members:
             if item.record.signal_context:
                 for relation in item.record.signal_context.source_relations:
                     target = relation.target_ref.version_key
                     if relation.kind == "correction" and target in present:
+                        source_observations = {
+                            m["metric"]["observation_id"]
+                            for source, m in members
+                            if source.record.record_ref.version_key == target
+                        }
+                        replacement_observations = {
+                            m["metric"]["observation_id"]
+                            for source, m in members
+                            if source.record.record_ref.version_key == item.record.record_ref.version_key
+                        }
+                        if len(source_observations) != 1 or len(replacement_observations) != 1:
+                            gaps.add("metric_correction_observation_target_ambiguous")
+                            continue
                         targets.setdefault(target, set()).add(item.record.record_ref.version_key)
         for item, meta in members:
             replacements = targets.get(item.record.record_ref.version_key, set())
             if replacements and len(replacements) == 1 and not replacements.intersection(targets):
                 meta["superseded_by"] = [list(ref) for ref in sorted(replacements)]
+                for replacement, corrected in members:
+                    if replacement.record.record_ref.version_key in replacements:
+                        corrected.setdefault("correction_links", []).append(
+                            {
+                                "observation_id": corrected["metric"]["observation_id"],
+                                "corrects_observation_ids": [meta["metric"]["observation_id"]],
+                                "target_ref": item.record.record_ref.model_dump(mode="json"),
+                                "qualification": (
+                                    "explicit_source_correction_same_subject_metric_period_unit_and_scope"
+                                ),
+                            }
+                        )
             elif replacements:
                 gaps.add("metric_correction_cycle_or_multiple_replacements_unresolved")
     units = list(retained)
@@ -572,6 +618,9 @@ def build_dataset(snapshot: NormalizedSnapshot, policy: KddPolicy) -> AnalysisDa
                 "observations": sorted(metrics, key=canonical_hash),
                 "conflicting_values": len(signatures) > 1,
             }
+            correction_links = [link for _, row in members for link in row.get("correction_links", [])]
+            if correction_links:
+                features["correction_links"] = sorted(correction_links, key=canonical_hash)
             if superseded:
                 features["superseded_observations"] = superseded
                 features["correction_qualification"] = "exact_version_same_metric_period_scope_only"

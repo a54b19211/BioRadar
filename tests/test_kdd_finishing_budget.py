@@ -257,7 +257,8 @@ def test_stage_shaped_reserve_admits_normal_synthesis_and_complete_native_tail(
         "biocheck_check",
         "biocheck_support_audit",
     ]
-    assert sum(size + 1024 + 128 for _, size, _ in sent[1:]) <= reserve
+    assert reserve == 0
+    assert all(call["request_bytes"] > 0 for call in progress["calls"])
     assert all(cap == 32768 for _, _, cap in sent)
     assert fixed == fixed_before
 
@@ -302,7 +303,7 @@ def test_generation_reserve_covers_native_encoded_inputs_and_ignores_only_host_m
     if text_style != "representative":
         text = "SYNTHETIC source statement."
         if text_style == "escaped":
-            text += ' \\"Quoted\\\" paths C:\\\\folder\\\\record.\\n中文限定条件。' * 80
+            text += ' \\"Quoted\\" paths C:\\\\folder\\\\record.\\n中文限定条件。' * 80
         progress["evidence"][0]["text"] = text
     packet = build_packet(fixed["question"], progress["evidence"])
     original = copy.deepcopy(packet)
@@ -328,8 +329,11 @@ def test_generation_reserve_covers_native_encoded_inputs_and_ignores_only_host_m
         if stage in {"biocheck_plan", "biocheck_write"}:
             assert "evidence_map" not in payload
             encoded = encode_request(
-                service.settings, stage=stage, system_prompt=instruction,
-                payload=payload, response_schema=schema or {"type": "object"},
+                service.settings,
+                stage=stage,
+                system_prompt=instruction,
+                payload=payload,
+                response_schema=schema or {"type": "object"},
             )
             kind = "plan" if stage == "biocheck_plan" else "write"
             assert len(encoded) + 1024 <= allowances[kind]

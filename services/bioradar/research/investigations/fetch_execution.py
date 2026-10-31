@@ -27,6 +27,7 @@ def _request(fixed, action):
     if (
         fixed["query_policy"].get("research_contract_version") != "bioradar-research-input-v1"
         or fixed["is_demo"]
+        and not fixed.get("providers", {}).get("fabric_fetch", {}).get("demo_instance_id")
         or scope["mode"] != "current"
         or not fixed.get("providers", {}).get("fabric_fetch", {}).get("available")
         or args.get("scope") != scope
@@ -35,6 +36,14 @@ def _request(fixed, action):
     ):
         raise DomainError("analysis_query_invalid", "主动补采仅允许已配置的本轮真实当前来源", 422)
     request = normalize_fetch_request(args.get("parameters"))
+    if fixed["is_demo"]:
+        request = normalize_fetch_request(
+            {
+                **request,
+                "is_demo": True,
+                "demo_instance_id": fixed["providers"]["fabric_fetch"]["demo_instance_id"],
+            }
+        )
     if request["source_id"] not in fixed["search_scope"]:
         raise DomainError("analysis_query_invalid", "主动补采来源不在本轮固定范围内", 422)
     return request
@@ -91,7 +100,10 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
     receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
     request_hash = canonical_hash(request)
     if receipt is None:
-        if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
+        if (
+            fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+            and len(progress["queries"]) >= fixed["budget"]["max_queries"]
+        ):
             raise DomainError("analysis_query_budget", "本轮取证动作额度已用完", 422)
         receipt = AnalysisQueryReceipt(
             index=len(progress["queries"]),
@@ -102,7 +114,7 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
             semantic_key=semantic_key("source_fetch", action["arguments"]),
             decision_step=step,
             status="prepared",
-            scope="current_real_explicit_source_fetch",
+            scope="isolated_simulation_fetch" if fixed["is_demo"] else "current_real_explicit_source_fetch",
             cost={"tool_calls": 0, "tokens": 0},
             usage={
                 "request_status": "not_sent",
@@ -155,6 +167,7 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
                 request,
                 call_key=state["call_key"],
                 timeout_seconds=min(30, seconds),
+                is_demo=fixed["is_demo"],
             )
             extra = result["tool_requests"]
             receipt["usage"]["request_status"] = result["usage"]["request_status"]
@@ -192,7 +205,13 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
             if _seconds(fixed, progress) <= 0:
                 state["poll_status"] = "not_sent"
                 raise DomainError("analysis_time_budget", "补采轮询时限已到，请求未发送", 409)
-            result = poll_fetch(service.reader, state["run_id"], source_id=request["source_id"])
+            result = poll_fetch(
+                service.reader,
+                state["run_id"],
+                source_id=request["source_id"],
+                is_demo=fixed["is_demo"],
+                demo_instance_id=request.get("demo_instance_id"),
+            )
             state["run"], state["poll_status"] = result["run"], "received"
             state["phase"] = "poll" if result["status"] == "pending" else "read_versions"
             receipt["status"] = "prepared"
@@ -264,7 +283,7 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
         receipt["evidence_keys"].append(entry["key"])
         receipt["new_versions"] += 1
         dependency = {
-            "instance": service._source_instance(False),
+            "instance": service._source_instance(fixed["is_demo"]),
             "source_id": original["source_id"],
             "history": True,
         }
@@ -308,8 +327,12 @@ def make_topic_fetch_hook(settings, reader, *, guard=None):
             previous.update(status="unknown", reason="history_fetch_outcome_unconfirmed")
             checkpoint(copy.deepcopy(previous))
             return previous
+        from bioradar.adapters.fabric_fetch import demo_fetch_available
+
+        is_demo = bool(context.get("is_demo"))
         unsupported = (
-            context.get("is_demo")
+            is_demo
+            and not demo_fetch_available(settings)
             or context.get("mode", "current") != "current"
             or context.get("source_id")
             not in {
@@ -319,6 +342,7 @@ def make_topic_fetch_hook(settings, reader, *, guard=None):
                 "europe_pmc",
                 "who_don",
                 "sec_companyfacts",
+                *(["external_archive"] if is_demo else []),
             }
         )
         unconfigured = not (previous or {}).get("run_id") and (
@@ -343,12 +367,18 @@ def make_topic_fetch_hook(settings, reader, *, guard=None):
         request = normalize_fetch_request(
             {
                 "source_id": context["source_id"],
-                "query": " ".join([*context.get("terms_all", []), *context.get("terms_any", [])]),
+                "query": " ".join([*context.get("terms_all", []), *context.get("terms_any", [])])
+                or ("*" if is_demo else ""),
                 "max_records": 10,
                 "max_pages": 1,
                 "deadline_seconds": 30,
-                **({"updated_since": context["since"]} if context.get("since") else {}),
-                **({"updated_until": context["until"]} if context.get("until") else {}),
+                **({"updated_since": context["since"]} if context.get("since") and not is_demo else {}),
+                **({"updated_until": context["until"]} if context.get("until") and not is_demo else {}),
+                **(
+                    {"is_demo": True, "demo_instance_id": settings.data_fabric_demo_fetch_instance_id}
+                    if is_demo
+                    else {}
+                ),
             }
         )
         request_hash = canonical_hash(request)
@@ -364,7 +394,11 @@ def make_topic_fetch_hook(settings, reader, *, guard=None):
             "context_hash": context_hash,
             "run_id": None,
             "tool_requests": 0,
-            "query_qualification": "上游关键词取数；不代表本地all/any匹配或全源完成。",
+            "query_qualification": (
+                "模拟补采读取当前可见包；补采不执行时间筛选，since/until仍由随后专题原件读取应用。"
+                if is_demo
+                else "上游关键词取数；不代表本地all/any匹配或全源完成。"
+            ),
         }
         if not receipt.get("run_id") and receipt["status"] in {"sent", "unknown"}:
             receipt.update(status="unknown", reason="history_fetch_outcome_unconfirmed")
@@ -387,14 +421,20 @@ def make_topic_fetch_hook(settings, reader, *, guard=None):
                     receipt.update(status="not_sent", reason=exc.code)
                     checkpoint(copy.deepcopy(receipt))
                     raise
-            result = submit_fetch(settings, request, call_key=call_key, timeout_seconds=30)
+            result = submit_fetch(settings, request, call_key=call_key, timeout_seconds=30, is_demo=is_demo)
         else:
             receipt["poll_status"] = "sent"
             checkpoint(copy.deepcopy(receipt))
             if guard is not None:
                 guard(context)
             try:
-                result = poll_fetch(reader, receipt["run_id"], source_id=request["source_id"])
+                result = poll_fetch(
+                    reader,
+                    receipt["run_id"],
+                    source_id=request["source_id"],
+                    is_demo=is_demo,
+                    demo_instance_id=request.get("demo_instance_id"),
+                )
             except DomainError as exc:
                 receipt.update(status="error", reason=exc.code)
                 receipt["tool_requests"] += max(0, reader.requests_made - before)

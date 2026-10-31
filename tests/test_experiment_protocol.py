@@ -3,6 +3,7 @@
 import copy
 import importlib.util
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -16,6 +17,36 @@ SPEC.loader.exec_module(protocol)
 
 def _bytes(value):
     return json.dumps(value, sort_keys=True).encode()
+
+
+def _seal(*inputs, code_revision):
+    registry = _bytes(
+        {
+            "components": [
+                {"name": "radar", "revision": code_revision, "source_sha256": "a" * 64},
+            ]
+        }
+    )
+    readback = {
+        "instance_sha256": "c" * 64,
+        "observed_at": (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
+        "native_analysis_count": 0,
+        "first_native_analysis_id": None,
+        "first_native_analysis_created_at": None,
+    }
+    preflight = _bytes(
+        {
+            "instance_id": "OFFLINE-INSTANCE",
+            "instance_sha256": readback["instance_sha256"],
+            "native_analysis_count": 0,
+            "observed_at": readback["observed_at"],
+            "native_readback": readback,
+            "native_readback_sha256": protocol.native_receipt_digest(readback),
+        }
+    )
+    return protocol.seal(
+        *inputs, code_revision=code_revision, code_registry=registry, runtime_preflight=preflight
+    )
 
 
 def _experiment(scenario="A", with_controls=False):
@@ -77,7 +108,7 @@ def _experiment(scenario="A", with_controls=False):
         "cases": [{"case_id": case_id, "required_message_ids": ["public-1"]} for case_id in ids],
     }
     inputs = list(map(_bytes, (packet, rules, settings, answers, keys)))
-    manifest = protocol.seal(*inputs, code_revision="frozen-offline-code")
+    manifest = _seal(*inputs, code_revision="frozen-offline-code")
     return manifest, inputs, endpoints
 
 
@@ -90,6 +121,13 @@ def _runs_and_reviews(manifest, inputs, endpoints):
             "started_at": manifest["sealed_at"],
             "arm": arm,
             "code_revision": manifest["code_revision"],
+            "code_registry_sha256": manifest["commitments"]["code_registry_sha256"],
+            "runtime_instance_sha256": manifest["runtime_preflight"]["instance_sha256"],
+            "first_native_analysis_id": "OFFLINE-first-" + arm,
+            "first_native_analysis_created_at": (
+                datetime.fromisoformat(manifest["sealed_at"]) + timedelta(seconds=1)
+            ).isoformat(),
+            "native_analysis_readback_sha256": "d" * 64,
             **{
                 key: manifest["commitments"][key]
                 for key in ("packet_sha256", "rules_sha256", "model_settings_sha256")
@@ -118,6 +156,15 @@ def _runs_and_reviews(manifest, inputs, endpoints):
                 for case in packet["cases"]
             ],
         }
+        readback = {
+            "instance_sha256": run["runtime_instance_sha256"],
+            "observed_at": (datetime.fromisoformat(manifest["sealed_at"]) + timedelta(seconds=2)).isoformat(),
+            "native_analysis_count": 1,
+            "first_native_analysis_id": run["first_native_analysis_id"],
+            "first_native_analysis_created_at": run["first_native_analysis_created_at"],
+        }
+        run["native_analysis_readback"] = readback
+        run["native_analysis_readback_sha256"] = protocol.native_receipt_digest(readback)
         raw = _bytes(run)
         runs.append(raw)
         for case in run["cases"]:
@@ -164,7 +211,7 @@ def test_prepare_has_no_private_input_parameter_and_rejects_leak_or_changed_publ
     leaking = json.loads(inputs[0])
     leaking["cases"][0]["answers"] = "OFFLINE forbidden answer"
     with pytest.raises(ValueError, match="Private"):
-        protocol.seal(_bytes(leaking), *inputs[1:], code_revision="frozen")
+        _seal(_bytes(leaking), *inputs[1:], code_revision="frozen")
     with pytest.raises(ValueError, match="Duplicate"):
         protocol._load(b'{"id":1,"id":2}')
 
@@ -229,7 +276,7 @@ def test_future_or_day_precision_and_unknown_cost_cannot_receive_a_complete_grad
     packet = json.loads(inputs[0])
     packet["cases"][0]["messages"][0].update(available_at="2020-01-02T00:00:00Z", time_precision="day")
     changed_inputs = [_bytes(packet), *inputs[1:]]
-    manifest = protocol.seal(*changed_inputs, code_revision=manifest["code_revision"])
+    manifest = _seal(*changed_inputs, code_revision=manifest["code_revision"])
     runs, reviews = _runs_and_reviews(manifest, changed_inputs, endpoints)
     result = protocol.evaluate(manifest, *changed_inputs, runs, reviews)
     assert result["acceptance"] != "passed"
@@ -240,7 +287,7 @@ def test_future_or_day_precision_and_unknown_cost_cannot_receive_a_complete_grad
     future = copy.deepcopy(packet)
     future["cases"][0]["messages"][0].update(available_at="2020-01-04T00:00:00Z", time_precision="second")
     future_inputs = [_bytes(future), *inputs[1:]]
-    future_manifest = protocol.seal(*future_inputs, code_revision=manifest["code_revision"])
+    future_manifest = _seal(*future_inputs, code_revision=manifest["code_revision"])
     runs, reviews = _runs_and_reviews(future_manifest, future_inputs, endpoints)
     result = protocol.evaluate(future_manifest, *future_inputs, runs, reviews)
     assert result["runs"][0]["cases"][0]["endpoints"][0]["timing_status"] == "future_evidence"
@@ -289,7 +336,7 @@ def test_D_control_not_triggered_by_frozen_rule_does_not_require_an_invented_rep
     answers = json.loads(inputs[3])
     answers["cases"][-1].update(expected_delivery="no_report", required_endpoint_ids=[], endpoints=[])
     inputs[3] = _bytes(answers)
-    manifest = protocol.seal(*inputs, code_revision=manifest["code_revision"])
+    manifest = _seal(*inputs, code_revision=manifest["code_revision"])
     runs, reviews = _runs_and_reviews(manifest, inputs, endpoints)
     for index, raw in enumerate(runs):
         run = json.loads(raw)

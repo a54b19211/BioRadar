@@ -22,7 +22,9 @@ class _Continuation(BaseModel):
 
 class _Request(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    source_id: Literal["clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don", "sec_companyfacts"]
+    source_id: Literal[
+        "clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don", "sec_companyfacts", "external_archive"
+    ]
     query: str = Field(min_length=1, max_length=500)
     source_record_ids: list[str] = Field(default_factory=list, max_length=100)
     max_records: int = Field(default=10, ge=1, le=100)
@@ -31,6 +33,8 @@ class _Request(BaseModel):
     updated_since: str | None = None
     updated_until: str | None = None
     continuation: _Continuation | None = None
+    is_demo: bool = False
+    demo_instance_id: str | None = Field(default=None, min_length=1, max_length=200)
 
 
 def _result(status, *, run=None, count=0, request_status="not_sent", error=None):
@@ -44,7 +48,7 @@ def _result(status, *, run=None, count=0, request_status="not_sent", error=None)
     }
 
 
-def _run(value, source_id):
+def _run(value, source_id, *, is_demo=False, demo_instance_id=None):
     if isinstance(value, dict) and isinstance(value.get("run"), dict):
         value = value["run"]
     if (
@@ -52,7 +56,7 @@ def _run(value, source_id):
         or not isinstance(value.get("id"), str)
         or not value["id"]
         or value.get("source_id") != source_id
-        or value.get("is_demo") is not False
+        or value.get("is_demo") is not is_demo
         or value.get("kind") != "fetch"
         or value.get("state") not in {"queued", "running", "completed", "partial", "failed", "enqueue_failed"}
         or not isinstance(value.get("version_ids"), list)
@@ -67,14 +71,34 @@ def _run(value, source_id):
         or not isinstance(value.get("coverage"), dict)
     ):
         raise DomainError("history_fetch_response_invalid", "补采回执不是同源真实fetch运行", 502)
+    if is_demo and (
+        value.get("fetch_mode") != "simulated"
+        or not demo_instance_id
+        or value.get("demo_instance_id") != demo_instance_id
+        or not isinstance(value.get("input_sha256"), str)
+        or len(value["input_sha256"]) != 64
+        or any(c not in "0123456789abcdef" for c in value["input_sha256"])
+    ):
+        raise DomainError("history_fetch_response_invalid", "模拟补采回执与隔离实例或固定包不符", 502)
     return value
+
+
+def demo_fetch_available(settings):
+    # Use the same authorized reader against the explicitly bound isolated instance.
+    return bool(
+        getattr(settings, "environment", None) == "test"
+        and getattr(settings, "data_fabric_demo_fetch_url", None)
+        and settings.data_fabric_demo_fetch_url == settings.data_fabric_url
+        and getattr(settings, "data_fabric_demo_fetch_instance_id", None)
+        and settings.data_fabric_history_fetch_token
+    )
 
 
 def submit_fetch(
     settings, request, *, call_key, is_demo=False, mode="current", timeout_seconds=30, client=None
 ):
     """The caller checkpoints this exact request/key first; this function sends at most once."""
-    if is_demo or mode != "current":
+    if mode != "current" or is_demo and not demo_fetch_available(settings):
         return _result("unavailable", error="history_fetch_current_real_only")
     token = getattr(settings, "data_fabric_history_fetch_token", None)
     base = getattr(settings, "data_fabric_url", None)
@@ -85,6 +109,17 @@ def submit_fetch(
     if not isinstance(call_key, str) or not 1 <= len(call_key) <= 200:
         raise DomainError("history_fetch_input_invalid", "补采缺少稳定调用编号", 422)
     body = normalize_fetch_request(request)
+    if is_demo:
+        body = normalize_fetch_request(
+            {
+                **body,
+                "is_demo": True,
+                "demo_instance_id": settings.data_fabric_demo_fetch_instance_id,
+            }
+        )
+        base = settings.data_fabric_demo_fetch_url
+    elif body.get("is_demo") or body.get("demo_instance_id") or body["source_id"] == "external_archive":
+        return _result("unavailable", error="history_fetch_current_real_only")
     own = client is None
     session = client or httpx.Client(trust_env=False, follow_redirects=False)
     try:
@@ -107,7 +142,12 @@ def submit_fetch(
                 "unconfirmed", count=1, request_status="unknown", error="history_fetch_outcome_unconfirmed"
             )
         try:
-            run = _run(response.json(), body["source_id"])
+            run = _run(
+                response.json(),
+                body["source_id"],
+                is_demo=is_demo,
+                demo_instance_id=body.get("demo_instance_id"),
+            )
         except (DomainError, ValueError):
             return _result(
                 "unconfirmed", count=1, request_status="unknown", error="history_fetch_outcome_unconfirmed"
@@ -123,11 +163,16 @@ def submit_fetch(
             session.close()
 
 
-def poll_fetch(reader, run_id, *, source_id):
+def poll_fetch(reader, run_id, *, source_id, is_demo=False, demo_instance_id=None):
     """Resume an already submitted run with the existing authorized GET reader."""
     if not isinstance(run_id, str) or not run_id or len(run_id) > 200:
         raise DomainError("history_fetch_input_invalid", "补采运行编号无效", 422)
-    run = _run(reader._get("/api/history/runs/" + quote(run_id, safe="")), source_id)
+    run = _run(
+        reader._get("/api/history/runs/" + quote(run_id, safe="")),
+        source_id,
+        is_demo=is_demo,
+        demo_instance_id=demo_instance_id,
+    )
     if run["id"] != run_id:
         raise DomainError("history_fetch_response_invalid", "补采回执运行编号已变化", 502)
     status = "pending" if run["state"] in {"queued", "running"} else run["state"]
@@ -138,6 +183,16 @@ def normalize_fetch_request(request):
     """Validate before a durable send intent; return only the real FetchRequest body."""
     try:
         normalized = _Request.model_validate(request)
+        if normalized.is_demo:
+            if not normalized.demo_instance_id or any(
+                getattr(normalized, name) is not None
+                for name in ("continuation", "updated_since", "updated_until")
+            ):
+                raise ValueError(
+                    "isolated demo fetch requires an instance and has no historical continuation"
+                )
+        elif normalized.demo_instance_id:
+            raise ValueError("a demo instance cannot be sent as a live fetch")
         times = {}
         for field in ("updated_since", "updated_until"):
             text = getattr(normalized, field)
@@ -151,27 +206,34 @@ def normalize_fetch_request(request):
                 raise ValueError("fetch interval is reversed")
     except (ValidationError, ValueError, TypeError):
         raise DomainError("history_fetch_input_invalid", "补采参数不符合已发布来源契约", 422) from None
-    return normalized.model_dump(mode="json", exclude_none=True)
+    return normalized.model_dump(
+        mode="json", exclude_none=True, exclude={"is_demo"} if not normalized.is_demo else set()
+    )
 
 
 def read_fetch_version(reader, run, version_id, *, cutoff):
     """Resolve one actual version returned by the known run, never a search or guessed native ID."""
     from bioradar.adapters.fabric_history import validate_record
 
-    checked = _run(run, run.get("source_id"))
+    checked = _run(
+        run,
+        run.get("source_id"),
+        is_demo=run.get("is_demo", False),
+        demo_instance_id=run.get("demo_instance_id"),
+    )
     if version_id not in checked["version_ids"]:
         raise DomainError("history_fetch_response_invalid", "原文版本不属于已收补采运行", 422)
     value = reader._get(
         "/api/history/versions/" + quote(version_id, safe=""),
         {
             "source_id": checked["source_id"],
-            "is_demo": "false",
+            "is_demo": str(checked["is_demo"]).lower(),
             "mode": "current",
             "cutoff": cutoff.isoformat(),
         },
     )
     record = value.get("record", value) if isinstance(value, dict) else value
-    record = validate_record(record, checked["source_id"], False, "current", cutoff)
+    record = validate_record(record, checked["source_id"], checked["is_demo"], "current", cutoff)
     if record["version_id"] != version_id:
         raise DomainError("history_fetch_response_invalid", "补采原文版本与运行回执不一致", 502)
     return record

@@ -18,6 +18,7 @@ from bioradar.research.investigations.analysis_models import (
     AnalysisUpdate,
     FinalResearchSynthesis,
     GenericReview,
+    ModelClaim,
     ModelReading,
     ModelReview,
     ModelSynthesis,
@@ -265,21 +266,25 @@ def validate_selection(value):
     return item
 
 
-def validate_claims(claims, evidence):
+def validate_claims(claims, evidence, *, strict_references=True):
     lookup = {item["key"]: validate_selection(item) for item in evidence}
     if len({claim.id for claim in claims}) != len(claims):
         raise DomainError("analysis_output_invalid", "模型命题标识重复，未保存为有效分析", 422)
     verified = []
     for claim in claims:
         links = []
-        if claim.status != "insufficient" and not claim.evidence_links:
+        if strict_references and claim.status != "insufficient" and not claim.evidence_links:
             raise DomainError("analysis_unbound_claim", "非未知命题缺少固定证据，未采信模型输出", 422)
         for link in claim.evidence_links:
             item = lookup.get(link.evidence_key)
             if item is None:
+                if not strict_references:
+                    continue
                 raise DomainError("analysis_reference_invalid", "模型引用了输入以外的材料", 422)
             passage = next((p for p in item.passages if p.id == link.passage_id), None)
             if passage is None:
+                if not strict_references:
+                    continue
                 raise DomainError("analysis_passage_invalid", "模型选择了不存在或不属于该材料的片段", 422)
             links.append(
                 VerifiedEvidenceLink(
@@ -289,7 +294,10 @@ def validate_claims(claims, evidence):
                     end=passage.end,
                 )
             )
-        verified.append(VerifiedClaim(**claim.model_dump(exclude={"evidence_links"}), evidence_links=links))
+        fields = claim.model_dump(exclude={"evidence_links"})
+        if not strict_references and not links:
+            fields["status"] = "insufficient"
+        verified.append(VerifiedClaim(**fields, evidence_links=links))
     return verified
 
 
@@ -324,14 +332,27 @@ def parse_policy_reading(raw):
     return normalized, adjustments
 
 
-def validate_reading(value, evidence, search_scope):
+def validate_reading(value, evidence, search_scope, *, strict_references=False):
     try:
         result = ModelReading.model_validate(value)
     except ValidationError:
         raise DomainError(
             "analysis_reading_invalid", "模型首次解读输出不完整或格式无效，未补造内容", 422
         ) from None
-    validate_claims(result.claims, evidence)
+    verified = validate_claims(result.claims, evidence, strict_references=strict_references)
+    if not strict_references:
+        result.claims = [
+            ModelClaim.model_validate(
+                {
+                    **claim.model_dump(exclude={"evidence_links"}),
+                    "evidence_links": [
+                        link.model_dump(include={"evidence_key", "passage_id", "role", "reason"})
+                        for link in claim.evidence_links
+                    ],
+                }
+            )
+            for claim in verified
+        ]
     claim_ids = {c.id for c in result.claims}
     gap_ids = {g.id for g in result.gaps}
     keys = {e["key"] for e in evidence}
@@ -349,7 +370,7 @@ def validate_reading(value, evidence, search_scope):
     return result
 
 
-def validate_policy_reading(value, evidence, search_scope):
+def validate_policy_reading(value, evidence, search_scope, *, strict_references=True):
     """Retain hard source/position checks for optional structured research judgments."""
     from bioradar.research.investigations.analysis_models import PolicyReading
 
@@ -358,13 +379,24 @@ def validate_policy_reading(value, evidence, search_scope):
     except ValidationError:
         raise DomainError("analysis_reading_invalid", "模型研究解读结构无效，原回执保留", 422) from None
     core = result.model_dump(
-        mode="json", exclude={"coverage_checks", "warning_assessment", "competing_hypotheses"}
+        mode="json",
+        exclude={"coverage_checks", "warning_assessment", "competing_hypotheses", "current_judgment"},
     )
     for query in core["next_queries"]:
         query.pop("coverage_check_ids", None)
-    validate_reading(core, evidence, search_scope)
+    core_reading = validate_reading(core, evidence, search_scope, strict_references=strict_references)
+    result.claims = core_reading.claims
     validate_claim_assessments(result, result.claims)
+    validate_hypothesis_judgment(result)
     return result
+
+
+def validate_hypothesis_judgment(result):
+    judgment = getattr(result, "current_judgment", None)
+    if judgment is not None and judgment.least_refuted_hypothesis_id not in {
+        item.id for item in getattr(result, "competing_hypotheses", None) or []
+    }:
+        raise DomainError("analysis_assessment_invalid", "当前模型判断指向不存在的竞争假设", 422)
 
 
 def research_task_context(fixed):
@@ -407,11 +439,14 @@ def research_task_context(fixed):
         ),
         "hypothesis_instruction": (
             "并列合理竞争假设，分别列支持命题、反向命题、未检验条件及最能区分它们的下一证据；"
-            "不得用缺少反证自动选出赢家；可保持多个解释未决。"
+            "填写current_judgment，指出当前反证较少且更符合材料范围的hypothesis id、理由及"
+            "下一条最有区分力的证据，明确‘这是模型判断，未证实’；不能按支持或反证条数机械排名，"
+            "不能把未发现反证当作属实。确无合理竞争假设时设null，不编造赢家。"
         ),
         "output_instruction": (
             "公卫预警问题填写warning_assessment，支持与反证引用当前已验证claim id，"
-            "alert必须附原文支持、关键未知和核实动作；需要比较解释时填写competing_hypotheses。"
+            "alert必须附原文支持、关键未知和核实动作；需要比较解释时填写competing_hypotheses与"
+            "current_judgment（least_refuted_hypothesis_id/reason/next_discriminating_evidence）。"
             "结构合法与文字转述准确不证明传言属实，保留据称/网传/未证实限定。"
         ),
     }
@@ -500,12 +535,16 @@ def normalize_policy_synthesis(raw):
     return normalized, adjustments
 
 
-def validate_synthesis(value, evidence, *, parent, schema=ModelSynthesis, topic_risk_scope=None):
+def validate_synthesis(
+    value, evidence, *, parent, schema=ModelSynthesis, topic_risk_scope=None, strict_references=None
+):
+    if strict_references is None:
+        strict_references = issubclass(schema, FinalResearchSynthesis)
     try:
         result = schema.model_validate(value)
     except ValidationError:
         raise DomainError("analysis_output_invalid", "模型当前稿结构不完整或格式无效", 422) from None
-    verified = validate_claims(result.claims, evidence)
+    verified = validate_claims(result.claims, evidence, strict_references=strict_references)
     validate_update(result.update, result.claims, evidence, parent=parent)
     claims = {c.id for c in result.claims}
     for alternative in result.explanations:
@@ -515,14 +554,30 @@ def validate_synthesis(value, evidence, *, parent, schema=ModelSynthesis, topic_
         validate_claim_assessments(
             result, result.claims, error_code="analysis_assessment_invalid", topic_risk_scope=topic_risk_scope
         )
+        validate_hypothesis_judgment(result)
     return result, verified
 
 
 def validated_result(
-    value, check, evidence, *, parent, limitations, schema=ModelSynthesis, topic_risk_scope=None
+    value,
+    check,
+    evidence,
+    *,
+    parent,
+    limitations,
+    schema=ModelSynthesis,
+    topic_risk_scope=None,
+    strict_references=None,
 ):
+    if strict_references is None:
+        strict_references = issubclass(schema, FinalResearchSynthesis)
     result, verified = validate_synthesis(
-        value, evidence, parent=parent, schema=schema, topic_risk_scope=topic_risk_scope
+        value,
+        evidence,
+        parent=parent,
+        schema=schema,
+        topic_risk_scope=topic_risk_scope,
+        strict_references=strict_references,
     )
     keys, claims = {e["key"] for e in evidence}, {c.id for c in result.claims}
     try:
@@ -539,7 +594,15 @@ def validated_result(
     for finding in review.findings:
         if finding.claim_id is not None and finding.claim_id not in claims:
             raise DomainError("analysis_review_invalid", "核验问题指向不存在的当前命题", 422)
-    if review.findings or any(item.verdict != "grounded" for item in review.claims):
+    stripped = not strict_references and any(
+        len(raw.get("evidence_links", [])) > len(checked.evidence_links)
+        or raw["status"] != "insufficient"
+        and checked.status == "insufficient"
+        for raw, checked in zip(value["claims"], verified, strict=True)
+    )
+    if stripped:
+        limitations = [*limitations, "baseline模型的无效引用已剔除；没有有效来源的命题保留为未知待核。"]
+    if stripped or review.findings or any(item.verdict != "grounded" for item in review.claims):
         review.status = "needs_review"
     return AnalysisResult(
         claims=verified,
@@ -553,6 +616,7 @@ def validated_result(
                 "warning_assessment": result.warning_assessment,
                 "competing_hypotheses": result.competing_hypotheses,
                 "topic_risk_reassessment": result.topic_risk_reassessment,
+                "current_judgment": result.current_judgment,
             }
             if isinstance(result, FinalResearchSynthesis)
             else {}
@@ -828,9 +892,15 @@ def generation_input_allowances(settings, packet, candidate, max_input_bytes):
     # complete packet and mapping remain untouched in RPC and durable receipts.
     source = {key: packet[key] for key in ("question", "evidence", "assessment") if key in packet}
     encoded = {
-        stage: len(encode_request(
-            settings, stage=stage, system_prompt="", payload=source, response_schema={"type": "object"},
-        ))
+        stage: len(
+            encode_request(
+                settings,
+                stage=stage,
+                system_prompt="",
+                payload=source,
+                response_schema={"type": "object"},
+            )
+        )
         for stage in ("biocheck_plan", "biocheck_write")
     }
     # Margins cover native instructions/segmentation and the not-yet-generated plan.
@@ -846,9 +916,16 @@ def verification_input_allowance(payload, candidate, max_input_bytes):
     source = {key: payload[key] for key in ("question", "evidence", "assessment") if key in payload}
     source_bytes = len(json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode())
     draft_bytes = max(len(candidate.encode()), len(payload.get("draft", "").encode()))
-    # Verify includes the draft and each paragraph once. Allow a report twice the
-    # current rendered length; the actual subsequent request still uses the ledger.
-    return min(max_input_bytes + 1024, source_bytes + 4 * draft_bytes + 8192)
+    # The verifier sees one draft plus the actual paragraph projection once.
+    # Before that projection exists, one draft-sized copy estimates its text;
+    # fixed framing covers paragraph IDs and native instructions, not four drafts.
+    paragraphs = payload.get("paragraphs")
+    paragraph_bytes = (
+        len(json.dumps(paragraphs, ensure_ascii=False, separators=(",", ":")).encode())
+        if isinstance(paragraphs, list)
+        else draft_bytes
+    )
+    return min(max_input_bytes + 1024, source_bytes + draft_bytes + paragraph_bytes + 8192)
 
 
 def support_audit_input_allowance(payload, candidate, max_input_bytes):
@@ -1067,11 +1144,11 @@ def analysis_budget(fixed, progress, now):
     )
     total = prompt = completion = charged = calls = unknown = estimated = 0
     for call in progress.get("calls", []):
-        receipt = call.get("receipt", {})
+        receipt = call.get("receipt") or {}
         if call["status"] == "prepared" or receipt.get("status") == "not_sent":
             continue
         calls += 1
-        usage = receipt.get("usage", {})
+        usage = receipt.get("usage") or {}
         count = usage.get("total_tokens")
         if count is None and all(usage.get(k) is not None for k in ("prompt_tokens", "completion_tokens")):
             count = usage["prompt_tokens"] + usage["completion_tokens"]

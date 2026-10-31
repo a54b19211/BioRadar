@@ -53,8 +53,10 @@ const policyPanel = compileComponent("apps/web/src/components/engine/PolicyTrace
   "../../api/kdd": kddApi, "../../api/queryPolicy": queryPolicyApi,
   "./KddRunSummary.vue": { default: kddSummary },
 });
+const diagnosticPanel = compileComponent("apps/web/src/components/engine/ResearchDiagnostics.vue");
 const progressPanel = compileComponent("apps/web/src/components/engine/ResearchProgress.vue", {
   "./PolicyTracePanel.vue": { default: policyPanel }, "../../api/queryPolicy": queryPolicyApi,
+  "./ResearchDiagnostics.vue": { default: diagnosticPanel },
 });
 function render(policy, queries = []) {
   return renderToString(Vue.createSSRApp(policyPanel, { policy, queries }));
@@ -188,6 +190,44 @@ async function main() {
   const missingBasisHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: missingBasis }));
   assert.match(printableText(missingBasisHtml), /未记录，未推测对应报告/);
   assert.match(printableText(missingBasisHtml), /该报告资料截止：未提供，未补成当前时点/);
+  const diagnosticAnalysis = {
+    state: "needs_review", calls: [], queries: [], budget: { limits: {}, usage: {} },
+    result: { report: { status: "FAIL", final_text: "SYNTHETIC unchanged report" } },
+    progress: { diagnostics: {
+      analysis_id: "diagnostic-analysis", report_status: "FAIL", error_code: "analysis_passage_invalid",
+      execution_limits: { document_search: 13, document_read: 29, pages_per_chain: 4 },
+      usage: { total_tokens: null, known_total_tokens: 70, unknown_usage_calls: 1,
+        verified_pass_report: false, verified_pass_total_tokens: null,
+        stages: [{ stage: "read_plan", total_tokens: 70, known_total_tokens: 70,
+          request_bytes: 2048, known_request_bytes: 2048, call_count: 1 },
+        { stage: "biocheck_check", total_tokens: null, known_total_tokens: 0,
+          request_bytes: null, known_request_bytes: 0, call_count: 1 }],
+        calls: [{ stage: "biocheck_check", receipt_status: "unconfirmed", request_bytes: null,
+          usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null } }] },
+      queries: [{ query_index: 0, source_id: "fixture", terms: ["alpha", "cohort"], status: "read",
+        pagination: { page_number: 2, has_more: true, next_cursor_sha256: "cursor-hash" } }],
+      reading_repairs: [{ reason: "analysis_passage_invalid", original_call_key: "read-1",
+        repair_call_key: "read-1:structure-repair", status: "validated",
+        field_paths: [["claims", 0, "evidence_links", 0]] }],
+      biocheck_issues: [{ unit_id: "U2", unit_index: 1, sentence_index: 2, claim_index: 0,
+        label: "causal_overstatement" }],
+      numeric_candidates: [{ observation_index: 3,
+        record_ref: { object_id: "record-7", adopted_version: "fixed-v3" },
+        issues: [{ stage: "pairing", reason: "ordered_period_value_mismatch" }] }],
+    } },
+  };
+  const diagnosticBefore = JSON.stringify(diagnosticAnalysis);
+  const diagnosticHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: diagnosticAnalysis }));
+  assert.match(printableText(diagnosticHtml), /本稿全流程实耗/);
+  assert.match(diagnosticHtml, /已知 70/);
+  assert.match(diagnosticHtml, /未知/);
+  assert.match(diagnosticHtml, /alpha、cohort/);
+  assert.match(diagnosticHtml, /causal_overstatement/);
+  assert.match(diagnosticHtml, /ordered_period_value_mismatch/);
+  assert.match(diagnosticHtml, /analysis_passage_invalid/);
+  assert.doesNotMatch(diagnosticHtml, /文字核验PASS稿总 token：0/);
+  assert.equal(JSON.stringify(diagnosticAnalysis), diagnosticBefore);
+
   const styles = fs.readFileSync(path.join(root, "apps/web/src/style.css"), "utf8");
   assert.match(styles, /@media print[\s\S]*?\.no-print[\s\S]*?display:\s*none\s*!important/);
   trace.effective = "baseline";

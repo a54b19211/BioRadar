@@ -1081,6 +1081,11 @@ class MonitorService:
             },
             "methods": methods,
             "record_outcomes": rows,
+            "runtime_configuration": {
+                "investigations_per_batch": getattr(self.settings, "monitor_investigations_per_batch", None),
+                "investigations_per_hour": getattr(self.settings, "monitor_hourly_investigations", None),
+                "topic_investigations_per_hour": getattr(self.settings, "topic_hourly_investigations", None),
+            },
             "limitations": [
                 "new_records_are_published_versions_not_new_scientific_events",
                 "evaluated_means_in_computation_window_not_evaluated_by_every_method",
@@ -1248,9 +1253,26 @@ class MonitorService:
 
     def _select_leads(self, identifier, run_id, payload, result):
         changed = {tuple(r) for r in payload["changed_refs"]}
-        selected = []
+        selected, tracking = [], []
+        selected_keys = {candidate.candidate_key for candidate in result.candidates}
+        candidates = {candidate.candidate_key: candidate for candidate in result.candidates}
+        # Topic creation follows attention level even when review capacity deferred
+        # its investigation. Keep the complete generated candidate in the same lead table.
+        for method in result.method_results:
+            for candidate in method.candidates:
+                if candidate.importance in {"medium", "high"}:
+                    candidates.setdefault(candidate.candidate_key, candidate)
+        importance_order = {"high": 0, "medium": 1, "low": 2, "undetermined": 3}
+        urgency_order = {"immediate": 0, "soon": 1, "routine": 2, "undetermined": 3}
         ordered = sorted(
-            result.candidates, key=lambda c: (c.urgency != "immediate", c.kind != "observed_change")
+            candidates.values(),
+            key=lambda candidate: (
+                importance_order[candidate.importance],
+                urgency_order[candidate.urgency],
+                candidate.kind != "observed_change",
+                -candidate.score,
+                candidate.candidate_key,
+            ),
         )
         for item in ordered:
             attention = item.metrics.get("attention") or {}
@@ -1309,7 +1331,10 @@ class MonitorService:
                     # The lead may have committed before the batch's selection
                     # receipt. Rejoin this batch; only a later batch is a duplicate.
                     if prior.batch_id == identifier:
-                        selected.append(prior.id)
+                        if item.candidate_key in selected_keys:
+                            selected.append(prior.id)
+                        if item.importance in {"medium", "high"}:
+                            tracking.append(prior.id)
                     continue
                 if prior and prior.state == "investigating" and prior.batch_id != identifier:
                     raise DomainError("monitor_lead_busy", "同一线索尚有未确认的保存步骤，先完成原批次", 409)
@@ -1321,6 +1346,7 @@ class MonitorService:
                     "candidate": candidate_payload,
                     "changed_supports": [s.record_ref.model_dump(mode="json") for s in meaningful],
                     "new_to_radar": prior is None,
+                    "investigation_eligible": item.candidate_key in selected_keys,
                     "plan": self._candidate_followup_plan(payload, item),
                     "steps": [],
                     "material_receipts": [],
@@ -1359,7 +1385,11 @@ class MonitorService:
                             prior.state = "deferred"
                             continue
                     prior.payload, prior.support_hash = body, support_hash
-                    prior.batch_id, prior.run_id, prior.state = identifier, run_id, "pending"
+                    prior.batch_id, prior.run_id, prior.state = (
+                        identifier,
+                        run_id,
+                        "pending" if item.candidate_key in selected_keys else "deferred",
+                    )
                     prior.updated_at = datetime.now(UTC)
                     lead_id = prior.id
                 else:
@@ -1371,14 +1401,18 @@ class MonitorService:
                             lead_key=lead_key,
                             batch_id=identifier,
                             run_id=run_id,
-                            state="pending",
+                            state="pending" if item.candidate_key in selected_keys else "deferred",
                             support_hash=support_hash,
                             payload=body,
                             updated_at=datetime.now(UTC),
                         )
                     )
-                selected.append(lead_id)
+                if item.candidate_key in selected_keys:
+                    selected.append(lead_id)
+                if item.importance in {"medium", "high"}:
+                    tracking.append(lead_id)
         payload["selected_leads"] = selected
+        payload["tracking_leads"] = tracking
         with Session(self.engine.database) as session:
             actual = [
                 Candidate.model_validate(lead.payload["candidate"])
@@ -1566,6 +1600,8 @@ class MonitorService:
             )
             checked_runs = set()
             for lead in candidates:
+                if lead.payload.get("investigation_eligible") is False:
+                    continue
                 urgency = lead.payload.get("candidate", {}).get("urgency", "routine")
                 if not needs_slot(lead.lead_key, lead.batch_id, urgency):
                     continue
@@ -1754,6 +1790,10 @@ class MonitorService:
                     .where(
                         MonitorLead.workspace_id == self.actor.workspace_id,
                         MonitorLead.state.in_(("deferred", "investigating")),
+                        or_(
+                            MonitorLead.payload["investigation_eligible"].astext != "false",
+                            MonitorLead.payload["investigation_eligible"].astext.is_(None),
+                        ),
                         MonitorBatch.state == "completed",
                         MonitorBatch.source_id.in_(self.permitted()),
                         MonitorBatch.is_demo == self.settings.monitor_is_demo,
@@ -1798,6 +1838,9 @@ class MonitorService:
                 row.lead_key,
                 row.investigation_id,
             )
+        if p.get("investigation_eligible") is False and not investigation_id:
+            self._save_lead(lead_id, state="deferred")
+            return None
         _, _, _, batch, snapshot_id, _ = self._load_batch(batch_id)
         runtime = InvestigationService(self.engine)
         run = self.engine.get_run(self.actor, run_id)
@@ -2210,10 +2253,11 @@ class MonitorService:
             self._select_leads(identifier, run_id, payload, run.result)
             _, _, _, payload, _, _ = self._load_batch(identifier)
         if state == "investigating" or payload.get("selected_leads") is not None:
+            for lead_id in dict.fromkeys([*payload.get("tracking_leads", []), *payload["selected_leads"]]):
+                self._ensure_tracking(lead_id)
             if not self._propagate_context_updates(identifier, payload, snapshot_id):
                 return
             for lead_id in payload["selected_leads"]:
-                self._ensure_tracking(lead_id)
                 with Session(self.engine.database) as session:
                     lead = session.get(MonitorLead, lead_id)
                     finished = lead.state in {"investigated", "deferred"}

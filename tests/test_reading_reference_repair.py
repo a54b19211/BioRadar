@@ -26,11 +26,16 @@ def setup(monkeypatch, outcome="valid"):
         stage = kwargs["stage"]
         if stage == "read_plan_repair":
             payload = kwargs["payload"]
-            assert payload["invalid_output"] == bad
+            assert "invalid_output" not in payload and "original_request" not in payload
+            assert "SYNTHETIC fixed source statement." not in json.dumps(payload)
             assert payload["allowed_reference_ids"] == {"E1": ["E1:p001"]}
             assert [error["claim_id"] for error in payload["reference_errors"]] == ["C1", "C2"]
             assert all(error["passage_id"] == "E1:p002" for error in payload["reference_errors"])
-            assert payload["original_request"]["evidence"][0]["passages"][0]["id"] == "E1:p001"
+            assert payload["error_code"] == "analysis_passage_invalid"
+            assert payload["field_paths"] == [
+                ["claims", 0, "evidence_links", 0, "passage_id"],
+                ["claims", 1, "evidence_links", 0, "passage_id"],
+            ]
         now = datetime.now(UTC)
         receipt = ModelCallReceipt(
             call_id=kwargs["call_id"],
@@ -47,9 +52,9 @@ def setup(monkeypatch, outcome="valid"):
             completed_at=now,
             elapsed_ms=1,
             usage=ModelUsage(
-                prompt_tokens=110000 if outcome == "budget" else 100,
+                prompt_tokens=110000 if outcome == "budget" else 30000 if stage == "read_plan" else 100,
                 completion_tokens=32000 if outcome == "budget" else 50,
-                total_tokens=142000 if outcome == "budget" else 150,
+                total_tokens=142000 if outcome == "budget" else 30050 if stage == "read_plan" else 150,
             ),
             max_output_tokens=config.semantic_llm_max_output_tokens,
         )
@@ -57,12 +62,23 @@ def setup(monkeypatch, outcome="valid"):
             raise ModelCallError("model_transport_unconfirmed", "SYNTHETIC unknown transport", receipt, 409)
         if outcome == "time" and stage == "read_plan":
             progress["started_at"] = (now - timedelta(hours=2)).isoformat()
-        value = reading() if stage == "read_plan_repair" and outcome == "valid" else copy.deepcopy(bad)
+        value = copy.deepcopy(bad)
+        if stage == "read_plan_repair":
+            value = {
+                "changes": [
+                    {
+                        "path": ["claims", i, "evidence_links", 0, "passage_id"],
+                        "operation": "replace",
+                        "value": "E1:p001" if outcome == "valid" else "E1:p999",
+                    }
+                    for i in range(2)
+                ]
+            }
         return ModelCompletion(content=json.dumps(value), parsed=value, receipt=receipt)
 
     service.model_call = reply
     if outcome == "budget":
-        fixed["budget"]["max_tokens"] = 160000
+        fixed["budget"]["max_tokens"] = 142001
     return service, fixed, progress, calls, bad
 
 

@@ -156,3 +156,49 @@ def reserve_automatic_call(service, identifier, token, fixed, progress, call, no
         row.progress = copy.deepcopy(progress)
     if wait:
         raise DomainError(WAIT_CODE, "自动日额度已用完，保留回执并等待下一预算日", 429)
+
+
+def request_estimate(fixed, stage, request_bytes):
+    """Estimate input tokens from frozen measured ratios; never label bytes as measured tokens."""
+    from decimal import ROUND_CEILING, Decimal
+    from math import isfinite
+
+    if type(request_bytes) is not int or request_bytes < 0:
+        raise DomainError("analysis_token_estimate_invalid", "请求字节数无效", 422)
+    parameters = fixed.get("model_parameters", {})
+    calibration = parameters.get("token_calibration") or {}
+    version = calibration.get("version")
+    ratios = calibration.get("ratios") or {}
+    if not isinstance(ratios, dict) or ratios and (not isinstance(version, str) or not version):
+        raise DomainError("analysis_token_calibration_invalid", "令牌校准缺少有效版本或阶段数据", 422)
+    for key in ("model", "model_revision"):
+        if key in calibration and calibration[key] != fixed.get(key, parameters.get(key)):
+            raise DomainError("analysis_token_calibration_invalid", "令牌校准与冻结模型不一致", 409)
+    ratio = ratios.get(stage)
+    if ratio is not None and (
+        isinstance(ratio, bool) or not isinstance(ratio, (int, float)) or not isfinite(ratio) or ratio <= 0
+    ):
+        raise DomainError("analysis_token_calibration_invalid", "阶段令牌校准比例无效", 422)
+    calibrated = ratio is not None
+    estimate = (
+        int(
+            (Decimal(request_bytes) * Decimal(str(ratio)) * Decimal("1.2")).to_integral_value(
+                rounding=ROUND_CEILING
+            )
+        )
+        if calibrated
+        else request_bytes + 1024
+    )
+    return {
+        "stage": stage,
+        "request_bytes": request_bytes,
+        "estimated_input_tokens": estimate,
+        "basis": "measured_stage_ratio" if calibrated else "uncalibrated_byte_upper_bound",
+        "calibration_version": version,
+        "tokens_per_request_byte": ratio,
+        "margin": 1.2 if calibrated else None,
+    }
+
+
+def estimate_input_tokens(fixed, stage, request_bytes):
+    return request_estimate(fixed, stage, request_bytes)["estimated_input_tokens"]

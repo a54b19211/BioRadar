@@ -114,6 +114,9 @@ class MonitorSelectionSummary(RuntimeModel):
     unknown: int = Field(ge=0)
     methods: list[dict]
     record_outcomes: list[dict]
+    runtime_configuration: dict[str, int | None] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     limitations: list[str]
 
 

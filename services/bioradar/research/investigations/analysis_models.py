@@ -35,6 +35,21 @@ class QuestionPlan(RuntimeModel):
     limitations: list[Text] = Field(default_factory=list, max_length=8)
 
 
+class QuestionSpan(RuntimeModel):
+    start: int = Field(ge=0, description="研究问题原始文本的Unicode起点，不是字节位置。")
+    end: int = Field(ge=1, description="研究问题原始文本的Unicode排他终点，由宿主核对精确名称。")
+
+
+class NamedQuestionObject(RuntimeModel):
+    id: LocalId
+    name: str = Field(min_length=1, max_length=200)
+    question_span: QuestionSpan
+
+
+class ResearchQuestionPlan(QuestionPlan):
+    named_objects: list[NamedQuestionObject] = Field(default_factory=list, max_length=16)
+
+
 class HistoricalAnalysisScope(RuntimeModel):
     mode: Literal["public_history_reconstruction", "operational_replay"]
     cutoff: AwareDatetime
@@ -151,6 +166,13 @@ class CompetingHypothesis(RuntimeModel):
     untested_conditions: list[Text] = Field(default_factory=list, max_length=8)
 
 
+class HypothesisJudgment(RuntimeModel):
+    least_refuted_hypothesis_id: LocalId
+    reason: Text
+    next_discriminating_evidence: Text
+    qualification: Literal["这是模型判断，未证实"] = "这是模型判断，未证实"
+
+
 class ModelReading(RuntimeModel):
     mechanism_candidate: Text | None = None
     claims: list[ModelClaim] = Field(min_length=1, max_length=6)
@@ -161,6 +183,7 @@ class ModelReading(RuntimeModel):
 
 
 class PolicyReading(ModelReading):
+    current_judgment: HypothesisJudgment | None = Field(default=None, exclude_if=lambda value: value is None)
     coverage_checks: list[CoverageCheck] = Field(default_factory=list, max_length=64)
     next_queries: list[PolicyPlannedQuery] = Field(max_length=2)
     warning_assessment: WarningAssessment | None = Field(default=None, exclude_if=lambda value: value is None)
@@ -203,6 +226,7 @@ class FinalResearchSynthesis(ModelSynthesis):
     topic_risk_reassessment: TopicRiskReassessment | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    current_judgment: HypothesisJudgment | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ClaimReview(RuntimeModel):
@@ -339,6 +363,7 @@ class AnalysisResult(RuntimeModel):
     topic_risk_reassessment: TopicRiskReassessment | None = Field(
         default=None, exclude_if=lambda value: value is None
     )
+    current_judgment: HypothesisJudgment | None = Field(default=None, exclude_if=lambda value: value is None)
     limitations: list[str]
 
 

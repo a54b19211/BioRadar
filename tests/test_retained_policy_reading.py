@@ -153,3 +153,34 @@ def test_unexpected_domain_outcome_is_not_swallowed_by_the_pure_guard(monkeypatc
     with pytest.raises(DomainError) as raised:
         retained_policy_reading(fixed, progress)
     assert raised.value is failure
+
+
+def test_compact_field_repair_retains_only_its_exact_original_received_source_and_paths():
+    fixed, progress = saved_reading(repaired=True)
+    key = progress["calls"][0]["call_key"]
+    original, repaired = progress["calls"]
+    paths = [["claims", 0, "evidence_links", 0, "passage_id"]]
+    repaired["payload"] = {"field_paths": paths, "allowed_reference_ids": {"E1": ["E1:p001"]}}
+    repaired["output"] = {"changes": [{"path": paths[0], "operation": "replace", "value": "E1:p001"}]}
+    entry = progress["reading_repairs"][key]
+    entry.update(
+        response_format="field_patches",
+        field_paths=paths,
+        original_request_sha256=canonical_hash(original["payload"]),
+        original_output_sha256=canonical_hash(original["output"]),
+        repair_payload_sha256=canonical_hash(repaired["payload"]),
+    )
+    before = copy.deepcopy(progress)
+    assert (
+        retained_policy_reading(fixed, progress)[0].model_dump(mode="json")
+        == progress["query_policy"]["reading"]
+    )
+    assert progress == before
+    repaired["output"]["changes"].append(
+        {
+            "path": ["claims", 0, "text"],
+            "operation": "replace",
+            "value": "SYNTHETIC rewritten body",
+        }
+    )
+    assert retained_policy_reading(fixed, progress) is None

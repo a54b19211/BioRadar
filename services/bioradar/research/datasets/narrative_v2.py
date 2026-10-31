@@ -516,18 +516,37 @@ def extract(record):
     text = record.normalized_text or ""
     subjects, periods = list(NAMED.finditer(text)), list(PERIOD.finditer(text))
     aliases = sorted({alias for names in ALIASES.values() for alias in names}, key=lambda x: -len(x))
-    proposed, occupied = [], []
+    proposed, occupied, missing, candidate_indices = [], [], [], []
+    candidate_count = 0
     for alias in aliases:
         for metric in re.finditer(re.escape(alias), text, re.I):
             if any(a <= metric.start() < b for a, b in occupied):
                 continue
             occupied.append((metric.start(), metric.end()))
-            value = SCALAR.search(text, metric.end(), min(len(text), metric.end() + 30))
+            end = min(len(text), metric.end() + 30)
+            boundary = re.search(r"[。；;\n]", text[metric.end() : end])
+            if boundary:
+                end = metric.end() + boundary.start()
+            value = SCALAR.search(text, metric.end(), end)
+            numeric = value or NUMBER.search(text, metric.end(), end)
+            if numeric is None:
+                continue
+            index = candidate_count
+            candidate_count += 1
             owners = [m for m in subjects if m.end() <= metric.start() and metric.start() - m.end() <= 240]
             dates = [m for m in periods if m.end() <= metric.start() and metric.start() - m.end() <= 240]
-            if value is None or not owners or not dates:
+            issues = []
+            if value is None:
+                issues.append({"stage": "unit", "reason": "unit_or_currency_not_explicit"})
+            if not owners:
+                issues.append({"stage": "subject", "reason": "explicit_named_business_subject_required"})
+            if not dates:
+                issues.append({"stage": "period", "reason": "explicit_source_reporting_period_required"})
+            if issues:
+                missing.append({"observation_index": index, "issues": issues})
                 continue
             owner, period = owners[-1], dates[-1]
+            candidate_indices.append(index)
             proposed.append(
                 {
                     "subject": _span(text, owner.start(), owner.end()),
@@ -537,6 +556,9 @@ def extract(record):
                 }
             )
     result = validate({"observations": proposed}, record)
+    for gap in result["gaps"]:
+        gap["observation_index"] = candidate_indices[gap["observation_index"]]
+    result["gaps"] = sorted([*result["gaps"], *missing], key=lambda gap: gap["observation_index"])
     result["extraction"] = {"observations": proposed}
     return result
 

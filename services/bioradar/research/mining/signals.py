@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 
-from bioradar.research.mining.models import canonical_hash
+from bioradar.research.mining.models import ProviderRef, canonical_hash
 
 SIGNAL_POLICY_VERSION = "anchored-source-signals-v1"
 ZH_STOP = frozenset(
@@ -15,11 +15,12 @@ ZH_STOP = frozenset(
     "具有 也是 还是 不是说 并不是 暂时 没有发现 未发现 无明显 不存在 不能 尚未".split()
 )
 EVENT = re.compile(
-    r"不明原因肺炎|聚集性?病例|病例聚集|医护(?:人员)?感染|人传人|不明病原|肺炎聚集|"
+    r"不明原因肺炎|聚集性?(?:病例|感染)|病例聚集|疫情|暴发|医护(?:人员)?感染|人传人|不明病原|肺炎聚集|"
     r"随机(?:对照)?(?:三|III|3)期|(?:三|III|3)期(?:临床)?试验|随机对照试验|预设(?:主要)?终点|"
-    r"肝毒性|严重不良事件|安全警告|产品召回|召回|订单更正|净订单|毛订单|订单|"
+    r"肝毒性|严重不良事件|安全(?:警告|事件|隐患|风险)|产品召回|召回|订单更正|净订单|毛订单|订单|"
     r"有效工时|实际工时|可用工时|工时利用率|产能利用率|利用率|确认收入|营业收入|现金流|预收款|撤回|更正|"
-    r"pneumonia cluster|healthcare worker infection|phase\s*(?:3|iii)|randomi[sz]ed trial|"
+    r"pneumonia cluster|cluster of cases|outbreak|healthcare worker infection|"
+    r"phase\s*(?:3|iii)|randomi[sz]ed trial|"
     r"primary endpoint|recall|order correction|capacity utili[sz]ation|cash flow",
     re.I,
 )
@@ -33,8 +34,13 @@ ENTITY = re.compile(
     r"[\u3400-\u9fff]{2,16}(?:医院|公司|集团|大学|研究所|卫健委)"
 )
 CLAUSE = re.compile(r"[^。！？!?\n]+")
-NEGATED = re.compile(
-    r"未发现|没有发现|未确认|未证实|已排除|否认|无明显|辟谣|谣言|不实|not\s+(?:found|confirmed)|no evidence",
+NOT_FOUND = re.compile(r"未发现|没有发现|未确认|未证实|无明显|not\s+(?:found|confirmed)|no evidence", re.I)
+EXCLUDED = re.compile(r"已排除|确认不存在|证实不存在|has been ruled out|confirmed absent", re.I)
+REACTION = re.compile(r"辟谣|谣言|不实|处理造谣者|造谣者|删帖|屏蔽|否认|谣言处理|censor|debunk", re.I)
+UNVERIFIED_CLAIM = re.compile(r"网传|据称|据说|传言|传闻|疑似|尚待核实|未经证实|rumou?r|reportedly", re.I)
+HEALTH_OR_SAFETY = re.compile(
+    r"不明原因肺炎|聚集|病例|疫情|暴发|医护(?:人员)?感染|人传人|不明病原|"
+    r"肝毒性|严重不良事件|安全|召回|pneumonia|cluster of cases|outbreak|healthcare worker infection|recall",
     re.I,
 )
 
@@ -87,15 +93,15 @@ def checkable_claims(text: str, entity_names=()) -> list[dict]:
 def affirmed_event_anchors(claim):
     """Local source phrasing, not a factual truth decision about the event."""
     text = claim["text"]
-    if re.search(r"辟谣|谣言|不实", text):
-        return []
     events = []
     for anchor in claim["anchors"]:
         if anchor["kind"] != "event":
             continue
         offset = anchor["start"] - claim["start"]
         prefix = re.split(r"[，,；;]", text[:offset])[-1]
-        if not NEGATED.search(prefix):
+        # No detection and a public reaction do not establish absence. An explicit
+        # exclusion remains visible in the attributed claim, but is not an event affirmation.
+        if not EXCLUDED.search(prefix):
             events.append(anchor)
     return events
 
@@ -194,6 +200,7 @@ def assess_records(records, *, qualified_study_refs=None, policy=None) -> dict:
     records = list(records)
     groups = source_groups(records)
     claims, anchors, relations, institutions, environment, negative = [], [], [], [], [], []
+    negative_signals, confirmed_institution_refs, official_confirmation_refs = [], set(), []
     studies = set()
     study_unknown = False
     numeric = []
@@ -204,6 +211,21 @@ def assess_records(records, *, qualified_study_refs=None, policy=None) -> dict:
         ref = record.record_ref.model_dump(mode="json")
         claim_rows = checkable_claims(text, names)
         claims.extend({**c, "record_ref": ref, "status": "unverified_source_claim"} for c in claim_rows)
+        for kind, pattern, qualification in (
+            ("not_found", NOT_FOUND, "热度可降、风险未排除"),
+            ("excluded", EXCLUDED, "有出处的明确排除；结束跟踪仍须核对其范围"),
+            ("reaction", REACTION, "反应信号，不证明事件为真或为假"),
+        ):
+            negative_signals.extend(
+                {
+                    "kind": kind,
+                    "record_ref": ref,
+                    "start": match.start(),
+                    "end": match.end(),
+                    "qualification": qualification,
+                }
+                for match in pattern.finditer(text)
+            )
         anchors.extend({**a, "record_ref": ref} for a in narrative_anchors(text, names))
         study_qualified = (
             qualified_study_refs.get(record.record_ref.version_key, False)
@@ -218,17 +240,56 @@ def assess_records(records, *, qualified_study_refs=None, policy=None) -> dict:
             relations.extend(
                 {**r.model_dump(mode="json"), "record_ref": ref} for r in context.source_relations
             )
-            if (
-                context.verification_status == "source_confirmed"
-                and context.evidence_refs
-                and (policy is None or policy.time_mode != "availability_replay")
-            ):
-                institutions.append(ref)
+            official = (
+                context.material_type == "official_notice"
+                or (context.document_evidence or {}).get("material_kind") == "official_notice"
+            )
+            confirming = any(
+                affirmed_event_anchors(claim)
+                and not (
+                    NOT_FOUND.search(claim["text"])
+                    or EXCLUDED.search(claim["text"])
+                    or REACTION.search(claim["text"])
+                    or UNVERIFIED_CLAIM.search(claim["text"])
+                )
+                for claim in claim_rows
+            )
+            if confirming and context.evidence_refs and context.statement_status != "unverified_report":
+                if official or (
+                    context.verification_status == "source_confirmed"
+                    and (policy is None or policy.time_mode != "availability_replay")
+                ):
+                    institutions.append(ref)
+                    if official:
+                        official_confirmation_refs.append(ref)
+                if (
+                    context.attribution == "named_institution"
+                    and context.verification_status == "source_confirmed"
+                    and (policy is None or policy.time_mode != "availability_replay")
+                ):
+                    confirmed_institution_refs.add(record.record_ref.version_key)
+        metadata = context.document_evidence if context and context.document_evidence else {}
+        information_events = metadata.get("information_events") or []
+        information_events = (
+            [event for event in information_events if isinstance(event, dict)]
+            if isinstance(information_events, (list, tuple))
+            else []
+        )
         environment.extend(
             {"kind": kind, "record_ref": ref, "qualification": "context_not_proof_of_claim_or_risk"}
             for kind, found in (
-                ("deletion", "deleted" in record.record_flags),
-                ("denial_or_censorship", bool(re.search(r"删帖|屏蔽|辟谣|造谣者|谣言处理", text))),
+                (
+                    "deletion",
+                    "deleted" in record.record_flags
+                    or any(e.get("event_type") == "reported_deletion" for e in information_events),
+                ),
+                (
+                    "denial_or_censorship",
+                    bool(REACTION.search(text))
+                    or any(
+                        e.get("event_type") in {"official_denial", "moderation"} for e in information_events
+                    ),
+                ),
             )
             if found
         )
@@ -272,21 +333,29 @@ def assess_records(records, *, qualified_study_refs=None, policy=None) -> dict:
         reasons.append("source_linked_correction_or_reviewed_counterevidence")
     positive_events = [c for c in claims if affirmed_event_anchors(c)]
     serious = any(
-        re.search(r"医护(?:人员)?感染|人传人|肝毒性|严重不良事件|安全警告|产品召回", anchor["text"])
-        for c in positive_events
-        for anchor in affirmed_event_anchors(c)
+        HEALTH_OR_SAFETY.search(anchor["text"])
+        for claim in positive_events
+        for anchor in affirmed_event_anchors(claim)
     )
     if serious:
-        # Potential harm justifies checking a concrete claim even when its origin
-        # or truth is unknown. This is never an independent confirmation.
         importance, urgency = "medium", "soon"
         reasons.append("specific_potentially_serious_claim_requires_verification_truth_unresolved")
-    if positive_events and (len(groups["confirmed"]) >= 2 or institutions):
+    if any(
+        re.search(r"\d", claim["text"]) and re.search(r"更正|修正|correction|corrected", claim["text"], re.I)
+        for claim in claims
+    ):
         importance, urgency = "medium", "soon"
-        reasons.append("specific_event_with_independent_or_source_confirmed_support")
-        if serious:
-            importance, urgency = "high", "immediate"
-            reasons.append("specific_serious_event_requires_immediate_verification_not_truth_approval")
+        reasons.append("attributed_numeric_correction_requires_verification")
+    institutional_groups = sum(
+        any(
+            ProviderRef.model_validate(ref).version_key in confirmed_institution_refs
+            for ref in group["record_refs"]
+        )
+        for group in groups["confirmed"]
+    )
+    if positive_events and (official_confirmation_refs or institutional_groups >= 2):
+        importance, urgency = "high", "immediate"
+        reasons.append("specific_event_confirmed_by_official_or_two_independent_institutions")
     return {
         "version": SIGNAL_POLICY_VERSION,
         "automatic_investigation_allowed": checkable,
@@ -307,6 +376,8 @@ def assess_records(records, *, qualified_study_refs=None, policy=None) -> dict:
         "institution_confirmation_refs": institutions,
         "source_bound_observation_ids": numeric,
         "environment_signals": environment,
+        "negative_signals": negative_signals,
+        "risk_not_excluded": any(row["kind"] in {"not_found", "reaction"} for row in negative_signals),
         "qualification": "attention_and_attributed_claims_not_scientific_approval_or_rumor_verification",
     }
 
@@ -365,6 +436,8 @@ def with_attention(candidate, records, *, qualified_study_refs=None, policy=None
             "confirmed_independent_study_count",
             "independent_study_count",
             "environment_signals",
+            "negative_signals",
+            "risk_not_excluded",
             "qualification",
         )
     }

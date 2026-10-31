@@ -6949,5 +6949,133 @@
         "sha256": "5520b9ec7473e7fc0fbe15e2fe98fd7739441babb6b782d034790e6c1b8c2660"
       }
     ]
+  },
+  "section16_engineering_20261031": {
+    "scope": "第16节工程修复与受控验收；没有商业模型调用、正式业务矩阵或现役部署",
+    "base_commit": "5858178c34c721536ca90372fb50c7b46e13b3e2",
+    "report_sha256": "cac544bb552a61130ad0e1b24bb30622f908401bba42a12556a12cfc9bc2c291",
+    "upstream_commits": {
+      "biocheck": "b88da7bc3b4614e4537d340a9deade10c1c3980c",
+      "mechevidence": "7b33020056f64f1c658a6c7c719b3ac8eee8c2ab",
+      "query-planner": "4f9b29c7958d34db1497f71156721ce49b4932ea"
+    },
+    "biocheck_http_provider_version": "ea1dbdc743769b5400bec77cc4bffe3c51dbe7c775b595107787dcc5ec076c05",
+    "fabric_handoff_commit": "cbd187741595b1dd2f1f65a2582ddcb1b4048c1e",
+    "changes": [
+      "下一实际请求预算，实际请求字节与平台用量分开；阶段校准版本固定，缺测量明确保守估算。",
+      "整项读取结构修复一次，只送错误字段与合法标识，估计输入不得超过原读取实际prompt_tokens的20%。",
+      "真实续页优先、每链五页、首页与全部工具计数分开；原题点名对象绑定已采用正文。",
+      "BioCheck逐段核验、仅明确length对同段一次重试、独立全稿覆盖；收到的回执恢复不新增POST。",
+      "独立测试Fabric补采instance/run/package绑定，回执保留simulated；现役默认拒绝。",
+      "有出处事件分级、三类否定/反应、重要性排序、容量外先建专题；实际模型判断及其旧依据状态可见。",
+      "逐候选数值拒因和更正旧观察关系保留，计算仍由程序完成。",
+      "去原文诊断、真实阶段用量、按策略读取上限；封存绑定原生空库和首次analysis回读内容。"
+    ],
+    "verification": {
+      "make_test_BOOT": "43 passed",
+      "make_contract_check": "passed",
+      "make_lint": "passed",
+      "make_web_check": "passed",
+      "post_options_types_build_and_SSR": "passed",
+      "final_targeted": "76 passed, 0 skipped",
+      "method_runtime_regression": "197 passed; final method changes 47 passed",
+      "budget_reading": "38 pure plus 2 PostgreSQL checks passed",
+      "paragraph_native": "4 passed: local/RPC, no-budget, PostgreSQL received-before-report recovery",
+      "queue_recovery": "原生PostgreSQL/RQ的重复投递、worker退出恢复、两条post-intent截止、保存失败/unknown均通过；该组附带的旧配置测试接线错误已单独修复通过。",
+      "paid_model_calls": 0,
+      "calibration": "尚无实测阶段比率；后续在独立校准库封存输入后采集，不算业务PASS"
+    },
+    "reviews": {
+      "host_and_adapters": "GPT-6.1 SOL runtime agent accepted after three corrections; per-policy options separately accepted",
+      "methods": "GPT-6.1 SOL delivery agent accepted after malformed event-item correction",
+      "delivery_and_evaluation": "GPT-6.1 SOL methods agent accepted after privacy, candidate-origin and native-readback fixes",
+      "runtime_budget_and_repair": "GPT-6.1 SOL methods agent accepted; all 10 reviewed file hashes match the runtime handoff."
+    },
+    "baseline_profile": {
+      "path": "/tmp/bioradar-opus-round3-20261031/engineering/baseline-profile-original.json",
+      "sha256": "a88def07c7f4de0f29bfb12c3fa74ff0a862ba04c24681952ad93ed835b16766",
+      "ast_equivalence_checks": 9,
+      "old_runtime_scope_reconstructed": false
+    },
+    "artifacts": [
+      {
+        "path": "/tmp/bioradar-section16-20261031/BOOT.txt",
+        "sha256": "61135d6c54d3efa1d96f351cabf2f91842d713f313d245d42db9a3b428efc323"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/contract-check.txt",
+        "sha256": "acce2b1a026c0bc8533df7a1c01c4ee3606fceb80f127898ffa3f3b776b10958"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/lint-final.txt",
+        "sha256": "4d4a3f4db51fc00d550fed1a88e3c56c0455155023d3c8f6e370c0e0bcb94c05"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/web-check.txt",
+        "sha256": "8f31d3b70a76fb66cfc1a2af1caae3deeaa9d9a3aa61935c97a4e7cc401e3ba2"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/web-policy-final.txt",
+        "sha256": "5634260e21b5c138c130838dab74f21ee8cf437d8ca50894272452adef9193d0"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/web-policy-ssr-final.txt",
+        "sha256": "5ad08eb3471f347b10f958d477ec35d73c6f12e58f66b89a5b3e58477313e3a3"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/integrated-final.txt",
+        "sha256": "342ff8dd03b91a2437042133fc8dac983a61ee99c68452ef0d98b55b0a95d535"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/host-recovery-rq.txt",
+        "sha256": "04fe75f844c9ce143ec895b2ee9cb135bdc7be52dcb081ef67b95de0aa9f0cff"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/host-failure-check.txt",
+        "sha256": "d768ebc5829f3585cd2d6a28a55bcb77e0570db5c1e94ca5cd6ebe33aa41322a"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/paragraph-native-final.txt",
+        "sha256": "08ed60ea2d65ef07df8bbcfb4f0d3c14695ea5cf61948dfd48e649f74a3e4d25"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/methods-regression-complete.txt",
+        "sha256": "78a482c6dae51467b786f32bca7b56c8902344335144580b2de000c0b7cc7c2d"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/methods-review-fix-green.txt",
+        "sha256": "cd4631ada229a776f26984cb800a339a750556ef3664369f228757d452f8b410"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/b-runtime-handoff.json",
+        "sha256": "4964340f04a51d1237cafe12d56f40b3d318cb8472adc74a1d6c58c36229843a"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/b-host-adapters-nonauthor-review.json",
+        "sha256": "fd1cbe9ff7d8f2ba1d30f956bb17bcc72624b069cbe3e449ed3f354f61f6261b"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/b-options-nonauthor-review.json",
+        "sha256": "9d8fe3b1180aaec8c69733ded9423ba9ffa4ced5ba22f8d9c1f64fced0aaa645"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/c-section16-final-handoff.json",
+        "sha256": "f567b7dcc482ac1de091daa13ead1854c434cd018a8633d95b8b601f2aff79b6"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/c-section16-methods-nonauthor-review.json",
+        "sha256": "106d5743bfbce9537f1330b255ffbf3f16d58f1db089bbf291d578bb5fbad8bc"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/c-review-tests-final.txt",
+        "sha256": "7b25e4ef29c0ab94de95a85856be5f8bc0b26c74cbe9f9cc74d41e107e6e7ff3"
+      },
+      {
+        "path": "/tmp/bioradar-section16-20261031/b-runtime-sol-nonauthor-review.json",
+        "sha256": "30578998405a43f01f3abda969d5ddb45b46b52cf9827c2b730525affd2022f0"
+      }
+    ],
+    "runtime_qualification": "仅使用本轮专用PG19636/Redis19637的随机schema/queue；夹具清理自己的数据，实例仍交ROOT管理。主线与现役服务未切换。",
+    "checked_at": "2026-10-31T05:10:29.288421+00:00"
   }
 }

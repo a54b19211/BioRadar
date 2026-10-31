@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import json
+import re
 
 from bioradar.api.errors import DomainError
 from bioradar.research.investigations.analysis_models import InitialQuery, QuestionPlan
@@ -178,7 +179,7 @@ def freeze_policy(settings, requested=None):
         else "legacy_sequence"
         if selected == "baseline"
         else "heuristic",
-        "stop": "observed_checks_reading_pages_v3"
+        "stop": "observed_checks_reading_pages_objects_v4"
         if kdd
         else "legacy_bounded_sequence"
         if selected == "baseline"
@@ -205,8 +206,7 @@ def freeze_policy(settings, requested=None):
                     "automatic_initial_queries": 3,
                     "explicit_queries": "preserved_within_existing_limits",
                     "qualification": (
-                        "初查、目录、续页和补查共享document_search总额；"
-                        "显式查询会占用后续余量。"
+                        "初查、目录和新补查计document_search首查总额；续页计工具与步骤，每条最多五页。"
                     ),
                 },
                 "action_limits": copy.deepcopy(getattr(settings, "analysis_v2_action_limits", {})),
@@ -276,6 +276,13 @@ def question_plan_payload(fixed):
                 "只能翻译或改写问题已有含义，禁止补入问题未给的疾病、地点、年份、病例答案或文档编号。"
                 "reason说明原词与等义表达或同义变体的关系，并标明待检索假设、尚非原始事实或证据。"
                 "当前没有已读证据，不输出事实、命题或结论；一次字面查询为空不否定其余语言备选。"
+                + (
+                    "named_objects列出问题实际点名的对象；name必须逐字出现在问题里，"
+                    "question_span使用Unicode码点半开区间start/end。不要补入答案、材料编号或推测对象。"
+                    if fixed.get("query_policy", {}).get("research_contract_version")
+                    == "bioradar-research-input-v1"
+                    else ""
+                )
             ),
         }
     return {
@@ -299,7 +306,7 @@ def validate_initial_plans(raw, fixed):
         plans = (
             [InitialQuery.model_validate(item) for item in raw]
             if explicit
-            else QuestionPlan.model_validate(raw).queries
+            else QuestionPlan.model_validate({k: v for k, v in raw.items() if k != "named_objects"}).queries
         )
     except ValueError:
         raise DomainError("analysis_question_plan_invalid", "初查规划格式无效，未补造查询", 422) from None
@@ -449,13 +456,25 @@ def normalize_policy_coverage(reading, declared_checks, evidence):
             issues.append({"check_id": key, "source": "model_coverage", "status": "unknown"})
             continue
         if len(updates) != 1:
-            normalized.append({
-                "id": key, "status": "unknown", "evidence_ids": [],
-                "reason": "模型重复报告同一覆盖编号，状态保留未知。",
-            })
+            normalized.append(
+                {
+                    "id": key,
+                    "status": "unknown",
+                    "evidence_ids": [],
+                    "reason": "模型重复报告同一覆盖编号，状态保留未知。",
+                }
+            )
             issues.append({"check_id": key, "source": "model_coverage", "status": "unknown"})
         else:
             normalized.append(copy.deepcopy(updates[0]))
+    available = {row["key"] for row in evidence}
+    for row in normalized:
+        refs = row.get("evidence_ids", [])
+        if row.get("status") == "passed" and (
+            not refs or not isinstance(refs, list) or any(ref not in available for ref in refs)
+        ):
+            row.update(status="unknown", evidence_ids=[], reason="覆盖声明未绑定本轮已读证据。")
+            issues.append({"check_id": row["id"], "source": "model_coverage", "status": "unknown"})
     value["coverage_checks"] = normalized
     for plan in value.get("next_queries", []):
         if not isinstance(plan, dict) or not isinstance(plan.get("coverage_check_ids", []), list):
@@ -480,9 +499,7 @@ def _coverage_question_text(value):
     if isinstance(value, str):
         return value
     try:
-        return json.dumps(
-            value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False
-        )
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
     except (TypeError, ValueError):
         raise DomainError(
             "analysis_policy_coverage_invalid", "取证检查问题须为字符串或有限JSON值", 422
@@ -584,16 +601,18 @@ def build_coverage_checks(fixed, progress, *, reading=None):
                 reason="成稿核验或所选片段复核提出的取证缺口；先检查已读原文，再规划必要补查。",
             ),
         )
-    if external:
-        value, _ = normalize_policy_coverage(value, list(checks.values()), progress.get("evidence", []))
+    value, _ = normalize_policy_coverage(value, list(checks.values()), progress.get("evidence", []))
     seen = set()
     for update in value.get("coverage_checks", []):
         update = _plain(update)
         key = update.get("id")
         if external and key not in checks:
             key = aliases.get(key, key)
-        if key not in checks or key in seen or update.get("status") not in {"passed", "failed", "unknown"}:
-            raise DomainError("analysis_policy_coverage_invalid", "覆盖判断引用未声明或重复的检查", 422)
+        if key not in checks:
+            continue
+        if key in seen or update.get("status") not in {"passed", "failed", "unknown"}:
+            checks[key].update(status="unknown", evidence_ids=[], reason="模型覆盖声明无效，保留未知。")
+            continue
         seen.add(key)
         checks[key].update(
             {k: copy.deepcopy(update[k]) for k in ("status", "evidence_ids", "reason") if k in update}
@@ -723,13 +742,18 @@ def _candidate(plan, provider, phase, index, fixed, checks, reading):
         "id": f"{phase}-{provider}-{index}-" + key[:16],
         "kind": "document_search",
         "arguments": arguments,
-        **({
-            "reason": arguments["plan"]["reason"],
-            "applicability": {
-                "status": "eligible", "scope_match": 1,
-                "reason": "固定问题规划的独立字面备选，执行前仍核当前来源许可。",
-            },
-        } if hypothesis else {}),
+        **(
+            {
+                "reason": arguments["plan"]["reason"],
+                "applicability": {
+                    "status": "eligible",
+                    "scope_match": 1,
+                    "reason": "固定问题规划的独立字面备选，执行前仍核当前来源许可。",
+                },
+            }
+            if hypothesis
+            else {}
+        ),
         "covers": _category_covers(
             plan,
             checks,
@@ -918,6 +942,25 @@ def _history(fixed, progress):
     return history
 
 
+def search_query_count(fixed, progress):
+    """KDD first-page searches have their own limit; every page still costs tools/steps."""
+    queries = progress.get("queries", [])
+    if fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2":
+        return len(queries)
+    actions = {
+        action["id"]: action
+        for entry in progress.get("query_policy", {}).get("decisions", [])
+        if (action := _selected_action(entry))
+    }
+    return sum(
+        query.get("kind", "document_search") == "document_search"
+        and not actions.get(query.get("action_id"), {}).get("arguments", {}).get("cursor")
+        and not (query.get("usage") or {}).get("search_cursor")
+        and (query.get("pagination") or {}).get("page_number", 1) == 1
+        for query in queries
+    )
+
+
 def _policy_budget(fixed, progress):
     supplied = progress.get("query_policy", {}).get("budget")
     if supplied:
@@ -961,7 +1004,8 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
             except (ValueError, TypeError):
                 return None
             if (
-                not isinstance(native, list) or len(native) != 3
+                not isinstance(native, list)
+                or len(native) != 3
                 or native[2] is not fixed.get("is_demo", False)
             ):
                 return None
@@ -980,8 +1024,12 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
         key = bind(value)
         if key is not None:
             known[key] = {
-                "source_id": key[0], "source_record_id": key[1], "version_id": key[2],
-                "status": "unread", "priority": "normal", "reason": "scope",
+                "source_id": key[0],
+                "source_record_id": key[1],
+                "version_id": key[2],
+                "status": "unread",
+                "priority": "normal",
+                "reason": "scope",
                 "covers": ["answer_scope"],
             }
             metadata.setdefault(key, []).append(_plain(value))
@@ -1000,7 +1048,8 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
         if key is not None:
             read.add(key)
             if (
-                type(value.get("end")) is int and type(value.get("source_length")) is int
+                type(value.get("end")) is int
+                and type(value.get("source_length")) is int
                 and 0 <= value["end"] <= value["source_length"]
             ):
                 old = windows.get(key, (0, value["source_length"]))
@@ -1020,9 +1069,9 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
             if basis is None:
                 return
             known[key].update(priority="critical", reason=reason, basis=copy.deepcopy(basis))
-            known[key]["covers"] = list(dict.fromkeys(
-                [x for x in covers if x in declared] + known[key]["covers"]
-            ))
+            known[key]["covers"] = list(
+                dict.fromkeys([x for x in covers if x in declared] + known[key]["covers"])
+            )
 
     for key, items in metadata.items():
         for item in items:
@@ -1032,36 +1081,49 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
                 if relation.get("kind") in {"correction", "retraction"}:
                     basis = {"kind": "visible_source_relation", "reference_ids": [key[1]]}
                     critical(
-                        key, "correction", ["corrections", "count_revision", "counterevidence"],
+                        key,
+                        "correction",
+                        ["corrections", "count_revision", "counterevidence"],
                         basis=basis,
                     )
                     target = bind(relation.get("target_ref", {}))
                     critical(
-                        target, "correction", ["corrections", "count_revision", "counterevidence"],
+                        target,
+                        "correction",
+                        ["corrections", "count_revision", "counterevidence"],
                         basis=basis,
                     )
             facts = item.get("facts") or {}
             document = (
-                item.get("source_context") or item.get("document_evidence")
-                or facts.get("document_evidence") or context.get("document_evidence") or {}
+                item.get("source_context")
+                or item.get("document_evidence")
+                or facts.get("document_evidence")
+                or context.get("document_evidence")
+                or {}
             )
             for relation in document.get("document_relations", []):
                 if relation.get("relation_type") not in {"corrects", "retracts"}:
                     continue
                 basis = {"kind": "visible_source_relation", "reference_ids": [key[1]]}
                 critical(key, "correction", ["corrections", "count_revision", "counterevidence"], basis=basis)
-                target = bind({
-                    "source_id": relation.get("target_source_id"),
-                    "source_record_id": relation.get("target_source_record_id"),
-                    "version_id": relation.get("target_version_id"),
-                })
+                target = bind(
+                    {
+                        "source_id": relation.get("target_source_id"),
+                        "source_record_id": relation.get("target_source_record_id"),
+                        "version_id": relation.get("target_version_id"),
+                    }
+                )
                 critical(
-                    target, "correction", ["corrections", "count_revision", "counterevidence"],
+                    target,
+                    "correction",
+                    ["corrections", "count_revision", "counterevidence"],
                     basis=basis,
                 )
             if set(item.get("record_flags", [])) & {"retracted", "corrected"}:
                 critical(
-                    key, "counterevidence", ["counterevidence", "corrections"],
+                    key,
+                    "counterevidence",
+                    ["counterevidence", "corrections"],
                     basis={"kind": "visible_source_relation", "reference_ids": [key[1]]},
                 )
     quality = progress.get("quality_feedback") or {}
@@ -1072,7 +1134,8 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
         if not isinstance(request, dict):
             continue
         matches = [
-            key for key in known
+            key
+            for key in known
             if key[1] == request.get("record_id")
             and key[2] == request.get("version")
             and (not request.get("source_id") or key[0] == request["source_id"])
@@ -1081,7 +1144,9 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
             quality_checks = [x for x in declared if x.startswith("quality:")]
             if quality_checks:
                 critical(
-                    matches[0], "counterevidence", quality_checks,
+                    matches[0],
+                    "counterevidence",
+                    quality_checks,
                     basis={"kind": "observed_gap", "reference_ids": quality_checks},
                 )
     for key in read:
@@ -1090,9 +1155,10 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
             end, length = windows[key]
             if end < length:
                 known[key].update(status="unread", window_start=end)
-    return sorted(known.values(), key=lambda x: (
-        x["priority"] != "critical", x["source_id"], x["source_record_id"], x["version_id"]
-    ))
+    return sorted(
+        known.values(),
+        key=lambda x: (x["priority"] != "critical", x["source_id"], x["source_record_id"], x["version_id"]),
+    )
 
 
 def document_read_candidates(fixed, progress, manifest, checks):
@@ -1105,11 +1171,15 @@ def document_read_candidates(fixed, progress, manifest, checks):
         if item["status"] != "unread":
             continue
         args = {
-            "provider": "fabric", "source_id": item["source_id"],
-            "records": [{
-                "source_record_id": item["source_record_id"], "version_id": item["version_id"],
-                **({"window_start": item["window_start"]} if "window_start" in item else {}),
-            }],
+            "provider": "fabric",
+            "source_id": item["source_id"],
+            "records": [
+                {
+                    "source_record_id": item["source_record_id"],
+                    "version_id": item["version_id"],
+                    **({"window_start": item["window_start"]} if "window_start" in item else {}),
+                }
+            ],
             "scope": {
                 "direction": fixed["query_policy"].get("direction", "research"),
                 "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of")),
@@ -1117,17 +1187,21 @@ def document_read_candidates(fixed, progress, manifest, checks):
                 "is_demo": fixed.get("is_demo", False),
             },
         }
-        result.append({
-            "id": "read:" + semantic_key("document_read", args)[:32],
-            "kind": "document_read", "arguments": args,
-            "covers": [key for key in item["covers"] if key in declared],
-            "reason": item["reason"],
-            "applicability": {
-                "status": "eligible", "scope_match": 1,
-                "reason": "原件版本及Unicode窗口来自本轮已采用manifest；执行前仍核当前许可。",
-            },
-            "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
-        })
+        result.append(
+            {
+                "id": "read:" + semantic_key("document_read", args)[:32],
+                "kind": "document_read",
+                "arguments": args,
+                "covers": [key for key in item["covers"] if key in declared],
+                "reason": item["reason"],
+                "applicability": {
+                    "status": "eligible",
+                    "scope_match": 1,
+                    "reason": "原件版本及Unicode窗口来自本轮已采用manifest；执行前仍核当前许可。",
+                },
+                "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
+            }
+        )
     return result
 
 
@@ -1138,7 +1212,8 @@ def _pagination_covers(fixed, progress, previous, checks):
     if fixed.get("query_policy", {}).get("pagination_cover_version") != PAGINATION_COVER_VERSION:
         return covers
     entries = [
-        entry for entry in progress.get("query_policy", {}).get("decisions", [])
+        entry
+        for entry in progress.get("query_policy", {}).get("decisions", [])
         if (_selected_action(entry) or {}).get("id") == previous["action_id"]
     ]
     queries = [q for q in progress.get("queries", []) if q.get("action_id") == previous["action_id"]]
@@ -1153,9 +1228,7 @@ def _pagination_covers(fixed, progress, previous, checks):
         or semantic_key(parent["kind"], args) != semantic_key(previous["kind"], previous["arguments"])
     ):
         return covers
-    original_checks = {
-        item["id"] for item in (entries[0].get("policy_request") or {}).get("checks", [])
-    }
+    original_checks = {item["id"] for item in (entries[0].get("policy_request") or {}).get("checks", [])}
     for key in parent.get("covers", []):
         if (
             key in original_checks
@@ -1188,7 +1261,7 @@ def pagination_candidates(fixed, progress, checks):
             or type(page.get("max_seq")) is not int
             or page["max_seq"] < 0
             or type(page.get("page_number")) is not int
-            or not 1 <= page["page_number"] < 8
+            or not 1 <= page["page_number"] < 5
             or args.get("source_id") not in fixed["search_scope"]
         ):
             continue
@@ -1311,6 +1384,78 @@ def catalog_discovery_candidates(fixed, progress, plans, checks):
     return result
 
 
+def question_named_objects(fixed, raw):
+    """Accept only exact spans of the user's question, never inferred answer objects."""
+    result, seen = [], set()
+    for item in raw:
+        span = item.get("question_span", {})
+        start, end = span.get("start"), span.get("end")
+        if (
+            type(start) is not int
+            or type(end) is not int
+            or not 0 <= start < end <= len(fixed["question"])
+            or item.get("name") != fixed["question"][start:end]
+            or not isinstance(item.get("id"), str)
+            or not item["id"]
+            or item["id"] in seen
+        ):
+            raise DomainError("analysis_question_object_invalid", "点名对象未绑定原问题的准确位置", 422)
+        seen.add(item["id"])
+        result.append({key: copy.deepcopy(item[key]) for key in ("id", "name", "question_span")})
+    return result
+
+
+def _object_occurs(name, text):
+    left = r"(?<![A-Za-z0-9_-])" if name and name[0].isascii() and name[0].isalnum() else ""
+    right = r"(?![A-Za-z0-9_-])" if name and name[-1].isascii() and name[-1].isalnum() else ""
+    return bool(name and re.search(left + re.escape(name) + right, text, re.IGNORECASE))
+
+
+def named_object_context(fixed, progress, candidates, checks):
+    objects = question_named_objects(fixed, progress.get("query_policy", {}).get("named_objects", []))
+    history = _history(fixed, progress)
+    attempted = {semantic_key(item["kind"], item["arguments"]) for item in history}
+    output = []
+    for item in objects:
+        refs = [
+            e["key"] for e in progress.get("evidence", []) if _object_occurs(item["name"], e.get("text", ""))
+        ]
+        ids = []
+        if not refs:
+            for source in fixed["search_scope"]:
+                plan = {
+                    "source_id": source,
+                    "terms": [item["name"]],
+                    "reason": "补查问题点名但已读正文尚未覆盖的对象",
+                }
+                candidate = _candidate(plan, "fabric", "followup", len(history), fixed, checks, {})
+                identity = semantic_key(candidate["kind"], candidate["arguments"])
+                if identity not in attempted and not any(c["id"] == candidate["id"] for c in candidates):
+                    candidates.append(candidate)
+            for candidate in candidates:
+                args = candidate["arguments"]
+                terms = args.get("terms", [])
+                query = args.get("parameters", {}).get("query", "")
+                if any(item["name"].casefold() in term.casefold() for term in terms) or (
+                    query and item["name"].casefold() in query.casefold()
+                ):
+                    ids.append(candidate["id"])
+        output.append(
+            {
+                **item,
+                "status": "read" if refs else "unread" if ids else "unavailable",
+                "evidence_ids": refs,
+                "candidate_ids": ids,
+                **(
+                    {"reason": "本轮已尝试的查询未取得该对象正文，且没有可执行候选。"}
+                    if not refs and not ids
+                    else {}
+                ),
+            }
+        )
+    return output
+
+
 def build_policy_context(
     fixed, progress, *, phase, plans, reading=None, provider_status=None, graph_candidates=None
 ):
@@ -1381,6 +1526,9 @@ def build_policy_context(
         and (policy == "query_planner" or not candidates)
     ):
         candidates.append(_candidate(plans[0], "weknora", phase, 0, fixed, checks, value))
+    named = []
+    if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2":
+        named = named_object_context(fixed, progress, candidates, checks)
     if policy == "query_planner":
         for candidate in graph_candidates or []:
             item = _plain(candidate)
@@ -1402,6 +1550,7 @@ def build_policy_context(
     return {
         "schema_version": SCHEMA_VERSION,
         "question": fixed["question"],
+        **({"named_objects": named} if named else {}),
         "checks": checks,
         "evidence": [
             {

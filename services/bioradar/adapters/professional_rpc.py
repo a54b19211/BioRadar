@@ -256,8 +256,7 @@ def execute_professional(
             if exchanges:
                 previous = exchanges[-1]
                 if previous["request_hash"] == digest or (
-                    previous.get("response") is not None
-                    and previous["request"]["model_receipts"] == receipts
+                    previous.get("response") is not None and previous["request"]["model_receipts"] == receipts
                 ):
                     # The first response pins a version. Its saved model-required
                     # step/result remains authoritative despite that pin changing
@@ -300,13 +299,23 @@ def execute_professional(
             if not isinstance(output, dict):
                 raise _failure("professional_rpc_model_output_invalid", "统一模型回执不是JSON对象")
             _canonical(output)
-            receipts.append(
-                {
-                    "call_id": required["call_id"],
-                    "request_hash": required["request_hash"],
-                    "output": copy.deepcopy(output),
-                }
-            )
+            receipt = {
+                "call_id": required["call_id"],
+                "request_hash": required["request_hash"],
+                "output": copy.deepcopy(output),
+            }
+            if provider == "biocheck" and operation == "verify" and arguments.get("mode") == "paragraph":
+                if (
+                    required["stage"] not in {"verify_paragraph", "verify_paragraph_retry", "verify_coverage"}
+                    or output.get("finish_reason") not in {"stop", "length"}
+                    or output["finish_reason"] == "stop"
+                    and not isinstance(output.get("output"), dict)
+                ):
+                    raise _failure("professional_rpc_model_output_invalid", "分段核验缺少明确完成回执")
+                receipt.update(
+                    finish_reason=output["finish_reason"], output=copy.deepcopy(output.get("output"))
+                )
+            receipts.append(receipt)
             checkpoint()
         raise _failure("professional_rpc_callback_limit", "专业服务本操作超过有界重放步骤", 409)
     except DomainError as exc:

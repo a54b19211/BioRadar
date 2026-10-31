@@ -520,6 +520,19 @@ async function main() {
   assert.match(trackingPrint, /已有更正／撤回材料/);
   assert.match(trackingPrint, /下次应检查/);
   assert.doesNotMatch(await renderToString(Vue.createSSRApp(trackingComponent, { tracking: null })), /证据强度/);
+  const pendingJudgmentTracking = { ...trackingValue,
+    negative_signals: [{ kind: "not_found", record_ref: { object_id: "notice-1" } }],
+    hypothesis_comparison: { current_basis_unchanged: false, current_judgment: {
+      least_refuted_hypothesis_id: "H1", reason: "SYNTHETIC prior comparison",
+      next_discriminating_evidence: "SYNTHETIC next source check", qualification: "这是模型判断，未证实",
+    } },
+  };
+  const pendingJudgmentHtml = await renderToString(Vue.createSSRApp(trackingComponent, { tracking: pendingJudgmentTracking }));
+  assert.match(pendingJudgmentHtml, /热度可降、风险未排除/);
+  assert.match(pendingJudgmentHtml, /旧依据下判断，等待新研判/);
+  assert.match(pendingJudgmentHtml, /这是模型判断，未证实/);
+  assert.match(pendingJudgmentHtml, /SYNTHETIC next source check/);
+
   const attentionComponent = require("./check_query_policy_ui.cjs").compileComponent(
     "apps/web/src/components/engine/SourceAttentionPanel.vue", { "../../api/kdd": kddHelper.exports },
   );
@@ -560,6 +573,53 @@ async function main() {
   assert.equal(controls[0].body.lifecycle, "closed");
   assert.equal(controls[0].body.reason, topicContext.probe.lifecycleReason.value);
 
+  const formElement = Vue.defineComponent({ setup(_, { slots }) {
+    return () => Vue.h("div", slots.default?.());
+  } });
+  const configForm = require("./check_query_policy_ui.cjs").compileComponent(
+    "apps/web/src/components/engine/ResearchQuestionForm.vue", {
+      "element-plus": Object.fromEntries(["ElButton", "ElCheckbox", "ElInput", "ElInputNumber",
+        "ElOption", "ElSelect"].map(key => [key, formElement])),
+      "../../api/engine": { engineRequest() { throw new Error("Offline options rendering must not request HTTP"); } },
+    },
+  );
+  const optionsHtml = await renderToString(Vue.createSSRApp(configForm, { options: {
+    enabled: true, configured: true, retrieval_sources: [],
+    limits: { max_calls: 27, max_tokens: 777777, max_seconds: 3500, document_search: 13,
+      document_read: 29, pages_per_chain: 4, monitor_investigations_per_batch: 7 },
+  } }));
+  assert.match(optionsHtml, /实际执行配置/);
+  assert.match(optionsHtml, /每链最大页数/);
+  assert.match(optionsHtml, /每批自动调查上限/);
+  assert.match(optionsHtml, /777,777/);
+  assert.match(optionsHtml, />7</);
+  const originalConfigSetup = configForm.setup;
+  let renderPolicy = "baseline";
+  configForm.setup = (props, context) => {
+    const state = originalConfigSetup(props, context);
+    state.queryPolicy.value = renderPolicy;
+    return state;
+  };
+  const scopedOptions = {
+    enabled: true, configured: true, retrieval_sources: [],
+    limits: { max_calls: 27, max_tokens: 777777, evidence_versions: 32 },
+    limits_by_policy: {
+      baseline: { evidence_versions: 11, evidence_characters: 41000, records_per_query: 4,
+        document_search: 9, document_read: 0, pages_per_chain: 1 },
+      query_planner: { evidence_versions: 33, evidence_characters: 101000, records_per_query: 9,
+        document_search: 17, document_read: 31, pages_per_chain: 6 },
+    },
+  };
+  const baselineOptionsHtml = await renderToString(Vue.createSSRApp(configForm, { options: scopedOptions }));
+  assert.match(baselineOptionsHtml, /采用版本上限<\/dt><dd>11<\/dd>/);
+  assert.match(baselineOptionsHtml, /原件读取动作上限<\/dt><dd>0<\/dd>/);
+  assert.match(baselineOptionsHtml, /每链最大页数<\/dt><dd>1<\/dd>/);
+  renderPolicy = "query_planner";
+  const plannerOptionsHtml = await renderToString(Vue.createSSRApp(configForm, { options: scopedOptions }));
+  assert.match(plannerOptionsHtml, /采用版本上限<\/dt><dd>33<\/dd>/);
+  assert.match(plannerOptionsHtml, /原件读取动作上限<\/dt><dd>31<\/dd>/);
+  assert.match(plannerOptionsHtml, /每链最大页数<\/dt><dd>6<\/dd>/);
+
   await require("./check_query_policy_ui.cjs")();
   const unboundAssessment = await renderReport("PASS", "passed", [], {}, {
     assessment_binding: { status: "unbound", scope: "current_result_claim_ids", can_use_bound_claim_refs: false,
@@ -571,6 +631,17 @@ async function main() {
   assert.match(unboundAssessment, /不作为已绑定评分或自动行动依据/);
   assert.match(unboundAssessment, /Exact final report text/);
   assert.match(unboundAssessment, /OLD（本版未找到对应陈述）/);
+  const hypothesisJudgmentHtml = await renderReport("REVIEW", "needs_review", [], {}, {
+    competing_hypotheses: [{ id: "H1", explanation: "SYNTHETIC candidate explanation",
+      supporting_claim_ids: [], opposing_claim_ids: [], discriminating_evidence_needed: "source test",
+      untested_conditions: [] }],
+    current_judgment: { least_refuted_hypothesis_id: "H1", reason: "SYNTHETIC fewest current refutations",
+      next_discriminating_evidence: "SYNTHETIC next discriminating observation",
+      qualification: "这是模型判断，未证实" },
+  });
+  assert.match(hypothesisJudgmentHtml, /当前反证最少的假说：H1/);
+  assert.match(hypothesisJudgmentHtml, /这是模型判断，未证实/);
+  assert.match(hypothesisJudgmentHtml, /SYNTHETIC next discriminating observation/);
   console.log(JSON.stringify({ status: "passed", checks: [
     "api_preserves_retained_investigation_receipt",
     "markdown_download_reads_exact_text",

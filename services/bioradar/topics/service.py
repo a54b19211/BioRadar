@@ -46,7 +46,7 @@ from bioradar.topics.risk import (
     assess_risk_reassessment,
     risk_scope_stamp,
 )
-from bioradar.topics.tracking import tracking_view, update_tracking
+from bioradar.topics.tracking import hypothesis_comparison, tracking_view, update_tracking
 
 EVALUATION_LIMIT = 50000
 SOURCE_GAPS = {"history_source_unavailable", "history_read_budget", "history_not_connected"} | set(
@@ -537,6 +537,9 @@ class TopicService:
                 "closed_bucket_end",
             }
         }
+        if row.followup.get("hypothesis_comparison"):
+            result["tracking"] = copy.deepcopy(result.get("tracking") or {})
+            result["tracking"]["hypothesis_comparison"] = copy.deepcopy(row.followup["hypothesis_comparison"])
         if result.get("tracking") and row.followup.get("status") == "waiting_budget":
             result["tracking"] = copy.deepcopy(result["tracking"])
             result["tracking"]["model_update"].update(
@@ -1252,6 +1255,23 @@ class TopicService:
         expected = risk_scope_stamp(
             scope.topic_id, scope.scope_revision, scope.observation_revision, scope.definition, tracking
         )
+        if (stored.result or {}).get("current_judgment") is not None:
+            comparison = hypothesis_comparison(
+                stored.result.get("competing_hypotheses") or [],
+                stored.result.get("claims") or [],
+                model_judgment=stored.result["current_judgment"],
+            )
+            comparison.update(
+                analysis_id=stored.id,
+                evidence_fingerprint=tracking.get("_evidence_fingerprint"),
+                current_basis_unchanged=(stored.fixed_input.get("origin") or {}).get("topic_risk_scope")
+                == expected,
+            )
+            tracking["hypothesis_comparison"] = comparison
+            progress["_tracking"] = tracking
+            scope.progress = progress
+            state["hypothesis_comparison"] = comparison
+            evaluation.followup = state
         analysis = {
             "id": stored.id,
             "state": stored.state,

@@ -97,7 +97,112 @@ def _identity(packet, rules):
             raise ValueError("Message IDs must be unique within each case")
 
 
-def seal(packet, rules, settings, answers, key_messages, code_revision):
+def native_receipt_digest(receipt):
+    """SHA-256 of UTF-8 JSON: sorted keys, no spaces, ensure_ascii=False."""
+    return _hash(json.dumps(receipt, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode())
+
+
+def _native_readback(receipt):
+    fields = {
+        "instance_sha256",
+        "observed_at",
+        "native_analysis_count",
+        "first_native_analysis_id",
+        "first_native_analysis_created_at",
+    }
+    if not isinstance(receipt, dict) or set(receipt) != fields:
+        raise ValueError("Native readback needs only the declared source-free proof fields")
+    if not isinstance(receipt["instance_sha256"], str) or not _SHA.fullmatch(receipt["instance_sha256"]):
+        raise ValueError("Native readback instance hash is invalid")
+    count = receipt["native_analysis_count"]
+    if type(count) is not int or count < 0:
+        raise ValueError("Native analysis count must be a nonnegative integer")
+    observed, _ = _interval(receipt["observed_at"], "second")
+    first = None
+    if count == 0:
+        if (
+            receipt["first_native_analysis_id"] is not None
+            or receipt["first_native_analysis_created_at"] is not None
+        ):
+            raise ValueError("Zero native analysis count cannot include a first analysis")
+    else:
+        if (
+            not isinstance(receipt["first_native_analysis_id"], str)
+            or not receipt["first_native_analysis_id"]
+        ):
+            raise ValueError("Native first analysis identity is missing")
+        first, _ = _interval(receipt["first_native_analysis_created_at"], "second")
+        if first > observed:
+            raise ValueError("Native first analysis must exist by its readback")
+    return observed, first
+
+
+def _seal_runtime(code_registry, runtime_preflight, code_revision, now):
+    if code_registry is None or runtime_preflight is None:
+        raise ValueError("A code registry and zero-analysis runtime preflight are required before sealing")
+    registry, preflight = _load(code_registry), _load(runtime_preflight)
+    _public(registry)
+    _public(preflight)
+    if not isinstance(registry, dict) or set(registry) != {"components"}:
+        raise ValueError("Code registry must contain its component records")
+    components = registry["components"]
+    if not isinstance(components, list) or not components:
+        raise ValueError("Code registry components are required")
+    names = []
+    for item in components:
+        if not isinstance(item, dict) or set(item) != {"name", "revision", "source_sha256"}:
+            raise ValueError("Each registry component needs name, revision and source_sha256")
+        if not all(isinstance(item[key], str) and item[key] for key in ("name", "revision")):
+            raise ValueError("Registry component name and revision must be nonempty")
+        if not isinstance(item["source_sha256"], str) or not _SHA.fullmatch(item["source_sha256"]):
+            raise ValueError("Registry component source hash is invalid")
+        names.append(item["name"])
+    if len(set(names)) != len(names):
+        raise ValueError("Registry component names must be unique")
+    radar = next((item for item in components if item["name"] == "radar"), None)
+    if radar is None or radar["revision"] != code_revision:
+        raise ValueError("Registry Radar revision differs from the sealed code revision")
+    fields = {
+        "instance_id",
+        "instance_sha256",
+        "native_analysis_count",
+        "observed_at",
+        "native_readback_sha256",
+        "native_readback",
+    }
+    if not isinstance(preflight, dict) or set(preflight) != fields:
+        raise ValueError("Runtime preflight must be a source-free instance and native-count receipt")
+    if not isinstance(preflight["instance_id"], str) or not preflight["instance_id"]:
+        raise ValueError("Runtime instance identity is required")
+    if type(preflight["native_analysis_count"]) is not int or preflight["native_analysis_count"] != 0:
+        raise ValueError("Runtime native analysis count must be exactly zero (0) before sealing")
+    for field in ("instance_sha256", "native_readback_sha256"):
+        if not isinstance(preflight[field], str) or not _SHA.fullmatch(preflight[field]):
+            raise ValueError("Runtime preflight proof hash is invalid")
+    native = preflight["native_readback"]
+    _native_readback(native)
+    if preflight["native_readback_sha256"] != native_receipt_digest(native):
+        raise ValueError("Runtime preflight native readback hash mismatch")
+    for field in ("instance_sha256", "observed_at", "native_analysis_count"):
+        if preflight[field] != native[field]:
+            raise ValueError("Runtime preflight differs from its native readback")
+    observed, _ = _interval(preflight["observed_at"], "second")
+    if observed > now:
+        raise ValueError("Runtime preflight cannot be from after sealing")
+    return registry, preflight
+
+
+def seal(
+    packet,
+    rules,
+    settings,
+    answers,
+    key_messages,
+    code_revision,
+    *,
+    code_registry=None,
+    runtime_preflight=None,
+):
     """Coordinator operation: hash answer bytes without exposing their contents."""
     public_packet, public_rules, public_settings = _load(packet), _load(rules), _load(settings)
     for item in (public_packet, public_rules, public_settings):
@@ -105,11 +210,15 @@ def seal(packet, rules, settings, answers, key_messages, code_revision):
     _identity(public_packet, public_rules)
     if not code_revision:
         raise ValueError("Frozen code revision is required")
+    now = datetime.now(timezone.utc)
+    registry, preflight = _seal_runtime(code_registry, runtime_preflight, code_revision, now)
     return {
         "schema_version": VERSION,
         "experiment_id": public_packet["experiment_id"],
         "scenario": public_packet["scenario"],
-        "sealed_at": datetime.now(timezone.utc).isoformat(),
+        "sealed_at": now.isoformat(),
+        "code_registry": registry,
+        "runtime_preflight": preflight,
         "code_revision": code_revision,
         "commitments": {
             "packet_sha256": _hash(packet),
@@ -117,6 +226,8 @@ def seal(packet, rules, settings, answers, key_messages, code_revision):
             "model_settings_sha256": _hash(settings),
             "answers_sha256": _hash(answers),
             "key_messages_sha256": _hash(key_messages),
+            "code_registry_sha256": _hash(code_registry),
+            "runtime_preflight_sha256": _hash(runtime_preflight),
         },
     }
 
@@ -140,6 +251,9 @@ def prepare(manifest, packet, rules, settings, output):
         "experiment_id": manifest["experiment_id"],
         "scenario": manifest["scenario"],
         "code_revision": manifest["code_revision"],
+        "code_registry_sha256": manifest["commitments"]["code_registry_sha256"],
+        "runtime_instance_sha256": manifest["runtime_preflight"]["instance_sha256"],
+        "native_preflight_readback_sha256": manifest["runtime_preflight"]["native_readback_sha256"],
         "packet_sha256": _hash(packet),
         "rules_sha256": _hash(rules),
         "model_settings_sha256": _hash(settings),
@@ -223,6 +337,56 @@ def evaluate(manifest, packet, rules, settings, answers, key_messages, runs, rev
                 issues.append("run_" + name + "_mismatch")
         if run.get("code_revision") != manifest["code_revision"]:
             issues.append("code_revision_mismatch")
+        registry_hash = manifest["commitments"].get("code_registry_sha256")
+        if not isinstance(registry_hash, str) or not _SHA.fullmatch(registry_hash):
+            issues.append("pre_run_code_registry_missing")
+        if run.get("code_registry_sha256") != registry_hash:
+            issues.append("code_registry_sha256_mismatch")
+        preflight = manifest.get("runtime_preflight") or {}
+        if preflight.get("native_analysis_count") != 0 or not preflight.get("instance_sha256"):
+            issues.append("pre_run_native_preflight_missing")
+        try:
+            native_before = preflight.get("native_readback")
+            _native_readback(native_before)
+            valid_before = (
+                native_receipt_digest(native_before) == preflight.get("native_readback_sha256")
+                and all(
+                    native_before[field] == preflight.get(field)
+                    for field in ("instance_sha256", "observed_at", "native_analysis_count")
+                )
+                and native_before["native_analysis_count"] == 0
+            )
+        except (ValueError, TypeError):
+            valid_before = False
+        if not valid_before:
+            issues.append("pre_run_native_preflight_content_invalid")
+        if run.get("runtime_instance_sha256") != preflight.get("instance_sha256"):
+            issues.append("runtime_instance_mismatch")
+        native_id = run.get("first_native_analysis_id")
+        if not isinstance(native_id, str) or not native_id:
+            issues.append("first_native_analysis_id_missing")
+        native_receipt = run.get("native_analysis_readback_sha256")
+        if not isinstance(native_receipt, str) or not _SHA.fullmatch(native_receipt):
+            issues.append("native_analysis_readback_missing")
+        native = run.get("native_analysis_readback")
+        try:
+            _, first_native = _native_readback(native)
+        except (ValueError, TypeError):
+            issues.append("native_analysis_readback_content_missing_or_invalid")
+        else:
+            if native_receipt_digest(native) != native_receipt:
+                issues.append("native_analysis_readback_hash_mismatch")
+            if native["native_analysis_count"] == 0:
+                issues.append("native_analysis_readback_has_no_analysis")
+            if native["first_native_analysis_id"] != native_id:
+                issues.append("native_readback_analysis_id_mismatch")
+            if native["first_native_analysis_created_at"] != run.get("first_native_analysis_created_at"):
+                issues.append("native_readback_created_at_mismatch")
+            if native["instance_sha256"] != preflight.get("instance_sha256"):
+                issues.append("native_readback_instance_mismatch")
+            sealed_at, _ = _interval(manifest.get("sealed_at"), "second")
+            if first_native is None or first_native <= sealed_at:
+                issues.append("first_native_analysis_not_after_seal")
         if run.get("experiment_id") != manifest["experiment_id"]:
             issues.append("experiment_identity_mismatch")
         receipt = run.get("execution_receipt_sha256")
@@ -460,6 +624,14 @@ def evaluate(manifest, packet, rules, settings, answers, key_messages, runs, rev
             {
                 "arm": arm,
                 "run_sha256": run_hash,
+                "native_execution": {
+                    "first_native_analysis_id": run.get("first_native_analysis_id"),
+                    "first_native_analysis_created_at": run.get("first_native_analysis_created_at"),
+                    "native_analysis_readback_sha256": run.get("native_analysis_readback_sha256"),
+                    "native_analysis_readback": run.get("native_analysis_readback"),
+                    "runtime_instance_sha256": run.get("runtime_instance_sha256"),
+                    "code_registry_sha256": run.get("code_registry_sha256"),
+                },
                 "true_case_count": len(primary),
                 "true_cases_with_supported_judgment": len(recalled),
                 "true_case_recall": len(recalled) / len(primary) if primary else None,
@@ -509,6 +681,8 @@ def main(argv=None):
             command.add_argument("--" + argument, required=True)
         if name == "seal":
             command.add_argument("--code-revision", required=True)
+            command.add_argument("--code-registry", required=True)
+            command.add_argument("--runtime-preflight", required=True)
         else:
             command.add_argument("--seal", required=True)
         if name in {"seal", "grade"}:
@@ -520,7 +694,14 @@ def main(argv=None):
     args = parser.parse_args(argv)
     public = [_read(getattr(args, name)) for name in ("packet", "rules", "model_settings")]
     if args.phase == "seal":
-        result = seal(*public, _read(args.answers), _read(args.key_messages), args.code_revision)
+        result = seal(
+            *public,
+            _read(args.answers),
+            _read(args.key_messages),
+            args.code_revision,
+            code_registry=_read(args.code_registry),
+            runtime_preflight=_read(args.runtime_preflight),
+        )
     else:
         manifest = _load(_read(args.seal))
         if args.phase == "prepare":

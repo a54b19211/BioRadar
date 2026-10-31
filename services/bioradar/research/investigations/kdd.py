@@ -52,14 +52,12 @@ def policy_for(fixed):
         narrative_contract_version=narrative_version,
         source_intelligence_version=source_version,
         time_mode="availability_replay"
-        if fixed.get("evidence_time", {}).get("mode") in {
-            "operational_replay", "public_history_reconstruction"
-        }
+        if fixed.get("evidence_time", {}).get("mode")
+        in {"operational_replay", "public_history_reconstruction"}
         else "publication_retrospective",
         availability_basis=fixed["evidence_time"]["mode"]
-        if fixed.get("evidence_time", {}).get("mode") in {
-            "operational_replay", "public_history_reconstruction"
-        }
+        if fixed.get("evidence_time", {}).get("mode")
+        in {"operational_replay", "public_history_reconstruction"}
         else None,
     )
 
@@ -153,7 +151,8 @@ def ensure_artifacts(service, identifier, token, fixed, progress):
         for _, _, snapshot in snapshots:
             for record in snapshot.records:
                 item = {
-                    "record_ref": record.record_ref.model_dump(mode="json"), "source_id": record.source_id,
+                    "record_ref": record.record_ref.model_dump(mode="json"),
+                    "source_id": record.source_id,
                 }
                 if record.signal_context is not None:
                     context = record.signal_context.model_dump(mode="json")
@@ -364,50 +363,80 @@ def extend_context(fixed, progress, context, reading=None):
             )
     fetch_enabled = (
         fixed["query_policy"].get("research_contract_version") == "bioradar-research-input-v1"
-        and not fixed["is_demo"] and fixed["evidence_time"]["mode"] == "current"
+        and fixed["evidence_time"]["mode"] == "current"
+        and (
+            not fixed["is_demo"] or fixed.get("providers", {}).get("fabric_fetch", {}).get("demo_instance_id")
+        )
         and fixed.get("providers", {}).get("fabric_fetch", {}).get("available")
     )
     if fetch_enabled:
         from bioradar.adapters.fabric_fetch import FETCH_VERSION, normalize_fetch_request
 
-        capabilities.append({
-            "id": "fabric.history.fetch", "kind": "source_fetch", "version": FETCH_VERSION,
-            "directions": [direction], "input_requirements": [],
-        })
+        capabilities.append(
+            {
+                "id": "fabric.history.fetch",
+                "kind": "source_fetch",
+                "version": FETCH_VERSION,
+                "directions": [direction],
+                "input_requirements": [],
+            }
+        )
         for item in list(candidates):
             query = item.get("arguments", {})
             if (
-                item["kind"] != "document_search" or query.get("provider") != "fabric"
-                or query.get("catalog_discovery") is True or "cursor" in query
+                item["kind"] != "document_search"
+                or query.get("provider") != "fabric"
+                or query.get("catalog_discovery") is True
+                or "cursor" in query
             ):
                 continue
             if query.get("source_id") not in {
-                "clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don", "sec_companyfacts",
+                "clinicaltrials",
+                "pubmed",
+                "fda_crl",
+                "europe_pmc",
+                "who_don",
+                "sec_companyfacts",
+                *(["external_archive"] if fixed["is_demo"] else []),
             }:
                 continue
-            parameters = normalize_fetch_request({
-                "source_id": query["source_id"], "query": " ".join(query["terms"]),
-                "max_records": fixed.get("reading_limits", {}).get("search_limit", 8),
-                "max_pages": 1, "deadline_seconds": 30,
-            })
+            parameters = normalize_fetch_request(
+                {
+                    "source_id": query["source_id"],
+                    "query": " ".join(query["terms"]),
+                    "max_records": fixed.get("reading_limits", {}).get("search_limit", 8),
+                    "max_pages": 1,
+                    "deadline_seconds": 30,
+                }
+            )
             args = {
-                "capability_id": "fabric.history.fetch", "capability_version": FETCH_VERSION,
+                "capability_id": "fabric.history.fetch",
+                "capability_version": FETCH_VERSION,
                 "input_refs": _artifact_refs([source]) if source else [],
                 "scope": {
-                    "direction": direction, "as_of": fixed["evidence_time"]["cutoff"],
-                    "mode": "current", "is_demo": False,
+                    "direction": direction,
+                    "as_of": fixed["evidence_time"]["cutoff"],
+                    "mode": "current",
+                    "is_demo": fixed["is_demo"],
                 },
                 "parameters": parameters,
             }
-            candidates.append({
-                "id": "fetch:" + canonical_hash(args)[:32], "kind": "source_fetch",
-                "capability_id": "fabric.history.fetch", "arguments": args,
-                "covers": copy.deepcopy(item["covers"]),
-                "reason": "按当前可见的具体问题词请求来源增量采集；不代表已取得或覆盖。",
-                "applicability": {"status": "eligible", "scope_match": 1,
-                                  "reason": "已配置真实当前补采，查询词来自本轮实际计划。"},
-                "estimated_cost": {"tool_calls": 1, "tokens": 0},
-            })
+            candidates.append(
+                {
+                    "id": "fetch:" + canonical_hash(args)[:32],
+                    "kind": "source_fetch",
+                    "capability_id": "fabric.history.fetch",
+                    "arguments": args,
+                    "covers": copy.deepcopy(item["covers"]),
+                    "reason": "按当前可见的具体问题词请求来源增量采集；不代表已取得或覆盖。",
+                    "applicability": {
+                        "status": "eligible",
+                        "scope_match": 1,
+                        "reason": "已配置真实当前补采，查询词来自本轮实际计划。",
+                    },
+                    "estimated_cost": {"tool_calls": 1, "tokens": 0},
+                }
+            )
     attempted = {canonical_hash([item["kind"], item["arguments"]]) for item in value["history"]}
     value["candidates"] = [
         item
@@ -425,17 +454,19 @@ def extend_context(fixed, progress, context, reading=None):
         capabilities=capabilities,
         artifacts=copy.deepcopy(current),
         scope={
-            "direction": direction, "mode": fixed["evidence_time"]["mode"],
-            "as_of": fixed["evidence_time"]["cutoff"], "is_demo": fixed["is_demo"],
+            "direction": direction,
+            "mode": fixed["evidence_time"]["mode"],
+            "as_of": fixed["evidence_time"]["cutoff"],
+            "is_demo": fixed["is_demo"],
         },
         selector=fixed["query_policy"]["selector"],
         **(
             {"action_limits": copy.deepcopy(fixed["query_policy"]["action_limits"])}
-            if "action_limits" in fixed["query_policy"] else {}
+            if "action_limits" in fixed["query_policy"]
+            else {}
         ),
     )
     return value
-
 
 
 def _dataset_payload(data, snapshot, fixed, progress):
@@ -452,9 +483,9 @@ def _dataset_payload(data, snapshot, fixed, progress):
         ]
         data["narrative_extractions"] = sorted(extractions, key=canonical_hash) if complete else extractions
     if complete:
-        data["dataset_hash"] = canonical_hash({
-            key: value for key, value in data.items() if key != "dataset_hash"
-        })
+        data["dataset_hash"] = canonical_hash(
+            {key: value for key, value in data.items() if key != "dataset_hash"}
+        )
     return data
 
 
@@ -466,7 +497,10 @@ def execute_action(service, identifier, token, fixed, progress, action, step):
     args = action["arguments"]
     receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
     if receipt is None:
-        if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
+        if (
+            fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+            and len(progress["queries"]) >= fixed["budget"]["max_queries"]
+        ):
             raise DomainError("analysis_query_budget", "本轮研究动作预算已用尽", 422)
         receipt = AnalysisQueryReceipt(
             index=len(progress["queries"]),
@@ -527,7 +561,12 @@ def execute_action(service, identifier, token, fixed, progress, action, step):
             from bioradar.research.investigations.narrative_execution import prepare_narrative_snapshot
 
             snapshot = prepare_narrative_snapshot(
-                service, identifier, token, fixed, progress, snapshot,
+                service,
+                identifier,
+                token,
+                fixed,
+                progress,
+                snapshot,
                 allow_model=action["kind"] == "dataset_prepare",
             )
         policy = policy_for(fixed)
@@ -561,9 +600,11 @@ def execute_action(service, identifier, token, fixed, progress, action, step):
                 preparation = _dataset_payload(preparation, snapshot, fixed, progress)
                 preparation.update(selection_summary=summary, dataset_hash_scope=hash_scope)
                 result = result.model_copy(update={"data_preparation": preparation})
-                result = result.model_copy(update={
-                    "result_hash": canonical_hash(result.model_dump(mode="json", exclude={"result_hash"}))
-                })
+                result = result.model_copy(
+                    update={
+                        "result_hash": canonical_hash(result.model_dump(mode="json", exclude={"result_hash"}))
+                    }
+                )
             if result.data_preparation["dataset_hash"] != inputs[0]["version"]:
                 raise DomainError("analysis_dataset_scope_changed", "运行输入不再是已采用的分析数据", 409)
             artifact = {
@@ -917,8 +958,7 @@ def source_update_context(fixed, progress):
     if fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1":
         return {}
     catalog = (
-        progress.get("kdd_source_catalog", [])
-        + fixed.get("evidence", []) + progress.get("evidence", [])
+        progress.get("kdd_source_catalog", []) + fixed.get("evidence", []) + progress.get("evidence", [])
     )
     updates, unresolved = {}, {}
     for item in catalog:
@@ -949,16 +989,26 @@ def source_update_context(fixed, progress):
             }
             if target["version"] is None:
                 unresolved[canonical_hash([source_id, record_id, relation])] = {
-                    "kind": kind, "target": target, "replacement": replacement,
+                    "kind": kind,
+                    "target": target,
+                    "replacement": replacement,
                     "reason": "来源未给出目标固定版本；未猜测或认定完成替代。",
                 }
                 continue
-            key = canonical_hash([
-                kind, relation["target_source_id"], target, record_id, replacement["version"],
-            ])
+            key = canonical_hash(
+                [
+                    kind,
+                    relation["target_source_id"],
+                    target,
+                    record_id,
+                    replacement["version"],
+                ]
+            )
             previous = updates.get(key)
             update = {
-                "kind": kind, "target": target, "replacement": replacement,
+                "kind": kind,
+                "target": target,
+                "replacement": replacement,
                 "reason": "固定来源明确声明更正或撤回；不是科学真实性批准。",
             }
             if previous is None or replacement.get("evidence_id"):
