@@ -353,7 +353,7 @@ def test_weknora_http_error_does_not_echo_private_body_or_credentials():
         {"analysis_max_calls": 33},
         {"analysis_max_queries": 33},
         {"analysis_max_tokens": 10_000_001},
-        {"analysis_max_seconds": 1801},
+        {"analysis_max_seconds": 3601},
         {"weknora_url": "http://:password@localhost"},
         {"weknora_url": "http://localhost:invalid"},
         {"weknora_url": "http://localhost/\n"},

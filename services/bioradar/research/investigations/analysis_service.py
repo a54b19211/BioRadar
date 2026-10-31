@@ -447,6 +447,22 @@ class AnalysisService:
         from bioradar.research.investigations.kdd import material_scope
 
         progress = row.progress
+        query_views = [{k: v for k, v in q.items() if k != "records"} for q in progress.get("queries", [])]
+        if (
+            row.fixed_input.get("query_policy", {}).get("discovery_version")
+            == "bounded-required-gap-discovery-v1"
+        ):
+            for query, view in zip(progress.get("queries", []), query_views, strict=True):
+                if query.get("provider") == "fabric" and query.get("kind") == "document_search":
+                    view["returned_versions"] = [
+                        {key: record[key] for key in ("source_id", "source_record_id", "version_id")}
+                        for record in query.get("records", [])
+                        if isinstance(record, dict)
+                        and all(
+                            isinstance(record.get(key), str) and record[key]
+                            for key in ("source_id", "source_record_id", "version_id")
+                        )
+                    ]
         policy_view = cls._policy_view(row.fixed_input, progress)
         result = assessment_result_view(row.result) if row.result else None
         if result is not None and policy_view is not None:
@@ -461,7 +477,7 @@ class AnalysisService:
             prompt_version=row.fixed_input["prompt_version"],
             search_scope=row.fixed_input["search_scope"],
             evidence=progress.get("evidence", row.fixed_input["evidence"]),
-            queries=[{k: v for k, v in q.items() if k != "records"} for q in progress.get("queries", [])],
+            queries=query_views,
             calls=[
                 {
                     k: v

@@ -24,7 +24,10 @@ def _sources(settings):
         return None
     root = Path(settings.mech_evidence_project_dir) / "mechevidence"
     try:
-        sources = {name: (root / name).read_text(encoding="utf-8") for name in _FILES}
+        names = list(_FILES)
+        if (root / "source_notes.py").is_file():
+            names.insert(1, "source_notes.py")
+        sources = {name: (root / name).read_text(encoding="utf-8") for name in names}
         parsed = {name: ast.parse(source) for name, source in sources.items()}
         if not any(
             isinstance(node, ast.FunctionDef) and node.name == "evaluate" for node in parsed["assess.py"].body
@@ -34,7 +37,9 @@ def _sources(settings):
             return None
     except (OSError, UnicodeError, SyntaxError):
         return None
-    version = hashlib.sha256("".join(name + "\0" + sources[name] for name in _FILES).encode()).hexdigest()
+    version = hashlib.sha256(
+        "".join(name + "\0" + source for name, source in sources.items()).encode()
+    ).hexdigest()
     return sources, version
 
 
@@ -64,7 +69,7 @@ def load_mech_evidence(settings):
     package.__path__ = []
     sys.modules[package_name] = package
     try:
-        for filename in _FILES:
+        for filename in sources:
             name = package_name + "." + filename.removesuffix(".py")
             module = ModuleType(name)
             module.__package__ = package_name
@@ -72,10 +77,32 @@ def load_mech_evidence(settings):
             sys.modules[name] = module
             exec(compile(sources[filename], module.__file__, "exec"), module.__dict__)
     except Exception:
-        for name in (package_name, *(package_name + "." + f[:-3] for f in _FILES)):
+        for name in (package_name, *(package_name + "." + f[:-3] for f in sources)):
             sys.modules.pop(name, None)
         return None, None, version
     return sys.modules[package_name + ".models"], sys.modules[package_name + ".assess"], version
+
+
+def mechanism_model_context(result):
+    """Keep reviewed Mech context separate from its audit-only original reviews.
+
+    Missing source_reporting retains the previous provider's byte-compatible path;
+    an explicitly unreviewed/other-method result cannot be used as new model context.
+    """
+    view = copy.deepcopy(result)
+    if "source_reporting" not in view:
+        return view
+    reporting = view["source_reporting"]
+    if (
+        not isinstance(reporting, dict)
+        or reporting.get("status") != "reviewed"
+        or reporting.get("method") != "source-reporting-v1"
+    ):
+        raise DomainError(
+            "mech_evidence_source_reporting_invalid", "机制评价的来源说明尚未复核，不能用于新生成", 502
+        )
+    reporting.pop("raw_reviews", None)
+    return view
 
 
 def _identity(reference):
@@ -95,11 +122,16 @@ def _document_type(item):
     context = item.get("source_context") or {}
     kind = context.get("material_kind")
     mapping = {
-        "primary_research": "research_article", "review": "review",
-        "trial_registry": "trial_registration", "press_release": "press_release",
-        "corporate_disclosure": "company_disclosure", "news_report": "news",
-        "social_media": "social_post", "repost": "social_post",
-        "conference_abstract": "conference_abstract", "graph": "graph",
+        "primary_research": "research_article",
+        "review": "review",
+        "trial_registry": "trial_registration",
+        "press_release": "press_release",
+        "corporate_disclosure": "company_disclosure",
+        "news_report": "news",
+        "social_media": "social_post",
+        "repost": "social_post",
+        "conference_abstract": "conference_abstract",
+        "graph": "graph",
     }
     return mapping.get(kind) if kind is not None else item.get("document_type")
 
@@ -213,7 +245,8 @@ def _case(packet):
                 "title": item.get("title", ""),
                 "source_kind": kind,
                 "text_level": item.get("text_level")
-                if item.get("text_level") in {"full_text", "abstract"} else "selected_passages",
+                if item.get("text_level") in {"full_text", "abstract"}
+                else "selected_passages",
                 **({"document_type": document_type} if document_type else {}),
                 **({"is_demo": item["is_demo"]} if type(item.get("is_demo")) is bool else {}),
                 **identity,
@@ -341,17 +374,22 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
     if missing and not case.get("materials"):
         return {
             **_state(
-                packet, "needs_input", version=version,
-                code="mech_evidence_material_type_missing", missing=missing,
+                packet,
+                "needs_input",
+                version=version,
+                code="mech_evidence_material_type_missing",
+                missing=missing,
             ),
             "material_type_mapping": classification,
             "material_feedback": [
                 {
-                    "material_id": item["evidence_id"], "field": "source_kind",
+                    "material_id": item["evidence_id"],
+                    "field": "source_kind",
                     "required_information": item["basis"],
                     "qualification": "仍保留在雷达作为归属声明或补查线索；未作机制研究材料。",
                 }
-                for item in classification if item["source_kind"] is None
+                for item in classification
+                if item["source_kind"] is None
             ],
         }
     identity_error = getattr(method, "IdentityInputError", ())
@@ -415,7 +453,8 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
         return _state(packet, "failed", version=version, code="mech_evidence_result_invalid")
     if isinstance(result, dict) and result.get("status") == "needs_input":
         return {
-            **result, "provider": "mech_evidence",
+            **result,
+            "provider": "mech_evidence",
             "provider_version": getattr(method, "provider_version", version),
             "material_type_mapping": classification,
             "evidence_map": copy.deepcopy(packet.get("evidence_map", {})),
@@ -424,8 +463,10 @@ def evaluate_mechanism(settings, packet, call, *, loaded=None):
         return {
             **result,
             **_state(
-                packet, "not_applicable",
-                version=getattr(method, "provider_version", version), code=result.get("error_code")
+                packet,
+                "not_applicable",
+                version=getattr(method, "provider_version", version),
+                code=result.get("error_code"),
             ),
         }
     if not isinstance(result, dict) or not isinstance(result.get("overall"), dict):
@@ -466,8 +507,13 @@ class _HTTPMethods:
             return {
                 key: copy.deepcopy(response[key])
                 for key in (
-                    "status", "error_code", "reason", "context", "missing_fields",
-                    "material_feedback", "errors",
+                    "status",
+                    "error_code",
+                    "reason",
+                    "context",
+                    "missing_fields",
+                    "material_feedback",
+                    "errors",
                 )
                 if key in response
             }

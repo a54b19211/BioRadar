@@ -2,6 +2,7 @@
 
 import copy
 import hashlib
+import re
 import time
 from types import SimpleNamespace
 
@@ -19,6 +20,75 @@ from bioradar.research.investigations.graph import GraphBundle, GraphReference
 from bioradar.research.mining.models import canonical_hash
 
 QUALIFICATION = "固定图的来源关系背景；reviewed包及resolved名称不自动确认其中实体、关系或科学结论。"
+
+
+_RELATION_INTENT = re.compile(
+    r"关系|作用机制|相互作用|互作|结合|介导|因果|机制|"
+    r"(?<![A-Za-z])(?:relationships?|relations?|mechanisms?|bind(?:s|ing)?|"
+    r"interact(?:s|ions?)?|mediat(?:e[sd]?|ion)|causal)(?![A-Za-z])",
+    re.IGNORECASE,
+)
+_RELATION_DECLINED = re.compile(
+    r"不(?:研究|查(?:询|证)?|讨论|分析|涉及)|"
+    r"(?:无需|不需要|不要|不必)(?:再)?(?:研究|查(?:询|证)?|讨论|分析|涉及|考察|评估)|忽略|"
+    r"排除在[^，,。！？.!?；;\n]{0,40}(?:范围|任务)(?:之|以)?外|"
+    r"(?<![A-Za-z])(?:(?:do\s+not|don['’]t|no\s+need\s+to|without)\s+"
+    r"(?:stud\w*|research\w*|investigat\w*|examin\w*|analy[sz]\w*|discuss\w*|check\w*|consider\w*)|"
+    r"ignore|exclude\b[^,;.!?\n]{0,80}\bfrom\s+(?:the\s+)?(?:scope|analysis|investigation))"
+    r"(?![A-Za-z])",
+    re.IGNORECASE,
+)
+
+_ONLY_QUESTION_TASK = re.compile(
+    r"(?:仅|只)(?:想|需|需要)?(?:研究|讨论|问|查(?:询|证)?|分析|评估|比较|核对|回答|看)|"
+    r"(?<![A-Za-z])(?:(?:only|just)\s+(?:stud\w*|research\w*|investigat\w*|examin\w*|"
+    r"analy[sz]\w*|discuss\w*|check\w*|evaluat\w*|compar\w*)|"
+    r"(?:stud\w*|research\w*|investigat\w*|examin\w*|analy[sz]\w*|discuss\w*|check\w*|"
+    r"evaluat\w*|compar\w*)\s+only)(?![A-Za-z])",
+    re.IGNORECASE,
+)
+
+
+def question_relationship_need(fixed, validated_objects):
+    """Route an explicit question requirement, never infer a biological relationship."""
+    policy = fixed.get("query_policy", {})
+    if (
+        policy.get("discovery_version") != "bounded-required-gap-discovery-v1"
+        or policy.get("schema_version") != "query-planner.external.v2"
+        or policy.get("effective") != "query_planner"
+        or policy.get("direction") != "research"
+        or not isinstance(validated_objects, (list, tuple))
+    ):
+        return None
+    question = fixed.get("question", "")
+    objects = [
+        {key: copy.deepcopy(item[key]) for key in ("id", "name", "question_span")}
+        for item in validated_objects
+        if isinstance(item, dict)
+        and all(key in item for key in ("id", "name", "question_span"))
+        and isinstance(item["name"], str)
+        and item["name"]
+        and item["name"] in question
+    ]
+    if not objects:
+        return None
+    clauses = re.split(r"[，,。！？.!?；;\n]", question)
+    relation_clauses = [clause for clause in clauses if _RELATION_INTENT.search(clause)]
+    if any(_ONLY_QUESTION_TASK.search(clause) and not _RELATION_INTENT.search(clause) for clause in clauses):
+        return None
+    # Explicitly declining this line of inquiry overrides background mentions.
+    # A negative hypothesis ("does not bind") is still a question to investigate.
+    if not relation_clauses or any(_RELATION_DECLINED.search(clause) for clause in relation_clauses):
+        return None
+    return {
+        "id": "question_relation:" + canonical_hash([question, objects])[:12],
+        "question": (
+            "查明本题点名对象（"
+            + "、".join(item["name"] for item in objects)
+            + "）所问关系或作用机制的原始出处与适用条件；"
+            "固定图仅帮助发现原文线索，不能当作实验支持或关系已成立。"
+        ),
+    }
 
 
 def remember_graph_package(fixed, progress, original):

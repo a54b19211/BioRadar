@@ -145,7 +145,13 @@ def test_local_loader_hashes_claim_dependencies_but_never_runs_a_service(tmp_pat
     assert core is not None
     (app / "service.py").write_text("raise RuntimeError('changed service must not load')")
     other, changed = load_biocheck(settings)
-    assert other is not None and changed != version
+    assert other is not None and other is not core and changed != version
+    (app / "claims.py").write_text(
+        "from . import core" + chr(10) + "core.CLAIMS_CONTRACT = 'SYNTHETIC-changed'" + chr(10)
+    )
+    updated, claim_changed = load_biocheck(settings)
+    assert updated is not None and updated is not other and claim_changed != changed
+    assert updated.CLAIMS_CONTRACT == "SYNTHETIC-changed"
 
 
 @pytest.mark.parametrize("stage", ["verify_claim", "verify_claim_retry", "revise_claims"])

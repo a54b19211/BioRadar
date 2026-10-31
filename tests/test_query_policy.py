@@ -245,8 +245,13 @@ def test_pipeline_coverage_requires_current_evidence_and_never_follows_covers_or
     checks = {item["id"]: item for item in context(data, state, reading=reading)["checks"]}
     assert checks["support"]["status"] == "passed"
     assert checks["patent"]["status"] == "unknown" and checks["patent"]["evidence_ids"] == []
-    with pytest.raises(DomainError, match="覆盖判断"):
-        context(data, state, reading={"coverage_checks": [{"id": "invented", "status": "passed"}]})
+    # The existing baseline ignores undeclared coverage decoration and continues;
+    # it must not manufacture a successful scientific check from that decoration.
+    unknown = context(data, state, reading={"coverage_checks": [{"id": "invented", "status": "passed"}]})
+    by_id = {item["id"]: item for item in unknown["checks"]}
+    assert "invented" not in by_id
+    assert by_id["support"]["status"] == "unknown"
+    assert by_id["source_materials"]["status"] == "passed"
 
 
 def test_mechanism_gaps_and_opposing_observations_become_real_declared_query_coverage():

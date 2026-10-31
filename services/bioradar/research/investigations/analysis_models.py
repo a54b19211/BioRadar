@@ -394,6 +394,12 @@ class QueryPagination(RuntimeModel):
     page_number: int = Field(ge=1)
 
 
+class ReturnedSourceVersion(RuntimeModel):
+    source_id: Text
+    source_record_id: Text
+    version_id: Text
+
+
 class AnalysisQueryReceipt(RuntimeModel):
     index: int
     phase: Literal["initial", "followup"] = "followup"
@@ -412,6 +418,9 @@ class AnalysisQueryReceipt(RuntimeModel):
     status: Literal["prepared", "sent", "read", "empty", "failed", "unavailable", "unconfirmed"]
     scope: str = "fabric_current_adopted_versions_not_the_web"
     returned: int = 0
+    returned_versions: list[ReturnedSourceVersion] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     new_versions: int = 0
     has_more: bool = False
     pagination: QueryPagination | None = Field(default=None, exclude_if=lambda value: value is None)

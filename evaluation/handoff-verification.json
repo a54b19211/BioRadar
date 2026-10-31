@@ -7614,5 +7614,196 @@
       "tests/test_weknora_provider_status.py": "d85301f05903aaa2da94bcbad9bf69583ba0775c02a1ed6e0ad1d4a48441db6b"
     },
     "checked_at": "2026-10-31T12:33:30.702212+00:00"
+  },
+  "bounded_discovery_compatibility_20261031": {
+    "checked_at": "2026-10-31T14:14:47.240457+00:00",
+    "base_radar_commit": "4454392e5f0f77c4b6709906794498b2cc5a3526",
+    "branch": "codex/radar-history-replay-20261031",
+    "scope": "重要缺口下的初查备选、同源限量目录、明确关系问题的图谱入口，以及已冻结专业版本的最小兼容。",
+    "behavior": [
+      "新external.v2冻结bounded-required-gap-discovery-v1；旧任务无标记与baseline保留原提示、顺序、范围。",
+      "初查备选携带未解决问题只表示查询假设；同源备选均执行、已取原文均读完且真实回执仅重复旧版本后，才提供同源一页目录；未知、失败、采用停止、新原件及未完成续页均不绕过。",
+      "明确机制或关系问题与已核对名称可生成question_relation待查项，复用固定图目录/解析/邻域；图结果不自动通过科学检查。",
+      "公开查询回执给出真实返回的来源/记录/版本三元组，独立检查器与类型/契约同步。",
+      "Mech仅在统一模型上下文入口排除source_reporting.raw_reviews，保留修订后的主张、反证、条件、缺口、notes/findings及完整原生审计。",
+      "Pan纯模块依赖顺序修正；计算引文位置及修订字段原样保留；RPC版本依赖的服务/分析文件仅参与版本校验，不执行。"
+    ],
+    "upstream": {
+      "query_planner": {
+        "commit": "7dcf373e235be15dcda17efde37e909ffffcdde5",
+        "branch": "codex/query-planner-kdd-20261030",
+        "source_sha256": "df17ec050cb4e56b3194050f8c1d9adf56f78bf37c3f9b6801d84e6166da4a68",
+        "method": "kdd-information-gain-1.4",
+        "checks": {
+          "unittest": 107,
+          "failed": 0,
+          "skipped": 0
+        },
+        "review": {
+          "path": "/tmp/bioradar-section17-20261031/c-b5-required-gap-planner-nonauthor-review.nonbody.json",
+          "sha256": "adf31f2b2934ee21e2162848f3329a7e897e3af09b7980d9e3f3b0e461b7ce2f"
+        },
+        "deployment": false,
+        "old_B5_modified": false
+      },
+      "biocheck": {
+        "commit": "c32a75a0a2cfd9a2d6d9ce6cf41f40ef1ecd58a1",
+        "native_provider_version": "28f28d00df5656af984ba707c4f195543bac7a53b901f63e4761f6f173d2ba28",
+        "radar_loader_content_sha256": "ab170ac008fe2b6de132636091fa99cba27fba26f681379c2a124dd269a2b256",
+        "receipt": {
+          "path": "/tmp/bioradar-section17-20261031/biocheck-final-native-compatibility.v3.nonbody.json",
+          "sha256": "7963d7a0fb9b593f5889d2b09640c6e4985f16032d77e11e23e512a0639a58d0"
+        }
+      },
+      "mech_evidence": {
+        "commit": "5c9e5a4e334c1c19b7cac991d4c67ea84605ff55",
+        "native_provider_version": "bd119d18480d5491927b8771f42b0698544f82e45dd1fa2fbaa4d27a53932320",
+        "method": "source-reporting-v1",
+        "receipt": {
+          "path": "/tmp/bioradar-section17-20261031/B5-mech-generation-context-handoff.nonbody.json",
+          "sha256": "84fb3510aea8a087b03a9c3a14b5224fe7acdce4fe1451ef3fd77c0c005ca381"
+        }
+      }
+    },
+    "checks": {
+      "boot": {
+        "target": "boot",
+        "exit": 0,
+        "log": "/tmp/bioradar-section17-20261031/coverage-final-checks/boot-cache-fixed.log",
+        "path": "/tmp/bioradar-section17-20261031/coverage-final-checks/boot-cache-fixed.log",
+        "sha256": "a182a34adc96ade2bd5efc6b7a433fb1c45da0e9d6bc3ac24f736904fb720b1e"
+      },
+      "lint": {
+        "target": "lint",
+        "exit": 0,
+        "log": "/tmp/bioradar-section17-20261031/coverage-final-checks/lint-cache-fixed.log",
+        "path": "/tmp/bioradar-section17-20261031/coverage-final-checks/lint-cache-fixed.log",
+        "sha256": "4d4a3f4db51fc00d550fed1a88e3c56c0455155023d3c8f6e370c0e0bcb94c05"
+      },
+      "contract-check": {
+        "target": "contract-check",
+        "exit": 0,
+        "log": "/tmp/bioradar-section17-20261031/coverage-final-checks/contract-check.log",
+        "path": "/tmp/bioradar-section17-20261031/coverage-final-checks/contract-check.log",
+        "sha256": "acce2b1a026c0bc8533df7a1c01c4ee3606fceb80f127898ffa3f3b776b10958"
+      },
+      "web-check": {
+        "target": "web-check",
+        "exit": 0,
+        "log": "/tmp/bioradar-section17-20261031/coverage-final-checks/web-check.log",
+        "path": "/tmp/bioradar-section17-20261031/coverage-final-checks/web-check.log",
+        "sha256": "7715f67c4c29e6ca6f5e077801ac09c532d339d408f43f9e09a38e65f8325e28"
+      }
+    },
+    "targeted_checks": {
+      "routing_public_receipts": {
+        "passed": 78,
+        "skipped": 0,
+        "proof": {
+          "path": "/tmp/bioradar-section17-20261031/required-gap-root-final-targeted.log",
+          "sha256": "85674334f24363675da82539c0c8fafda5f6cfed79ae45867f151f56057c7e66"
+        }
+      },
+      "query_planner": {
+        "passed": 107,
+        "skipped": 0,
+        "proof": {
+          "path": "/tmp/bioradar-section17-20261031/required-gap-planner-final-suite.log",
+          "sha256": "1c8ef0bf53115d3df11afc16231810dfd60de60ae3c9f0d62215e6828339eec7"
+        }
+      },
+      "graph_actual_pg_rq": {
+        "passed": 2,
+        "skipped": 0,
+        "proof": {
+          "path": "/tmp/bioradar-section17-20261031/B5-graph-relationship-native-final-v2.log",
+          "sha256": "c761671f8867dbe58aa1ed03760bb0a4f85128e1dcde28381239a5531e64d7ce"
+        }
+      },
+      "partial_catalog_actual_pg_rq": {
+        "passed": 1,
+        "skipped": 0,
+        "proof": {
+          "path": "/tmp/bioradar-section17-20261031/B5-partial-catalog-native-handoff.nonbody.json",
+          "sha256": "262347dbe367a312a6350b81daf100e43508c3c0ae54f01a85193ff5553fd997"
+        }
+      },
+      "mech_context": {
+        "passed": 83,
+        "skipped": 0,
+        "proof": {
+          "path": "/tmp/bioradar-section17-20261031/B5-mech-generation-context-final-full.log",
+          "sha256": "733b394c9300e96994968ec7c434d9c1c8cfa60b85564e3c61906be69553a7f5"
+        }
+      },
+      "pan_native": {
+        "wrapper_controls": 8,
+        "received_replays": 4,
+        "proof": {
+          "path": "/tmp/bioradar-section17-20261031/biocheck-final-native-compatibility.v3.nonbody.json",
+          "sha256": "7963d7a0fb9b593f5889d2b09640c6e4985f16032d77e11e23e512a0639a58d0"
+        }
+      },
+      "counting": "以上集合有重叠，不能相加作为不同测试总数。"
+    },
+    "reviews": [
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-b5-required-gap-methods-nonauthor-review.nonbody.json",
+        "sha256": "423f8d855314958c84b2e9961f0c2a1d78a5f6e8c4481f332172fdac4d85a45a"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-b5-graph-relationship-nonauthor-review.nonbody.json",
+        "sha256": "1fb70b0b31ab8fca49b14af1937890cf7a1e5feb08d6d6bf635a4459f50a3570"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-b5-required-gap-planner-nonauthor-review.nonbody.json",
+        "sha256": "adf31f2b2934ee21e2162848f3329a7e897e3af09b7980d9e3f3b0e461b7ce2f"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-b5-public-receipts-nonauthor-review.nonbody.json",
+        "sha256": "702fc4671f1135cf03123b33a300133101628760b71dc86588b1e1f56df8ef29"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-b5-partial-catalog-runtime-nonauthor-review.nonbody.json",
+        "sha256": "ab5578aae7ad595bebb7d9b7122f40894c5b6fd42d35c434b2c52aa4c6a4eb8e"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-b5-mech-generation-context-nonauthor-review.nonbody.json",
+        "sha256": "1ff0173e9cfd293156a25c20a1a14a5c782f2e21747f258da16fe1b0ad8ba1c9"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-biocheck-contract-compatibility-final-nonauthor-review.nonbody.json",
+        "sha256": "4f5048bb60644dad60659ba59329ab5e477e8784a6cdcd5f627645c516132e71"
+      }
+    ],
+    "offline_input_comparison": {
+      "path": "/tmp/bioradar-section17-20261031/B5-coverage-new-policy-offline.nonbody.json",
+      "sha256": "0b6b78ea49fd0be2c63991072f4cc9d2a0b58f16851651923f93663cff698e71"
+    },
+    "preserved": {
+      "B5": "原FAIL、实际费用、未查范围和终稿不变；新策略仅在保存输入副本离线验证。",
+      "baseline": "原提示、顺序、范围不变；两个已有测试分别纠正了无效coverage装饰与现有3600秒上限的过期断言，旧失败证据保留。",
+      "provider_error_and_recovery": "已有verification_errors禁止自动改稿、received优先恢复、未知结果不重发、发送意图落库后重新检查时间均保留；本批不重写这些方法。"
+    },
+    "review_discovery": {
+      "issue": "曾错误地从BioCheck本地缓存标识排除service/analysis；实际claims依赖rpc.PROVIDER_VERSION，原失败测试揭示了真实缓存过期问题。",
+      "original_reproduction": {
+        "path": "/tmp/bioradar-section17-20261031/biocheck-loader-version-pin-root-reproduction.nonbody.json",
+        "sha256": "50965ca10793d756a569ab9b038d368699915f7bdd3776d3d8ac0b48497e0eda"
+      },
+      "withdrawal": {
+        "path": "/tmp/bioradar-section17-20261031/c-biocheck-contract-pre-native-review-withdrawal.nonbody.json",
+        "sha256": "e0854ce7af3572fe7dc81d09d8870beb666ca5ceed8151859f8f9ac7e0ea49b7"
+      },
+      "resolution": "保留纯模块执行顺序，恢复额外版本输入的hash-only依赖与正确原测试；最终放行须引用修复后的非作者记录。"
+    },
+    "execution": {
+      "commercial_model_calls": 0,
+      "B5_database_writes": 0,
+      "deployment": false,
+      "main_merge": false,
+      "push": false
+    },
+    "qualification": "工程验证和离线候选对照，不代表已改善真实科学结论；新的整链业务运行由协调侧使用新固定版本发起。"
   }
 }

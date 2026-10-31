@@ -4107,6 +4107,20 @@
             "title": "Returned",
             "default": 0
           },
+          "returned_versions": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ReturnedSourceVersion"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returned Versions"
+          },
           "new_versions": {
             "type": "integer",
             "title": "New Versions",
@@ -15891,6 +15905,36 @@
           "biocheck_provider_version"
         ],
         "title": "ResumeReportRequest"
+      },
+      "ReturnedSourceVersion": {
+        "properties": {
+          "source_id": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Source Id"
+          },
+          "source_record_id": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Source Record Id"
+          },
+          "version_id": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Version Id"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "source_id",
+          "source_record_id",
+          "version_id"
+        ],
+        "title": "ReturnedSourceVersion"
       },
       "ReviewPlan": {
         "properties": {

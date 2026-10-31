@@ -844,6 +844,9 @@ def compact_mechanism(mechanism):
     """One mechanism view with fixed-reference locations for every downstream request."""
     assessment = None
     if isinstance(mechanism, dict):
+        from bioradar.adapters.mech_evidence import mechanism_model_context
+
+        mechanism = mechanism_model_context(mechanism)
         assessment = {
             key: copy.deepcopy(mechanism[key])
             for key in (
@@ -867,6 +870,8 @@ def compact_mechanism(mechanism):
                 "passage_namespace_qualification",
                 "independence",
                 "unresolved_counterevidence",
+                "source_notes",
+                "source_reporting",
                 "witnesses",
             )
             if key in mechanism
@@ -1519,6 +1524,8 @@ def semantic_reading_state(evidence, context):
             "critical_gaps",
             "missing_experiment",
             "unresolved_counterevidence",
+            "source_notes",
+            "source_reporting",
         )
         if key in mechanism
     }

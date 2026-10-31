@@ -12,7 +12,16 @@ from types import ModuleType
 from bioradar.adapters.reasoning_model import ModelCallError
 from bioradar.api.errors import DomainError
 
-_PROVIDER_FILES = ("evidence.py", "prompts.py", "core.py")
+_PROVIDER_FILES = (
+    "source_context.py",
+    "evidence.py",
+    "contracts.py",
+    "prompts.py",
+    "core.py",
+    "claims.py",
+    "rpc.py",
+)
+_VERSION_ONLY_FILES = ("analysis.py", "service.py")
 _METHODS = ("generate", "verify", "revise")
 _STAGES = {
     "plan_bound": "biocheck_plan",
@@ -35,19 +44,15 @@ def _sources(settings):
         return None
     root = Path(directory) / "app"
     try:
-        names = list(_PROVIDER_FILES)
-        if (root / "source_context.py").is_file():
-            names.insert(0, "source_context.py")
-        if (root / "contracts.py").is_file():
-            names.insert(-1, "contracts.py")
-        if (root / "claims.py").is_file():
-            # Claims bind reusable checks to rpc.PROVIDER_VERSION. Include every
-            # source that contributes to that pure protocol version in this pin.
-            names.extend(
-                name
-                for name in ("claims.py", "analysis.py", "service.py", "rpc.py")
-                if (root / name).is_file()
-            )
+        # Execute pure modules in dependency order. The native RPC provider hash
+        # also depends on optional analysis/service sources, which are hash-only.
+        names = [
+            name
+            for name in _PROVIDER_FILES
+            if name in {"evidence.py", "prompts.py", "core.py"} or (root / name).is_file()
+        ]
+        if "rpc.py" in names:
+            names.extend(name for name in _VERSION_ONLY_FILES if (root / name).is_file())
         sources = {name: (root / name).read_text(encoding="utf-8") for name in names}
         methods = {
             node.name for node in ast.parse(sources["core.py"]).body if isinstance(node, ast.FunctionDef)
@@ -92,8 +97,8 @@ def load_biocheck(settings):
     sys.modules[package_name] = package
     try:
         for filename in sources:
-            if filename in {"analysis.py", "service.py"}:
-                continue  # Version inputs only; never load a service or standalone runner.
+            if filename in _VERSION_ONLY_FILES:
+                continue
             name = package_name + "." + filename.removesuffix(".py")
             module = ModuleType(name)
             module.__package__ = package_name
@@ -466,7 +471,10 @@ def _result(packet, draft, review, initial, revision, version, **extra):
         "revision": revision,
         "evidence_map": copy.deepcopy(packet.get("evidence_map", {})),
         "text_sha256": hashlib.sha256(draft.encode()).hexdigest(),
-        "position_basis": "Unicode code points; half-open offsets in each evidence[id].text",
+        "position_basis": (
+            "Unicode code points; source quotes use evidence[id].text; analysis_result quotes use "
+            "output_path and selected_value_json value_start/value_end (half-open offsets)."
+        ),
         "error_code": None,
         **extra,
     }

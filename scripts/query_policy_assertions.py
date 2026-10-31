@@ -45,6 +45,207 @@ def _search_key(action):
     )
 
 
+def _repeat_catalog(view, trace, decisions, position):
+    """Verify source-version receipts independently of the producer's candidate marker."""
+    decision = decisions[position]
+    action, request = decision["action"], decision.get("policy_request") or {}
+    args, basis = action["arguments"], action.get("discovery_basis") or {}
+    version = "bounded-required-gap-discovery-v1"
+    _require(
+        trace.get("discovery_version") == request.get("discovery_version") == version
+        and basis.get("version") == version
+        and basis.get("kind") == "required_gap_repeat_search"
+        and set(basis) == {"version", "kind", "query_index", "check_ids"},
+        "partial catalog lacks its frozen discovery policy and basis",
+    )
+    _require(
+        any(c == action for c in request.get("candidates", [])),
+        "partial catalog was not the recorded candidate",
+    )
+    checks = {c["id"]: c for c in request.get("checks", [])}
+    ids, index = basis.get("check_ids"), basis.get("query_index")
+    _require(
+        isinstance(ids, list)
+        and ids
+        and len(ids) == len(set(ids))
+        and set(ids) <= set(action.get("covers", []))
+        and all(
+            cid in checks
+            and cid not in {"source_materials", "answer_scope"}
+            and not cid.startswith("kdd_")
+            and checks[cid].get("required", True) is True
+            and type(checks[cid].get("importance", 1)) in (int, float)
+            and checks[cid].get("importance", 1) > 0
+            and checks[cid].get("status") != "passed"
+            for cid in ids
+        ),
+        "partial catalog has no important unresolved check",
+    )
+    history, queries = request.get("history", []), view.get("queries", [])
+    _require(
+        type(index) is int and 0 <= index < len(history) <= len(queries),
+        "partial catalog basis is not a global saved query index",
+    )
+    _require(
+        not any(h.get("status") in {"prepared", "sent", "unknown", "unconfirmed"} for h in history)
+        and bool(request.get("reading_manifest"))
+        and all(r.get("status") == "read" for r in request["reading_manifest"]),
+        "partial catalog bypassed pending or unread work",
+    )
+    evidence_ids = {e["id"] for e in request.get("evidence", [])}
+    adopted = set()
+    for evidence in view.get("evidence", []):
+        if evidence.get("key") not in evidence_ids:
+            continue
+        ref = evidence.get("record_ref") or {}
+        try:
+            identity = json.loads(ref["object_id"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if (
+            ref.get("provider") == "data_fabric_history"
+            and isinstance(identity, list)
+            and len(identity) == 3
+            and identity[0] == evidence.get("source_id")
+            and identity[2] is view["is_demo"]
+            and isinstance(ref.get("adopted_version"), str)
+        ):
+            adopted.add((identity[0], identity[1], ref["adopted_version"]))
+    prior = {
+        d["receipt"]["query_index"]: d
+        for d in decisions[:position]
+        if isinstance(d.get("receipt"), dict) and type(d["receipt"].get("query_index")) is int
+    }
+    declared = set()
+    for earlier in decisions[:position]:
+        choices = [
+            c
+            for c in (earlier.get("policy_request") or {}).get("candidates", [])
+            if c.get("kind") == "document_search"
+            and c.get("arguments", {}).get("provider") == "fabric"
+            and c["arguments"].get("source_id") == args["source_id"]
+            and c["arguments"].get("phase") == "initial"
+            and not c["arguments"].get("catalog_discovery")
+            and not c["arguments"].get("relaxed_from")
+        ]
+        if choices:
+            declared = {_search_key(c) for c in choices}
+            break
+    completed, closed, open_pages = set(), set(), []
+    for i, row in enumerate(history):
+        actual_args = row.get("arguments") or {}
+        source = actual_args.get("source_id") or (actual_args.get("parameters") or {}).get("source_id")
+        if source != args["source_id"]:
+            continue
+        _require(not actual_args.get("catalog_discovery"), "same source catalog was scanned twice")
+        if row.get("kind") != "document_search" or actual_args.get("provider") != "fabric":
+            if i >= index:
+                query, saved = queries[i], prior.get(i)
+                usage = query.get("usage") or {}
+                _require(
+                    saved is not None
+                    and query.get("action_id") == row["action_id"]
+                    and saved.get("action", {}).get("id") == row["action_id"]
+                    and row.get("status") == "completed"
+                    and row.get("new_evidence_ids") == []
+                    and query.get("status") in {"read", "empty"}
+                    and type(query.get("new_versions")) is int
+                    and query["new_versions"] == 0
+                    and not query.get("evidence_keys")
+                    and type((query.get("cost") or {}).get("tool_calls")) is int
+                    and query["cost"]["tool_calls"] >= 1
+                    and not usage.get("adoption_stop_reason")
+                    and not (usage.get("fetch") or {}).get("adoption_stop_reason")
+                    and usage.get("request_status") not in {"not_sent", "unknown", "unconfirmed"},
+                    "new or unconfirmed same-source work invalidated repeat basis",
+                )
+            continue
+        query, saved = queries[i], prior.get(i)
+        if i < index and (row.get("status") != "completed" or query.get("status") not in {"read", "empty"}):
+            continue
+        _require(
+            saved is not None
+            and saved.get("action", {}).get("id") == row["action_id"]
+            and query.get("action_id") == row["action_id"]
+            and saved["receipt"].get("status") == query.get("status") in {"read", "empty"}
+            and row.get("status") == "completed"
+            and query.get("provider") == "fabric"
+            and query.get("plan", {}).get("source_id") == args["source_id"]
+            and _terms(query["plan"].get("terms", [])) == _terms(actual_args.get("terms", []))
+            and all(actual_args.get(k) == args[k] for k in ("mode", "as_of", "is_demo", "scope"))
+            and type((query.get("cost") or {}).get("tool_calls")) is int
+            and query["cost"]["tool_calls"] >= 1
+            and (query.get("usage") or {}).get("request_status") not in {"not_sent", "unknown", "unconfirmed"}
+            and not query.get("adoption_stop_reason")
+            and not (query.get("usage") or {}).get("adoption_stop_reason")
+            and not ((query.get("usage") or {}).get("fetch") or {}).get("adoption_stop_reason"),
+            "partial catalog was based on an unbound or unsuccessful source receipt",
+        )
+        versions = query.get("returned_versions")
+        _require(
+            isinstance(versions, list)
+            and type(query.get("returned")) is int
+            and len(versions) == query["returned"]
+            and (query["status"] == "empty") == (query["returned"] == 0)
+            and all(
+                set(v) == {"source_id", "source_record_id", "version_id"}
+                and all(isinstance(v[k], str) and v[k] for k in v)
+                and v["source_id"] == args["source_id"]
+                for v in versions
+            ),
+            "partial catalog lacks actual returned fixed-version identities",
+        )
+        completed.add(_search_key(saved["action"]))
+        if actual_args.get("previous_action_id"):
+            closed.add(actual_args["previous_action_id"])
+        if (row.get("pagination") or {}).get("has_more"):
+            open_pages.append(row["action_id"])
+        if i < index:
+            continue
+        _require(
+            type(query.get("new_versions")) is int
+            and query["new_versions"] == 0
+            and not query.get("evidence_keys")
+            and row.get("new_evidence_ids") == []
+            and all((v["source_id"], v["source_record_id"], v["version_id"]) in adopted for v in versions),
+            "zero increment did not prove all returned originals were already read",
+        )
+        if i == index:
+            _require(
+                query["status"] == "read" and query["returned"] > 0,
+                "repeat basis must point to an actual nonempty duplicate hit",
+            )
+    _require(declared and declared <= completed, "partial catalog skipped a frozen initial alternative")
+    _require(all(aid in closed for aid in open_pages), "partial catalog bypassed a received continuation")
+
+
+def _catalog_result(view, decision):
+    args = decision["action"]["arguments"]
+    queries = view.get("queries", [])
+    receipt = decision.get("receipt")
+    if receipt is None:
+        return
+    index = receipt.get("query_index")
+    _require(type(index) is int and 0 <= index < len(queries), "catalog receipt is not a saved query")
+    query = queries[index]
+    _require(query.get("plan", {}).get("terms") == [], "catalog actual query retained keyword terms")
+    _require(
+        query.get("scope") == "fabric_bounded_original_catalog_not_keyword_match",
+        "catalog originals were represented as keyword matches",
+    )
+    if query.get("status") in {"read", "empty"}:
+        usage = query.get("usage") or {}
+        coverage = usage.get("coverage") or {}
+        _require(
+            usage.get("catalog_discovery") is True
+            and coverage.get("complete") is False
+            and coverage.get("search_scope") == "bounded_original_catalog_not_keyword_match"
+            and coverage.get("followup_limit") == args["limit"]
+            and coverage.get("has_more") is query.get("has_more"),
+            "catalog receipt lost the actual one-page scope or truncation",
+        )
+
+
 def _catalog_discovery(view, trace, decisions, position):
     decision = decisions[position]
     action = decision["action"]
@@ -91,6 +292,10 @@ def _catalog_discovery(view, trace, decisions, position):
         action.get("id") == "catalog:" + _hash(["document_search", identity])[:32],
         "catalog identity changed across a phase or page-size retry",
     )
+    if request.get("evidence") and trace.get("discovery_version") == "bounded-required-gap-discovery-v1":
+        _repeat_catalog(view, trace, decisions, position)
+        _catalog_result(view, decision)
+        return
     _require(
         request.get("schema_version") == "query-planner.external.v2"
         and request.get("evidence") == []
@@ -152,28 +357,7 @@ def _catalog_discovery(view, trace, decisions, position):
         )
         empty.add(key)
     _require(declared <= empty, "catalog discovery skipped an initial same-source language alternative")
-    receipt = decision.get("receipt")
-    if receipt is None:
-        return
-    index = receipt.get("query_index")
-    _require(type(index) is int and 0 <= index < len(queries), "catalog receipt is not a saved query")
-    query = queries[index]
-    _require(query.get("plan", {}).get("terms") == [], "catalog actual query retained keyword terms")
-    _require(
-        query.get("scope") == "fabric_bounded_original_catalog_not_keyword_match",
-        "catalog originals were represented as keyword matches",
-    )
-    if query.get("status") in {"read", "empty"}:
-        usage = query.get("usage") or {}
-        coverage = usage.get("coverage") or {}
-        _require(
-            usage.get("catalog_discovery") is True
-            and coverage.get("complete") is False
-            and coverage.get("search_scope") == "bounded_original_catalog_not_keyword_match"
-            and coverage.get("followup_limit") == args["limit"]
-            and coverage.get("has_more") is query.get("has_more"),
-            "catalog receipt lost the actual one-page scope or truncation",
-        )
+    _catalog_result(view, decision)
 
 
 def _pagination(view, trace, decisions, position):
@@ -411,10 +595,12 @@ def _dataset(payload):
 def _pattern(payload):
     _require(isinstance(payload, dict), "pattern payload is not visible")
     _require(
-        payload.get("compute_version") in {
-                    "bioradar-mining-compute-v0.3", "bioradar-mining-compute-v0.4",
-                    "bioradar-mining-compute-v0.5",
-                },
+        payload.get("compute_version")
+        in {
+            "bioradar-mining-compute-v0.3",
+            "bioradar-mining-compute-v0.4",
+            "bioradar-mining-compute-v0.5",
+        },
         "not a saved KDD computation",
     )
     _require(

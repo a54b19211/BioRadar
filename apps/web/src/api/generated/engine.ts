@@ -1074,6 +1074,8 @@ export interface components {
              * @default 0
              */
             returned: number;
+            /** Returned Versions */
+            returned_versions?: components["schemas"]["ReturnedSourceVersion"][] | null;
             /**
              * New Versions
              * @default 0
@@ -5617,6 +5619,15 @@ export interface components {
             extra_seconds: number;
             /** Biocheck Provider Version */
             biocheck_provider_version: string;
+        };
+        /** ReturnedSourceVersion */
+        ReturnedSourceVersion: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
         };
         /** ReviewPlan */
         ReviewPlan: {

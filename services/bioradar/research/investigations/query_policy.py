@@ -14,6 +14,7 @@ INITIAL_RETRIEVAL_VERSION = "literal-language-alternatives-v1"
 BOUNDED_INITIAL_VERSION = "literal-language-budget-v2"
 PAGINATION_VERSION = "fabric-receipt-bound-pagination-v1"
 PAGINATION_COVER_VERSION = "fabric-parent-gap-pagination-v1"
+DISCOVERY_VERSION = "bounded-required-gap-discovery-v1"
 _DIMENSIONS = {"tool_calls", "tokens", "relation_access"}
 _GRAPH_KINDS = {"entity_relations", "graph_neighbors", "graph_path"}
 _PENDING = {"prepared", "sent", "unknown", "unconfirmed"}
@@ -194,6 +195,7 @@ def freeze_policy(settings, requested=None):
                 "initial_retrieval_version": BOUNDED_INITIAL_VERSION,
                 "pagination_version": PAGINATION_VERSION,
                 "pagination_cover_version": PAGINATION_COVER_VERSION,
+                "discovery_version": DISCOVERY_VERSION,
                 "professional_retry_version": "biocheck-contract-repair-v1",
                 "biocheck_input_version": "adopted-window-declared-audit-v1",
                 "narrative_contract_version": "literal-narrative-observations-v2",
@@ -559,7 +561,10 @@ def build_coverage_checks(fixed, progress, *, reading=None):
             extra.update(_CLINICAL_CHECKS)
         for key, question in extra.items():
             checks.setdefault(key, _check(key, question))
-        for item in question_named_objects(fixed, progress.get("query_policy", {}).get("named_objects", [])):
+        validated_objects = question_named_objects(
+            fixed, progress.get("query_policy", {}).get("named_objects", [])
+        )
+        for item in validated_objects:
             if item.get("components"):
                 key = "question_relation:" + _hash([item["name"], item["question_span"]])[:12]
                 checks.setdefault(
@@ -570,6 +575,11 @@ def build_coverage_checks(fixed, progress, *, reading=None):
                         "子项分别被提及只完成对象查找，不能代替关系取证。",
                     ),
                 )
+        from bioradar.adapters.fixed_graph import question_relationship_need
+
+        need = question_relationship_need(fixed, validated_objects)
+        if need:
+            checks.setdefault(need["id"], _check(need["id"], need["question"]))
     value = _plain(reading) if reading else {}
     for gap in value.get("gaps", []):
         question = gap["question"]
@@ -746,11 +756,42 @@ def _category_covers(plan, checks, reading, *, normalize_gaps=False):
     return list(dict.fromkeys(covers))
 
 
+def _required_gap_discovery(fixed):
+    return (
+        _language_alternatives(fixed) and fixed["query_policy"].get("discovery_version") == DISCOVERY_VERSION
+    )
+
+
+def _required_discovery_checks(checks):
+    return [
+        item["id"]
+        for item in checks
+        if item["id"] not in {"source_materials", "answer_scope"}
+        and not item["id"].startswith("kdd_")
+        and item.get("required", True) is True
+        and type(item.get("importance", 1)) in {int, float}
+        and item.get("importance", 1) > 0
+        and item.get("status") != "passed"
+    ]
+
+
 def _candidate(plan, provider, phase, index, fixed, checks, reading):
     arguments = _action_arguments(plan, provider, phase, index, fixed)
     hypothesis = _language_alternatives(fixed) and phase == "initial"
     if hypothesis:
         arguments["plan"]["reason"] = "待检索假设（非原始事实或证据）：" + plan["reason"]
+    covers = _category_covers(
+        plan,
+        checks,
+        reading,
+        normalize_gaps=fixed.get("query_policy", {}).get("effective") == "query_planner",
+    )
+    if _required_gap_discovery(fixed) and hypothesis and provider == "fabric":
+        unmet = _required_discovery_checks(checks)
+        passed = {item["id"] for item in checks if item.get("status") == "passed"}
+        if unmet and set(covers).issubset(passed):
+            covers = list(dict.fromkeys(covers + unmet))
+            arguments["plan"]["reason"] += "；本备选尚未执行，待查当前重要缺口，不保证能解决这些缺口。"
     key = semantic_key("document_search", arguments)
     return {
         "id": f"{phase}-{provider}-{index}-" + key[:16],
@@ -768,12 +809,7 @@ def _candidate(plan, provider, phase, index, fixed, checks, reading):
             if hypothesis
             else {}
         ),
-        "covers": _category_covers(
-            plan,
-            checks,
-            reading,
-            normalize_gaps=fixed.get("query_policy", {}).get("effective") == "query_planner",
-        ),
+        "covers": covers,
         "estimated_cost": {
             "tool_calls": 1,
             "tokens": 0 if provider == "fabric" else None,
@@ -1321,9 +1357,95 @@ def pagination_candidates(fixed, progress, checks):
     return candidates
 
 
+def _repeat_search_catalog_basis(fixed, progress, history, checks):
+    """Require received duplicate originals, rather than a zero adoption counter alone."""
+    check_ids = _required_discovery_checks(checks)
+    manifest = build_read_manifest(fixed, progress, checks=checks)
+    if not check_ids or not manifest or any(item["status"] != "read" for item in manifest):
+        return {}, set()
+    adopted = {(item["source_id"], item["source_record_id"], item["version_id"]) for item in manifest}
+    completed, duplicate, closed_pages, open_pages = set(), {}, set(), []
+    for index, (query, entry) in enumerate(zip(progress.get("queries", []), history, strict=False)):
+        args = entry["arguments"]
+        source_id = args.get("source_id") or (args.get("parameters") or {}).get("source_id")
+        usage = query.get("usage") or {}
+        actual_cost = entry.get("actual_cost") or {}
+        cost = actual_cost.get("tool_calls")
+        request_status = usage.get("request_status")
+        confirmed = (
+            entry["status"] == "completed"
+            and query.get("status") in {"read", "empty"}
+            and type(cost) is int
+            and cost >= 1
+            and all(value is not None for value in actual_cost.values())
+            and request_status not in {"not_sent", "unknown", "unconfirmed"}
+            and not usage.get("adoption_stop_reason")
+            and not (usage.get("fetch") or {}).get("adoption_stop_reason")
+        )
+        zero_increment = (
+            confirmed
+            and type(query.get("new_versions")) is int
+            and query["new_versions"] == 0
+            and not query.get("evidence_keys")
+        )
+        if entry["kind"] != "document_search" or args.get("provider") != "fabric":
+            # Later reads/fetches can invalidate an old duplicate, but cannot prove one.
+            if not zero_increment or query.get("has_more"):
+                duplicate.pop(source_id, None)
+            continue
+        if args.get("catalog_discovery") is True:
+            continue
+        records, returned = query.get("records"), query.get("returned")
+        expected = _action_arguments(query["plan"], "fabric", args.get("phase"), query["index"], fixed)
+        known = (
+            confirmed
+            and type(returned) is int
+            and returned >= 0
+            and isinstance(records, list)
+            and len(records) == returned
+            and (query["status"] == "empty") == (returned == 0)
+            and all(
+                args.get(key) == expected[key]
+                for key in ("provider", "source_id", "terms", "limit", "mode", "as_of", "is_demo", "scope")
+            )
+        )
+        if known:
+            completed.add(semantic_key("document_search", args))
+            if args.get("previous_action_id"):
+                closed_pages.add(args["previous_action_id"])
+            if (entry.get("pagination") or {}).get("has_more"):
+                open_pages.append((source_id, entry["action_id"]))
+        if not (known and zero_increment):
+            duplicate.pop(source_id, None)
+            continue
+        if returned == 0:
+            continue
+        if all(
+            isinstance(record, dict)
+            and record.get("is_demo") is fixed.get("is_demo", False)
+            and record.get("source_id") == source_id
+            and all(isinstance(record.get(key), str) for key in ("source_record_id", "version_id"))
+            and (record["source_id"], record["source_record_id"], record["version_id"]) in adopted
+            for record in records
+        ):
+            duplicate[source_id] = {
+                "version": DISCOVERY_VERSION,
+                "kind": "required_gap_repeat_search",
+                "query_index": index,
+                "check_ids": list(check_ids),
+            }
+        else:
+            duplicate.pop(source_id, None)
+    for source_id, action_id in open_pages:
+        if action_id not in closed_pages:
+            duplicate.pop(source_id, None)
+    return duplicate, completed
+
+
 def catalog_discovery_candidates(fixed, progress, plans, checks):
-    """One bounded source directory page only after its actual literal alternatives are empty."""
-    if not _language_alternatives(fixed) or progress.get("evidence"):
+    """One scoped directory page after exhausted literal alternatives and confirmed receipts."""
+    partial = bool(progress.get("evidence"))
+    if not _language_alternatives(fixed) or (partial and not _required_gap_discovery(fixed)):
         return []
     history = _history(fixed, progress)
     if any(entry["status"] in _PENDING for entry in history):
@@ -1354,15 +1476,26 @@ def catalog_discovery_candidates(fixed, progress, plans, checks):
             and request_status not in {"not_sent", "unknown", "unconfirmed"}
         ):
             observed_empty.add(semantic_key("document_search", args))
+    repeat_basis, completed = (
+        _repeat_search_catalog_basis(fixed, progress, history, checks) if partial else ({}, set())
+    )
     declared = {item["id"] for item in checks}
     limit = fixed.get("reading_limits", {}).get("search_limit", 8)
     if type(limit) is not int or not 1 <= limit <= 20:
         raise DomainError("analysis_query_invalid", "目录发现页大小不在固定读取范围内", 422)
     result = []
     for offset, (source_id, required) in enumerate(sorted(by_source.items())):
-        if source_id in attempted_directory or not required.issubset(observed_empty):
+        basis = repeat_basis.get(source_id)
+        exhausted = (
+            bool(basis) and required.issubset(completed) if partial else required.issubset(observed_empty)
+        )
+        if source_id in attempted_directory or not exhausted:
             continue
-        reason = "该来源的独立语言或同义备选均实际返回空，且本轮尚无已读证据；" + (
+        reason = (
+            "该来源初查均已完成，最近连续零新增查询中已确认只命中本轮已读固定版本；仍有重要必查缺口。"
+            if basis
+            else "该来源的独立语言或同义备选均实际返回空，且本轮尚无已读证据；"
+        ) + (
             "先读取同一授权来源、同一时点的一页固定原件；真实后续页仍逐页占用查询额度，所得候选仍非证据。"
             if pagination_enabled(fixed)
             else "仅发现同一授权来源、同一时点的一页固定原件，不翻页、不搜全网，所得候选仍非证据。"
@@ -1385,12 +1518,22 @@ def catalog_discovery_candidates(fixed, progress, plans, checks):
                 "id": "catalog:" + semantic_key("document_search", args)[:32],
                 "kind": "document_search",
                 "arguments": args,
-                "covers": [key for key in ("source_materials", "answer_scope") if key in declared],
+                "covers": list(
+                    dict.fromkeys(
+                        [key for key in ("source_materials", "answer_scope") if key in declared]
+                        + (basis["check_ids"] if basis else [])
+                    )
+                ),
+                **({"discovery_basis": copy.deepcopy(basis)} if basis else {}),
                 "reason": reason,
                 "applicability": {
                     "status": "eligible",
                     "scope_match": 1,
-                    "reason": "仅本来源已有全部字面空回执；发送前仍核当前许可与固定时点。",
+                    "reason": (
+                        "仅本来源全部初查已完成且确认重复命中，目录仍是待查假设；发送前核许可与固定时点。"
+                        if basis
+                        else "仅本来源已有全部字面空回执；发送前仍核当前许可与固定时点。"
+                    ),
                 },
                 "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
             }
@@ -1600,6 +1743,7 @@ def build_policy_context(
     return {
         "schema_version": SCHEMA_VERSION,
         "question": fixed["question"],
+        **({"discovery_version": DISCOVERY_VERSION} if _required_gap_discovery(fixed) else {}),
         **({"named_objects": named} if named else {}),
         "checks": checks,
         "evidence": [
