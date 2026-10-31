@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from bioradar.data.database import Base
 from bioradar.research.engine.schemas import RuntimeModel
+from bioradar.research.mining.models import AssessmentAxes
 
 MONITOR_VERSION = "bioradar-monitor-v0.1"
 BatchState = Literal["accepted", "queued", "investigating", "completed", "blocked"]
@@ -143,6 +144,7 @@ class MonitorBatchView(RuntimeModel):
 
 
 class MonitorLeadView(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     id: str
     lead_key: str
     title: str

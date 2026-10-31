@@ -32,7 +32,7 @@ const apiCache = new Map();
 function loadApi(relative) {
   const filename = path.resolve(root, relative);
   if (apiCache.has(filename)) return apiCache.get(filename);
-  const context = { exports: {}, require(name) {
+  const context = { exports: {}, crypto: require("node:crypto").webcrypto, TextEncoder, require(name) {
     if (name.startsWith(".")) return loadApi(path.relative(root, path.resolve(path.dirname(filename), name + ".ts")));
     throw new Error("Unexpected offline import: " + name);
   } };
@@ -346,4 +346,5 @@ async function main() {
 module.exports = main;
 module.exports.printableText = printableText;
 module.exports.compileComponent = compileComponent;
+module.exports.loadApi = loadApi;
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

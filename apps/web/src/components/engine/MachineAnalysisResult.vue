@@ -4,9 +4,11 @@ import { ElButton, ElTag } from "element-plus";
 import type { ResearchAnalysisView } from "../../api/research";
 import type { InvestigationEntry } from "../../api/engine";
 import ReportSourceIndex from "./ReportSourceIndex.vue";
+import HumanReviewSummary from "./HumanReviewSummary.vue";
+import AssessmentAxesPanel from "./AssessmentAxesPanel.vue";
 
 type View = ResearchAnalysisView;
-const props = defineProps<{ analysis: View; humanDecision?: InvestigationEntry | null }>();
+const props = defineProps<{ analysis: View; humanDecision?: InvestigationEntry | null; humanEntries?: InvestigationEntry[] }>();
 const genericReviewRan = computed(() => props.analysis.calls.some(call => ["check", "recheck", "final_check"].includes(call.stage) && call.status === "received"));
 const emit = defineEmits<{ source: [key: string] }>();
 function object(value: unknown): Record<string, unknown> {
@@ -180,13 +182,15 @@ const reviewStatus: Record<string, string> = {
       <p class="muted">文字核验判断转述和引用是否准确；所选片段复核只覆盖实际所选片段。两者均不证明传言属实，不替代机制评价或人工决定。</p>
       <p v-if="analysis.is_demo" class="notice">教学／模拟材料，不能作为真实情报成绩。</p>
       <p v-if="isReplay" class="notice">历史回放：仅允许当时已可见材料；截止 {{ evidenceTime.cutoff || "未记录" }}。现代模型仍可能含训练后见知识，本结果不等同于当时的真实预测。</p>
-      <details v-if="humanDecision?.kind === 'judgment'">
+      <details v-if="humanDecision?.kind === 'judgment' && !object(humanDecision.payload).review">
         <summary>调查中最新人工判断（不表示逐字批准本稿）</summary>
         <p>{{ humanDecision.payload.text }}</p>
         <p v-if="humanDecision.payload.kind === 'judgment'">适用条件：{{ humanDecision.payload.conditions }}；依据调查第 {{ humanDecision.payload.based_on_revision }} 版。</p>
         <small>{{ humanDecision.created_at }} · {{ humanDecision.created_by }}</small>
       </details>
     </section>
+    <HumanReviewSummary :analysis="analysis" :entries="humanEntries ?? (humanDecision ? [humanDecision] : [])" />
+    <AssessmentAxesPanel :axes="analysis.result.assessment_axes" />
     <p v-if="analysis.result.assessment_binding?.status === 'unbound'" class="notice" role="status" aria-label="结构化判断引用未绑定">
       系统记录：结构化研究判断未绑定本版命题；原稿与原判断保留，不作为已绑定评分或自动行动依据。
     </p>

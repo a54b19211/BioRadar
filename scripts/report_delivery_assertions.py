@@ -1,6 +1,7 @@
 """Independent checks of delivery metadata and the entire exported Markdown."""
 
 import hashlib
+import json
 import re
 from urllib.parse import quote
 
@@ -47,6 +48,21 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
     assert legacy_markdown.endswith(body)
     prefix = legacy_markdown[: -len(body)] if body else legacy_markdown
     assert delivery["scope_prefix"] == prefix
+    audit = report.get("support_audit") or {}
+    full_status = _escape(report.get("status") or "未记录，不推定已执行")
+    audit_status = _escape(audit.get("status") or "未记录，不推定已执行")
+    explanation = audit.get("not_run_reason") or audit.get("error_code")
+    suffix = "；说明：" + _escape(explanation) if explanation else ""
+    machine_prefix = (
+        "> 机器核验状态（系统记录，不属于已核正文）\n"
+        f"> 全文核验：{full_status}。\n"
+        f"> 所选支持片段复核：{audit_status}{suffix}。"
+        "仅针对所选支持片段；PASS不代表整稿通过，也不证明传言属实或人工批准。\n\n"
+    )
+    assert delivery.get("machine_verification_prefix") == machine_prefix
+    assert delivery.get("support_audit_status") == audit.get("status"), (
+        "delivery upgraded selected support audit"
+    )
     result = view["result"]
     binding = delivery.get("assessment_binding")
     if result.get("assessment_binding") is not None:
@@ -98,25 +114,39 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
         missing = basis.get("not_incorporated") or {}
         lines = [
             "> 保留的早期阅读稿：尚未纳入后续结果，不能作为当前结论。",
-            "> 原阅读记录：" + _escape(basis.get("call_key") or basis.get("call_id") or "未记录")
-            + "；原查询边界：" + _escape(
+            "> 原阅读记录："
+            + _escape(basis.get("call_key") or basis.get("call_id") or "未记录")
+            + "；原查询边界："
+            + _escape(
                 str(basis["after_query_index"]) if basis.get("after_query_index") is not None else "未记录"
             ),
-            "> 原输入：" + str(len(basis.get("input_evidence", []))) + " 份材料选段、"
-            + str(len(basis.get("input_artifact_refs", []))) + " 份分析产物。",
+            "> 原输入："
+            + str(len(basis.get("input_evidence", [])))
+            + " 份材料选段、"
+            + str(len(basis.get("input_artifact_refs", [])))
+            + " 份分析产物。",
         ]
         for item in missing.get("evidence", []):
             ref = item.get("record_ref") or {}
             lines.append(
-                "> 尚未纳入原件：" + _escape(item.get("evidence_key") or ref.get("object_id"))
-                + "；来源：" + _escape(item.get("source_id") or "未记录")
-                + "；原件ID：" + _escape(ref.get("object_id") or "未记录")
-                + "；固定版本：" + _escape(ref.get("adopted_version"))
+                "> 尚未纳入原件："
+                + _escape(item.get("evidence_key") or ref.get("object_id"))
+                + "；来源："
+                + _escape(item.get("source_id") or "未记录")
+                + "；原件ID："
+                + _escape(ref.get("object_id") or "未记录")
+                + "；固定版本："
+                + _escape(ref.get("adopted_version"))
             )
         for item in missing.get("artifacts", []):
             lines.append(
-                "> 尚未纳入产物：" + _escape(item.get("id")) + "；版本：" + _escape(item.get("version"))
-                + "；原状态：" + _escape(item.get("status") or "未记录") + "。完成不代表核验通过。"
+                "> 尚未纳入产物："
+                + _escape(item.get("id"))
+                + "；版本："
+                + _escape(item.get("version"))
+                + "；原状态："
+                + _escape(item.get("status") or "未记录")
+                + "。完成不代表核验通过。"
             )
         if view.get("investigation_id") and view.get("id"):
             inv, identifier = (quote(str(view[key]), safe="") for key in ("investigation_id", "id"))
@@ -128,9 +158,130 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
     else:
         assert "reading_coverage_prefix" not in delivery
     assert delivery.get("reading_coverage_prefix", "") == reading_prefix
+    human = view.get("human_review_context")
+    assert delivery.get("human_review_context") == human, "delivery changed the native human review producer"
+    human_prefix = ""
+    if human is not None:
+        assert human["analysis_id"] == view["id"]
+        qualifier = "人工记录仅适用于所列固定对象和范围；不改变机器核验，不签发对外警报，也不自动适用于新版。"
+        assert human["qualification"] == qualifier
+        labels = {
+            "needs_verification": "待人工核实",
+            "dismissed": "范围内不采纳",
+            "accepted_within_scope": "范围内人工采纳",
+        }
+        matched = []
+        for row in human["reviews"]:
+            target = row["target"]
+            binding = "different_target"
+            if target.get("analysis_id") == view["id"]:
+                if target["type"] == "report":
+                    match = target["text_sha256"] == digest
+                else:
+                    claims = [c for c in view["result"].get("claims", []) if c["id"] == target["claim_id"]]
+                    match = (
+                        len(claims) == 1
+                        and hashlib.sha256(
+                            json.dumps(
+                                claims[0],
+                                ensure_ascii=False,
+                                sort_keys=True,
+                                separators=(",", ":"),
+                                allow_nan=False,
+                            ).encode()
+                        ).hexdigest()
+                        == target["claim_sha256"]
+                    )
+                if row.get("analysis_input_hash") is not None:
+                    match = match and row["analysis_input_hash"] == view.get("input_hash")
+                binding = "exact_target" if match else "target_changed"
+            assert row["binding_status"] == binding, "human review applied to a different fixed target"
+            if binding == "exact_target":
+                matched.append(row)
+        assert human["status"] == ("recorded" if matched else "not_reviewed")
+        human_lines = ["> 人工核实记录（系统记录，未纳入原正文核验）", "> " + _escape(qualifier)]
+        if not matched:
+            human_lines.append("> 尚无针对本稿固定对象的人工核实记录；调查级笔记或其他版本的判断不覆盖本稿。")
+        for row in human["reviews"]:
+            target = row["target"]
+            identity = target.get("claim_id") or target.get("analysis_id") or target.get("candidate_key")
+            version = target.get("text_sha256") or target.get("claim_sha256") or target.get("result_hash")
+            human_lines.append(
+                "> "
+                + " · ".join(
+                    _escape(x)
+                    for x in (
+                        labels[row["decision"]],
+                        row["binding_status"],
+                        row["reviewer_actor"],
+                        row["reviewed_at"],
+                        row["entry_id"],
+                        target["type"],
+                        identity,
+                        version,
+                    )
+                )
+            )
+            human_lines.append("> 适用范围：" + _escape(row["scope"]) + "；人工判断：" + _escape(row["text"]))
+            human_lines.append("> 条件与下一步：" + _escape(row.get("conditions") or "未记录"))
+            refs = row.get("basis_record_refs") or []
+            basis = "；".join(
+                " / ".join(
+                    _escape(ref.get(key) or "未记录") for key in ("provider", "object_id", "adopted_version")
+                )
+                for ref in refs
+            )
+            human_lines.append("> 人工依据的固定原件：" + (basis or "未选择，仅为待核提醒"))
+        human_prefix = "\n".join(human_lines) + "\n\n"
+    assert delivery.get("human_review_prefix", "") == human_prefix
+    axes = view["result"].get("assessment_axes")
+    axes_prefix = ""
+    if isinstance(axes, dict):
+        axes_lines = ["> 来源与信息评定（系统记录，未纳入原正文核验）"]
+        for name, values, fallback in (
+            ("来源可靠性（A–F）", axes.get("source_reliability") or [], "F"),
+            ("具体信息可信度（1–6）", axes.get("information_credibility") or [], "6"),
+        ):
+            if not values:
+                axes_lines.append(f"> {name}：{fallback} · 未评定，无充分依据。")
+            for item in values:
+                reference = item.get("record_ref") or {}
+                parts = (
+                    item.get("grade"),
+                    item.get("assessment_status"),
+                    item.get("claim_id") or item.get("publisher_scope"),
+                    reference.get("object_id"),
+                    reference.get("adopted_version"),
+                    item.get("assessed_by"),
+                    item.get("assessed_at"),
+                    item.get("native_review_entry_id"),
+                )
+                axes_lines.append("> " + name + "：" + " · ".join(_escape(x) for x in parts if x is not None))
+                if item.get("assessment_basis"):
+                    axes_lines.append("> 评级依据：" + _escape(item["assessment_basis"]))
+        axes_lines.append("> 证据等级：" + _escape(axes.get("evidence_level") or "未记录"))
+        heat = axes.get("heat") or {}
+        score = heat.get("score")
+        axes_lines.append("> 曝光热度：" + (str(score) if type(score) in (int, float) else "未记录"))
+        axes_lines.append("> 四项分别记录，不合成信用分；F／6 表示未能评定，不代表虚假，也不是 50% 概率。")
+        axes_prefix = "\n".join(axes_lines) + "\n\n"
+    assert delivery.get("assessment_axes_prefix", "") == axes_prefix
     assert delivery["body_range"] == {
-        "start": len(prefix) + len(assessment_prefix) + len(impact_prefix) + len(reading_prefix),
-        "end": len(prefix) + len(assessment_prefix) + len(impact_prefix) + len(reading_prefix) + len(body),
+        "start": len(prefix)
+        + len(machine_prefix)
+        + len(assessment_prefix)
+        + len(impact_prefix)
+        + len(reading_prefix)
+        + len(human_prefix)
+        + len(axes_prefix),
+        "end": len(prefix)
+        + len(machine_prefix)
+        + len(assessment_prefix)
+        + len(impact_prefix)
+        + len(reading_prefix)
+        + len(human_prefix)
+        + len(axes_prefix)
+        + len(body),
         "unit": "unicode_code_points",
     }
     evidence = {item["key"]: item for item in view["evidence"]}
@@ -209,4 +360,14 @@ def expected_delivery_markdown(view, delivery, legacy_markdown):
     assert delivery["source_index_markdown"] == appendix, (
         "source appendix differs from independently checked metadata"
     )
-    return prefix + assessment_prefix + impact_prefix + reading_prefix + body + appendix
+    return (
+        prefix
+        + machine_prefix
+        + assessment_prefix
+        + impact_prefix
+        + reading_prefix
+        + human_prefix
+        + axes_prefix
+        + body
+        + appendix
+    )

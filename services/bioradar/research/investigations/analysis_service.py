@@ -133,11 +133,17 @@ class InvestigationAnalysisRecord(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-def execution_seconds(fixed_input):
+def execution_seconds(fixed_input, progress=None, *, now=None):
     parameters = fixed_input["model_parameters"]
-    return parameters.get(
+    seconds = parameters.get(
         "job_timeout_seconds", max(240, parameters.get("max_calls", 3) * parameters["timeout_seconds"] + 60)
     )
+    if progress and progress.get("report_continuation"):
+        remaining = analysis_budget(fixed_input, progress, now or datetime.now(UTC))["usage"][
+            "remaining_seconds"
+        ]
+        seconds = max(seconds, math.ceil(max(0, remaining)) + 60)
+    return seconds
 
 
 def minimum_send_seconds(fixed, progress, stage):
@@ -444,6 +450,7 @@ class AnalysisService:
         return AnalysisView(
             **cls._summary(row).model_dump(),
             is_demo=row.is_demo,
+            evidence_time=copy.deepcopy(row.fixed_input.get("evidence_time")),
             input_hash=row.input_hash,
             prompt_version=row.fixed_input["prompt_version"],
             search_scope=row.fixed_input["search_scope"],
@@ -466,8 +473,18 @@ class AnalysisService:
                 "budget_wait": copy.deepcopy(progress.get("budget_wait")),
                 "waiting_fetch": copy.deepcopy(progress.get("waiting_fetch")),
                 **(
+                    {"report_continuation": copy.deepcopy(progress["report_continuation"])}
+                    if "report_continuation" in progress
+                    else {}
+                ),
+                **(
                     {"material_update_impact": copy.deepcopy(progress["material_update_impact"])}
                     if "material_update_impact" in progress
+                    else {}
+                ),
+                **(
+                    {"report_revision_error": copy.deepcopy(progress["report_revision_error"])}
+                    if "report_revision_error" in progress
                     else {}
                 ),
                 "model_output_adjustments": copy.deepcopy(progress.get("model_output_adjustments", {})),
@@ -836,6 +853,223 @@ class AnalysisService:
         except (KeyError, TypeError, ValueError):
             return False
 
+    def _resume_report(self, actor, investigation_id, body, key):
+        """Admit one explicit final-report continuation; retain every prior input and receipt."""
+        from pathlib import Path
+
+        from bioradar.adapters.reasoning_model import encode_request
+        from bioradar.research.investigations.execution_budget import waiting_seconds
+        from bioradar.research.investigations.kdd import compact_report_continuation_scope
+        from bioradar.research.investigations.professional import _configuration
+
+        amendment = body.resume_report
+        if not body.retry_of_analysis_id or any(
+            (
+                body.question is not None,
+                body.auto_retrieve,
+                body.source_ids,
+                body.initial_queries,
+                body.budget is not None,
+                body.historical_scope is not None,
+                body.query_policy is not None,
+                body.kdd_direction is not None,
+                body.parent_analysis_id is not None,
+                body.material_entry_ids,
+            )
+        ):
+            raise DomainError("analysis_report_resume_invalid", "续稿只能指定原任务和明确的受限修正", 422)
+        request_hash = canonical_hash(body.model_dump(mode="json"))
+        fresh = False
+        with Session(self.engine.database) as session, session.begin():
+            row = self._row(session, actor, body.retry_of_analysis_id, lock=True)
+            if row.investigation_id != investigation_id:
+                raise DomainError("not_found", "续稿目标不属于本调查", 404)
+
+            def mutate():
+                nonlocal fresh
+                fixed, progress = row.fixed_input, copy.deepcopy(row.progress)
+                previous = progress.get("report_continuation")
+                if previous:
+                    if previous.get("request_hash") != request_hash:
+                        raise DomainError("analysis_report_resume_conflict", "本任务已有不同的续稿修正", 409)
+                    return 200, self._view(row).model_dump(mode="json")
+                view = InvestigationService(self.engine).get(actor, investigation_id)
+                if (
+                    view.status != "open"
+                    or body.expected_revision != view.revision
+                    or progress.get("expected_revision", row.based_on_revision) != view.revision
+                    or amendment.expected_input_hash != row.input_hash
+                ):
+                    raise DomainError("analysis_report_resume_conflict", "原任务依据或调查修订已变化", 409)
+                workflow = progress.get("report_workflow") or {}
+                old_round = progress.get("active_report_round", 0)
+                rounds = progress.get("report_rounds", [])
+                scopes = progress.get("report_research_scopes", {})
+                stopped = next(
+                    (c for c in progress.get("calls", []) if c.get("call_id") == amendment.stopped_call_id),
+                    None,
+                )
+                receipt = (stopped or {}).get("receipt") or {}
+                if (
+                    row.state != "blocked"
+                    or row.error_code != "model_input_budget"
+                    or fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+                    or not row.result
+                    or row.result.get("report") is not None
+                    or workflow.get("phase") != "generation"
+                    or not isinstance(workflow.get("base_checked"), dict)
+                    or not isinstance(workflow.get("base_synthesis"), dict)
+                    or not 0 <= old_round < len(rounds)
+                    or str(old_round) not in scopes
+                    or stopped is None
+                    or stopped.get("stage") != "biocheck_plan"
+                    or stopped.get("status") != "failed"
+                    or receipt.get("status") != "not_sent"
+                    or receipt.get("error_code") != "model_input_budget"
+                    or progress.get("execution_resumptions")
+                    or progress.get("budget_wait")
+                    or progress.get("waiting_fetch")
+                ):
+                    raise DomainError(
+                        "analysis_report_resume_invalid", "只允许原终稿规划确知未发送的字节上限停止", 409
+                    )
+                unknown = {"sent", "unconfirmed", "unknown"}
+                operations = progress.get("professional_operations", {}).values()
+                if (
+                    any(c.get("status") in unknown for c in progress.get("calls", []))
+                    or any(q.get("status") in unknown for q in progress.get("queries", []))
+                    or any(
+                        op.get("status") in unknown
+                        or any(e.get("status") in unknown for e in op.get("exchanges", []))
+                        for op in operations
+                    )
+                ):
+                    raise DomainError("model_call_outcome_unconfirmed", "已有发送结果未知，未批准续稿", 409)
+                if any(
+                    c.get("stage", "").startswith("biocheck_")
+                    and (c.get("receipt") or {}).get("status") != "not_sent"
+                    for c in progress.get("calls", [])
+                ):
+                    raise DomainError(
+                        "analysis_report_resume_invalid", "旧BioCheck已有非未发送模型步骤，不能换版本", 409
+                    )
+                frozen_parameters = normalize_model_parameters(
+                    {
+                        "model": fixed["model"],
+                        "model_revision": fixed["model_revision"],
+                        **fixed["model_parameters"],
+                    }
+                )
+                if frozen_parameters != model_parameters(self.settings):
+                    raise DomainError("analysis_model_changed", "原模型配置改变，不能复用本次续稿", 409)
+                old_cap = fixed["model_parameters"]["max_input_bytes"]
+                measured = len(
+                    encode_request(
+                        self.settings.model_copy(
+                            update={
+                                "semantic_llm_max_output_tokens": stopped["model_parameters"][
+                                    "max_output_tokens"
+                                ]
+                            }
+                        ),
+                        stage=stopped["stage"],
+                        system_prompt=stopped["system_prompt"],
+                        payload=stopped["payload"],
+                        response_schema=stopped["response_schema"],
+                    )
+                )
+                if not (
+                    measured == stopped.get("request_bytes")
+                    and measured > old_cap
+                    and old_cap < amendment.max_input_bytes <= 262144
+                ):
+                    raise DomainError(
+                        "analysis_report_resume_invalid", "上限修正须有原实际超长请求和明确较大上界", 422
+                    )
+                mode, url, credential = _configuration(self.settings, "biocheck")
+                if mode != "http" or not url or not credential:
+                    raise DomainError("professional_rpc_not_configured", "续稿须有明确HTTP专业版本配置", 503)
+                now = datetime.now(UTC)
+                started = datetime.fromisoformat(progress["started_at"])
+                paused = waiting_seconds(fixed, progress, now)
+                old_deadline = started + timedelta(seconds=fixed["budget"]["max_seconds"] + paused)
+                deadline = max(old_deadline, now) + timedelta(seconds=amendment.extra_seconds)
+                if deadline <= now:
+                    raise DomainError("analysis_time_budget", "续稿没有可用的明确追加时间窗", 409)
+                new_scope, projection_version = compact_report_continuation_scope(scopes[str(old_round)])
+                new_round = len(rounds)
+                continuation = {
+                    "id": canonical_hash([row.id, request_hash]),
+                    "request_hash": request_hash,
+                    "status": "queued",
+                    "actor_id": actor.actor_id,
+                    "workspace_id": actor.workspace_id,
+                    "authorized_at": now.isoformat(),
+                    "reason": amendment.reason,
+                    "base_input_hash": row.input_hash,
+                    "base_result_hash": canonical_hash(row.result),
+                    "from_call_id": amendment.stopped_call_id,
+                    "old_round": old_round,
+                    "target_round": new_round,
+                    "original_started_at": progress["started_at"],
+                    "original_deadline": old_deadline.isoformat(),
+                    "extra_seconds": amendment.extra_seconds,
+                    "new_deadline": deadline.isoformat(),
+                    "standby_seconds": max(0, (now - old_deadline).total_seconds()),
+                    "automatic_wait_seconds_at_authorization": paused,
+                    "original_max_input_bytes": old_cap,
+                    "approved_max_input_bytes": amendment.max_input_bytes,
+                    "stopped_request_bytes": measured,
+                    "original_provider_version": progress.get("provider_versions", {}).get("biocheck"),
+                    "provider_pin": {
+                        "provider": "biocheck",
+                        "transport": mode,
+                        "service_endpoint": url,
+                        "version": amendment.biocheck_provider_version,
+                    },
+                    "projection_version": projection_version,
+                    "code_version": {
+                        "analysis": ANALYSIS_VERSION,
+                        "prompt": PROMPT_VERSION,
+                        "host_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                    },
+                    "profiles": [],
+                    "preserved_operation_ids": sorted(progress.get("professional_operations", {})),
+                }
+                progress["report_continuation"] = continuation
+                progress["report_continuation_previous_fields"] = {
+                    name: copy.deepcopy(progress[name])
+                    for name in ("final_candidate", "final_report_plan", "final_report", "support_audit_plan")
+                    if name in progress
+                }
+                rounds.append(
+                    {
+                        "index": new_round,
+                        "kind": "report_continuation",
+                        "status": "running",
+                        "analysis": copy.deepcopy(workflow["base_checked"]),
+                        "synthesis": copy.deepcopy(workflow["base_synthesis"]),
+                        "evidence": copy.deepcopy(rounds[old_round]["evidence"]),
+                    }
+                )
+                progress["active_report_round"] = new_round
+                scopes[str(new_round)] = copy.deepcopy(new_scope)
+                progress["stage"] = "queued"
+                analysis_budget(fixed, progress, now)
+                row.progress = progress
+                row.state, row.error_code = "queued", None
+                row.execution_token, row.lease_until = None, None
+                row.completed_at, row.dispatch_pending = None, True
+                fresh = True
+                return 202, self._view(row).model_dump(mode="json")
+
+            code, payload = self.engine._idempotent(
+                session, actor, "investigation.report_resume:" + row.id, key, body, mutate
+            )
+        if fresh:
+            self.dispatch(payload["id"])
+        return code, payload
+
     def start(
         self,
         actor,
@@ -850,6 +1084,10 @@ class AnalysisService:
         from bioradar.adapters.reasoning_model import model_status
         from bioradar.research.investigations.query_policy import freeze_policy
 
+        if body.resume_report is not None:
+            if origin or defer_on_budget or historical_context is not None:
+                raise DomainError("analysis_report_resume_invalid", "续稿须由明确人工请求单独授权", 422)
+            return self._resume_report(actor, investigation_id, body, key)
         if body.historical_scope is not None:
             if historical_context is not None:
                 raise DomainError("analysis_history_invalid", "历史范围只能从一个入口指定", 422)
@@ -1394,7 +1632,7 @@ class AnalysisService:
             if row.fixed_input.get("origin") and not semantic_enabled(self.settings):
                 return False
             job_id, input_hash = row.rq_job_id, row.input_hash
-            job_timeout = execution_seconds(row.fixed_input)
+            job_timeout = execution_seconds(row.fixed_input, row.progress)
         connection = Redis.from_url(
             self.settings.redis_url.get_secret_value(), socket_connect_timeout=2, socket_timeout=2
         )
@@ -1847,10 +2085,11 @@ class AnalysisService:
             context["research_scope"] = {
                 key: copy.deepcopy(value)
                 for key, value in saved[round_key].items()
-                if key != "analysis_results"
+                if key not in {"analysis_results", "analysis_result_context"}
             }
-            if "analysis_results" in saved[round_key]:
-                context["analysis_results"] = copy.deepcopy(saved[round_key]["analysis_results"])
+            for name in ("analysis_results", "analysis_result_context"):
+                if name in saved[round_key]:
+                    context[name] = copy.deepcopy(saved[round_key][name])
             for name in ("source_updates", "unresolved_source_updates"):
                 if name in saved[round_key]:
                     context[name] = copy.deepcopy(saved[round_key][name])
@@ -2089,6 +2328,11 @@ class AnalysisService:
                 "biocheck_recheck_paragraph": 12288,
                 "biocheck_verify_paragraph_retry": 16384,
                 "biocheck_recheck_paragraph_retry": 16384,
+                "biocheck_verify_claim": 12288,
+                "biocheck_recheck_claim": 12288,
+                "biocheck_verify_claim_retry": 16384,
+                "biocheck_recheck_claim_retry": 16384,
+                "biocheck_revise_claims": 16384,
                 "biocheck_verify_coverage": 8192,
                 "biocheck_recheck_coverage": 8192,
             }.get(stage, parameters["max_output_tokens"])
@@ -2113,17 +2357,21 @@ class AnalysisService:
                 raise DomainError("analysis_token_budget", "剩余token预算不足以发送下一次有界请求", 422)
             parameters["max_output_tokens"] = output_cap
             # The final cap changes the wire JSON too; retain its exact byte count.
-            request_bytes = len(
-                encode_request(
-                    self.settings.model_copy(update={"semantic_llm_max_output_tokens": output_cap}),
-                    stage=stage,
-                    system_prompt=prompt,
-                    payload=payload,
-                    response_schema=response_schema,
-                )
+            request_wire = encode_request(
+                self.settings.model_copy(update={"semantic_llm_max_output_tokens": output_cap}),
+                stage=stage,
+                system_prompt=prompt,
+                payload=payload,
+                response_schema=response_schema,
             )
+            request_bytes = len(request_wire)
             estimate = request_estimate(fixed, stage, request_bytes)
             input_upper = estimate["estimated_input_tokens"]
+            from bioradar.research.investigations.professional import report_continuation
+
+            continuation = report_continuation(progress) if stage.startswith("biocheck_") else None
+            if continuation and request_bytes > continuation["original_max_input_bytes"]:
+                parameters["max_input_bytes"] = continuation["approved_max_input_bytes"]
             call = {
                 "stage": stage,
                 "call_key": key,
@@ -2145,6 +2393,19 @@ class AnalysisService:
                     else {}
                 ),
             }
+            if continuation:
+                call["report_continuation_id"] = continuation["id"]
+                call["continues_call_id"] = continuation["from_call_id"]
+                continuation["profiles"].append(
+                    {
+                        "call_id": call["call_id"],
+                        "stage": stage,
+                        "request_bytes": request_bytes,
+                        "request_sha256": hashlib.sha256(request_wire).hexdigest(),
+                        "original_max_input_bytes": continuation["original_max_input_bytes"],
+                        "effective_max_input_bytes": parameters["max_input_bytes"],
+                    }
+                )
             progress["calls"].append(call)
             progress["stage"] = stage
             self._checkpoint(identifier, token, progress)
@@ -2172,6 +2433,7 @@ class AnalysisService:
             update={
                 "semantic_llm_max_output_tokens": call["model_parameters"]["max_output_tokens"],
                 "semantic_llm_timeout_seconds": call["model_parameters"]["timeout_seconds"],
+                "semantic_llm_max_input_bytes": call["model_parameters"]["max_input_bytes"],
             }
         )
         call["input_hash"] = canonical_hash(
@@ -2998,6 +3260,9 @@ class AnalysisService:
                                 progress["graph_context"]
                             )
                         for graph_record in found.get("graph_records", []):
+                            from bioradar.adapters.query_graph import remember_graph_package
+
+                            remember_graph_package(fixed, progress, graph_record)
                             if graph_record not in progress.setdefault("graph_records", []):
                                 progress["graph_records"].append(copy.deepcopy(graph_record))
                         actual_cost = found.get("actual_cost") or found.get("cost") or {}
@@ -3849,6 +4114,15 @@ class AnalysisService:
         """Lock the methods actually loaded for this invocation, not an earlier status observation."""
         if version is None:
             return
+        from bioradar.research.investigations.professional import report_continuation
+
+        continuation = report_continuation(progress) if name == "biocheck" else None
+        if continuation:
+            if version != continuation["provider_pin"]["version"]:
+                raise DomainError("analysis_provider_changed", "续稿方法不符合独立冻结的版本", 409)
+            continuation["loaded_provider_version"] = version
+            self._checkpoint(identifier, token, progress)
+            return
         prefix = "biocheck_" if name == "biocheck" else "mech_"
         existing_calls = any(c["stage"].startswith(prefix) for c in progress["calls"])
         versions = progress.setdefault("provider_versions", {})
@@ -4287,6 +4561,7 @@ class AnalysisService:
                 feedback = current["quality_feedback"]
                 can_query = (
                     fixed["query_policy"].get("effective") == "query_planner"
+                    and not progress.get("report_continuation")
                     and not workflow["evidence_feedback_used"]
                     and bool(feedback.get("evidence_gaps"))
                     and not feedback.get("review_required")
@@ -4306,7 +4581,9 @@ class AnalysisService:
                     if feedback.get("evidence_gaps"):
                         current["unsearched_gaps"] = copy.deepcopy(feedback["evidence_gaps"])
                         current["feedback_stop_reason"] = (
-                            "quality_feedback_round_limit"
+                            "report_continuation_fixed_scope"
+                            if progress.get("report_continuation")
+                            else "quality_feedback_round_limit"
                             if workflow["evidence_feedback_used"]
                             else "baseline_fixed_sequence"
                             if fixed["query_policy"].get("effective") == "baseline"
@@ -4366,6 +4643,11 @@ class AnalysisService:
                             "evidence": copy.deepcopy(current["evidence"]),
                         }
                     )
+                    continuation = progress.get("report_continuation")
+                    if continuation and current["index"] == continuation["target_round"]:
+                        progress["report_research_scopes"][str(len(rounds) - 1)] = copy.deepcopy(
+                            progress["report_research_scopes"][str(current["index"])]
+                        )
                     progress["active_report_round"] = len(rounds) - 1
                 else:
                     if feedback.get("repair_units"):
@@ -4400,6 +4682,15 @@ class AnalysisService:
                         )
                     revision = current["revision"]
                     if not revision.get("needs_verification") or revision.get("status") != "changed":
+                        if revision.get("status") == "failed":
+                            progress["report_revision_error"] = {
+                                "code": revision.get("error_code", "biocheck_revision_invalid"),
+                                "report_round": current["index"],
+                                "preserved_round": parent["index"],
+                                "qualification": (
+                                    "修订未形成有效回执；保留原核验文字和原核验结果，等待人工处理。"
+                                ),
+                            }
                         current.update(status=revision.get("status", "not_changed"), result=parent["result"])
                         workflow["phase"] = "complete"
                         continue
@@ -4414,6 +4705,12 @@ class AnalysisService:
                             max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
                             verification_mode=progress["final_report_plan"].get("verification_mode", "whole"),
                             verify_target="biocheck_recheck",
+                            **(
+                                {"previous_review": copy.deepcopy(preserved.report["verification"])}
+                                if (preserved.report.get("verification") or {}).get("verification_method")
+                                == "cited_claims"
+                                else {}
+                            ),
                         )
                         report.update(
                             revision=copy.deepcopy(revision),
@@ -5041,11 +5338,15 @@ class AnalysisService:
             ):
                 return identifier
             row.state, row.execution_token = "running", token
-            row.lease_until = datetime.now(UTC) + timedelta(seconds=execution_seconds(row.fixed_input) + 10)
+            row.lease_until = datetime.now(UTC) + timedelta(
+                seconds=execution_seconds(row.fixed_input, row.progress) + 10
+            )
             fixed, progress = copy.deepcopy(row.fixed_input), copy.deepcopy(row.progress)
             fixed["is_demo"] = row.is_demo
             progress.setdefault("expected_revision", row.based_on_revision)
             progress.setdefault("started_at", datetime.now(UTC).isoformat())
+            if progress.get("report_continuation"):
+                progress["report_continuation"]["status"] = "running"
             row.progress = copy.deepcopy(progress)
         try:
             self._guard(identifier, token)
@@ -5106,9 +5407,11 @@ class AnalysisService:
                     return identifier
                 report_status = (result.get("report") or {}).get("status")
                 audit_status = ((result.get("report") or {}).get("support_audit") or {}).get("status")
-                if progress.get("query_policy", {}).get(
-                    "refresh_not_semantically_reviewed"
-                ) or audit_status in {"REVIEW", "NOT_RUN"}:
+                if (
+                    progress.get("report_revision_error")
+                    or progress.get("query_policy", {}).get("refresh_not_semantically_reviewed")
+                    or audit_status in {"REVIEW", "NOT_RUN"}
+                ):
                     row.state = "needs_review"
                 elif report_status in {"PASS", "REVIEW", "FAIL", "failed"}:
                     row.state = "completed" if report_status == "PASS" else "needs_review"
@@ -5131,6 +5434,10 @@ class AnalysisService:
                 )
                 progress["stage"] = "completed" if row.state == "completed" else "needs_review"
                 progress["finished_at"] = datetime.now(UTC).isoformat()
+                if progress.get("report_continuation"):
+                    progress["report_continuation"].update(
+                        status=row.state, finished_at=progress["finished_at"]
+                    )
                 row.progress = copy.deepcopy(progress)
                 row.completed_at, row.lease_until, row.execution_token = datetime.now(UTC), None, None
                 row.error_code = progress.get("comparison_error_code") or progress.get(
@@ -5200,6 +5507,8 @@ class AnalysisService:
                     if not paused and not budget_wait and not fetch_wait:
                         progress["finished_at"] = datetime.now(UTC).isoformat()
                         row.completed_at = datetime.now(UTC)
+                    if progress.get("report_continuation"):
+                        progress["report_continuation"].update(status=row.state, error_code=row.error_code)
                     row.progress = copy.deepcopy(progress)
                     if row.result is not None and fixed.get("execution_version") == "query-step-v1":
                         saved_result = copy.deepcopy(row.result)
@@ -5259,7 +5568,7 @@ def execute_analysis(identifier, input_hash):
                 row = session.get(InvestigationAnalysisRecord, identifier)
                 if row is None or row.workspace_id != settings.engine_workspace_id:
                     return identifier
-                seconds = execution_seconds(row.fixed_input)
+                seconds = execution_seconds(row.fixed_input, row.progress)
             read_budget = SimpleNamespace(
                 max_seconds=seconds + 10,
                 max_records=reading_limits(row.fixed_input)["max_versions"]

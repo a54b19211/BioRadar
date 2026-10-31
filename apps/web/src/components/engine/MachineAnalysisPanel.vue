@@ -25,9 +25,11 @@ const emit = defineEmits<{
   changed: [];
   unauthorized: [error: unknown];
   selected: [id: string];
+  analysisView: [view: AnalysisView | null];
 }>();
 const list = ref<AnalysisList | null>(null);
 const selected = ref<AnalysisView | null>(null);
+watch(selected, value => emit("analysisView", value));
 const source = ref<EvidenceRead | null>(null);
 const sourceOpen = ref(false);
 const sourceError = ref("");
@@ -432,10 +434,11 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
           </ul>
         </details>
       </section>
-      <MachineAnalysisResult :analysis="selected" :human-decision="latestHumanDecision" @source="readSource" />
+      <MachineAnalysisResult :analysis="selected" :human-decision="latestHumanDecision" :human-entries="investigation.entries" @source="readSource" />
       <details v-if="selected.initial_draft" :open="!selected.result" class="initial-draft">
         <summary>修订前的分析与发现的问题</summary>
-        <MachineAnalysisResult :analysis="{ ...selected, result: selected.initial_draft }" :human-decision="latestHumanDecision" @source="readSource" />
+        <p class="muted">修订前草稿未装配专属的固定对象人审与四轴评定，按未评定看待；不沿用最终稿的判断。</p>
+        <MachineAnalysisResult :analysis="{ ...selected, human_review_context: null, result: { ...selected.initial_draft, assessment_axes: undefined } }" :human-decision="latestHumanDecision" :human-entries="investigation.entries" @source="readSource" />
       </details>
       <details :open="['queued', 'running', 'blocked', 'failed'].includes(selected.state)" class="research-queries">
         <summary>实际检索与补查（{{ selected.queries.length }} 项）</summary>

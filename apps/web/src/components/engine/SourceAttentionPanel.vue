@@ -34,7 +34,7 @@ const claims = computed(() => Array.isArray(value.value.checkable_claims) ? valu
       <div><dt>潜在后果</dt><dd>{{ consequenceLabels[text(consequence.level)] || consequence.level || "未记录" }}</dd></div>
       <div><dt>核实优先级</dt><dd>{{ importance[text(priority.importance)] || priority.importance || "未记录" }} · {{ urgency[text(priority.urgency)] || priority.urgency || "未记录" }}</dd></div>
     </dl>
-    <p class="muted">来源转述准确、传播量大或值得立即核实，均不等于原始说法已证实。后果仅在说法成立的条件下讨论，不是疾病风险估计；事后不成立的说法，当时也可能值得核实。</p>
+    <p class="muted">来源转述准确、传播量大或值得立即核实，均不等于原始说法已证实。后果仅在说法成立的条件下讨论，不是疾病风险估计；事后不成立的说法，当时也可能值得核实。未证实高风险仍待人工核实，不自动升级为警报。</p>
     <ul><li v-for="reason in strings(value.attention_reasons)" :key="reason">{{ reasonLabels[reason] || reason }}</li></ul>
     <details v-if="claims.length">
       <summary>可检验的来源说法（仍未证实）</summary>

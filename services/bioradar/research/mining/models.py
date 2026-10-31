@@ -609,6 +609,110 @@ class EvidenceSupport(FrozenModel):
     source_url: str | None = None
 
 
+class AxisAssessment(FrozenModel):
+    record_ref: ProviderRef
+    assessment_status: Literal["not_assessed", "machine_assessed", "human_reviewed"] = "not_assessed"
+    reason_code: str = "basis_missing"
+    assessment_basis_refs: tuple[ProviderRef, ...] = ()
+    assessment_basis: str = ""
+    assessed_by: str | None = None
+    assessed_at: datetime | None = None
+    taxonomy_name: Literal["admiralty-scale"] = "admiralty-scale"
+    taxonomy_version: Literal[5] = 5
+    native_review_entry_id: str | None = None
+    review_revision: int | None = None
+    previous_assessment_ref: str | None = None
+
+    @model_validator(mode="after")
+    def assessed_basis(self):
+        if self.assessed_at is not None and self.assessed_at.tzinfo is None:
+            raise ValueError("assessment timestamps require a timezone")
+        if self.assessment_status != "not_assessed" and not (
+            self.assessed_by
+            and self.assessed_at
+            and self.assessment_basis.strip()
+            and self.assessment_basis_refs
+        ):
+            raise ValueError("assessed grades require basis, actor and timestamp")
+        if self.assessment_status == "human_reviewed" and not (
+            self.native_review_entry_id and self.review_revision is not None
+        ):
+            raise ValueError("human assessment requires the native judgment entry")
+        return self
+
+
+class SourceReliabilityAssessment(AxisAssessment):
+    # The product uses the classic A-F subset; external G is not remapped here.
+    grade: Literal["A", "B", "C", "D", "E", "F"] = "F"
+    publisher_scope: str | None = None
+
+    @model_validator(mode="after")
+    def reliability_scope(self):
+        if self.assessment_status == "not_assessed" and self.grade != "F":
+            raise ValueError("unassessed source reliability must remain F")
+        if self.assessment_status != "not_assessed" and not (self.publisher_scope or "").strip():
+            raise ValueError("assessed source reliability requires publisher scope")
+        return self
+
+
+class InformationCredibilityAssessment(AxisAssessment):
+    grade: Literal["1", "2", "3", "4", "5", "6"] = "6"
+    claim_id: str | None = None
+    claim_text: str | None = None
+    claim_text_sha256: str | None = None
+    independent_confirmation_refs: tuple[ProviderRef, ...] = ()
+    independent_confirmation_basis: str = ""
+
+    @model_validator(mode="after")
+    def credibility_scope(self):
+        if self.assessment_status == "not_assessed" and self.grade != "6":
+            raise ValueError("unassessed information credibility must remain 6")
+        if (
+            self.claim_text is not None
+            and self.claim_text_sha256 != hashlib.sha256(self.claim_text.encode()).hexdigest()
+        ):
+            raise ValueError("claim text hash does not match this assessment")
+        if self.assessment_status != "not_assessed" and not (self.claim_id and self.claim_text):
+            raise ValueError("information assessment requires an explicit claim")
+        if self.grade == "1" and (
+            len(self.independent_confirmation_refs) < 2 or not self.independent_confirmation_basis.strip()
+        ):
+            raise ValueError("information 1 requires explicit independent confirmation basis")
+        return self
+
+
+class AssessmentAxes(FrozenModel):
+    source_reliability: tuple[SourceReliabilityAssessment, ...] = ()
+    information_credibility: tuple[InformationCredibilityAssessment, ...] = ()
+    evidence_level: str | None = None
+    heat: dict[str, JsonValue] | None = None
+
+
+class SourceReliabilityReviewInput(FrozenModel):
+    grade: Literal["A", "B", "C", "D", "E", "F"]
+    record_ref: ProviderRef
+    publisher_scope: str = Field(min_length=1, max_length=2000)
+    assessment_basis_refs: tuple[ProviderRef, ...] = Field(min_length=1, max_length=128)
+    assessment_basis: str = Field(min_length=1, max_length=4000)
+
+
+class InformationCredibilityReviewInput(FrozenModel):
+    grade: Literal["1", "2", "3", "4", "5", "6"]
+    record_ref: ProviderRef
+    claim_id: str = Field(min_length=1, max_length=200)
+    claim_text: str = Field(min_length=1, max_length=4000)
+    assessment_basis_refs: tuple[ProviderRef, ...] = Field(min_length=1, max_length=128)
+    assessment_basis: str = Field(min_length=1, max_length=4000)
+    independent_confirmation_refs: tuple[ProviderRef, ...] = Field(default=(), max_length=128)
+    independent_confirmation_basis: str = Field(default="", max_length=4000)
+
+
+class AssessmentAxesReviewInput(FrozenModel):
+    # Client ratings carry no actor, time, authority, evidence level or heat.
+    source_reliability: tuple[SourceReliabilityReviewInput, ...] = Field(default=(), max_length=32)
+    information_credibility: tuple[InformationCredibilityReviewInput, ...] = Field(default=(), max_length=128)
+
+
 class Candidate(FrozenModel):
     candidate_key: str
     method_id: str
@@ -619,6 +723,7 @@ class Candidate(FrozenModel):
     reasons: tuple[str, ...]
     supports: tuple[EvidenceSupport, ...]
     metrics: dict[str, JsonValue] = Field(default_factory=dict)
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     score: float = 0.0
     evidence_status: Literal["unverified", "partial"] = "unverified"
     importance: Literal["undetermined", "low", "medium", "high"] = "undetermined"

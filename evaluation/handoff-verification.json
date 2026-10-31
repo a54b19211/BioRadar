@@ -7171,5 +7171,134 @@
     },
     "scientific_scope": "Engineering source/clock/recovery validation only. No formal historical cases, scientific outcomes or hidden oracle read by implementation/review agents.",
     "deployment": "Isolated branch; existing 923 calibration/smoke runtime and production unchanged."
+  },
+  "section17_engineering_20261031": {
+    "scope": "报告17.2与已复现的B2接线缺口；新B3真实业务验证另行封存。",
+    "base_commit": "3686ef884c4271372144954b18e65c25a3927ac3",
+    "worktree": "/home/zk_test/zk_projects/.bioradar-history-replay-20261031/radar",
+    "branch": "codex/radar-history-replay-20261031",
+    "changes": [
+      "授权图包目录→固定读取→名称解析/邻域，统一工具回执、用量与恢复",
+      "原问题显式components逐子项查找；组合关系保留独立覆盖检查",
+      "来源可靠性、信息可信度、既有证据等级和热度分列；默认F/6为未评",
+      "人工意见绑定本线索/报告/命题及固定版本；初稿不沿用终稿人审",
+      "数据库/页面/JSON/Markdown保留相同最终正文，全文与片段核验各自显示",
+      "BioCheck新逐句核验、失败句修订、完整previous_review和纯RPC完成信封",
+      "已核正文和received回执优先恢复；报告尾部续稿有独立批准、绝对截止和累积预算",
+      "新报告输入只共享完全相同的计算上下文，原范围、反证和差异不删"
+    ],
+    "native_fields": {
+      "human_review": "AnalysisView.human_review_context",
+      "assessment_axes": "AnalysisView.result.assessment_axes",
+      "time_scope": "AnalysisView.evidence_time"
+    },
+    "upstream_actually_used_in_this_adapter_check": {
+      "biocheck_commit": "9f15f08ad5b58667bf5838602c04409c5a8d4876",
+      "biocheck_http_provider": "6581264eec4811996cb6149d746c9e5305c2699b1b889b9c3e4ff0e046e83b91",
+      "biocheck_local_pin": "e18e953d86dbc935d571e88748615e99cef4e00becef77563f7ea060876dcb7b",
+      "qualification": "Real local methods and isolated HTTP method service; all model responses authored synthetic fixtures, no commercial API."
+    },
+    "checks_already_observed": {
+      "report_continuation": {
+        "distinct_tests": 26,
+        "skipped": 0,
+        "storage": "isolated random PostgreSQL schema and RQ"
+      },
+      "prior_send_boundary_and_received_regression": {
+        "passed": 7,
+        "skipped": 0,
+        "storage": "isolated PostgreSQL/RQ, local synthetic model HTTP"
+      },
+      "graph_native_persistence": {
+        "passed": 1,
+        "skipped": 0,
+        "received_replay_new_requests": 0
+      },
+      "human_review_and_two_verification_delivery": {
+        "passed": 10,
+        "skipped": 0,
+        "native_http": true
+      },
+      "claim_callback_and_rpc_envelopes": {
+        "passed": 11,
+        "skipped": 0
+      },
+      "four_required_commands": [
+        "make test CARD=BOOT",
+        "make contract-check",
+        "make lint",
+        "make web-check"
+      ],
+      "final_required_results_and_exact_tree": "/tmp/bioradar-section17-20261031/final-release-checks.nonbody.json"
+    },
+    "evidence": [
+      {
+        "path": "/tmp/bioradar-section17-20261031/report-continuation-handoff.nonbody.json",
+        "sha256": "37fffa1287683d80329e7d3b86bffbe87df3c660a9c0fdea21517e14da9925e0"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-report-continuation-nonauthor-review.json",
+        "sha256": "30d773a84bd60ff65abb8c0e5ddf39e076495aa4136b96e538a238c415d20033"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-assessment-axes-nonauthor-review.json",
+        "sha256": "30ab1121c995cdda4b7a97439b538b7b19bdedd4ed971ec9341b053e57e422a3"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-delivery-and-graph-sol-nonauthor-review.json",
+        "sha256": "54751e01ab47b8980bb98f133e5af9cb694b1f8378218597c15f051da079df82"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/b-biocheck-scope-nonauthor-review.nonbody.json",
+        "sha256": "132b18e44601a69e7734756c9ccce467732a6c88b268914e585bcc1b25ee0d14"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/biocheck-adapter-native-replay.nonbody.json",
+        "sha256": "67982b955a4dbe0351efc8c464ede06b60c3bf6b96d0d5b8c13cbb7240b856b9"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/baseline-preservation.nonbody.json",
+        "sha256": "9ddd1f3d0f5515d63b15295af1feef539203238c066a067a6652adad8c94e9ce"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/send-boundary-and-received-regression.log",
+        "sha256": "6ffc431f1beede2a2704ab999ff422850c80ea32036c5a9598cfaa1dc8c052c3"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/graph-package-persistence-v3.log",
+        "sha256": "fafe27562c932c0554f149913f74f166371b12e364e93338ec0d4f0cd24abd39"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/claim-envelope-regression.log",
+        "sha256": "941172fcd5bebf2a93236de3a802737d59a803d0698e33646b9b06399808f0a9"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/c-human-review-handoff.json",
+        "sha256": "34cc934e851e7912b90b71e35d7be0eb03d7d862caf0a9cb411aeff0e37a48f0"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/assessment-axes-methods-handoff.json",
+        "sha256": "2a3e82f18681622358debdca1e6dbf499bd2dff61667b02f999f8bd6520f41ab"
+      },
+      {
+        "path": "/tmp/bioradar-section17-20261031/b-professional-rpc-claim-envelope-nonauthor-review.nonbody.json",
+        "sha256": "80f05732d42079fff9c60e28ce9050235523f4bed5eefa17aafee3489ccfad4d"
+      }
+    ],
+    "paid_model_requests": 0,
+    "formal_B2": {
+      "analysis_id": "4b065880-d112-4e1f-92bb-8e2eaa793203",
+      "state": "blocked",
+      "error_code": "model_input_budget",
+      "received_calls": 9,
+      "received_tokens": 238472,
+      "not_sent_input_limit_calls": 2,
+      "evidence_versions": 13,
+      "source_record_ids": 10,
+      "final_text": null,
+      "treatment": "Original row/seal/failure/cost retained; no paid report-only continuation."
+    },
+    "formal_B3": "Not started by this code batch. ROOT prepares new isolated store, source bindings, registry and seal before any actual business run.",
+    "unchanged_assets": "Fabric code and its isolated repair branch, source21 original versions, previous experiment stores and main deployment unchanged."
   }
 }

@@ -529,7 +529,7 @@ onUnmounted(() => {
           >
         </aside>
         <section v-if="selected" class="topic-detail">
-          <TopicTrackingCard v-if="tracking" :tracking="tracking" title="当前专题跟踪状态" :as-of="selected.updated_at" />
+          <TopicTrackingCard v-if="tracking" :tracking="tracking" title="当前专题跟踪状态" :axes="selected.assessment_axes" :as-of="selected.updated_at" />
           <section class="engine-panel">
             <div class="section-heading">
               <h2>{{ selected.definition.title }}</h2>

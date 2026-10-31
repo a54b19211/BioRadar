@@ -10,6 +10,7 @@ import {
 } from "../../api/engine";
 import { explainCode } from "../../api/engineLabels";
 import SourceAttentionPanel from "./SourceAttentionPanel.vue";
+import AssessmentAxesPanel from "./AssessmentAxesPanel.vue";
 import { object, strings, readable, kddLabel, fieldLabel, methodLabel, text } from "../../api/kdd";
 const props = defineProps<{
   candidate: Candidate | null;
@@ -190,6 +191,7 @@ async function saveInvestigation() {
         <span v-if="candidate.metrics?.kdd_direction"> · {{ kddLabel(String(candidate.metrics.kdd_direction)) }}</span>
       </p>
       <SourceAttentionPanel v-if="candidate.metrics?.attention" :attention="candidate.metrics?.attention" />
+      <AssessmentAxesPanel :axes="candidate.assessment_axes" />
       <h3>为什么进入候选</h3>
       <ul class="evidence-list">
         <li v-for="reason in candidate.reasons" :key="reason">
@@ -208,8 +210,8 @@ async function saveInvestigation() {
             <dt>新颖性依据</dt><dd>{{ readable(pattern.novelty) }}</dd>
             <dt>效应与变化幅度</dt><dd>{{ readable(pattern.effect) }}</dd>
             <dt>不确定性</dt><dd>{{ readable(pattern.uncertainty) }}</dd>
-            <dt>重要性</dt><dd>{{ readable(pattern.importance) }}</dd>
-            <dt>紧急度</dt><dd>{{ readable(pattern.urgency) }}</dd>
+            <dt>研究优先级</dt><dd>{{ readable(pattern.importance) }}</dd>
+            <dt>核实紧急度</dt><dd>{{ readable(pattern.urgency) }}</dd>
           </dl>
           <p v-if="pattern.qualification">{{ readable(pattern.qualification) }}</p>
           <p v-if="Array.isArray(pattern.required_evidence) && pattern.required_evidence.length"><strong>补证要求：</strong>{{ readable(pattern.required_evidence) }}</p>

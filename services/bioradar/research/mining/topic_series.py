@@ -163,8 +163,14 @@ def project_contribution(record, history, definition, *, as_of, evidence_time=No
         )
         if key in facts
     }
+    from bioradar.research.mining.intelligence_assessment import default_assessment_axes
+
+    attention = assess_records([record])
     value = {
-        "attention": assess_records([record]),
+        "assessment_axes": default_assessment_axes(
+            [record], evidence_level=attention["evidence_level"], claims=attention["checkable_claims"]
+        ).model_dump(mode="json"),
+        "attention": attention,
         "signal_context": record.signal_context.model_dump(mode="json") if record.signal_context else None,
         "source_independence_status": record.source_independence_status,
         "feature_version": TOPIC_FEATURE_VERSION,
@@ -260,7 +266,9 @@ def _evidence(value):
             "raw_sha256",
             "source_site",
             "field_locators",
+            "assessment_axes",
         )
+        if key in value
     }
 
 

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import AssessmentAxesPanel from "./AssessmentAxesPanel.vue";
 import { onMounted, onUnmounted, ref } from "vue";
 import { RouterLink } from "vue-router";
 import { ElButton, ElTag } from "element-plus";
@@ -206,6 +207,8 @@ onUnmounted(() => { disposed = true; ++generation; clearTimeout(timer); });
           <p class="muted">本轮涉及 {{ lead.changed_support_versions }} 个支持资料版本。线索仍需研究人员核对。</p>
           <p v-if="lead.importance_reason"><strong>为何值得查：</strong>{{ lead.importance_reason }}</p>
           <p v-if="lead.urgency_reason"><strong>紧急度依据：</strong>{{ lead.urgency_reason }}</p>
+          <p class="muted">优先级与紧急度只安排研究核实；未证实高风险仍待人工核实，不是警报或批准。</p>
+          <AssessmentAxesPanel :axes="lead.assessment_axes" />
           <p v-if="lead.data_gaps.length" class="muted">仍缺：{{ lead.data_gaps.join("；") }}</p>
           <div class="monitor-actions">
             <RouterLink v-if="lead.investigation_id" :to="{ path: '/investigations', query: { id: lead.investigation_id } }">查看调查、实际策略与原文</RouterLink>

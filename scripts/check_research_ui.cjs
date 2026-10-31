@@ -106,6 +106,14 @@ async function renderReport(status, genericState = "passed", calls = [], reportF
     require(name) {
       if (name === "vue") return Vue;
       if (name === "element-plus") return { ElButton: element("button"), ElTag: element("span") };
+      if (["./HumanReviewSummary.vue", "./AssessmentAxesPanel.vue"].includes(name)) {
+        const loader = require("./check_query_policy_ui.cjs");
+        const api = loader.loadApi("apps/web/src/api/humanReview.ts");
+        const axes = loader.compileComponent("apps/web/src/components/engine/AssessmentAxesPanel.vue", { "../../api/humanReview": api });
+        return { default: name === "./AssessmentAxesPanel.vue" ? axes : loader.compileComponent(
+          "apps/web/src/components/engine/HumanReviewSummary.vue", { "../../api/humanReview": api, "./AssessmentAxesPanel.vue": { default: axes } },
+        ) };
+      }
       if (name === "./ReportSourceIndex.vue") {
         const helper = { exports: {} };
         vm.runInNewContext(compile(fs.readFileSync(path.join(root, "apps/web/src/api/reportDelivery.ts"), "utf8")), helper);
@@ -131,7 +139,7 @@ async function renderReport(status, genericState = "passed", calls = [], reportF
     analysis: { state: "completed", result, calls, evidence: [], ...analysisFields }, humanDecision,
   }));
 }
-async function renderPanelScope(scope) {
+async function renderPanelScope(scope, selectedFields = {}, resultComponent = null) {
   const { compileComponent } = require("./check_query_policy_ui.cjs");
   const empty = Vue.defineComponent({ setup: () => () => null });
   const panel = compileComponent("apps/web/src/components/engine/MachineAnalysisPanel.vue", {
@@ -140,7 +148,7 @@ async function renderPanelScope(scope) {
       EngineError,
     },
     "element-plus": { ElButton: empty, ElDrawer: empty, ElTag: empty },
-    "./MachineAnalysisResult.vue": { default: empty },
+    "./MachineAnalysisResult.vue": { default: resultComponent || empty },
     "./ResearchQuestionForm.vue": { default: empty },
     "./ResearchProgress.vue": { default: empty },
   });
@@ -152,6 +160,7 @@ async function renderPanelScope(scope) {
       is_demo: false, evidence_count: 5, queries: [], limitations: [], search_scope: [],
       calls: [], budget: {}, version: "offline", prompt_version: "offline",
       progress: scope ? { material_scope: scope } : {},
+      ...selectedFields,
     };
     return state;
   };
@@ -502,7 +511,11 @@ async function main() {
   } };
   vm.runInNewContext(compile(fs.readFileSync(path.join(root, "apps/web/src/api/kdd.ts"), "utf8")), kddHelper);
   const trackingComponent = require("./check_query_policy_ui.cjs").compileComponent(
-    "apps/web/src/components/engine/TopicTrackingCard.vue", { "../../api/kdd": kddHelper.exports },
+    "apps/web/src/components/engine/TopicTrackingCard.vue", { "../../api/kdd": kddHelper.exports,
+      "./AssessmentAxesPanel.vue": { default: require("./check_query_policy_ui.cjs").compileComponent(
+        "apps/web/src/components/engine/AssessmentAxesPanel.vue", { "../../api/humanReview": require("./check_query_policy_ui.cjs").loadApi("apps/web/src/api/humanReview.ts") },
+      ) },
+    },
   );
   const trackingValue = {
     version: "source-evidence-heat-lifecycle-v1", lifecycle: "cooling", cadence_hours: 1,
@@ -672,5 +685,5 @@ async function main() {
     "retained_reading_answer_remains_an_unfinished_old_draft_without_a_current_conclusion_label",
   ] }));
 }
-module.exports = { renderReport };
+module.exports = { renderReport, renderPanelScope };
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

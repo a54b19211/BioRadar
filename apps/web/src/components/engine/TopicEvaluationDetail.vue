@@ -108,7 +108,7 @@ onUnmounted(() => {
 
 <template>
   <div class="topic-evaluation">
-    <TopicTrackingCard v-if="tracking" :tracking="tracking" title="该版观察的证据与跟踪状态" :as-of="evaluation.as_of" />
+    <TopicTrackingCard v-if="tracking" :tracking="tracking" title="该版观察的证据与跟踪状态" :axes="evaluation.assessment_axes" :as-of="evaluation.as_of" />
     <section class="engine-panel">
       <div class="section-heading">
         <h2>这次看到了什么</h2>

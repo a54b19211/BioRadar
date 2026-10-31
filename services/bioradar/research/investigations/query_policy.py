@@ -279,6 +279,9 @@ def question_plan_payload(fixed):
                 + (
                     "named_objects列出问题实际点名的对象；name必须逐字出现在问题里，"
                     "question_span使用Unicode码点半开区间start/end。不要补入答案、材料编号或推测对象。"
+                    "独立对象各自列出；若名称组合表达两个对象的关系，可在components声明各子项的"
+                    "id/name/question_span，子项必须逐字位于该组合内。斜杠也可能是单个真实标识符，"
+                    "不能仅按标点拆分。读到子项仅表示材料提及对象，组合关系仍须另查。"
                     if fixed.get("query_policy", {}).get("research_contract_version")
                     == "bioradar-research-input-v1"
                     else ""
@@ -556,6 +559,17 @@ def build_coverage_checks(fixed, progress, *, reading=None):
             extra.update(_CLINICAL_CHECKS)
         for key, question in extra.items():
             checks.setdefault(key, _check(key, question))
+        for item in question_named_objects(fixed, progress.get("query_policy", {}).get("named_objects", [])):
+            if item.get("components"):
+                key = "question_relation:" + _hash([item["name"], item["question_span"]])[:12]
+                checks.setdefault(
+                    key,
+                    _check(
+                        key,
+                        "原问题组合“" + item["name"] + "”的关系及成立条件是否有材料支持；"
+                        "子项分别被提及只完成对象查找，不能代替关系取证。",
+                    ),
+                )
     value = _plain(reading) if reading else {}
     for gap in value.get("gaps", []):
         question = gap["question"]
@@ -1401,7 +1415,29 @@ def question_named_objects(fixed, raw):
         ):
             raise DomainError("analysis_question_object_invalid", "点名对象未绑定原问题的准确位置", 422)
         seen.add(item["id"])
-        result.append({key: copy.deepcopy(item[key]) for key in ("id", "name", "question_span")})
+        value = {key: copy.deepcopy(item[key]) for key in ("id", "name", "question_span")}
+        components = item.get("components", [])
+        if components:
+            if (
+                not isinstance(components, list)
+                or not 2 <= len(components) <= 4
+                or any(c.get("components") for c in components if isinstance(c, dict))
+            ):
+                raise DomainError(
+                    "analysis_question_object_invalid", "组合对象须明确列出二至四个原文子项", 422
+                )
+            members = question_named_objects(fixed, components)
+            ordered = sorted(members, key=lambda c: c["question_span"]["start"])
+            if any(
+                not start <= c["question_span"]["start"] < c["question_span"]["end"] <= end
+                or c["id"] == item["id"]
+                for c in members
+            ) or any(
+                a["question_span"]["end"] > b["question_span"]["start"] for a, b in zip(ordered, ordered[1:])
+            ):
+                raise DomainError("analysis_question_object_invalid", "组合子项须位于原名称内且不能重叠", 422)
+            value["components"] = members
+        result.append(value)
     return result
 
 
@@ -1415,8 +1451,8 @@ def named_object_context(fixed, progress, candidates, checks):
     objects = question_named_objects(fixed, progress.get("query_policy", {}).get("named_objects", []))
     history = _history(fixed, progress)
     attempted = {semantic_key(item["kind"], item["arguments"]) for item in history}
-    output = []
-    for item in objects:
+
+    def read_object(item):
         refs = [
             e["key"] for e in progress.get("evidence", []) if _object_occurs(item["name"], e.get("text", ""))
         ]
@@ -1440,19 +1476,33 @@ def named_object_context(fixed, progress, candidates, checks):
                     query and item["name"].casefold() in query.casefold()
                 ):
                     ids.append(candidate["id"])
-        output.append(
-            {
-                **item,
-                "status": "read" if refs else "unread" if ids else "unavailable",
-                "evidence_ids": refs,
-                "candidate_ids": ids,
-                **(
-                    {"reason": "本轮已尝试的查询未取得该对象正文，且没有可执行候选。"}
-                    if not refs and not ids
-                    else {}
-                ),
-            }
-        )
+        return {
+            **item,
+            "status": "read" if refs else "unread" if ids else "unavailable",
+            "evidence_ids": refs,
+            "candidate_ids": ids,
+            **(
+                {"reason": "本轮已尝试的查询未取得该对象正文，且没有可执行候选。"}
+                if not refs and not ids
+                else {}
+            ),
+        }
+
+    output = []
+    for item in objects:
+        if not item.get("components"):
+            output.append(read_object(item))
+            continue
+        for member in item["components"]:
+            value = read_object(member)
+            value["id"] = item["id"] + ":" + member["id"]
+            value["reason"] = (
+                "来自原问题组合“"
+                + item["name"]
+                + "”；这里只记录子项提及，组合关系仍由question_relation覆盖项评价。"
+                + value.get("reason", "")
+            )
+            output.append(value)
     return output
 
 

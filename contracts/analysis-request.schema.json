@@ -135,6 +135,55 @@
       ],
       "title": "InitialQuery",
       "type": "object"
+    },
+    "ResumeReportRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "expected_input_hash": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Expected Input Hash",
+          "type": "string"
+        },
+        "stopped_call_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Stopped Call Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "max_input_bytes": {
+          "maximum": 262144,
+          "minimum": 1024,
+          "title": "Max Input Bytes",
+          "type": "integer"
+        },
+        "extra_seconds": {
+          "maximum": 1800,
+          "minimum": 0,
+          "title": "Extra Seconds",
+          "type": "integer"
+        },
+        "biocheck_provider_version": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Biocheck Provider Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expected_input_hash",
+        "stopped_call_id",
+        "reason",
+        "max_input_bytes",
+        "extra_seconds",
+        "biocheck_provider_version"
+      ],
+      "title": "ResumeReportRequest",
+      "type": "object"
     }
   },
   "additionalProperties": false,
@@ -248,6 +297,17 @@
       ],
       "default": null,
       "title": "Retry Of Analysis Id"
+    },
+    "resume_report": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ResumeReportRequest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "parent_analysis_id": {
       "anyOf": [

@@ -37,6 +37,10 @@ from bioradar.research.investigations.service import (
     InvestigationRecord,
     InvestigationService,
 )
+from bioradar.research.mining.intelligence_assessment import (
+    default_assessment_axes,
+    project_reviewed_assessment_axes,
+)
 from bioradar.research.mining.models import (
     Candidate,
     DiscoveryPolicy,
@@ -473,8 +477,21 @@ class MonitorService:
                         continue
                     raise
                 p, c = row.payload, row.payload["candidate"]
+                base_axes = c.get("assessment_axes") or default_assessment_axes(
+                    [support["record_ref"] for support in c.get("supports", [])],
+                    evidence_level=(c.get("metrics", {}).get("attention") or {}).get("evidence_level"),
+                )
+                entries = (
+                    InvestigationService(self.engine).get(actor, row.investigation_id).entries
+                    if row.investigation_id
+                    else []
+                )
+                axes = project_reviewed_assessment_axes(
+                    base_axes, entries, cutoff=(p.get("historical_context") or {}).get("cutoff")
+                )
                 items.append(
                     MonitorLeadView(
+                        assessment_axes=axes,
                         id=row.id,
                         lead_key=row.lead_key,
                         title=c["title"],

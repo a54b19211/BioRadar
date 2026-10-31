@@ -937,6 +937,50 @@ def analysis_results(progress):
     return analyses
 
 
+def compact_report_continuation_scope(scope):
+    """Share identical calculation context in a new report round, without shortening evidence."""
+    projected = copy.deepcopy(scope)
+    version = "shared-calculation-context-v1"
+    rows = projected.get("analysis_results", [])
+    if "analysis_result_context" in projected:
+        return projected, projected["analysis_result_context"]["projection_version"]
+    if (
+        not isinstance(rows, list)
+        or len(rows) < 2
+        or any(not isinstance(row, dict) or not isinstance(row.get("id"), str) for row in rows)
+        or len({row["id"] for row in rows}) != len(rows)
+    ):
+        return projected, version
+    fields, paths = {}, {}
+    for name in ("parameters", "calculation_basis", "limitations"):
+        if not all(name in row for row in rows):
+            continue
+        encoded = [
+            json.dumps(row[name], ensure_ascii=False, sort_keys=True, separators=(",", ":")) for row in rows
+        ]
+        if len(set(encoded)) != 1:
+            continue
+        fields[name] = copy.deepcopy(rows[0][name])
+        paths[name] = [f"$.analysis_results[{index}].{name}" for index in range(len(rows))]
+    if not fields:
+        return projected, version
+    for row in rows:
+        for name in fields:
+            del row[name]
+    projected["analysis_result_context"] = {
+        "projection_version": version,
+        "applies_to_result_ids": [row["id"] for row in rows],
+        "fields": fields,
+        "source_paths": paths,
+    }
+
+    # Small cases can cost more in mapping overhead; retain the full rows then.
+    def size(value):
+        return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
+
+    return (projected if size(projected) < size(scope) else copy.deepcopy(scope)), version
+
+
 def _professional_cost(fixed, progress, receipt):
     from bioradar.research.investigations.analysis import analysis_budget
 

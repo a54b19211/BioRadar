@@ -304,9 +304,25 @@ def execute_professional(
                 "request_hash": required["request_hash"],
                 "output": copy.deepcopy(output),
             }
-            if provider == "biocheck" and operation == "verify" and arguments.get("mode") == "paragraph":
+            paragraph_verify = operation == "verify" and arguments.get("mode") == "paragraph"
+            claim_revision = (
+                operation == "revise"
+                and (arguments.get("review") or {}).get("verification_method") == "cited_claims"
+            )
+            if provider == "biocheck" and (paragraph_verify or claim_revision):
+                allowed_stages = (
+                    {
+                        "verify_paragraph",
+                        "verify_paragraph_retry",
+                        "verify_coverage",
+                        "verify_claim",
+                        "verify_claim_retry",
+                    }
+                    if paragraph_verify
+                    else {"revise_claims"}
+                )
                 if (
-                    required["stage"] not in {"verify_paragraph", "verify_paragraph_retry", "verify_coverage"}
+                    required["stage"] not in allowed_stages
                     or output.get("finish_reason") not in {"stop", "length"}
                     or output["finish_reason"] == "stop"
                     and not isinstance(output.get("output"), dict)

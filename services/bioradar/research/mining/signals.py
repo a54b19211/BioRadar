@@ -473,8 +473,13 @@ def with_attention(candidate, records, *, qualified_study_refs=None, policy=None
         and assessment["checkable_claims"]
     ):
         title = "待核事件：" + assessment["checkable_claims"][0]["text"][:170]
+    from bioradar.research.mining.intelligence_assessment import default_assessment_axes
+
     return candidate.model_copy(
         update={
+            "assessment_axes": default_assessment_axes(
+                records, evidence_level=assessment["evidence_level"], claims=assessment["checkable_claims"]
+            ),
             "title": title,
             "importance": importance,
             "urgency": urgency,

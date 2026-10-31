@@ -3508,6 +3508,16 @@
             ],
             "title": "Retry Of Analysis Id"
           },
+          "resume_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResumeReportRequest"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "parent_analysis_id": {
             "anyOf": [
               {
@@ -4167,6 +4177,16 @@
       },
       "AnalysisResult": {
         "properties": {
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "version": {
             "type": "string",
             "enum": [
@@ -4618,6 +4638,30 @@
             "title": "Professional Status",
             "default": "not_reviewed"
           },
+          "evidence_time": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Time"
+          },
+          "human_review_context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Human Review Context"
+          },
           "is_demo": {
             "type": "boolean",
             "title": "Is Demo"
@@ -4824,6 +4868,79 @@
         ],
         "title": "Assessment"
       },
+      "AssessmentAxes": {
+        "properties": {
+          "source_reliability": {
+            "items": {
+              "$ref": "#/components/schemas/SourceReliabilityAssessment"
+            },
+            "type": "array",
+            "title": "Source Reliability",
+            "default": []
+          },
+          "information_credibility": {
+            "items": {
+              "$ref": "#/components/schemas/InformationCredibilityAssessment"
+            },
+            "type": "array",
+            "title": "Information Credibility",
+            "default": []
+          },
+          "evidence_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence Level"
+          },
+          "heat": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/JsonValue"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Heat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AssessmentAxes"
+      },
+      "AssessmentAxesReviewInput": {
+        "properties": {
+          "source_reliability": {
+            "items": {
+              "$ref": "#/components/schemas/SourceReliabilityReviewInput"
+            },
+            "type": "array",
+            "maxItems": 32,
+            "title": "Source Reliability",
+            "default": []
+          },
+          "information_credibility": {
+            "items": {
+              "$ref": "#/components/schemas/InformationCredibilityReviewInput"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "title": "Information Credibility",
+            "default": []
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "AssessmentAxesReviewInput"
+      },
       "AttemptDiagnostic": {
         "properties": {
           "attempt": {
@@ -4990,6 +5107,16 @@
             "type": "object",
             "title": "Metrics"
           },
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "score": {
             "type": "number",
             "title": "Score",
@@ -5064,6 +5191,41 @@
           "supports"
         ],
         "title": "Candidate"
+      },
+      "CandidateReviewTarget": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "candidate",
+            "title": "Type"
+          },
+          "run_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Run Id"
+          },
+          "result_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Result Hash"
+          },
+          "candidate_key": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Candidate Key"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "run_id",
+          "result_hash",
+          "candidate_key"
+        ],
+        "title": "CandidateReviewTarget"
       },
       "ClaimDependency": {
         "properties": {
@@ -5162,6 +5324,41 @@
           "evidence_keys"
         ],
         "title": "ClaimReview"
+      },
+      "ClaimReviewTarget": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "claim",
+            "title": "Type"
+          },
+          "analysis_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Analysis Id"
+          },
+          "claim_id": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Claim Id"
+          },
+          "claim_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Claim Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "analysis_id",
+          "claim_id",
+          "claim_sha256"
+        ],
+        "title": "ClaimReviewTarget"
       },
       "ClaimUpdate": {
         "properties": {
@@ -10387,6 +10584,124 @@
         ],
         "title": "HistoryTrainingRun"
       },
+      "HumanReview": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "needs_verification",
+              "dismissed",
+              "accepted_within_scope"
+            ],
+            "title": "Decision"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Scope"
+          },
+          "target": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CandidateReviewTarget"
+              },
+              {
+                "$ref": "#/components/schemas/ReportReviewTarget"
+              },
+              {
+                "$ref": "#/components/schemas/ClaimReviewTarget"
+              }
+            ],
+            "title": "Target",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "candidate": "#/components/schemas/CandidateReviewTarget",
+                "claim": "#/components/schemas/ClaimReviewTarget",
+                "report": "#/components/schemas/ReportReviewTarget"
+              }
+            }
+          },
+          "basis_record_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Basis Record Refs"
+          },
+          "analysis_input_hash": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Analysis Input Hash"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision",
+          "scope",
+          "target",
+          "basis_record_refs"
+        ],
+        "title": "HumanReview"
+      },
+      "HumanReviewCreate": {
+        "properties": {
+          "decision": {
+            "type": "string",
+            "enum": [
+              "needs_verification",
+              "dismissed",
+              "accepted_within_scope"
+            ],
+            "title": "Decision"
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Scope"
+          },
+          "target": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CandidateReviewTarget"
+              },
+              {
+                "$ref": "#/components/schemas/ReportReviewTarget"
+              },
+              {
+                "$ref": "#/components/schemas/ClaimReviewTarget"
+              }
+            ],
+            "title": "Target",
+            "discriminator": {
+              "propertyName": "type",
+              "mapping": {
+                "candidate": "#/components/schemas/CandidateReviewTarget",
+                "claim": "#/components/schemas/ClaimReviewTarget",
+                "report": "#/components/schemas/ReportReviewTarget"
+              }
+            }
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "decision",
+          "scope",
+          "target"
+        ],
+        "title": "HumanReviewCreate"
+      },
       "HypothesisJudgment": {
         "properties": {
           "least_refuted_hypothesis_id": {
@@ -10422,6 +10737,246 @@
           "next_discriminating_evidence"
         ],
         "title": "HypothesisJudgment"
+      },
+      "InformationCredibilityAssessment": {
+        "properties": {
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "assessment_status": {
+            "type": "string",
+            "enum": [
+              "not_assessed",
+              "machine_assessed",
+              "human_reviewed"
+            ],
+            "title": "Assessment Status",
+            "default": "not_assessed"
+          },
+          "reason_code": {
+            "type": "string",
+            "title": "Reason Code",
+            "default": "basis_missing"
+          },
+          "assessment_basis_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Assessment Basis Refs",
+            "default": []
+          },
+          "assessment_basis": {
+            "type": "string",
+            "title": "Assessment Basis",
+            "default": ""
+          },
+          "assessed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed By"
+          },
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "taxonomy_name": {
+            "type": "string",
+            "const": "admiralty-scale",
+            "title": "Taxonomy Name",
+            "default": "admiralty-scale"
+          },
+          "taxonomy_version": {
+            "type": "integer",
+            "const": 5,
+            "title": "Taxonomy Version",
+            "default": 5
+          },
+          "native_review_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Review Entry Id"
+          },
+          "review_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Revision"
+          },
+          "previous_assessment_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Assessment Ref"
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6"
+            ],
+            "title": "Grade",
+            "default": "6"
+          },
+          "claim_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Id"
+          },
+          "claim_text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Text"
+          },
+          "claim_text_sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claim Text Sha256"
+          },
+          "independent_confirmation_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Independent Confirmation Refs",
+            "default": []
+          },
+          "independent_confirmation_basis": {
+            "type": "string",
+            "title": "Independent Confirmation Basis",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ref"
+        ],
+        "title": "InformationCredibilityAssessment"
+      },
+      "InformationCredibilityReviewInput": {
+        "properties": {
+          "grade": {
+            "type": "string",
+            "enum": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6"
+            ],
+            "title": "Grade"
+          },
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "claim_id": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Claim Id"
+          },
+          "claim_text": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Claim Text"
+          },
+          "assessment_basis_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "minItems": 1,
+            "title": "Assessment Basis Refs"
+          },
+          "assessment_basis": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Assessment Basis"
+          },
+          "independent_confirmation_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "title": "Independent Confirmation Refs",
+            "default": []
+          },
+          "independent_confirmation_basis": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Independent Confirmation Basis",
+            "default": ""
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grade",
+          "record_ref",
+          "claim_id",
+          "claim_text",
+          "assessment_basis_refs",
+          "assessment_basis"
+        ],
+        "title": "InformationCredibilityReviewInput"
       },
       "InitialQuery": {
         "properties": {
@@ -10826,6 +11381,26 @@
               }
             ],
             "title": "Parent Judgment Entry Id"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanReview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -10881,6 +11456,26 @@
             "type": "array",
             "maxItems": 128,
             "title": "Basis Entry Ids"
+          },
+          "review": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HumanReviewCreate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxesReviewInput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false,
@@ -13473,6 +14068,16 @@
       },
       "MonitorLeadView": {
         "properties": {
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -15126,6 +15731,34 @@
         ],
         "title": "Relation"
       },
+      "ReportReviewTarget": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "const": "report",
+            "title": "Type"
+          },
+          "analysis_id": {
+            "type": "string",
+            "maxLength": 36,
+            "minLength": 1,
+            "title": "Analysis Id"
+          },
+          "text_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Text Sha256"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "type",
+          "analysis_id",
+          "text_sha256"
+        ],
+        "title": "ReportReviewTarget"
+      },
       "ResourceLimits": {
         "properties": {
           "max_records": {
@@ -15209,6 +15842,55 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ResourceLimits"
+      },
+      "ResumeReportRequest": {
+        "properties": {
+          "expected_input_hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Expected Input Hash"
+          },
+          "stopped_call_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Stopped Call Id"
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Reason"
+          },
+          "max_input_bytes": {
+            "type": "integer",
+            "maximum": 262144.0,
+            "minimum": 1024.0,
+            "title": "Max Input Bytes"
+          },
+          "extra_seconds": {
+            "type": "integer",
+            "maximum": 1800.0,
+            "minimum": 0.0,
+            "title": "Extra Seconds"
+          },
+          "biocheck_provider_version": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Biocheck Provider Version"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "expected_input_hash",
+          "stopped_call_id",
+          "reason",
+          "max_input_bytes",
+          "extra_seconds",
+          "biocheck_provider_version"
+        ],
+        "title": "ResumeReportRequest"
       },
       "ReviewPlan": {
         "properties": {
@@ -16148,6 +16830,189 @@
         ],
         "title": "SourceRelation"
       },
+      "SourceReliabilityAssessment": {
+        "properties": {
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "assessment_status": {
+            "type": "string",
+            "enum": [
+              "not_assessed",
+              "machine_assessed",
+              "human_reviewed"
+            ],
+            "title": "Assessment Status",
+            "default": "not_assessed"
+          },
+          "reason_code": {
+            "type": "string",
+            "title": "Reason Code",
+            "default": "basis_missing"
+          },
+          "assessment_basis_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "title": "Assessment Basis Refs",
+            "default": []
+          },
+          "assessment_basis": {
+            "type": "string",
+            "title": "Assessment Basis",
+            "default": ""
+          },
+          "assessed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed By"
+          },
+          "assessed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assessed At"
+          },
+          "taxonomy_name": {
+            "type": "string",
+            "const": "admiralty-scale",
+            "title": "Taxonomy Name",
+            "default": "admiralty-scale"
+          },
+          "taxonomy_version": {
+            "type": "integer",
+            "const": 5,
+            "title": "Taxonomy Version",
+            "default": 5
+          },
+          "native_review_entry_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Native Review Entry Id"
+          },
+          "review_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Review Revision"
+          },
+          "previous_assessment_ref": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Assessment Ref"
+          },
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ],
+            "title": "Grade",
+            "default": "F"
+          },
+          "publisher_scope": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Publisher Scope"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "record_ref"
+        ],
+        "title": "SourceReliabilityAssessment"
+      },
+      "SourceReliabilityReviewInput": {
+        "properties": {
+          "grade": {
+            "type": "string",
+            "enum": [
+              "A",
+              "B",
+              "C",
+              "D",
+              "E",
+              "F"
+            ],
+            "title": "Grade"
+          },
+          "record_ref": {
+            "$ref": "#/components/schemas/ProviderRef"
+          },
+          "publisher_scope": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Publisher Scope"
+          },
+          "assessment_basis_refs": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderRef"
+            },
+            "type": "array",
+            "maxItems": 128,
+            "minItems": 1,
+            "title": "Assessment Basis Refs"
+          },
+          "assessment_basis": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Assessment Basis"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "grade",
+          "record_ref",
+          "publisher_scope",
+          "assessment_basis_refs",
+          "assessment_basis"
+        ],
+        "title": "SourceReliabilityReviewInput"
+      },
       "StateAssertion": {
         "properties": {
           "assertion_ref": {
@@ -16733,6 +17598,16 @@
       },
       "TopicEvaluation": {
         "properties": {
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "title": "Id"
@@ -16948,6 +17823,16 @@
       },
       "TopicEvidence": {
         "properties": {
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "key": {
             "type": "string",
             "title": "Key"
@@ -17751,6 +18636,16 @@
       },
       "TopicView": {
         "properties": {
+          "assessment_axes": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssessmentAxes"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "id": {
             "type": "string",
             "title": "Id"

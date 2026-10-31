@@ -301,7 +301,7 @@ def resolve_graph_names(reader, record, bundle, request, cutoff):
     return tuple(dict.fromkeys(identities)) if ready else (), results
 
 
-def list_graph_packages(reader, *, source_id, is_demo, cutoff, limit=20, cursor=None):
+def list_graph_packages(reader, *, source_id, is_demo, cutoff, limit=20, cursor=None, mode="current"):
     from bioradar.adapters.fabric_history import validate_record
     from bioradar.research.investigations.graph import (
         GraphPackageList,
@@ -312,7 +312,7 @@ def list_graph_packages(reader, *, source_id, is_demo, cutoff, limit=20, cursor=
     params = {
         "source_id": source_id,
         "is_demo": str(is_demo).lower(),
-        "mode": "current",
+        "mode": mode,
         "cutoff": cutoff.isoformat(),
         "limit": limit,
         "record_kind": "graph",
@@ -341,7 +341,7 @@ def list_graph_packages(reader, *, source_id, is_demo, cutoff, limit=20, cursor=
             ):
                 raise ValueError("graph package source mismatch")
             try:
-                record = validate_record(value, source_id, is_demo, "current", cutoff)
+                record = validate_record(value, source_id, is_demo, mode, cutoff)
                 if record["record_kind"] != "graph":
                     raise ValueError("non-graph record returned for graph catalog")
                 bundle = GraphBundle.model_validate_json(record["raw_content"])

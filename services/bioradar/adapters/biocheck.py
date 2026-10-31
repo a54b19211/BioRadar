@@ -23,6 +23,7 @@ _STAGES = {
     "write_plain": "biocheck_write",
     "write_direct": "biocheck_write",
     "revise": "biocheck_revise",
+    "revise_claims": "biocheck_revise_claims",
     "support_audit": "biocheck_support_audit",
 }
 _CITATION_ID = re.compile(r"[A-Za-z][A-Za-z0-9_.:-]*")
@@ -39,6 +40,14 @@ def _sources(settings):
             names.insert(0, "source_context.py")
         if (root / "contracts.py").is_file():
             names.insert(-1, "contracts.py")
+        if (root / "claims.py").is_file():
+            # Claims bind reusable checks to rpc.PROVIDER_VERSION. Include every
+            # source that contributes to that pure protocol version in this pin.
+            names.extend(
+                name
+                for name in ("claims.py", "analysis.py", "service.py", "rpc.py")
+                if (root / name).is_file()
+            )
         sources = {name: (root / name).read_text(encoding="utf-8") for name in names}
         methods = {
             node.name for node in ast.parse(sources["core.py"]).body if isinstance(node, ast.FunctionDef)
@@ -83,6 +92,8 @@ def load_biocheck(settings):
     sys.modules[package_name] = package
     try:
         for filename in sources:
+            if filename in {"analysis.py", "service.py"}:
+                continue  # Version inputs only; never load a service or standalone runner.
             name = package_name + "." + filename.removesuffix(".py")
             module = ModuleType(name)
             module.__package__ = package_name
@@ -319,7 +330,12 @@ def supports_paragraph_verification(core):
             and policy.get("argument") == "mode"
             and policy.get("value") == "paragraph"
             and policy.get("retry_on") == "length"
-            and policy.get("max_retries_per_paragraph") == 1
+            and (
+                policy.get("max_retries_per_paragraph") == 1
+                or policy.get("grain") == "cited_claims"
+                and policy.get("maximum_claims_per_batch") == 3
+                and policy.get("max_retries_per_batch") == 1
+            )
         )
     import inspect
 
@@ -367,7 +383,14 @@ def _callback(call, *, verify_target=None, allow_plan_repair=False):
 
     def invoke(stage, instruction, payload, response_schema=None, *, call_id=None):
         nonlocal checks
-        paragraph_stage = stage in {"verify_paragraph", "verify_paragraph_retry", "verify_coverage"}
+        paragraph_stage = stage in {
+            "verify_paragraph",
+            "verify_paragraph_retry",
+            "verify_coverage",
+            "verify_claim",
+            "verify_claim_retry",
+        }
+        envelope_stage = paragraph_stage or stage == "revise_claims"
         if paragraph_stage:
             prefix = "biocheck_recheck" if verify_target == "biocheck_recheck" else "biocheck_verify"
             target = prefix + stage.removeprefix("verify")
@@ -386,7 +409,7 @@ def _callback(call, *, verify_target=None, allow_plan_repair=False):
                 target = None
         if target is None or not isinstance(instruction, str) or not isinstance(payload, dict):
             raise DomainError("biocheck_stage_invalid", "BioCheck 请求阶段不符合接入约定", 502)
-        if paragraph_stage and call_id is None:
+        if envelope_stage and call_id is None:
             call_id = (
                 target
                 + ":"
@@ -400,12 +423,12 @@ def _callback(call, *, verify_target=None, allow_plan_repair=False):
                 else call(target, instruction, payload, **keywords)
             )
         except ModelCallError as exc:
-            if paragraph_stage and exc.receipt.status == "failed" and exc.receipt.finish_reason == "length":
+            if envelope_stage and exc.receipt.status == "failed" and exc.receipt.finish_reason == "length":
                 return {"finish_reason": "length", "output": None}
             raise
         if not isinstance(output, dict):
             raise DomainError("biocheck_response_invalid", "BioCheck 模型回执不是JSON对象", 502)
-        return {"finish_reason": "stop", "output": output} if paragraph_stage else output
+        return {"finish_reason": "stop", "output": output} if envelope_stage else output
 
     return invoke
 
@@ -475,8 +498,14 @@ def _optional_repair(
         )
     revision = None
     try:
-        revision = core.revise(copy.deepcopy(packet), initial, invoke)
+        revision = _contract_call(core, "revise", copy.deepcopy(packet), initial, invoke)
         candidate = revision["draft"]
+        if (
+            initial.get("verification_method") == "cited_claims"
+            and revision.get("requires_verification") is False
+            and candidate == draft
+        ):
+            return draft, initial, revision, {"repair_stop_reason": revision.get("reason")}
         review = _contract_call(
             core,
             "verify",
@@ -485,6 +514,11 @@ def _optional_repair(
             recheck_invoke or invoke,
             **_retry_kwargs(max_verify_retries, "max_verify_retries"),
             **({"mode": "paragraph"} if verification_mode == "paragraph" else {}),
+            **(
+                {"previous_review": copy.deepcopy(initial)}
+                if verification_mode == "paragraph" and initial.get("verification_method") == "cited_claims"
+                else {}
+            ),
         )
         return candidate, review, revision, {}
     except DomainError as exc:
@@ -498,10 +532,16 @@ def _optional_repair(
                 budget_stop or exc.code == "model_input_budget"
             )
         contract_stop = (
-            revision is not None
-            and not isinstance(exc, ModelCallError)
+            not isinstance(exc, ModelCallError)
+            and (revision is not None or initial.get("verification_method") == "cited_claims")
             and exc.code
-            in {"verification_contract_invalid", "verification_repair_exhausted", "verification_incomplete"}
+            in {
+                "verification_contract_invalid",
+                "verification_repair_exhausted",
+                "verification_incomplete",
+                "method_input_invalid",
+                "biocheck_response_invalid",
+            }
         )
         if not budget_stop and not contract_stop:
             raise
@@ -521,6 +561,19 @@ def _optional_repair(
                 "unverified_revision": revision,
             },
         )
+    except ValueError:
+        if initial.get("verification_method") != "cited_claims":
+            raise
+        return (
+            draft,
+            initial,
+            None,
+            {
+                "repair_error_code": "biocheck_revision_invalid",
+                "repair_stop_reason": "修订回执未通过失败句与引用范围检查，已保留原核验稿。",
+                "unverified_revision": revision,
+            },
+        )
 
 
 def check_biocheck(
@@ -534,6 +587,7 @@ def check_biocheck(
     max_verify_retries=0,
     verify_target=None,
     verification_mode="whole",
+    previous_review=None,
 ):
     """Check this exact draft; one optional local revision is rechecked in full."""
     core, version = load_biocheck(settings) if loaded is None else loaded
@@ -542,6 +596,8 @@ def check_biocheck(
     verify_options = _retry_kwargs(max_verify_retries, "max_verify_retries")
     if verification_mode == "paragraph":
         verify_options = {"mode": "paragraph"}
+        if previous_review is not None:
+            verify_options["previous_review"] = copy.deepcopy(previous_review)
 
     invoke = _callback(call, verify_target=(verify_target or "biocheck_check") if verify_options else None)
     recheck_invoke = _callback(call, verify_target="biocheck_recheck") if verify_options else None
@@ -1099,6 +1155,19 @@ def revise_biocheck(settings, packet, review, call, *, audit=None, source_errors
             expected = expected[: unit["start"]] + change["after"] + expected[unit["end"] :]
         if candidate != expected:
             raise ValueError("revision body does not match the declared changes")
+        if review.get("verification_method") == "cited_claims":
+            if (
+                not isinstance(revision.get("changed_claims"), list)
+                or type(revision.get("requires_verification")) is not bool
+                or bool(actual) != revision["requires_verification"]
+            ):
+                raise ValueError("claim revision metadata differs from actual changed text")
+            result.update(
+                changed_claims=copy.deepcopy(revision["changed_claims"]),
+                requires_verification=revision["requires_verification"],
+            )
+            if "verification_execution" in revision:
+                result["verification_execution"] = copy.deepcopy(revision["verification_execution"])
         if not actual or candidate == original:
             result["reason"] = "修订回执没有产生实际文字改动，未记为修订成功。"
             return result
@@ -1147,7 +1216,9 @@ class _HTTPMethods:
             call,
         )
 
-    def verify(self, packet, draft, call, *, max_verify_retries=0, mode="whole"):
+    def verify(self, packet, draft, call, *, max_verify_retries=0, mode="whole", previous_review=None):
+        if previous_review is not None and (mode != "paragraph" or not isinstance(previous_review, dict)):
+            raise DomainError("biocheck_input_invalid", "复用须提供同方法完整的主张核验回执", 422)
         return self._run(
             "verify",
             {
@@ -1155,6 +1226,9 @@ class _HTTPMethods:
                 "draft": draft,
                 **self._retry_options("verify", max_verify_retries),
                 **({"mode": "paragraph"} if mode == "paragraph" else {}),
+                **(
+                    {"previous_review": copy.deepcopy(previous_review)} if previous_review is not None else {}
+                ),
             },
             call,
         )

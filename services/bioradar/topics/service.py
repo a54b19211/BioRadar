@@ -19,7 +19,12 @@ from bioradar.research.investigations.models import (
     InvestigationEntryCreate,
 )
 from bioradar.research.investigations.service import InvestigationService
-from bioradar.research.mining.models import ProviderRef, canonical_hash
+from bioradar.research.mining.intelligence_assessment import (
+    combine_assessment_axes,
+    default_assessment_axes,
+    project_reviewed_assessment_axes,
+)
+from bioradar.research.mining.models import AssessmentAxes, ProviderRef, canonical_hash
 from bioradar.research.mining.topic_series import (
     TOPIC_COMPUTE_VERSION,
     evaluate_series,
@@ -214,6 +219,11 @@ class TopicService:
             sources=sources,
             observation_count=count,
             latest_evaluation_id=latest,
+            assessment_axes=(
+                self._evaluation_view(session.get(TopicEvaluationRecord, latest)).assessment_axes
+                if latest
+                else None
+            ),
             tracking=tracking_view(progress.get("_tracking")) or None,
             evidence_time=(progress.get("_history_replay") or {}).get("evidence_time"),
             data_gaps=[
@@ -524,8 +534,7 @@ class TopicService:
             self.engine.authorize_history_source(source)
         return row, scope
 
-    @staticmethod
-    def _evaluation_view(row):
+    def _evaluation_view(self, row):
         result = {
             k: v
             for k, v in row.result.items()
@@ -555,6 +564,44 @@ class TopicService:
             investigation_id=row.followup.get("investigation_id"),
             automation_status=row.followup.get("status", "not_needed"),
         )
+        tracking = result.get("tracking") or {}
+        base_axes = result.get("assessment_axes") or combine_assessment_axes(
+            [
+                evidence.get("assessment_axes") or default_assessment_axes([evidence["record_ref"]])
+                for evidence in result.get("evidence", [])
+            ],
+            evidence_level=(tracking.get("evidence") or {}).get("level"),
+            heat=tracking.get("heat"),
+        )
+        entries = (
+            InvestigationService(self.engine).get(self.actor, result["investigation_id"]).entries
+            if result.get("investigation_id")
+            else []
+        )
+        axes = project_reviewed_assessment_axes(
+            base_axes, entries, cutoff=(result.get("evidence_time") or {}).get("cutoff")
+        )
+        result["assessment_axes"] = axes.model_dump(mode="json")
+        result["evidence"] = [copy.deepcopy(evidence) for evidence in result.get("evidence", [])]
+        for evidence in result["evidence"]:
+            reference = ProviderRef.model_validate(evidence["record_ref"])
+            previous = AssessmentAxes.model_validate(
+                evidence.get("assessment_axes") or default_assessment_axes([reference])
+            )
+            evidence["assessment_axes"] = AssessmentAxes(
+                source_reliability=tuple(
+                    item
+                    for item in axes.source_reliability
+                    if item.record_ref.version_key == reference.version_key
+                ),
+                information_credibility=tuple(
+                    item
+                    for item in axes.information_credibility
+                    if item.record_ref.version_key == reference.version_key
+                ),
+                evidence_level=previous.evidence_level,
+                heat=previous.heat,
+            ).model_dump(mode="json")
         return TopicEvaluation.model_validate(result)
 
     def evaluation(self, actor, identifier, evaluation_id):
@@ -1271,6 +1318,14 @@ class TopicService:
         tracking = update_tracking(
             values, definition, progress.get("_tracking"), as_of=now, source_errors=errors
         )
+        computed["assessment_axes"] = combine_assessment_axes(
+            [
+                value.get("assessment_axes") or default_assessment_axes([value["record_ref"]])
+                for value in values
+            ],
+            evidence_level=tracking["evidence"]["level"],
+            heat=tracking["heat"],
+        ).model_dump(mode="json")
         progress["_tracking"] = tracking
         if tracking["model_update"]["needed"]:
             claim_values = [v for v in values if (v.get("attention") or {}).get("checkable_claims")]

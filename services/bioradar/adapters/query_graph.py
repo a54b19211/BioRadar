@@ -300,7 +300,7 @@ def execute_graph_action(settings, reader, arguments, *, mode, cutoff, idempoten
     the same idempotency key; this function never automatically retries.
     """
     if isinstance(arguments, dict) and (
-        arguments.get("operation") == "resolve"
+        arguments.get("operation") in {"resolve", "catalog", "adopt"}
         or isinstance(arguments.get("binding"), dict)
         and arguments["binding"].get("source_id") != SOURCE
     ):

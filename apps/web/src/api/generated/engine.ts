@@ -870,6 +870,7 @@ export interface components {
             kdd_direction?: ("research" | "pipeline" | "business" | "public_health") | null;
             /** Retry Of Analysis Id */
             retry_of_analysis_id?: string | null;
+            resume_report?: components["schemas"]["ResumeReportRequest"] | null;
             /** Parent Analysis Id */
             parent_analysis_id?: string | null;
             /** Material Entry Ids */
@@ -1099,6 +1100,7 @@ export interface components {
         };
         /** AnalysisResult */
         AnalysisResult: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /**
              * Version
              * @default bioradar-investigation-analysis-v0.5
@@ -1245,6 +1247,14 @@ export interface components {
              * @constant
              */
             professional_status: "not_reviewed";
+            /** Evidence Time */
+            evidence_time?: {
+                [key: string]: unknown;
+            } | null;
+            /** Human Review Context */
+            human_review_context?: {
+                [key: string]: unknown;
+            } | null;
             /** Is Demo */
             is_demo: boolean;
             /** Input Hash */
@@ -1312,6 +1322,38 @@ export interface components {
             evidence_refs: components["schemas"]["ProviderRef"][];
             provenance: components["schemas"]["SectionProvenance"];
         };
+        /** AssessmentAxes */
+        AssessmentAxes: {
+            /**
+             * Source Reliability
+             * @default []
+             */
+            source_reliability: components["schemas"]["SourceReliabilityAssessment"][];
+            /**
+             * Information Credibility
+             * @default []
+             */
+            information_credibility: components["schemas"]["InformationCredibilityAssessment"][];
+            /** Evidence Level */
+            evidence_level?: string | null;
+            /** Heat */
+            heat?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+        };
+        /** AssessmentAxesReviewInput */
+        AssessmentAxesReviewInput: {
+            /**
+             * Source Reliability
+             * @default []
+             */
+            source_reliability: components["schemas"]["SourceReliabilityReviewInput"][];
+            /**
+             * Information Credibility
+             * @default []
+             */
+            information_credibility: components["schemas"]["InformationCredibilityReviewInput"][];
+        };
         /** AttemptDiagnostic */
         AttemptDiagnostic: {
             /** Attempt */
@@ -1369,6 +1411,7 @@ export interface components {
             metrics?: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /**
              * Score
              * @default 0
@@ -1408,6 +1451,20 @@ export interface components {
              */
             next_data_requirements: string[];
         };
+        /** CandidateReviewTarget */
+        CandidateReviewTarget: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "candidate";
+            /** Run Id */
+            run_id: string;
+            /** Result Hash */
+            result_hash: string;
+            /** Candidate Key */
+            candidate_key: string;
+        };
         /** ClaimDependency */
         ClaimDependency: {
             /** Judgment Id */
@@ -1442,6 +1499,20 @@ export interface components {
             issue: string;
             /** Evidence Keys */
             evidence_keys: string[];
+        };
+        /** ClaimReviewTarget */
+        ClaimReviewTarget: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "claim";
+            /** Analysis Id */
+            analysis_id: string;
+            /** Claim Id */
+            claim_id: string;
+            /** Claim Sha256 */
+            claim_sha256: string;
         };
         /** ClaimUpdate */
         ClaimUpdate: {
@@ -3491,6 +3562,34 @@ export interface components {
             /** Run Id */
             run_id: string;
         };
+        /** HumanReview */
+        HumanReview: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "needs_verification" | "dismissed" | "accepted_within_scope";
+            /** Scope */
+            scope: string;
+            /** Target */
+            target: components["schemas"]["CandidateReviewTarget"] | components["schemas"]["ReportReviewTarget"] | components["schemas"]["ClaimReviewTarget"];
+            /** Basis Record Refs */
+            basis_record_refs: components["schemas"]["ProviderRef"][];
+            /** Analysis Input Hash */
+            analysis_input_hash?: string | null;
+        };
+        /** HumanReviewCreate */
+        HumanReviewCreate: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "needs_verification" | "dismissed" | "accepted_within_scope";
+            /** Scope */
+            scope: string;
+            /** Target */
+            target: components["schemas"]["CandidateReviewTarget"] | components["schemas"]["ReportReviewTarget"] | components["schemas"]["ClaimReviewTarget"];
+        };
         /** HypothesisJudgment */
         HypothesisJudgment: {
             /** Least Refuted Hypothesis Id */
@@ -3505,6 +3604,102 @@ export interface components {
              * @constant
              */
             qualification: "这是模型判断，未证实";
+        };
+        /** InformationCredibilityAssessment */
+        InformationCredibilityAssessment: {
+            record_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Assessment Status
+             * @default not_assessed
+             * @enum {string}
+             */
+            assessment_status: "not_assessed" | "machine_assessed" | "human_reviewed";
+            /**
+             * Reason Code
+             * @default basis_missing
+             */
+            reason_code: string;
+            /**
+             * Assessment Basis Refs
+             * @default []
+             */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Assessment Basis
+             * @default
+             */
+            assessment_basis: string;
+            /** Assessed By */
+            assessed_by?: string | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Taxonomy Name
+             * @default admiralty-scale
+             * @constant
+             */
+            taxonomy_name: "admiralty-scale";
+            /**
+             * Taxonomy Version
+             * @default 5
+             * @constant
+             */
+            taxonomy_version: 5;
+            /** Native Review Entry Id */
+            native_review_entry_id?: string | null;
+            /** Review Revision */
+            review_revision?: number | null;
+            /** Previous Assessment Ref */
+            previous_assessment_ref?: string | null;
+            /**
+             * Grade
+             * @default 6
+             * @enum {string}
+             */
+            grade: "1" | "2" | "3" | "4" | "5" | "6";
+            /** Claim Id */
+            claim_id?: string | null;
+            /** Claim Text */
+            claim_text?: string | null;
+            /** Claim Text Sha256 */
+            claim_text_sha256?: string | null;
+            /**
+             * Independent Confirmation Refs
+             * @default []
+             */
+            independent_confirmation_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Independent Confirmation Basis
+             * @default
+             */
+            independent_confirmation_basis: string;
+        };
+        /** InformationCredibilityReviewInput */
+        InformationCredibilityReviewInput: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "1" | "2" | "3" | "4" | "5" | "6";
+            record_ref: components["schemas"]["ProviderRef"];
+            /** Claim Id */
+            claim_id: string;
+            /** Claim Text */
+            claim_text: string;
+            /** Assessment Basis Refs */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /** Assessment Basis */
+            assessment_basis: string;
+            /**
+             * Independent Confirmation Refs
+             * @default []
+             */
+            independent_confirmation_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Independent Confirmation Basis
+             * @default
+             */
+            independent_confirmation_basis: string;
         };
         /** InitialQuery */
         InitialQuery: {
@@ -3641,6 +3836,8 @@ export interface components {
             based_on_revision: number;
             /** Parent Judgment Entry Id */
             parent_judgment_entry_id: string | null;
+            review?: components["schemas"]["HumanReview"] | null;
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
         };
         /** InvestigationJudgmentCreate */
         InvestigationJudgmentCreate: {
@@ -3665,6 +3862,8 @@ export interface components {
             assessment: "provisional" | "unable_to_determine";
             /** Basis Entry Ids */
             basis_entry_ids?: string[];
+            review?: components["schemas"]["HumanReviewCreate"] | null;
+            assessment_axes?: components["schemas"]["AssessmentAxesReviewInput"] | null;
         };
         /** InvestigationList */
         InvestigationList: {
@@ -4755,6 +4954,7 @@ export interface components {
         };
         /** MonitorLeadView */
         MonitorLeadView: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Id */
             id: string;
             /** Lead Key */
@@ -5333,6 +5533,18 @@ export interface components {
             study_cluster_ref?: components["schemas"]["ProviderRef"] | null;
             provenance: components["schemas"]["SectionProvenance"];
         };
+        /** ReportReviewTarget */
+        ReportReviewTarget: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "report";
+            /** Analysis Id */
+            analysis_id: string;
+            /** Text Sha256 */
+            text_sha256: string;
+        };
         /** ResourceLimits */
         ResourceLimits: {
             /**
@@ -5390,6 +5602,21 @@ export interface components {
              * @default 128
              */
             max_temporal_bins: number;
+        };
+        /** ResumeReportRequest */
+        ResumeReportRequest: {
+            /** Expected Input Hash */
+            expected_input_hash: string;
+            /** Stopped Call Id */
+            stopped_call_id: string;
+            /** Reason */
+            reason: string;
+            /** Max Input Bytes */
+            max_input_bytes: number;
+            /** Extra Seconds */
+            extra_seconds: number;
+            /** Biocheck Provider Version */
+            biocheck_provider_version: string;
         };
         /** ReviewPlan */
         ReviewPlan: {
@@ -5747,6 +5974,76 @@ export interface components {
             kind: "correction" | "retraction" | "supplement" | "repost";
             target_ref: components["schemas"]["ProviderRef"];
         };
+        /** SourceReliabilityAssessment */
+        SourceReliabilityAssessment: {
+            record_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Assessment Status
+             * @default not_assessed
+             * @enum {string}
+             */
+            assessment_status: "not_assessed" | "machine_assessed" | "human_reviewed";
+            /**
+             * Reason Code
+             * @default basis_missing
+             */
+            reason_code: string;
+            /**
+             * Assessment Basis Refs
+             * @default []
+             */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Assessment Basis
+             * @default
+             */
+            assessment_basis: string;
+            /** Assessed By */
+            assessed_by?: string | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Taxonomy Name
+             * @default admiralty-scale
+             * @constant
+             */
+            taxonomy_name: "admiralty-scale";
+            /**
+             * Taxonomy Version
+             * @default 5
+             * @constant
+             */
+            taxonomy_version: 5;
+            /** Native Review Entry Id */
+            native_review_entry_id?: string | null;
+            /** Review Revision */
+            review_revision?: number | null;
+            /** Previous Assessment Ref */
+            previous_assessment_ref?: string | null;
+            /**
+             * Grade
+             * @default F
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "D" | "E" | "F";
+            /** Publisher Scope */
+            publisher_scope?: string | null;
+        };
+        /** SourceReliabilityReviewInput */
+        SourceReliabilityReviewInput: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "D" | "E" | "F";
+            record_ref: components["schemas"]["ProviderRef"];
+            /** Publisher Scope */
+            publisher_scope: string;
+            /** Assessment Basis Refs */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /** Assessment Basis */
+            assessment_basis: string;
+        };
         /** StateAssertion */
         StateAssertion: {
             assertion_ref: components["schemas"]["ProviderRef"];
@@ -5952,6 +6249,7 @@ export interface components {
         };
         /** TopicEvaluation */
         TopicEvaluation: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Id */
             id: string;
             /** Topic Id */
@@ -6033,6 +6331,7 @@ export interface components {
         };
         /** TopicEvidence */
         TopicEvidence: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Key */
             key: string;
             record_ref: components["schemas"]["ProviderRef"];
@@ -6302,6 +6601,7 @@ export interface components {
         };
         /** TopicView */
         TopicView: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Id */
             id: string;
             /** Is Demo */

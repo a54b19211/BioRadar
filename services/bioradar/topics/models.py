@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from bioradar.data.database import Base
 from bioradar.research.engine.schemas import RuntimeModel
-from bioradar.research.mining.models import ProviderRef
+from bioradar.research.mining.models import AssessmentAxes, ProviderRef
 
 TopicDomain = Literal[
     "pipeline", "research", "business", "public_health", "policy", "regulatory", "supply", "regional", "other"
@@ -74,6 +74,7 @@ class TopicSourceProgress(RuntimeModel):
 
 
 class TopicView(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     id: str
     is_demo: bool
     definition: TopicDefinition
@@ -191,6 +192,7 @@ class TopicMetricSeries(RuntimeModel):
 
 
 class TopicEvidence(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     key: str
     record_ref: ProviderRef
     source_id: str
@@ -221,6 +223,7 @@ class TopicCoverage(RuntimeModel):
 
 
 class TopicEvaluation(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     id: str
     topic_id: str
     scope_revision: int

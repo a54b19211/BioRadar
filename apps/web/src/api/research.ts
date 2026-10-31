@@ -265,6 +265,7 @@ export type ResearchResult = Omit<OriginalResult, "report" | "mechanism_evaluati
   query_policy?: QueryPolicyTrace | null;
   warning_assessment?: ResearchWarningAssessment | null;
   competing_hypotheses?: ResearchCompetingHypothesis[] | null;
+  assessment_axes?: unknown;
   current_judgment?: ResearchHypothesisJudgment | null;
   assessment_binding?: ResearchAssessmentBinding | null;
   coverage_issues?: { check_id: string; source: string; status: "unknown" }[];
@@ -297,6 +298,7 @@ export type ResearchAnalysisView = Omit<
   result: ResearchResult | null;
   initial_draft?: ResearchResult | null;
   calls: ResearchCall[];
+  human_review_context?: { status: string; analysis_id?: string; reviews: Record<string, unknown>[]; investigation_only_judgment_count: number; qualification: string } | null;
   progress?: ResearchProgress;
   budget?: ResearchBudgetView;
   providers?: Record<string, ResearchProvider>;

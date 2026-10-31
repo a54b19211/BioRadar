@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import AssessmentAxesPanel from "./AssessmentAxesPanel.vue";
 import { strings, text } from "../../api/kdd";
 function object(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
-const props = defineProps<{ tracking: unknown; title?: string; asOf?: string }>();
+const props = defineProps<{ tracking: unknown; axes?: unknown; title?: string; asOf?: string }>();
 const value = computed(() => object(props.tracking));
 const evidence = computed(() => object(value.value.evidence));
 const heat = computed(() => object(value.value.heat));
@@ -46,6 +47,7 @@ const environmentLabels: Record<string, string> = { deletion: "删除／撤回�
 <template>
   <section v-if="value.version" class="engine-panel topic-tracking" aria-label="证据热度与生命周期">
     <h3>{{ title || "证据、热度、更正与跟踪状态" }}</h3>
+    <AssessmentAxesPanel :axes="axes" />
     <p v-if="asOf" class="muted">状态记录时点：{{ date(asOf) }}</p>
     <dl class="tracking-grid">
       <div><dt>证据强度</dt><dd>{{ levels[text(evidence.level)] || evidence.level || "未记录" }}</dd></div>
@@ -58,7 +60,7 @@ const environmentLabels: Record<string, string> = { deletion: "删除／撤回�
     <p>本轮新来源组 {{ number(heat.new_source_groups) }}，其中确认组 {{ number(heat.confirmed_new_source_groups) }}；热度衰减半衰期 {{ number(heat.half_life_hours) }} 小时。</p>
     <p v-if="typeof heat.provisional_exposure_score === 'number'" class="muted">未确认来源的暂记曝光 {{ number(heat.provisional_exposure_score) }}；本轮新增暂记来源组 {{ number(heat.new_provisional_groups) }}。这部分不计独立支持，也不因匿名新增帖子自动唤醒模型。</p>
     <p class="muted">热度只描述已采用来源的曝光及衰减，不是人群热度或真实性概率。多次转载不自动成为多份独立证据；机构来源核实记录也不替代对原始说法的事实判断。</p>
-    <p :class="risk.status === 'unresolved' ? 'notice' : 'muted'"><strong>风险状态：{{ risks[text(risk.status)] || risk.status || "未记录" }}。</strong>降温、休眠或停止跟踪均不自动表示风险解除。</p>
+    <p :class="risk.status === 'unresolved' ? 'notice' : 'muted'"><strong>风险状态：{{ risks[text(risk.status)] || risk.status || "未记录" }}。</strong>这是研究跟踪标记，未证实高风险仍待人工核实，不是对外警报。降温、休眠或停止跟踪均不自动表示风险解除。</p>
     <ul v-if="strings(risk.critical_gaps).length"><li v-for="item in strings(risk.critical_gaps)" :key="item">{{ reasons[item] || item }}</li></ul>
     <p>检查间隔 {{ number(value.cadence_hours) }} 小时；下次应检查：{{ date(value.next_due_at) }}。
       <span v-if="value.automatic === true">由自动线索开始跟踪。</span></p>

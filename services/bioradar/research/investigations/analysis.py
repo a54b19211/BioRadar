@@ -1205,6 +1205,45 @@ def analysis_budget(fixed, progress, now):
     paused = waiting_seconds(fixed, wait_progress, now)
     display_end = ended if not resumption or ended >= clock_started else now
     display_paused = waiting_seconds(fixed, wait_progress, min(display_end, now))
+    continuation = progress.get("report_continuation")
+    continuation_remaining = None
+    standby = 0
+    if continuation is not None:
+        try:
+            authorized = datetime.fromisoformat(continuation["authorized_at"])
+            original_deadline = datetime.fromisoformat(continuation["original_deadline"])
+            new_deadline = datetime.fromisoformat(continuation["new_deadline"])
+            extra = continuation["extra_seconds"]
+            paused_at_authorization = continuation["automatic_wait_seconds_at_authorization"]
+            valid = (
+                not resumption
+                and bool(started)
+                and continuation["original_started_at"] == started
+                and bool(continuation["actor_id"])
+                and bool(continuation["reason"])
+                and type(extra) is int
+                and 0 <= extra <= 1800
+                and type(paused_at_authorization) in (int, float)
+                and 0 <= paused_at_authorization <= max(0, (authorized - clock_started).total_seconds())
+                and all(value.tzinfo is not None for value in (authorized, original_deadline, new_deadline))
+                and clock_started <= authorized <= now
+                and original_deadline
+                == clock_started + timedelta(seconds=limits["max_seconds"] + paused_at_authorization)
+                and new_deadline == max(original_deadline, authorized) + timedelta(seconds=extra)
+            )
+        except (KeyError, TypeError, ValueError, OverflowError):
+            valid = False
+        if not valid:
+            raise DomainError("analysis_report_continuation_invalid", "续稿授权期限无效，未延长执行窗口", 409)
+        standby = max(0, (authorized - original_deadline).total_seconds())
+        limits = {
+            **limits,
+            "max_seconds": (new_deadline - clock_started).total_seconds() - paused_at_authorization,
+        }
+        continuation_remaining = (new_deadline - now).total_seconds()
+        display_end = ended if ended >= authorized else now
+        display_paused = waiting_seconds(fixed, wait_progress, min(display_end, now))
+        elapsed = max(0, (display_end - clock_started).total_seconds())
     elapsed = max(0, elapsed - display_paused)
     return {
         "limits": limits,
@@ -1214,6 +1253,11 @@ def analysis_budget(fixed, progress, now):
                 "original_limits": copy.deepcopy(fixed["budget"]),
             }
             if resumption
+            else {
+                "report_continuation": copy.deepcopy(continuation),
+                "original_limits": copy.deepcopy(fixed["budget"]),
+            }
+            if continuation
             else {}
         ),
         "usage": {
@@ -1227,10 +1271,12 @@ def analysis_budget(fixed, progress, now):
             "budgeted_tokens": charged,
             "queries": len(progress.get("queries", [])),
             "elapsed_seconds": elapsed,
-            "remaining_seconds": limits["max_seconds"]
-            - max(0, (now - clock_started).total_seconds() - paused),
+            "remaining_seconds": continuation_remaining
+            if continuation_remaining is not None
+            else (limits["max_seconds"] - max(0, (now - clock_started).total_seconds() - paused)),
             **({"automatic_budget_wait_seconds": paused} if paused else {}),
-            **({"original_elapsed_seconds": original_elapsed} if resumption else {}),
+            **({"original_elapsed_seconds": original_elapsed} if resumption or continuation else {}),
+            **({"report_continuation_standby_seconds": standby} if continuation else {}),
             "monetary_cost": None,
             "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。",
         },

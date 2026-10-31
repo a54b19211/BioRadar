@@ -333,6 +333,19 @@ def create_engine_router(settings: Settings) -> APIRouter:
         else:
             yield AnalysisService(engine)
 
+    def analysis_delivery_view(analyses, actor, investigation_id, analysis):
+        from bioradar.delivery.research_report import human_review_context
+        from bioradar.research.mining.intelligence_assessment import analysis_assessment_axes
+
+        entries = InvestigationService(analyses.engine).get(actor, investigation_id).entries
+        value = analysis.model_dump(mode="json")
+        changes = {"human_review_context": human_review_context(value, entries)}
+        if analysis.result is not None:
+            changes["result"] = analysis.result.model_copy(
+                update={"assessment_axes": analysis_assessment_axes(value, entries)}
+            )
+        return analysis.model_copy(update=changes)
+
     @router.post("/investigations/ask", status_code=202)
     def research_ask(
         body: QuestionAsk,
@@ -367,7 +380,9 @@ def create_engine_router(settings: Settings) -> APIRouter:
                     ),
                     "ask-analysis:" + canonical_hash(idempotency_key),
                 )
-                current = analyses.get(actor, identifier, analysis["id"])
+                current = analysis_delivery_view(
+                    analyses, actor, identifier, analyses.get(actor, identifier, analysis["id"])
+                )
         except DomainError as exc:
             return JSONResponse(
                 status_code=exc.status_code,
@@ -411,7 +426,10 @@ def create_engine_router(settings: Settings) -> APIRouter:
     ):
         with analysis_runtime(request) as analyses:
             code, payload = analyses.start(actor, investigation_id, body, idempotency_key)
-            return JSONResponse(status_code=code, content=payload)
+            view = analysis_delivery_view(
+                analyses, actor, investigation_id, AnalysisView.model_validate(payload)
+            )
+            return JSONResponse(status_code=code, content=view.model_dump(mode="json"))
 
     @router.get("/investigations/{investigation_id}/analyses/{analysis_id}", response_model=AnalysisView)
     def analysis_get(
@@ -421,7 +439,9 @@ def create_engine_router(settings: Settings) -> APIRouter:
         actor: EngineActor = Depends(access.require_actor),
     ):
         with analysis_runtime(request) as analyses:
-            return analyses.get(actor, investigation_id, analysis_id)
+            return analysis_delivery_view(
+                analyses, actor, investigation_id, analyses.get(actor, investigation_id, analysis_id)
+            )
 
     @router.get(
         "/investigations/{investigation_id}/analyses/{analysis_id}/evidence/{evidence_key}",
@@ -446,7 +466,9 @@ def create_engine_router(settings: Settings) -> APIRouter:
         actor: EngineActor = Depends(access.require_actor),
     ):
         with analysis_runtime(request) as analyses:
-            analysis = analyses.get(actor, investigation_id, analysis_id)
+            analysis = analysis_delivery_view(
+                analyses, actor, investigation_id, analyses.get(actor, investigation_id, analysis_id)
+            )
             if format == "markdown":
                 if analysis.result is None:
                     raise DomainError("analysis_report_unavailable", "本轮尚无可导出的分析稿", 409)

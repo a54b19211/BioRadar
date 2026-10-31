@@ -51,7 +51,8 @@ def test_delivery_keeps_exact_failed_body_and_separate_fixed_source_index():
     start, end = delivery["body_range"]["start"], delivery["body_range"]["end"]
     assert markdown[start:end] == body
     assert hashlib.sha256(markdown[start:end].encode()).hexdigest() == delivery["body_text_sha256"]
-    assert markdown == body + delivery["source_index_markdown"]
+    assert markdown == delivery["machine_verification_prefix"] + body + delivery["source_index_markdown"]
+    assert "所选支持片段复核：未记录，不推定已执行" in delivery["machine_verification_prefix"]
     assert expected_delivery_markdown(view, delivery, body) == markdown
     forged = copy.deepcopy(delivery)
     forged["source_index"][0]["publication_time"] = "2099-01-01"
@@ -102,6 +103,7 @@ def test_scope_prefix_and_system_index_do_not_change_verification_or_body_hash()
     assert (
         markdown
         == delivery["scope_prefix"]
+        + delivery["machine_verification_prefix"]
         + view["result"]["report"]["final_text"]
         + delivery["source_index_markdown"]
     )

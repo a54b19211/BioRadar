@@ -1,12 +1,12 @@
 """Bounded machine analysis is a research draft, never a human judgment."""
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import AwareDatetime, Field
 
 from bioradar.research.engine.schemas import RuntimeModel
-from bioradar.research.mining.models import ProviderRef
+from bioradar.research.mining.models import AssessmentAxes, ProviderRef
 from bioradar.topics.risk import TopicRiskReassessment
 
 ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.5"
@@ -40,10 +40,19 @@ class QuestionSpan(RuntimeModel):
     end: int = Field(ge=1, description="研究问题原始文本的Unicode排他终点，由宿主核对精确名称。")
 
 
+class NamedQuestionComponent(RuntimeModel):
+    id: LocalId
+    name: str = Field(min_length=1, max_length=200)
+    question_span: QuestionSpan
+
+
 class NamedQuestionObject(RuntimeModel):
     id: LocalId
     name: str = Field(min_length=1, max_length=200)
     question_span: QuestionSpan
+    components: list[NamedQuestionComponent] = Field(
+        default_factory=list, max_length=4, exclude_if=lambda value: not value
+    )
 
 
 class ResearchQuestionPlan(QuestionPlan):
@@ -71,6 +80,15 @@ class QuestionAsk(RuntimeModel):
     )
 
 
+class ResumeReportRequest(RuntimeModel):
+    expected_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
+    stopped_call_id: str = Field(pattern=r"^[0-9a-f]{64}$")
+    reason: Text
+    max_input_bytes: int = Field(ge=1024, le=262144)
+    extra_seconds: int = Field(ge=0, le=1800)
+    biocheck_provider_version: str = Field(min_length=1, max_length=200)
+
+
 class AnalysisCreate(RuntimeModel):
     expected_revision: int = Field(ge=1)
     question: str | None = Field(default=None, min_length=1, max_length=4000)
@@ -86,6 +104,7 @@ class AnalysisCreate(RuntimeModel):
         default=None, exclude_if=lambda value: value is None
     )
     retry_of_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
+    resume_report: ResumeReportRequest | None = Field(default=None, exclude_if=lambda value: value is None)
     parent_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     material_entry_ids: list[str] = Field(default_factory=list, max_length=10)
 
@@ -331,6 +350,7 @@ class VerifiedClaim(ModelClaim):
 
 
 class AnalysisResult(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     version: Literal[
         "bioradar-investigation-analysis-v0.1",
         "bioradar-investigation-analysis-v0.2",
@@ -419,6 +439,8 @@ class AnalysisSummary(RuntimeModel):
 
 
 class AnalysisView(AnalysisSummary):
+    evidence_time: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    human_review_context: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     is_demo: bool
     input_hash: str
     prompt_version: str
