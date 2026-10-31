@@ -7300,5 +7300,92 @@
     },
     "formal_B3": "Not started by this code batch. ROOT prepares new isolated store, source bindings, registry and seal before any actual business run.",
     "unchanged_assets": "Fabric code and its isolated repair branch, source21 original versions, previous experiment stores and main deployment unchanged."
+  },
+  "reading_reference_fix_20261031": {
+    "base_commit": "1bb8c3b296b0773fa8d15769854484f6f114a8eb",
+    "scope": "Reading claim-ID normalization, bounded structural repair, and source-free field diagnostics only.",
+    "actual_B3": {
+      "analysis_id": "7929f5fd-051a-47d1-be4b-a8809df26e05",
+      "state": "blocked",
+      "error_code": "analysis_output_invalid",
+      "distinct_originals": 8,
+      "fixed_versions": 8,
+      "generation_calls": 2,
+      "generation_tokens": 30643,
+      "unknown_generation_calls": 0,
+      "retrieval_reported_tokens": 2302,
+      "retrieval_usage_qualification": "Two reported retrieval usage entries, 9 and 2293 tokens; separate from generation tokens.",
+      "weknora_operations_observed": [
+        "embedding",
+        "vector_search",
+        "keyword_search",
+        "rerank"
+      ],
+      "GET_status": 200,
+      "JSON_status": 200,
+      "GET_JSON_analysis_equal": true,
+      "Markdown_status": 409,
+      "final_text": null,
+      "biocheck_executed": false,
+      "worker_and_recovery_monitor_exited": true,
+      "terminal_readback_manifest": {
+        "path": "/tmp/bioradar-opus-round3-20261031/formal/smoke-section17/radar-B/terminal-readback/manifest.nonbody.json",
+        "sha256": "33424a3b774dc1499e6385759c634f94fc12f17bba9a8723ec3cc58c56403912"
+      },
+      "supplement_sha256": "6156d61f3d8a6d27c37ac90a5cb29c3d4efdaab2c81c943339f1145ace983c37",
+      "original_snapshot_sha256": "fdb30e16dae32e9c51fc8c897433e02262e97eb255b0eeadeb0a8c00b426d427"
+    },
+    "root_cause": {
+      "schema_valid": true,
+      "graph_context_count": 0,
+      "error": "Unknown claim IDs in explanations.for_claim_ids; five unique abbreviated IDs.",
+      "repair_not_reached": "analysis_output_invalid was absent from the narrow repair-code list; schema-only field discovery also returned no path.",
+      "evidence": {
+        "path": "/tmp/bioradar-section17-20261031/B3-reading-root-cause.nonbody.json",
+        "sha256": "dea364092022d1e8fa188f2a8d254e9705480c78d6cc236c3e61d03c46bc4ac7"
+      }
+    },
+    "offline_exact_output": {
+      "result": "strict_reading_validation_passed",
+      "normalization_count": 5,
+      "model_requests": 0,
+      "database_connections": 0,
+      "original_calls_and_evidence_unchanged": true,
+      "scientific_text_unchanged": true,
+      "evidence": {
+        "path": "/tmp/bioradar-section17-20261031/B3-reading-fixed-offline.nonbody.json",
+        "sha256": "97fb6cf2969d46eab18600280760722b1e22ed26f3aa9fe2d6ff1579dedbeff8"
+      }
+    },
+    "behavior": [
+      "Resolve only a unique existing short claim-ID alias; save adjustments and preserve the received response.",
+      "Record field paths, error codes and original hashes before attempting repair.",
+      "Only proven unknown-claim scalar IDs enter the existing single repair slot; replacements must be declared IDs and cannot remove links or change prose.",
+      "Reuse received results before budgets; retain the existing 20-percent input cap and unknown-result prohibition."
+    ],
+    "native_retry_feasibility": "retry_of_analysis_id creates a fresh analysis with empty calls/queries; there is no cross-analysis transfer of received outputs. B3 is not eligible for report continuation.",
+    "qualification": "Offline protocol repair is not a B3 business PASS. Original B3 remains blocked; no old analysis was resumed, no new ask was made, and formal B4 remains controlled by ROOT.",
+    "checks": {
+      "targeted_passed": 58,
+      "boot_passed": 61,
+      "skipped": 0,
+      "contract_check_exit": 0,
+      "lint_exit": 0,
+      "web_check_exit": 0,
+      "evidence": {
+        "path": "/tmp/bioradar-section17-20261031/B3-reading-fix-checks.nonbody.json",
+        "sha256": "7fdbafef190b9ce7f821925d31509a1bd420e4b9b05eedda29f3d566a370f255"
+      }
+    },
+    "nonauthor_review": {
+      "status": "accepted",
+      "path": "/tmp/bioradar-section17-20261031/b-reading-claim-reference-fix-nonauthor-review.nonbody.json",
+      "sha256": "2cefb43a1ee334abdf4257659fd3d273da1c94b6067777bcde022a524041a7dd",
+      "files": {
+        "services/bioradar/research/investigations/reading_execution.py": "6a13eb6cbba65bba7630ee0e880885e5b9c2b8aed6f87efbdf8d78380483c430",
+        "services/bioradar/delivery/analysis_diagnostics.py": "8da998882702a3bf560f5b2f07ea17cc15561889892f58ad8c9a89ef75ea79f4",
+        "tests/test_reading_claim_references.py": "8628e7986d5895f627329d8cf5133aa2e5ce8d58ab265e62817c758a2c982280"
+      }
+    }
   }
 }

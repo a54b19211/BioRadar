@@ -71,6 +71,7 @@ def _repair_rows(progress):
         "repair_error_code",
         "field_paths",
         "allowed_reference_ids",
+        "allowed_claim_ids",
         "original_request_bytes",
         "repair_request_bytes",
         "original_input_token_estimate",
@@ -92,6 +93,27 @@ def _repair_rows(progress):
             ]
         result.append(row)
     return result
+
+
+def _reading_validation_rows(progress):
+    source = progress.get(
+        "reading_validation_errors", _object(progress.get("diagnostics")).get("reading_validation_errors")
+    )
+    source = source if isinstance(source, dict) else {}
+    return [
+        {
+            "original_call_key": key,
+            **_fields(item, ("original_request_sha256", "original_output_sha256")),
+            "error_code": _code(item.get("error_code")),
+            "field_errors": [
+                {"path": copy.deepcopy(error.get("path")), "error_code": _code(error.get("error_code"))}
+                for error in _rows(item.get("field_errors"))
+                if isinstance(error, dict)
+            ],
+        }
+        for key, item in source.items()
+        if isinstance(item, dict)
+    ]
 
 
 def _queries(queries):
@@ -374,6 +396,7 @@ def build_analysis_diagnostics(analysis, *, progress=None, fixed=None):
         },
         "queries": _queries(queries),
         "reading_repairs": _repair_rows(progress),
+        "reading_validation_errors": _reading_validation_rows(progress),
         "biocheck_issues": _biocheck_issues(report),
         "numeric_candidates": _numeric_candidates(analysis, progress),
         "usage": _usage(calls, report),

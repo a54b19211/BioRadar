@@ -7,9 +7,14 @@ from datetime import UTC, datetime
 from pydantic import ValidationError
 
 from bioradar.api.errors import DomainError
-from bioradar.research.investigations.analysis import SYSTEM_PROMPT, analysis_budget
+from bioradar.research.investigations.analysis import (
+    SYSTEM_PROMPT,
+    analysis_budget,
+    normalize_policy_synthesis,
+)
 from bioradar.research.investigations.analysis_models import AnalysisQueryReceipt, PolicyReading
 from bioradar.research.investigations.execution_budget import reading_limits, request_estimate
+from bioradar.research.investigations.research_assessment import claim_assessment_errors
 from bioradar.research.mining.models import canonical_hash
 
 _REPAIR_PROMPT = (
@@ -73,7 +78,15 @@ def _at_path(value, path):
 
 def _repair_fields(raw, payload, code):
     errors, allowed, fields = [], {}, []
-    if code in {"analysis_reference_invalid", "analysis_passage_invalid"}:
+    if code == "analysis_output_invalid":
+        normalized, _ = normalize_policy_synthesis(raw)
+        errors = [
+            {"path": item["path"], "reason": item["reason"]} for item in claim_assessment_errors(normalized)
+        ]
+        # Only a proven scalar ID fault may use this slot; semantic faults remain hard failures.
+        if errors and all(item["reason"] == "unknown_claim" for item in errors):
+            fields = [{"path": item["path"], "error_code": item["reason"]} for item in errors]
+    elif code in {"analysis_reference_invalid", "analysis_passage_invalid"}:
         errors, allowed = _reference_feedback(raw, payload)
         for error in errors:
             names = (
@@ -101,7 +114,7 @@ def _repair_fields(raw, payload, code):
         except (KeyError, IndexError, TypeError):
             field["invalid_part"] = {"type": "missing"}
         else:
-            safe = field["path"][-1] in {
+            safe = field["error_code"] == "unknown_claim" or field["path"][-1] in {
                 "id",
                 "evidence_key",
                 "passage_id",
@@ -120,7 +133,7 @@ def _repair_fields(raw, payload, code):
     return unique[:8], errors[:8], allowed
 
 
-def _apply_reading_patches(raw, output, paths):
+def _apply_reading_patches(raw, output, paths, *, allowed_claim_ids=None):
     if not isinstance(output, dict) or set(output) != {"changes"}:
         raise DomainError("analysis_reading_invalid", "引用修复未返回受限字段补丁，原输出保留待核", 422)
     changes = output["changes"]
@@ -140,6 +153,14 @@ def _apply_reading_patches(raw, output, paths):
             or any(path[: len(prior)] == prior or prior[: len(path)] == path for prior in used)
         ):
             raise DomainError("analysis_reading_invalid", "修复试图修改未诊断字段，原输出保留待核", 422)
+        if allowed_claim_ids is not None and (
+            change.get("operation") != "replace"
+            or not isinstance(change.get("value"), str)
+            or change["value"] not in allowed_claim_ids
+        ):
+            raise DomainError(
+                "analysis_reading_invalid", "命题引用只能替换为本版合法编号，不能删除或改写", 422
+            )
         try:
             parent = _at_path(result, path[:-1])
             if change.get("operation") == "replace" and "value" in change:
@@ -227,6 +248,9 @@ def validated_policy_output(
 
     def parse(value):
         normalized, adjustments = parse_policy_reading(value)
+        if strict:
+            normalized, reference_adjustments = normalize_policy_synthesis(normalized)
+            adjustments.extend(reference_adjustments)
         normalized, issues = normalize_policy_coverage(normalized, declared, progress["evidence"])
         reading = validate_policy_reading(
             normalized, progress["evidence"], fixed["search_scope"], strict_references=strict
@@ -236,11 +260,28 @@ def validated_policy_output(
     try:
         result = parse(raw)
     except DomainError as exc:
-        if not strict or exc.code not in {
-            "analysis_reading_invalid",
-            "analysis_reference_invalid",
-            "analysis_passage_invalid",
-        }:
+        fields, errors, allowed = _repair_fields(raw, payload, exc.code)
+        field_errors = [{"path": item["path"], "error_code": item["reason"]} for item in errors] or [
+            {"path": item["path"], "error_code": item["error_code"]} for item in fields
+        ]
+        progress.setdefault("reading_validation_errors", {})[key] = {
+            "error_code": exc.code,
+            "field_errors": field_errors,
+            "original_request_sha256": canonical_hash(payload),
+            "original_output_sha256": canonical_hash(raw),
+        }
+        service._checkpoint(identifier, token, progress)
+        reference_fault = (
+            exc.code == "analysis_output_invalid"
+            and bool(fields)
+            and bool(errors)
+            and all(item["reason"] == "unknown_claim" for item in errors)
+        )
+        if not strict or not (
+            reference_fault
+            or exc.code
+            in {"analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid"}
+        ):
             raise
         repairs = progress.setdefault("reading_repairs", {})
         entry = repairs.get(key)
@@ -264,7 +305,6 @@ def validated_policy_output(
                 }
                 service._checkpoint(identifier, token, progress)
                 raise
-            fields, errors, allowed = _repair_fields(raw, payload, exc.code)
             entry = repairs[key] = {
                 "attempts": 1,
                 "reason": exc.code,
@@ -288,6 +328,9 @@ def validated_policy_output(
             }
             if errors:
                 entry["repair_payload"]["reference_errors"] = errors
+            if reference_fault:
+                entry["allowed_claim_ids"] = [claim["id"] for claim in raw["claims"]]
+                entry["repair_payload"]["allowed_claim_ids"] = entry["allowed_claim_ids"]
             entry["repair_payload_sha256"] = canonical_hash(entry["repair_payload"])
         saved = next(
             (call for call in progress["calls"] if call.get("call_key") == entry.get("repair_call_key")), None
@@ -381,7 +424,16 @@ def validated_policy_output(
                 call for call in progress["calls"] if call.get("call_key") == entry["repair_call_key"]
             )
             entry["repair_call_id"] = saved["call_id"]
-            corrected = _apply_reading_patches(raw, repaired, entry["field_paths"]) if compact else repaired
+            corrected = (
+                _apply_reading_patches(
+                    raw,
+                    repaired,
+                    entry["field_paths"],
+                    allowed_claim_ids=entry["repair_payload"].get("allowed_claim_ids"),
+                )
+                if compact
+                else repaired
+            )
             result = parse(corrected)
         except DomainError as failure:
             saved = next(
@@ -396,7 +448,12 @@ def validated_policy_output(
                 or failure.code == "analysis_finishing_budget_reserved"
                 else "invalid"
                 if failure.code
-                in {"analysis_reading_invalid", "analysis_reference_invalid", "analysis_passage_invalid"}
+                in {
+                    "analysis_reading_invalid",
+                    "analysis_reference_invalid",
+                    "analysis_passage_invalid",
+                    "analysis_output_invalid",
+                }
                 else "failed"
             )
             entry["repair_error_code"] = failure.code
@@ -632,7 +689,10 @@ def retained_policy_reading(fixed, progress):
                 ):
                     return None
                 reading_output = _apply_reading_patches(
-                    original["output"], source["output"], repair["field_paths"]
+                    original["output"],
+                    source["output"],
+                    repair["field_paths"],
+                    allowed_claim_ids=source["payload"].get("allowed_claim_ids"),
                 )
             elif source["payload"].get("original_request") != payload or source["payload"].get(
                 "invalid_output"
@@ -675,6 +735,8 @@ def retained_policy_reading(fixed, progress):
         if canonical_hash(semantic_reading_state(selected, context)) != fingerprint:
             return None
         normalized, _ = parse_policy_reading(reading_output)
+        if fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1":
+            normalized, _ = normalize_policy_synthesis(normalized)
         normalized, _ = normalize_policy_coverage(normalized, payload.get("coverage_checks", []), selected)
         parsed = validate_policy_reading(
             normalized,
