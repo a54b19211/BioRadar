@@ -7077,5 +7077,23 @@
     ],
     "runtime_qualification": "仅使用本轮专用PG19636/Redis19637的随机schema/queue；夹具清理自己的数据，实例仍交ROOT管理。主线与现役服务未切换。",
     "checked_at": "2026-10-31T05:10:29.288421+00:00"
+  },
+  "real_weknora_scope_20261031": {
+    "base_commit": "418b5494bd670f4cb12729050ea2661587c1fad7",
+    "field": "BIORADAR_WEKNORA_KDD_SOURCE_SCOPE",
+    "behavior": "真实显式范围优先；调查和监测共用解析；未配置保留旧方向/来源映射；demo独立；回执记录实际scope。",
+    "checks": "7 failed / 2 passed before; 33 passed / 0 skipped after; ruff and diff checks passed.",
+    "review": {
+      "status": "accepted",
+      "reviewer": "GPT-6.1 SOL non-author methods agent",
+      "path": "/tmp/bioradar-section16-20261031/source-scope-sol-nonauthor-review.json",
+      "sha256": "82089d225428956f544548240057e0306c84f9a1e232463557f06d8a00a2eee4"
+    },
+    "handoff": {
+      "path": "/tmp/bioradar-section16-20261031/b-source-scope-handoff.json",
+      "sha256": "3e76e5996ef182fd29037f05d731cdaec0a715d3af8c55c9e213ff80f0bce90c"
+    },
+    "model_calls": 0,
+    "deployment": "No existing main service changed."
   }
 }

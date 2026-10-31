@@ -84,6 +84,8 @@ def test_transport_unknown_is_not_empty_or_resent_and_feature_failure_retains_or
         monitor = MonitorService.__new__(MonitorService)
         monitor.settings = settings()
         monitor.settings.monitor_kdd_directions = {"synthetic_source": "research"}
+        monitor.settings.weknora_kdd_feature_source_scopes = {"synthetic_source": "research"}
+        monitor.settings.weknora_kdd_source_scope = None
         import bioradar.adapters.weknora_kdd as adapter
 
         monkeypatch.setattr(

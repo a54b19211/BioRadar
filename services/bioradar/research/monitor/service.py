@@ -1137,15 +1137,15 @@ class MonitorService:
         by_ref = {row.record_ref.version_key: row for row in snapshot.records}
         gaps = set(snapshot.metadata_gaps)
         for row in snapshot.records:
-            source_scope = (
-                self.settings.weknora_kdd_demo_source_scope
-                if snapshot.is_demo
-                else mapping.get(row.source_id)
-            )
+            source_scope = mapping.get(row.source_id)
             reason = None
             if row.graph_hints or row.record_ref.version_key in graph_versions:
                 reason = "graph_package_is_not_document_embedding_unit"
-            elif source_scope is None:
+            elif (
+                not snapshot.is_demo
+                and source_scope is None
+                and self.settings.weknora_kdd_source_scope is None
+            ):
                 reason = "feature_source_scope_not_configured"
             else:
                 try:
@@ -1153,6 +1153,7 @@ class MonitorService:
                 except DomainError as error:
                     reason = error.code
                 else:
+                    source_scope = scope["source_scope"]
                     scopes[source_scope] = scope
             if reason:
                 excluded.append({"record_ref": row.record_ref.model_dump(mode="json"), "reason": reason})

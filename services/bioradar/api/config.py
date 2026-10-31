@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     weknora_kdd_url: str | None = None
     weknora_kdd_token: SecretStr | None = None
     weknora_kdd_knowledge_base_id: str | None = Field(default=None, min_length=1, max_length=200)
+    weknora_kdd_source_scope: str | None = Field(default=None, min_length=1, max_length=200)
     weknora_kdd_demo_knowledge_base_id: str | None = Field(default=None, min_length=1, max_length=200)
     weknora_kdd_demo_source_scope: str = Field(default="simulation", min_length=1, max_length=200)
     weknora_kdd_feature_source_scopes: dict[str, str] = Field(default_factory=dict)
@@ -288,6 +289,13 @@ class Settings(BaseSettings):
     def installed_provider_directory(cls, value: Path | None) -> Path | None:
         if value is not None and (not value.is_absolute() or ".." in value.parts):
             raise ValueError("Shared provider source requires an absolute server-configured directory")
+        return value
+
+    @field_validator("weknora_kdd_source_scope")
+    @classmethod
+    def configured_retrieval_source_scope(cls, value: str | None) -> str | None:
+        if value is not None and (value != value.strip() or any(ord(char) < 32 for char in value)):
+            raise ValueError("WeKnora reads require an exact explicit authorization scope")
         return value
 
     @field_validator("weknora_kdd_feature_source_scopes")

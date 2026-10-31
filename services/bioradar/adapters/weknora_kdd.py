@@ -24,13 +24,18 @@ MAX_RESPONSE_BYTES = 16_777_216
 
 
 def retrieval_scope(settings, *, direction, is_demo=False):
-    """One KB rule for planning and sending; demo never falls back to the real KB."""
+    """Resolve the actual KB authorization scope for both retrieval and feature reads."""
     real = getattr(settings, "weknora_kdd_knowledge_base_id", None)
     demo = getattr(settings, "weknora_kdd_demo_knowledge_base_id", None)
     selected = demo if is_demo else real
     if not selected or real and demo and real == demo:
         raise DomainError("weknora_kdd_not_configured", "真实与演示检索须使用各自明确的知识库", 422)
-    scope = getattr(settings, "weknora_kdd_demo_source_scope", "simulation") if is_demo else direction
+    configured = getattr(settings, "weknora_kdd_source_scope", None)
+    scope = (
+        getattr(settings, "weknora_kdd_demo_source_scope", "simulation")
+        if is_demo
+        else configured if configured is not None else direction
+    )
     if not isinstance(scope, str) or not scope.strip():
         raise DomainError("weknora_kdd_not_configured", "检索授权范围未明确", 422)
     return {"knowledge_base_id": selected, "source_scope": scope, "is_demo": is_demo}
@@ -269,6 +274,7 @@ def features_for_snapshot(settings, snapshot, *, direction, timeout_seconds=30, 
     )
     return result, {
         "schema_version": FEATURE_VERSION,
+        **scope,
         "requested_members": members,
         "scope_fingerprint": response.get("scope_fingerprint"),
         "adopted": adopted,
@@ -331,7 +337,7 @@ def search_candidates(
             "usage": {
                 "request_status": "not_sent" if not_sent else "unconfirmed" if unknown else "failed",
                 "embedding_rerank_tokens": None,
-                "scope": direction,
+                "scope": source_scope,
                 "knowledge_base_id": kb,
             },
         }
@@ -389,7 +395,7 @@ def search_candidates(
         "usage": {
             "actual_execution": found.get("execution"),
             "embedding_rerank_tokens": None,
-            "scope": direction,
+            "scope": source_scope,
             "knowledge_base_id": kb,
         },
         "identity_reads": reads,
