@@ -517,3 +517,18 @@ def test_allowed_id_substitution_still_requires_complete_semantic_validation():
     with pytest.raises(DomainError) as exc:
         validate_synthesis(repaired, evidence(), parent=None, schema=FinalResearchSynthesis)
     assert exc.value.code == "analysis_assessment_invalid"
+
+
+def test_compound_claim_can_support_and_limit_a_hypothesis():
+    from bioradar.research.investigations.research_assessment import claim_assessment_errors
+
+    value = {
+        "claims": [{"id": "C1", "text": "去重减少两条记录，但仍有十二名住院患者。"}],
+        "competing_hypotheses": [{
+            "id": "H1", "explanation": "重复计数解释部分增幅，不能解释全部聚集。",
+            "supporting_claim_ids": ["C1"], "opposing_claim_ids": ["C1"],
+        }],
+    }
+    assert claim_assessment_errors(value) == []
+    value["competing_hypotheses"][0]["opposing_claim_ids"] = ["missing"]
+    assert claim_assessment_errors(value)[0]["reason"] == "unknown_claim"

@@ -97,7 +97,7 @@ def claim_assessment_errors(value, claims=None, *, topic_risk_scope=None, check_
     if len(rows) != len(by_id):
         issue(["claims"], "duplicate_claim_id")
 
-    def references(item, path, fields, *, unique=False):
+    def references(item, path, fields, *, unique=False, allow_overlap=False):
         found = {}
         for field in fields:
             identifiers = item.get(field, [])
@@ -114,7 +114,7 @@ def claim_assessment_errors(value, claims=None, *, topic_risk_scope=None, check_
                 if isinstance(identifier, str):
                     found[identifier] = field
         support, oppose = item.get("supporting_claim_ids", []), item.get("opposing_claim_ids", [])
-        if isinstance(support, list) and isinstance(oppose, list):
+        if not allow_overlap and isinstance(support, list) and isinstance(oppose, list):
             for identifier in sorted(
                 set(x for x in support if isinstance(x, str)) & set(x for x in oppose if isinstance(x, str))
             ):
@@ -157,7 +157,9 @@ def claim_assessment_errors(value, claims=None, *, topic_risk_scope=None, check_
             if identifier in seen:
                 issue([*path, "id"], "duplicate_hypothesis_id")
             seen.add(identifier)
-        references(hypothesis, path, ("supporting_claim_ids", "opposing_claim_ids"))
+        # A compound source claim may contain both a positive result and its limitation.
+        # Preserve both links; the explanation and downstream verification assess their meaning.
+        references(hypothesis, path, ("supporting_claim_ids", "opposing_claim_ids"), allow_overlap=True)
 
     risk = value.get("topic_risk_reassessment")
     if risk is not None:
