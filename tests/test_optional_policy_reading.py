@@ -130,6 +130,16 @@ def test_sufficient_optional_read_sends_normal_cap(monkeypatch):
     assert observed == [32768]
     assert progress["calls"][0]["status"] == "received"
 
+    # Empty retrieval changes routing history, not the fixed semantic reading.
+    original_call = copy.deepcopy(progress["calls"][0])
+    progress["queries"].append({
+        "action_id": "SYNTHETIC-empty-search", "kind": "document_search",
+        "status": "empty", "plan": {"source_id": "synthetic-source", "terms": ["other"]},
+    })
+    service.model_call = lambda *args, **kwargs: pytest.fail("Same reading must reuse its original request")
+    assert service._policy_reading("SYNTHETIC", "token", fixed, progress, optional=True) is True
+    assert progress["calls"] == [original_call]
+
 
 def saved_optional(service, fixed, progress, *, status, receipt_status, error_code):
     captured = []

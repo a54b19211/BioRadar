@@ -2905,6 +2905,16 @@ class AnalysisService:
             if external
             else freeze_payload("read_plan", fixed, progress["evidence"])
         )
+        if compact_mode and saved is not None and isinstance(saved.get("payload"), dict):
+            # The semantic reading key deliberately excludes routing receipts/checks.
+            # Reuse that exact request when only those bookkeeping fields changed;
+            # current routing obligations are still validated against declared below.
+            routing_fields = {"coverage_checks", "query_history"}
+            prior_payload = saved["payload"]
+            if {k: v for k, v in payload.items() if k not in routing_fields} == {
+                k: v for k, v in prior_payload.items() if k not in routing_fields
+            }:
+                payload = copy.deepcopy(prior_payload)
         request_tokens = following_tokens = 0
         if compact_mode or optional:
             request_tokens = self._reading_payload_tokens(fixed, payload, PolicyReading)
