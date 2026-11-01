@@ -870,7 +870,6 @@ export interface components {
             kdd_direction?: ("research" | "pipeline" | "business" | "public_health") | null;
             /** Retry Of Analysis Id */
             retry_of_analysis_id?: string | null;
-            resume_report?: components["schemas"]["ResumeReportRequest"] | null;
             /** Parent Analysis Id */
             parent_analysis_id?: string | null;
             /** Material Entry Ids */
@@ -5604,21 +5603,6 @@ export interface components {
              * @default 128
              */
             max_temporal_bins: number;
-        };
-        /** ResumeReportRequest */
-        ResumeReportRequest: {
-            /** Expected Input Hash */
-            expected_input_hash: string;
-            /** Stopped Call Id */
-            stopped_call_id: string;
-            /** Reason */
-            reason: string;
-            /** Max Input Bytes */
-            max_input_bytes: number;
-            /** Extra Seconds */
-            extra_seconds: number;
-            /** Biocheck Provider Version */
-            biocheck_provider_version: string;
         };
         /** ReturnedSourceVersion */
         ReturnedSourceVersion: {

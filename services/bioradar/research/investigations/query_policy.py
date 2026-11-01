@@ -10,11 +10,11 @@ from bioradar.research.investigations.analysis_models import InitialQuery, Quest
 
 SCHEMA_VERSION = "query-planner.external.v1"
 BASELINE_VERSION = "bioradar-query-baseline-v1"
-INITIAL_RETRIEVAL_VERSION = "literal-language-alternatives-v1"
 BOUNDED_INITIAL_VERSION = "literal-language-budget-v2"
 PAGINATION_VERSION = "fabric-receipt-bound-pagination-v1"
 PAGINATION_COVER_VERSION = "fabric-parent-gap-pagination-v1"
 DISCOVERY_VERSION = "bounded-required-gap-discovery-v1"
+COVERAGE_QUALIFICATION = "机器取证覆盖判断，不是科学结论或人工审批。"
 _DIMENSIONS = {"tool_calls", "tokens", "relation_access"}
 _GRAPH_KINDS = {"entity_relations", "graph_neighbors", "graph_path"}
 _PENDING = {"prepared", "sent", "unknown", "unconfirmed"}
@@ -149,12 +149,6 @@ def semantic_key(kind, arguments):
         raise DomainError("query_policy_action_invalid", "查询动作参数不是有限JSON对象", 422) from None
 
 
-def _baseline_source():
-    from pathlib import Path
-
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
-
-
 def freeze_policy(settings, requested=None):
     """Freeze the selected method and actual local code version with this research input."""
     from bioradar.adapters.query_planner import load_query_planner, provider_status
@@ -164,11 +158,11 @@ def freeze_policy(settings, requested=None):
         raise DomainError("query_policy_invalid", "查询策略只能选baseline或query_planner", 422)
     status = provider_status(settings)
     version = BASELINE_VERSION
-    source = _baseline_source()
+    source = BASELINE_VERSION
     if selected == "query_planner":
         _, version = load_query_planner(settings)
         source = version
-    kdd = selected == "query_planner" and getattr(settings, "analysis_kdd_enabled", False)
+    kdd = selected == "query_planner"
     return {
         "requested": selected,
         "effective": selected,
@@ -221,53 +215,26 @@ def freeze_policy(settings, requested=None):
     }
 
 
-def validate_frozen_policy(settings, frozen):
-    from bioradar.adapters.query_planner import provider_status
-
-    if frozen.get("effective") == "baseline":
-        current = _baseline_source()
-        expected = frozen.get("source_sha256")
-    elif frozen.get("effective") == "query_planner":
-        current = provider_status(settings).get("version")
-        expected = frozen.get("source_sha256") or frozen.get("version")
-    else:
-        raise DomainError("query_policy_invalid", "保存的查询策略不可识别", 409)
-    if not current or current != expected:
-        raise DomainError("query_policy_version_changed", "查询策略源码与本轮固定版本不同，未重选动作", 409)
-
-
 def _language_alternatives(fixed):
-    policy = fixed.get("query_policy", {})
-    return (
-        policy.get("effective") == "query_planner"
-        and policy.get("schema_version") == "query-planner.external.v2"
-        and policy.get("research_contract_version") == "bioradar-research-input-v1"
-        and policy.get("initial_retrieval_version") in {INITIAL_RETRIEVAL_VERSION, BOUNDED_INITIAL_VERSION}
-    )
+    return fixed.get("query_policy", {}).get("effective") == "query_planner"
 
 
 def pagination_enabled(fixed):
-    return (
-        fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2"
-        and fixed["query_policy"].get("pagination_version") == PAGINATION_VERSION
-    )
+    return _language_alternatives(fixed)
 
 
 def question_plan_payload(fixed):
     if _language_alternatives(fixed):
-        bounded = fixed["query_policy"]["initial_retrieval_version"] == BOUNDED_INITIAL_VERSION
         return {
             "task": "question_plan",
             "question": fixed["question"],
             "search_scope": fixed["search_scope"],
-            "max_queries": min(3 if bounded else 6, fixed["budget"]["max_queries"]),
-            "retrieval_strategy_version": fixed["query_policy"]["initial_retrieval_version"],
+            "max_queries": min(3, fixed["budget"]["max_queries"]),
+            "retrieval_strategy_version": BOUNDED_INITIAL_VERSION,
             "instruction": (
                 (
                     "在允许来源内规划最多三项独立字面查询，每项最多三个词，预算更小时按max_queries。"
                     "初查与目录、后续补查和续页共享总额，应保留后续余量。"
-                    if bounded
-                    else "在允许来源内规划最多六项独立字面查询，每项最多三个词，预算更小时按max_queries。"
                 )
                 + "不同queries是依次可执行的OR备选；同一query的terms仍须全部字面同时满足（AND）。"
                 "根据问题中的实际对象或核心现象，安排原问题语言、英语等义表达及少量常用同义变体。"
@@ -284,9 +251,6 @@ def question_plan_payload(fixed):
                     "独立对象各自列出；若名称组合表达两个对象的关系，可在components声明各子项的"
                     "id/name/question_span，子项必须逐字位于该组合内。斜杠也可能是单个真实标识符，"
                     "不能仅按标点拆分。读到子项仅表示材料提及对象，组合关系仍须另查。"
-                    if fixed.get("query_policy", {}).get("research_contract_version")
-                    == "bioradar-research-input-v1"
-                    else ""
                 )
             ),
         }
@@ -315,12 +279,7 @@ def validate_initial_plans(raw, fixed):
         )
     except ValueError:
         raise DomainError("analysis_question_plan_invalid", "初查规划格式无效，未补造查询", 422) from None
-    initial_limit = 6 if explicit or _language_alternatives(fixed) else 2
-    if (
-        not explicit
-        and fixed.get("query_policy", {}).get("initial_retrieval_version") == BOUNDED_INITIAL_VERSION
-    ):
-        initial_limit = 3
+    initial_limit = 6 if explicit else 3 if _language_alternatives(fixed) else 2
     maximum = min(initial_limit, fixed["budget"]["max_queries"])
     if len(plans) > maximum:
         raise DomainError("analysis_query_budget", "初查规划超过本轮固定查询预算", 422)
@@ -371,7 +330,7 @@ def _check(identifier, question, *, reason=None):
         "status": "unknown",
         "evidence_ids": [],
         "reason": reason or "本轮尚未取得明确覆盖判断。",
-        "qualification": "机器取证覆盖判断，不是科学结论或人工审批。",
+        "qualification": COVERAGE_QUALIFICATION,
     }
 
 
@@ -550,8 +509,7 @@ def build_coverage_checks(fixed, progress, *, reading=None):
     if _pipeline_question(fixed["question"]):
         for key, question in _PIPELINE_CHECKS.items():
             checks.setdefault(key, _check(key, question))
-    contract = fixed.get("query_policy", {}).get("research_contract_version")
-    if external and contract == "bioradar-research-input-v1":
+    if external:
         direction = fixed.get("query_policy", {}).get("direction", "research")
         extra = dict(_DIRECTION_CHECKS.get(direction, {}))
         if direction in {"research", "pipeline"} and any(
@@ -654,7 +612,7 @@ def build_coverage_checks(fixed, progress, *, reading=None):
             )
         elif not valid_refs:
             item["evidence_ids"] = []
-        item["qualification"] = "机器取证覆盖判断，不是科学结论或人工审批。"
+        item["qualification"] = COVERAGE_QUALIFICATION
     if evidence_ids:
         checks["source_materials"].update(
             status="passed",
@@ -758,7 +716,7 @@ def _category_covers(plan, checks, reading, *, normalize_gaps=False):
 
 def _required_gap_discovery(fixed):
     return (
-        _language_alternatives(fixed) and fixed["query_policy"].get("discovery_version") == DISCOVERY_VERSION
+        _language_alternatives(fixed)
     )
 
 
@@ -995,7 +953,7 @@ def _history(fixed, progress):
 def search_query_count(fixed, progress):
     """KDD first-page searches have their own limit; every page still costs tools/steps."""
     queries = progress.get("queries", [])
-    if fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2":
+    if not _language_alternatives(fixed):
         return len(queries)
     actions = {
         action["id"]: action
@@ -1034,7 +992,7 @@ def _policy_budget(fixed, progress):
 
 def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
     """Only fixed/adopted originals and actual successful query receipts may name a read."""
-    if fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1":
+    if not _language_alternatives(fixed):
         return []
     scope = set(fixed.get("search_scope", [])) | {
         item["source_id"] for item in fixed.get("dependency_sources", []) if item.get("history")
@@ -1213,7 +1171,7 @@ def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
 
 def document_read_candidates(fixed, progress, manifest, checks):
     """A one-record fixed read has the same legality and retry identity as its receipt."""
-    if fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1":
+    if not _language_alternatives(fixed):
         return []
     declared = {item["id"] for item in checks}
     result = []
@@ -1259,7 +1217,7 @@ def _pagination_covers(fixed, progress, previous, checks):
     """A continuation retains only still-unmet checks of its recorded parent action."""
     declared = {item["id"]: item for item in checks}
     covers = [key for key in ("source_materials", "answer_scope") if key in declared]
-    if fixed.get("query_policy", {}).get("pagination_cover_version") != PAGINATION_COVER_VERSION:
+    if not _language_alternatives(fixed):
         return covers
     entries = [
         entry
@@ -1702,7 +1660,6 @@ def build_policy_context(
     if fixed.get("is_demo"):
         available = bool(
             policy == "query_planner"
-            and fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1"
             and isinstance(weknora, dict)
             and weknora.get("is_demo") is True
             and weknora.get("knowledge_base_id")
@@ -1720,7 +1677,7 @@ def build_policy_context(
     ):
         candidates.append(_candidate(plans[0], "weknora", phase, 0, fixed, checks, value))
     named = []
-    if fixed.get("query_policy", {}).get("schema_version") == "query-planner.external.v2":
+    if _language_alternatives(fixed):
         named = named_object_context(fixed, progress, candidates, checks)
     if policy == "query_planner":
         for candidate in graph_candidates or []:

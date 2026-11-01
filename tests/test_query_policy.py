@@ -21,7 +21,6 @@ from bioradar.research.investigations.query_policy import (
     freeze_policy,
     mechanism_query_context,
     semantic_key,
-    validate_frozen_policy,
     validate_initial_plans,
 )
 
@@ -374,13 +373,12 @@ def test_controlled_adapter_freezes_actual_source_and_preserves_candidate(tmp_pa
     frozen = freeze_policy(settings)
     assert frozen["version"] == loaded[1]
     assert frozen["training_status"] == "heuristic_untrained"
-    validate_frozen_policy(settings, frozen)
     request = context(fixed("query_planner"))
     result = decide(request, policy="query_planner", planner=lambda req: decide_query(settings, req))
     assert result["action"] == request["candidates"][0]
     (tmp_path / "src/method.py").write_text("METHOD = 'SYNTHETIC changed'\n")
     with pytest.raises(DomainError, match="固定版本"):
-        validate_frozen_policy(settings, frozen)
+        decide_query(settings, request, expected_version=frozen["version"])
     with pytest.raises(DomainError, match="源码已变化"):
         decide_query(settings, request, loaded=loaded)
 

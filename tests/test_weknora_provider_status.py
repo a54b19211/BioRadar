@@ -85,7 +85,6 @@ def test_options_uses_actual_kdd_scope_and_preserves_legacy_when_disabled():
     actor = DevelopmentAccess(settings).actor()
     assert service.options(actor, is_demo=True)["providers"]["weknora"]["configured"] is True
     assert service.options(actor, is_demo=False)["providers"]["weknora"]["configured"] is False
-    settings.analysis_kdd_enabled = False
     assert not service.options(actor, is_demo=True)["providers"]["weknora"]["configured"]
     settings.weknora_url = "http://synthetic-legacy.invalid"
     settings.weknora_api_key = SecretStr("SYNTHETIC-legacy-key")

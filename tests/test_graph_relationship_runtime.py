@@ -36,7 +36,6 @@ def test_explicit_single_object_graph_need_is_discovered_and_received_actions_re
     make, actor, _, source, model, settings, _ = runtime
     connection, queue, drain = actual_queue
     external(runtime)
-    settings.analysis_kdd_enabled = True
     settings.analysis_graph_source_ids = ["reviewed_graph"]
     settings.data_fabric_graph_query_token = SecretStr("SYNTHETIC-graph-query-only")
     settings.engine_source_id_allowlist["fixture"] = ["fixture-source", "reviewed_graph"]

@@ -18,7 +18,7 @@ from bioradar.research.mining.models import (
 )
 from bioradar.research.mining.prepare import snapshot_hash
 from kdd_e2e import KddExercise, inspect_run, sample_unselected
-from query_policy_assertions import assert_query_policy
+from tests.query_policy_assertions import assert_query_policy
 from research_e2e import ResearchExercise, expected_report_markdown
 
 

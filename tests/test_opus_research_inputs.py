@@ -176,7 +176,7 @@ def test_new_task_contract_has_direction_checks_and_leaves_old_baseline_schema_u
         assert "warning_assessment" not in model.model_fields
         assert "competing_hypotheses" not in model.model_fields
     old = fixed()
-    old["query_policy"].pop("research_contract_version")
+    old["query_policy"]["effective"] = "baseline"
     assert research_task_context(old) == {}
     old["query_policy"]["effective"] = "baseline"
     assert research_task_context(old) == {}

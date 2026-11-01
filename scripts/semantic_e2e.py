@@ -24,8 +24,9 @@ from bioradar.adapters.fabric_monitor import build_snapshot, project_record
 from bioradar.api.config import Settings
 from bioradar.research.engine.auth import DevelopmentAccess
 from history_e2e import canonical
-from query_policy_assertions import assert_query_policy
 from topic_e2e import TopicExercise
+
+from tests.query_policy_assertions import assert_query_policy
 
 TERMINAL_ANALYSIS = {"completed", "needs_review", "blocked", "failed"}
 

@@ -244,7 +244,7 @@ def validated_policy_output(
     from bioradar.research.investigations.analysis import parse_policy_reading, validate_policy_reading
     from bioradar.research.investigations.query_policy import normalize_policy_coverage
 
-    strict = fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1"
+    strict = fixed.get("query_policy", {}).get("effective") == "query_planner"
 
     def parse(value):
         normalized, adjustments = parse_policy_reading(value)
@@ -517,7 +517,7 @@ def execute_document_read(service, identifier, token, fixed, progress, action, s
     requested = _visible_requests(fixed, progress, action, step)
     if receipt is None:
         if (
-            fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+            fixed.get("query_policy", {}).get("effective") != "query_planner"
             and len(progress["queries"]) >= fixed["budget"]["max_queries"]
         ):
             raise DomainError("analysis_query_budget", "本轮取证动作额度已用完", 422)
@@ -635,7 +635,7 @@ def retained_policy_reading(fixed, progress):
         fingerprint = state.get("reading_evidence_hash")
         if (
             state.get("reading_kind") != "policy"
-            or fixed.get("query_context_version") != "semantic-v2"
+            or False
             or fixed.get("query_policy", {}).get("effective") != "query_planner"
             or not isinstance(fingerprint, str)
             or len(fingerprint) != 64
@@ -735,15 +735,14 @@ def retained_policy_reading(fixed, progress):
         if canonical_hash(semantic_reading_state(selected, context)) != fingerprint:
             return None
         normalized, _ = parse_policy_reading(reading_output)
-        if fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1":
+        if fixed.get("query_policy", {}).get("effective") == "query_planner":
             normalized, _ = normalize_policy_synthesis(normalized)
         normalized, _ = normalize_policy_coverage(normalized, payload.get("coverage_checks", []), selected)
         parsed = validate_policy_reading(
             normalized,
             selected,
             fixed["search_scope"],
-            strict_references=fixed.get("query_policy", {}).get("research_contract_version")
-            == "bioradar-research-input-v1",
+            strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
         )
         if parsed.model_dump(mode="json") != state.get("reading"):
             return None

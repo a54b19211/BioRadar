@@ -22,7 +22,6 @@ pytestmark = pytest.mark.ENGINE
 def test_graph_catalog_and_adopt_are_durable_and_replay_without_new_reads(runtime, database):
     make, actor, _, source, model, settings, _ = runtime
     external(runtime)
-    settings.analysis_kdd_enabled = True
     settings.analysis_manual_per_hour = 20
     settings.analysis_graph_source_ids = ["reviewed_graph"]
     settings.data_fabric_graph_query_token = SecretStr("SYNTHETIC-query-only")

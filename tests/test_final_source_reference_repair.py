@@ -10,10 +10,8 @@ from bioradar.research.investigations.analysis import freeze_passages, validate_
 from bioradar.research.investigations.analysis_models import FinalResearchSynthesis
 from bioradar.research.investigations.research_assessment import (
     FINAL_REFERENCE_REPAIR_VERSION,
-    assessment_repair_payload,
     final_reference_errors,
     final_reference_repair_payload,
-    validate_assessment_repair,
     validate_final_reference_repair,
 )
 from test_final_assessment_binding import enhanced, evidence, risk_scope
@@ -228,17 +226,6 @@ def test_original_input_identity_ambiguity_is_not_guessed(fault):
     assert raised.value.code == "analysis_reference_repair_context_invalid"
 
 
-def test_old_claim_only_repair_payload_and_guard_remain_unchanged_and_reject_passage_only_fault():
-    _, request = inputs()
-    value = broken("claim")
-    old = assessment_repair_payload(request, value)
-    assert old["task"] == "repair_final_assessment"
-    assert "repair_version" not in old and "maximum_attempts" not in old
-    assert "allowed_reference_ids" not in old
-    validate_assessment_repair(value, enhanced())
-    with pytest.raises(DomainError) as raised:
-        validate_assessment_repair(broken(), enhanced())
-    assert raised.value.code == "analysis_assessment_repair_invalid"
 
 
 def test_id_only_replacement_still_cannot_bypass_complete_synthesis_semantics():

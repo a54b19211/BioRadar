@@ -11,7 +11,7 @@ from bioradar.research.investigations.analysis_service import AnalysisService
 from bioradar.research.investigations.kdd import extend_context
 from test_initial_language_retrieval import context, fixed, plans, progress, save_empty
 
-from scripts.query_policy_assertions import assert_query_policy
+from tests.query_policy_assertions import assert_query_policy
 
 
 def test_actual_empty_alternatives_allow_one_fixed_catalog_but_not_ordinary_empty_terms():

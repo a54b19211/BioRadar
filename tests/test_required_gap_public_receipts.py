@@ -11,7 +11,7 @@ from bioradar.research.investigations.analysis_service import AnalysisService
 from test_optional_policy_reading import harness
 from test_required_gap_discovery import adopted_original, context, save, setup_case
 
-from scripts.query_policy_assertions import _catalog_discovery
+from tests.query_policy_assertions import _catalog_discovery
 
 
 def public_case():

@@ -204,19 +204,7 @@ def http_ledger(progress):
 def _sync_http_usage(progress):
     """Count attempted requests once; an interrupted send intent remains reserved."""
     known = reserved = 0
-    preserved = set((progress.get("report_continuation") or {}).get("preserved_operation_ids", []))
-    preserved_ledger = http_ledger(progress) if preserved else []
     for operation_id, state in progress.get("professional_operations", {}).items():
-        if operation_id in preserved:
-            known += sum(
-                item["known_tool_calls"] for item in preserved_ledger if item["operation_id"] == operation_id
-            )
-            reserved += sum(
-                item["reserved_tool_calls"]
-                for item in preserved_ledger
-                if item["operation_id"] == operation_id
-            )
-            continue
         state_known = state_reserved = 0
         for exchange in state.get("exchanges", []):
             attempts = exchange.get("attempts", 0)
@@ -265,22 +253,6 @@ def _http_budget_guard(fixed, progress, *, own_reservation=0):
         raise DomainError("analysis_tool_budget", "专业HTTP请求达到统一来源请求预算，未发送新请求", 422)
 
 
-def report_continuation(progress):
-    continuation = progress.get("report_continuation")
-    if not continuation:
-        return None
-    index = progress.get("active_report_round", 0)
-    if index == continuation["target_round"]:
-        return continuation
-    rounds = progress.get("report_rounds", [])
-    if (
-        index == continuation["target_round"] + 1
-        and 0 <= index < len(rounds)
-        and rounds[index].get("kind") == "repair"
-        and rounds[index].get("parent_index") == continuation["target_round"]
-    ):
-        return continuation
-    return None
 
 
 def load_provider(service, identifier, token, fixed, progress, name):
@@ -297,8 +269,7 @@ def load_provider(service, identifier, token, fixed, progress, name):
     from bioradar.research.investigations.analysis import analysis_budget
 
     mode, url, credential = _configuration(service.settings, name)
-    continuation = report_continuation(progress) if name == "biocheck" else None
-    frozen = continuation["provider_pin"] if continuation else fixed.get("providers", {}).get(name, {})
+    frozen = fixed.get("providers", {}).get(name, {})
     if frozen.get("transport", "local") != mode:
         raise DomainError("analysis_provider_changed", "专业服务执行方式与本轮固定输入不同", 409)
     if mode == "local":
@@ -306,22 +277,10 @@ def load_provider(service, identifier, token, fixed, progress, name):
     if not url or not credential or frozen.get("service_endpoint") != url:
         raise DomainError("professional_rpc_not_configured", "本轮固定专业服务当前未配置", 503)
     headers = {"Authorization": "Bearer " + credential.get_secret_value()}
-    version = (
-        continuation.get("loaded_provider_version")
-        if continuation
-        else progress.get("provider_versions", {}).get(name)
-    )
-    capabilities = (
-        progress.get("report_continuation_capabilities")
-        if continuation
-        else progress.get("professional_capabilities", {}).get(name)
-    )
+    version = progress.get("provider_versions", {}).get(name)
+    capabilities = progress.get("professional_capabilities", {}).get(name)
     if version is None:
-        capability_id = canonical_hash(
-            [identifier, name, "capabilities", continuation["id"]]
-            if continuation
-            else [identifier, name, "capabilities"]
-        )
+        capability_id = canonical_hash([identifier, name, "capabilities"])
         capability = progress.setdefault("professional_operations", {}).setdefault(
             capability_id,
             {"operation": "capabilities", "action_id": progress.get("active_professional_action")},
@@ -378,13 +337,7 @@ def load_provider(service, identifier, token, fixed, progress, name):
             _sync_http_usage(progress)
             service._checkpoint(identifier, token, progress, fixed=fixed)
         version = caps["provider_version"]
-        if continuation:
-            if version != continuation["provider_pin"]["version"]:
-                raise DomainError("analysis_provider_changed", "续稿专业服务与明确批准的版本不同", 409)
-            progress["report_continuation_capabilities"] = caps
-            continuation["capability_operation_id"] = capability_id
-        else:
-            progress.setdefault("professional_capabilities", {})[name] = caps
+        progress.setdefault("professional_capabilities", {})[name] = caps
         capabilities = caps
     service._use_provider(identifier, token, fixed, progress, name, version)
     counters = {}
@@ -612,8 +565,7 @@ def mechanism(service, identifier, token, fixed, progress, reading):
                         "research_contract_version": "bioradar-research-input-v1",
                         "research_scope": {"evidence_time": copy.deepcopy(fixed["evidence_time"])},
                     }
-                    if fixed.get("query_policy", {}).get("research_contract_version")
-                    == "bioradar-research-input-v1"
+                    if fixed.get("query_policy", {}).get("effective") == "query_planner"
                     else {}
                 ),
             },
@@ -659,7 +611,7 @@ def mechanism(service, identifier, token, fixed, progress, reading):
         service._checkpoint(identifier, token, progress)
     assessment = progress["mechanism_evaluation"]
     if (
-        fixed.get("query_context_version") == "semantic-v2"
+        True
         and fixed.get("query_policy", {}).get("effective") == "query_planner"
         and assessment.get("status") == "completed"
         and "passage_bindings" not in assessment

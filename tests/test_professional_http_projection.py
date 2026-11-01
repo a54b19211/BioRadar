@@ -5,7 +5,7 @@ import copy
 import pytest
 from bioradar.research.investigations.analysis_service import AnalysisService
 
-from scripts.query_policy_assertions import assert_professional_http_accounting
+from tests.query_policy_assertions import assert_professional_http_accounting
 
 
 def operation(action_id, count, *, outcomes=None):

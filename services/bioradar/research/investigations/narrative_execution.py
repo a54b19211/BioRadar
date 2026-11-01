@@ -1,15 +1,12 @@
 """Select literal numeric roles through the host model ledger; calculate only in Python."""
 
 import copy
-import re
 
 from bioradar.adapters.reasoning_model import ModelCallError
 from bioradar.api.errors import DomainError
 from bioradar.research.datasets.narrative import (
     ALIASES,
-    extract_narrative_observations,
     narrative_extraction_schema,
-    narrative_version,
     validate_narrative_observations,
 )
 from bioradar.research.investigations.execution_budget import reading_limits
@@ -19,44 +16,24 @@ OPTIONAL_STOPS = {"analysis_model_budget", "analysis_token_budget", "analysis_ti
 
 
 def _needs_selection(record, *, version=None):
-    if version == "literal-narrative-observations-v2":
-        from bioradar.research.datasets.narrative_v2 import needs_selection
+    from bioradar.research.datasets.narrative_v2 import needs_selection
 
-        return needs_selection(record)
-    if not record.normalized_text:
-        return False
-    text = record.normalized_text
-    if not re.search(r"\d", text):
-        return False
-    visible = {
-        role for role, names in ALIASES.items() if any(alias.casefold() in text.casefold() for alias in names)
-    }
-    if not visible:
-        return False
-    parsed = extract_narrative_observations(record)
-    qualified = {
-        item.metric_id.removesuffix("_units")
-        for item in [*record.metric_observations, *parsed["observations"]]
-    }
-    # Generic "orders" inside "net orders" is not another missing measurement.
-    if qualified & {"net_orders", "gross_orders"}:
-        visible.discard("orders_unspecified")
-    return bool(parsed["gaps"] or visible - qualified)
+    return needs_selection(record)
 
 
 def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snapshot, *, allow_model):
     """Derived fields are separate from the archived snapshot and keep literal locators."""
     if (
-        fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1"
+        fixed.get("query_policy", {}).get("effective") != "query_planner"
         or fixed["query_policy"].get("direction") != "business"
     ):
         return snapshot
-    version = narrative_version(fixed["query_policy"].get("narrative_contract_version"))
-    proposal_version = fixed["query_policy"].get("narrative_proposal_version")
+    version = "literal-narrative-observations-v2"
+    proposal_version = "literal-narrative-proposal-v1"
     if proposal_version is not None:
         from bioradar.research.datasets.narrative_proposal import PROPOSAL_VERSION
 
-        if proposal_version != PROPOSAL_VERSION or version != "literal-narrative-observations-v2":
+        if proposal_version != PROPOSAL_VERSION or False:
             raise DomainError(
                 "narrative_proposal_version_invalid", "数值提议说明版本与固定校验契约不一致", 409
             )
@@ -106,10 +83,9 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
                     "observations为空是允许的。"
                 ),
             }
-            if version == "literal-narrative-observations-v2":
-                from bioradar.research.datasets.narrative_v2 import selection_payload
+            from bioradar.research.datasets.narrative_v2 import selection_payload
 
-                payload = selection_payload(record)
+            payload = selection_payload(record)
             schema = narrative_extraction_schema(version=version)
             if proposal_version is not None:
                 from bioradar.research.datasets.narrative_proposal import proposal_payload, proposal_schema
@@ -132,7 +108,7 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
                 validated = validate_narrative_observations(output, record, version=version)
             except DomainError as exc:
                 if (
-                    version == "literal-narrative-observations-v2"
+                    True
                     and isinstance(exc, ModelCallError)
                     and exc.receipt.status == "unconfirmed"
                 ):
@@ -174,21 +150,20 @@ def prepare_narrative_snapshot(service, identifier, token, fixed, progress, snap
             service._checkpoint(identifier, token, progress)
         if cached and cached.get("observations"):
             observations = tuple(MetricObservation.model_validate(item) for item in cached["observations"])
-            if version == "literal-narrative-observations-v2":
-                from bioradar.research.datasets.narrative_v2 import validate_cached
+            from bioradar.research.datasets.narrative_v2 import validate_cached
 
-                try:
-                    if (
-                        cached.get("record_ref") != record.record_ref.model_dump(mode="json")
-                        or cached.get("text_sha256") != record.normalized_text_hash
-                        or cached.get("extractor_version") != version
-                    ):
-                        raise ValueError("cached narrative source identity changed")
-                    validate_cached(record, observations)
-                except (ValueError, TypeError, KeyError):
-                    raise DomainError(
-                        "narrative_source_changed", "已存数值观察与固定原文或契约不同", 409
-                    ) from None
+            try:
+                if (
+                    cached.get("record_ref") != record.record_ref.model_dump(mode="json")
+                    or cached.get("text_sha256") != record.normalized_text_hash
+                    or cached.get("extractor_version") != version
+                ):
+                    raise ValueError("cached narrative source identity changed")
+                validate_cached(record, observations)
+            except (ValueError, TypeError, KeyError):
+                raise DomainError(
+                    "narrative_source_changed", "已存数值观察与固定原文或契约不同", 409
+                ) from None
             # Recheck persisted locators against the same actual source projection.
             for observation in observations:
                 for field in ("subject", "metric", "value", "period", "reporting_scope"):

@@ -257,7 +257,7 @@ def _catalog_discovery(view, trace, decisions, position):
         and trace.get("effective") == "query_planner"
         and trace.get("research_contract_version") == "bioradar-research-input-v1"
         and (
-            trace.get("initial_retrieval_version") == "literal-language-alternatives-v1"
+            trace.get("initial_retrieval_version") == "literal-language-budget-v2"
             or trace.get("initial_retrieval_version") == "literal-language-budget-v2"
             and trace.get("pagination_version") == "fabric-receipt-bound-pagination-v1"
         )

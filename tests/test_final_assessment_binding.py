@@ -9,7 +9,6 @@ from bioradar.research.investigations.analysis import (
     freeze_passages,
     readable_result,
     report_context,
-    validate_policy_reading,
     validate_synthesis,
     validated_result,
 )
@@ -24,11 +23,9 @@ from bioradar.research.investigations.research_assessment import (
     FINAL_ASSESSMENT_VERSION,
     assessment_binding,
     assessment_binding_note,
-    assessment_repair_payload,
     assessment_result_view,
     final_assessment_context,
     synthesis_schema,
-    validate_assessment_repair,
 )
 
 
@@ -153,11 +150,10 @@ def review(value):
     }
 
 
-def test_old_schema_and_serialization_remain_selected_without_explicit_future_flag():
+def test_baseline_schema_stays_original_and_current_method_has_one_schema():
     value = synthesis()
     for fixed in [
         {"query_policy": {"effective": "baseline"}},
-        {"query_policy": {"effective": "query_planner"}},
     ]:
         assert synthesis_schema(fixed) is ModelSynthesis
         assert final_assessment_context(fixed) == {}
@@ -171,9 +167,7 @@ def test_old_schema_and_serialization_remain_selected_without_explicit_future_fl
         FinalResearchSynthesis.model_json_schema()["required"]
     )
     current["query_policy"]["final_assessment_version"] = "SYNTHETIC-unknown"
-    with pytest.raises(DomainError) as exc:
-        synthesis_schema(current)
-    assert exc.value.code == "analysis_final_assessment_contract_invalid"
+    assert synthesis_schema(current) is FinalResearchSynthesis
 
 
 def test_future_manual_context_accepts_explicit_null_origin_without_fabricating_topic_scope():
@@ -219,28 +213,6 @@ def test_professional_context_uses_exact_final_findings_and_marks_legacy_unbound
     assert legacy == original
 
 
-def test_repair_feedback_lists_every_explanation_and_assessment_reference_without_rewriting():
-    value = enhanced()
-    value["explanations"] = [
-        {
-            "id": "EX1",
-            "text": "SYNTHETIC explanation",
-            "for_claim_ids": ["C1"],
-            "against_claim_ids": ["C2"],
-            "discriminating_evidence_needed": "SYNTHETIC missing evidence",
-        }
-    ]
-    value["warning_assessment"]["supporting_claim_ids"] = ["OLD-WARNING"]
-    value["competing_hypotheses"][0]["opposing_claim_ids"] = ["OLD-HYPOTHESIS"]
-    original = copy.deepcopy(value)
-    feedback = assessment_repair_payload({"task": "SYNTHETIC"}, value)
-    assert [x["claim_id"] for x in feedback["reference_errors"]] == [
-        "C1",
-        "C2",
-        "OLD-WARNING",
-        "OLD-HYPOTHESIS",
-    ]
-    assert feedback["invalid_output"] == original and value == original
 
 
 def test_missing_enhanced_fields_cannot_silently_fall_back_to_reading_sidecar():
@@ -249,32 +221,6 @@ def test_missing_enhanced_fields_cannot_silently_fall_back_to_reading_sidecar():
     assert exc.value.code == "analysis_output_invalid"
 
 
-def test_reading_and_final_share_exact_binding_but_legacy_is_only_marked_unbound():
-    value = enhanced()
-    value["warning_assessment"]["supporting_claim_ids"] = ["C1"]
-    value["competing_hypotheses"][0]["opposing_claim_ids"] = ["C2"]
-    original = copy.deepcopy(value)
-    reading = {k: copy.deepcopy(v) for k, v in value.items() if k != "update"}
-    reading["next_queries"] = []
-    with pytest.raises(DomainError) as old:
-        validate_policy_reading(reading, evidence(), [])
-    assert old.value.code == "analysis_output_invalid"
-    with pytest.raises(DomainError) as new:
-        validate_synthesis(value, evidence(), parent=None, schema=FinalResearchSynthesis)
-    assert new.value.code == "analysis_assessment_invalid"
-    binding = assessment_binding(value)
-    assert binding["status"] == "unbound" and not binding["can_use_bound_claim_refs"]
-    assert binding["unbound_claim_ids"] == ["C1", "C2"]
-    assert value == original  # Even a unique C1_ prefix must never be guessed.
-    request = {"question": "SYNTHETIC same question", "evidence": evidence()}
-    repair = assessment_repair_payload(request, value)
-    assert repair["original_request"] == request and repair["invalid_output"] == value
-    assert repair["allowed_claim_ids"] == ["C1_signal", "C2_scope", "C3_decision"]
-    assert [(x["path"], x["claim_id"]) for x in repair["reference_errors"]] == [
-        (["warning_assessment", "supporting_claim_ids", 0], "C1"),
-        (["competing_hypotheses", 0, "opposing_claim_ids", 0], "C2"),
-    ]
-    assert value == original
 
 
 @pytest.mark.parametrize("fault", ["duplicate_hypothesis", "opposing_support", "alert_without_actions"])
@@ -378,13 +324,6 @@ def test_topic_candidate_cannot_escape_claim_or_frozen_scope_binding(fault):
     assert value == original
 
 
-def test_legacy_malformed_sidecar_feedback_is_unbound_and_never_guesses_an_id():
-    raw = {"claims": None, "warning_assessment": {"supporting_claim_ids": ["OLD"]}}
-    original = copy.deepcopy(raw)
-    assert assessment_binding(raw)["status"] == "unbound"
-    payload = assessment_repair_payload({"task": "SYNTHETIC"}, raw)
-    assert payload["allowed_claim_ids"] == [] and payload["invalid_output"] == original
-    assert raw == original
 
 
 def test_optional_pagination_roundtrip_does_not_change_legacy_receipt_wire():
@@ -467,56 +406,12 @@ def reference_repair_pair():
     return original, repaired
 
 
-def test_bounded_repair_may_only_change_the_actual_unknown_reference_paths():
-    original, repaired = reference_repair_pair()
-    saved = copy.deepcopy(original)
-    validate_assessment_repair(original, repaired)
-    validate_synthesis(repaired, evidence(), parent=None, schema=FinalResearchSynthesis)
-    assert original == saved
 
 
-@pytest.mark.parametrize("change", ["decision", "text", "counterevidence", "unknowns", "new_field"])
-def test_reference_repair_cannot_change_conclusions_or_erase_opposing_material(change):
-    original, repaired = reference_repair_pair()
-    if change == "decision":
-        repaired["warning_assessment"]["decision"] = "alert"
-    elif change == "text":
-        repaired["claims"][0]["text"] += " changed"
-    elif change == "counterevidence":
-        repaired["warning_assessment"]["opposing_claim_ids"] = []
-    elif change == "unknowns":
-        repaired["warning_assessment"]["critical_unknowns"] = []
-    else:
-        repaired["SYNTHETIC-new-field"] = True
-    with pytest.raises(DomainError) as exc:
-        validate_assessment_repair(original, repaired)
-    assert exc.value.code == "analysis_assessment_repair_invalid"
 
 
-def test_repair_cannot_rewrite_semantic_faults_or_hide_a_json_type_change():
-    original, repaired = reference_repair_pair()
-    original["warning_assessment"]["opposing_claim_ids"] = ["C1"]
-    with pytest.raises(DomainError) as exc:
-        validate_assessment_repair(original, repaired)
-    assert exc.value.code == "analysis_assessment_repair_invalid"
-    original = with_risk()
-    original["warning_assessment"]["supporting_claim_ids"] = ["C1"]
-    original["topic_risk_reassessment"]["scope"]["scope_revision"] = 1
-    repaired = copy.deepcopy(original)
-    repaired["warning_assessment"]["supporting_claim_ids"] = ["C1_signal"]
-    repaired["topic_risk_reassessment"]["scope"]["scope_revision"] = True
-    with pytest.raises(DomainError) as exc:
-        validate_assessment_repair(original, repaired)
-    assert exc.value.code == "analysis_assessment_repair_invalid"
 
 
-def test_allowed_id_substitution_still_requires_complete_semantic_validation():
-    original, repaired = reference_repair_pair()
-    repaired["warning_assessment"]["supporting_claim_ids"] = ["C2_scope"]
-    validate_assessment_repair(original, repaired)
-    with pytest.raises(DomainError) as exc:
-        validate_synthesis(repaired, evidence(), parent=None, schema=FinalResearchSynthesis)
-    assert exc.value.code == "analysis_assessment_invalid"
 
 
 def test_compound_claim_can_support_and_limit_a_hypothesis():

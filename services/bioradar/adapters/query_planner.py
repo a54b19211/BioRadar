@@ -151,12 +151,17 @@ def validate_decision(request, result, *, expected_version=None):
     return copy.deepcopy(result)
 
 
-def decide_query(settings, request, *, loaded=None):
+def decide_query(settings, request, *, loaded=None, expected_version=None):
     """Call the local method only; errors remain visible instead of silently switching policy."""
-    module, version = load_query_planner(settings) if loaded is None else loaded
-    current = _source(settings)
-    if current is None or current[1] != version:
-        raise DomainError("query_policy_version_changed", "本轮查询方法源码已变化，未继续选择动作", 409)
+    if loaded is None:
+        module, version = load_query_planner(settings)
+    else:
+        module, version = loaded
+        current = _source(settings)
+        if current is None or current[1] != version:
+            raise DomainError("query_policy_version_changed", "本轮查询方法源码已变化，未继续选择动作", 409)
+    if expected_version is not None and version != expected_version:
+        raise DomainError("query_policy_version_changed", "查询策略源码与本轮固定版本不同，未重选动作", 409)
     try:
         if request.get("schema_version") == "query-planner.external.v2":
             if not callable(getattr(module, "decide_kdd", None)):

@@ -84,11 +84,14 @@ def test_concurrent_automatic_calls_share_durable_daily_reservation(runtime, dat
 
 
 def test_literal_semantic_selection_is_cached_and_does_not_mutate_original():
-    text = "净订单为12万元。主体为南川设备公司，统计期间为2026年第一季度。"
+    text = "净订单为12万元。主体：南川设备公司；统计期间：2026年第一季度。"
     row = record("narrative-host", text, source_id="external_archive")
     original = mining_snapshot([row])
     fixed = {
-        "query_policy": {"research_contract_version": "bioradar-research-input-v1", "direction": "business"}
+        "query_policy": {
+            "effective": "query_planner", "research_contract_version": "bioradar-research-input-v1",
+            "direction": "business",
+        }
     }
     progress = {"calls": []}
     calls = []
@@ -106,6 +109,7 @@ def test_literal_semantic_selection_is_cached_and_does_not_mutate_original():
                     "metric": span("净订单"),
                     "value": span("12万元"),
                     "period": span("2026年第一季度"),
+                    "context": span(text),
                 }
             ]
         }, progress
@@ -126,9 +130,12 @@ def test_literal_semantic_selection_is_cached_and_does_not_mutate_original():
 
 
 def test_uncertain_semantic_call_is_not_relabelled_as_empty_success():
-    text = "净订单为12万元。主体为南川设备公司，统计期间为2026年第一季度。"
+    text = "净订单为12万元。主体：南川设备公司；统计期间：2026年第一季度。"
     fixed = {
-        "query_policy": {"research_contract_version": "bioradar-research-input-v1", "direction": "business"}
+        "query_policy": {
+            "effective": "query_planner", "research_contract_version": "bioradar-research-input-v1",
+            "direction": "business",
+        }
     }
     original = mining_snapshot([record("unknown-narrative", text)])
 

@@ -27,7 +27,7 @@ def _request(fixed, action):
         "is_demo": fixed["is_demo"],
     }
     if (
-        fixed["query_policy"].get("research_contract_version") != "bioradar-research-input-v1"
+        fixed["query_policy"].get("effective") != "query_planner"
         or fixed["is_demo"]
         and not fixed.get("providers", {}).get("fabric_fetch", {}).get("demo_instance_id")
         or scope["mode"] != "current"
@@ -103,7 +103,7 @@ def execute_source_fetch(service, identifier, token, fixed, progress, action, st
     request_hash = canonical_hash(request)
     if receipt is None:
         if (
-            fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+            fixed.get("query_policy", {}).get("effective") != "query_planner"
             and len(progress["queries"]) >= fixed["budget"]["max_queries"]
         ):
             raise DomainError("analysis_query_budget", "本轮取证动作额度已用完", 422)

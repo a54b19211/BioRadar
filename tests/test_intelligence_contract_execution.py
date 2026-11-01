@@ -5,9 +5,7 @@ import copy
 import pytest
 from bioradar.api.errors import DomainError
 from bioradar.research.datasets.build import build_dataset, dataset_version
-from bioradar.research.datasets.narrative import narrative_extraction_schema
 from bioradar.research.datasets.narrative_proposal import PROPOSAL_VERSION, proposal_payload, proposal_schema
-from bioradar.research.datasets.narrative_v2 import selection_payload
 from bioradar.research.investigations.kdd import policy_for
 from bioradar.research.investigations.narrative_execution import prepare_narrative_snapshot
 from bioradar.research.mining.models import KddPolicy, canonical_hash
@@ -50,32 +48,8 @@ def test_new_proposal_uses_host_call_and_restores_exact_qualified_rows_without_c
     )
     assert not original.records[0].metric_observations
 
-    # Omitting the new flag retains the exact old v2 request and call identity.
-    old_host, old_progress = Host({"observations": [row]}), {}
-    prepare_narrative_snapshot(old_host, "old", "lease", fixed(), old_progress, original, allow_model=True)
-    assert old_host.inputs[0][0] == narrative_extraction_schema(version=VERSION)
-    assert old_host.inputs[0][1] == selection_payload(original.records[0])
-    old_key = canonical_hash(
-        [
-            original.records[0].record_ref.model_dump(mode="json"),
-            original.records[0].normalized_text_hash,
-            VERSION,
-        ]
-    )
-    assert set(old_progress["narrative_extractions"]) == {old_key}
-    assert "proposal_version" not in old_progress["narrative_extractions"][old_key]
 
 
-@pytest.mark.parametrize("version", ["unknown-proposal-version", ""])
-def test_unknown_proposal_is_rejected_before_any_send(version):
-    text, _ = separate_header()
-    data, host, progress = fixed(), Host({"observations": []}), {}
-    data["query_policy"]["narrative_proposal_version"] = version
-    with pytest.raises(DomainError, match="说明版本"):
-        prepare_narrative_snapshot(
-            host, "id", "lease", data, progress, snapshot([source(text)]), allow_model=True
-        )
-    assert host.posts == 0 and not progress
 
 
 def test_new_proposal_keeps_invalid_rows_and_known_budget_stops_without_fabricating_metrics():
@@ -201,7 +175,7 @@ def test_new_saved_source_dataset_passes_existing_content_hash_verifier_and_tamp
     from test_mining import AS_OF
     from test_opus_narrative import prose
 
-    path = Path(__file__).resolve().parents[1] / "scripts/query_policy_assertions.py"
+    path = Path(__file__).resolve().parents[1] / "tests/query_policy_assertions.py"
     spec = importlib.util.spec_from_file_location("intelligence_contract_verifier", path)
     verifier = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
@@ -222,7 +196,7 @@ def test_complete_dataset_payload_binds_extractions_and_replays_through_analysis
     from bioradar.research.investigations import kdd
     from bioradar.research.mining.kdd import kdd_versions
 
-    path = Path(__file__).resolve().parents[1] / "scripts/query_policy_assertions.py"
+    path = Path(__file__).resolve().parents[1] / "tests/query_policy_assertions.py"
     spec = importlib.util.spec_from_file_location("complete_dataset_verifier", path)
     verifier = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)

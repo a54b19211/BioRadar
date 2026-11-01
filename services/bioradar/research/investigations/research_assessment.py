@@ -22,25 +22,15 @@ def _plain(value):
 
 
 def synthesis_schema(fixed):
-    """Only an explicit future frozen contract can select the enhanced wire schema."""
+    """The current method uses the research schema; baseline retains its original schema."""
     from bioradar.research.investigations.analysis_models import FinalResearchSynthesis, ModelSynthesis
 
-    policy = fixed.get("query_policy", {})
-    version = policy.get("final_assessment_version")
-    if version is None:
-        return ModelSynthesis
-    if (
-        version != FINAL_ASSESSMENT_VERSION
-        or policy.get("schema_version") != "query-planner.external.v2"
-        or policy.get("effective") != "query_planner"
-        or policy.get("research_contract_version") != "bioradar-research-input-v1"
-    ):
-        raise DomainError("analysis_final_assessment_contract_invalid", "最终研究判断契约不匹配", 422)
-    return FinalResearchSynthesis
+    return (FinalResearchSynthesis if fixed.get("query_policy", {}).get("effective") == "query_planner"
+            else ModelSynthesis)
 
 
 def final_assessment_context(fixed):
-    """A future-only instruction; never insert it into an existing frozen model request."""
+    """Instructions for the current research method."""
     from bioradar.research.investigations.analysis_models import ModelSynthesis
 
     if synthesis_schema(fixed) is ModelSynthesis:
@@ -257,74 +247,8 @@ def assessment_binding_note(value):
     return ""
 
 
-def assessment_repair_payload(
-    original_request, invalid_output, *, validation_error="analysis_assessment_invalid", topic_risk_scope=None
-):
-    """A shared-ledger caller may send this once; this function never chooses replacement IDs."""
-    plain = _plain(invalid_output)
-    plain = plain if isinstance(plain, dict) else {}
-    claims = plain.get("claims", [])
-    claims = claims if isinstance(claims, list) else []
-    payload = {
-        "task": "repair_final_assessment",
-        "original_request": copy.deepcopy(original_request),
-        "invalid_output": copy.deepcopy(_plain(invalid_output)),
-        "validation_error": validation_error,
-        "allowed_claim_ids": [
-            claim["id"] for claim in claims if isinstance(claim, dict) and isinstance(claim.get("id"), str)
-        ],
-        "reference_errors": claim_assessment_errors(plain, topic_risk_scope=topic_risk_scope),
-        "instruction": (
-            "只允许reference_errors中unknown_claim路径的原无效命题编号，改为allowed_claim_ids中的实际编号。"
-            "重新对照同一原文与当前claims，不沿用旧阅读编号，不按位置或相似度猜编号；宿主未替换任何链接。"
-            "其余JSON必须逐字段保持，包括claims和文本、行动等级、支持反对关系、关键未知、缺口、条件与scope。"
-            "无法确定合法编号时不得猜测、删除字段或改写结论；修复不会放宽完整校验。"
-            "完整输出同一增强JSON，不得输出新的原文或自造专题scope。"
-        ),
-    }
-    if topic_risk_scope is not None:
-        payload["required_topic_risk_scope"] = copy.deepcopy(_plain(topic_risk_scope))
-    return payload
 
 
-def validate_assessment_repair(original, repaired):
-    """Allow only unknown-ID substitutions; the caller must then run full validation."""
-    before, after = _plain(original), _plain(repaired)
-    errors = claim_assessment_errors(before, check_topic_scope=False)
-
-    def reject():
-        raise DomainError(
-            "analysis_assessment_repair_invalid",
-            "本次修复仅允许原无效命题编号改为实际已有编号；其余结构和文字必须逐字段保持",
-            422,
-        )
-
-    if not isinstance(before, dict) or not isinstance(after, dict) or not errors:
-        reject()
-    if any(error["reason"] != "unknown_claim" for error in errors):
-        reject()
-    expected = copy.deepcopy(before)
-    try:
-        for error in errors:
-            path = error["path"]
-            source, target, unchanged = before, after, expected
-            for part in path[:-1]:
-                source, target, unchanged = source[part], target[part], unchanged[part]
-            old, new = source[path[-1]], target[path[-1]]
-            allowed = error["allowed_claim_ids"]
-            if not isinstance(old, str) or old in allowed or not isinstance(new, str) or new not in allowed:
-                reject()
-            unchanged[path[-1]] = new
-
-        def canonical(value):
-            return json.dumps(
-                value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False
-            )
-
-        if canonical(expected) != canonical(after):
-            reject()
-    except (KeyError, IndexError, TypeError, ValueError):
-        reject()
 
 
 FINAL_REFERENCE_REPAIR_VERSION = "bioradar-synthesis-reference-repair-v1"

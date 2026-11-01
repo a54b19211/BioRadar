@@ -12,7 +12,7 @@ from bioradar.research.investigations.kdd import extend_context
 from bioradar.research.investigations.query_policy import BOUNDED_INITIAL_VERSION, PAGINATION_VERSION
 from test_initial_language_retrieval import context, fixed, plans, progress, save_empty
 
-from scripts.query_policy_assertions import _search_key, assert_query_policy
+from tests.query_policy_assertions import _search_key, assert_query_policy
 
 
 def actual_page_view(catalog):

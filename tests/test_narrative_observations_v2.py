@@ -260,7 +260,7 @@ def test_granular_row_failures_keep_overlap_within_one_rejection_and_forbid_wron
 def fixed(version=VERSION):
     return {
         "query_policy": {
-            "research_contract_version": "bioradar-research-input-v1",
+            "effective": "query_planner", "research_contract_version": "bioradar-research-input-v1",
             "direction": "business",
             **({"narrative_contract_version": version} if version else {}),
         },
@@ -331,7 +331,7 @@ def test_empty_model_observations_are_valid_and_unknown_is_not_replaced_by_empty
         prepare_narrative_snapshot(host, "id", "lease", fixed(), {}, original, allow_model=True)
 
 
-def test_legacy_wire_is_omitted_and_v1_schema_prompt_key_and_old_single_span_are_preserved():
+def test_standalone_literal_parser_and_current_research_selection():
     old = KddPolicy(as_of=AS_OF, kdd_direction="business")
     assert "narrative_contract_version" not in old.model_dump(mode="json")
     assert "unit" not in narrative_extraction_schema()["$defs"]["NarrativeObservation"]["properties"]
@@ -347,10 +347,12 @@ def test_legacy_wire_is_omitted_and_v1_schema_prompt_key_and_old_single_span_are
     prepare_narrative_snapshot(
         host, "id", "lease", fixed(None), progress, snapshot([source(text)]), allow_model=True
     )
-    assert host.inputs and "extractor_version" not in host.inputs[0][1]
+    assert host.inputs[0][1]["extractor_version"] == VERSION
     cached = next(iter(progress["narrative_extractions"].values()))
-    assert cached["extractor_version"] == NARRATIVE_VERSION
-    assert "ordered_pair" not in host.inputs[0][0]["$defs"]["NarrativeObservation"]["properties"]
+    assert cached["extractor_version"] == VERSION
+    from bioradar.research.datasets.narrative_proposal import proposal_schema
+
+    assert host.inputs[0][0] == proposal_schema()
     new_fixed = fixed()
     new_fixed["kdd_mining_policy"] = old.model_dump(mode="json")
     with pytest.raises(DomainError) as raised:

@@ -17,7 +17,7 @@ from test_investigation_analysis import runtime as runtime  # noqa: F401
 from test_query_policy_runtime import expire, external
 from test_shared_research_adapters import installed_biocheck as installed_biocheck  # noqa: F401
 
-from scripts.query_policy_assertions import assert_query_policy
+from tests.query_policy_assertions import assert_query_policy
 
 pytestmark = pytest.mark.ENGINE
 

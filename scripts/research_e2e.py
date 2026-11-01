@@ -16,7 +16,8 @@ from uuid import uuid4
 
 import httpx
 from bioradar.api.config import Settings
-from query_policy_assertions import assert_query_policy
+
+from tests.query_policy_assertions import assert_query_policy
 
 TERMINAL = {"completed", "needs_review", "failed", "blocked"}
 DEFAULT_QUESTION = (

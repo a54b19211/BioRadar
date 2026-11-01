@@ -3,7 +3,6 @@
 import copy
 import importlib.util
 import json
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -20,33 +19,7 @@ def _bytes(value):
 
 
 def _seal(*inputs, code_revision):
-    registry = _bytes(
-        {
-            "components": [
-                {"name": "radar", "revision": code_revision, "source_sha256": "a" * 64},
-            ]
-        }
-    )
-    readback = {
-        "instance_sha256": "c" * 64,
-        "observed_at": (datetime.now(timezone.utc) - timedelta(seconds=1)).isoformat(),
-        "native_analysis_count": 0,
-        "first_native_analysis_id": None,
-        "first_native_analysis_created_at": None,
-    }
-    preflight = _bytes(
-        {
-            "instance_id": "OFFLINE-INSTANCE",
-            "instance_sha256": readback["instance_sha256"],
-            "native_analysis_count": 0,
-            "observed_at": readback["observed_at"],
-            "native_readback": readback,
-            "native_readback_sha256": protocol.native_receipt_digest(readback),
-        }
-    )
-    return protocol.seal(
-        *inputs, code_revision=code_revision, code_registry=registry, runtime_preflight=preflight
-    )
+    return protocol.seal(*inputs, code_revision=code_revision)
 
 
 def _experiment(scenario="A", with_controls=False):
@@ -121,18 +94,6 @@ def _runs_and_reviews(manifest, inputs, endpoints):
             "started_at": manifest["sealed_at"],
             "arm": arm,
             "code_revision": manifest["code_revision"],
-            "code_registry_sha256": manifest["commitments"]["code_registry_sha256"],
-            "runtime_instance_sha256": manifest["runtime_preflight"]["instance_sha256"],
-            "first_native_analysis_id": "OFFLINE-first-" + arm,
-            "first_native_analysis_created_at": (
-                datetime.fromisoformat(manifest["sealed_at"]) + timedelta(seconds=1)
-            ).isoformat(),
-            "native_analysis_readback_sha256": "d" * 64,
-            **{
-                key: manifest["commitments"][key]
-                for key in ("packet_sha256", "rules_sha256", "model_settings_sha256")
-            },
-            "execution_receipt_sha256": "e" * 64,
             "cases": [
                 {
                     "case_id": case["case_id"],
@@ -156,15 +117,6 @@ def _runs_and_reviews(manifest, inputs, endpoints):
                 for case in packet["cases"]
             ],
         }
-        readback = {
-            "instance_sha256": run["runtime_instance_sha256"],
-            "observed_at": (datetime.fromisoformat(manifest["sealed_at"]) + timedelta(seconds=2)).isoformat(),
-            "native_analysis_count": 1,
-            "first_native_analysis_id": run["first_native_analysis_id"],
-            "first_native_analysis_created_at": run["first_native_analysis_created_at"],
-        }
-        run["native_analysis_readback"] = readback
-        run["native_analysis_readback_sha256"] = protocol.native_receipt_digest(readback)
         raw = _bytes(run)
         runs.append(raw)
         for case in run["cases"]:
@@ -196,7 +148,7 @@ def _runs_and_reviews(manifest, inputs, endpoints):
 def test_prepare_has_no_private_input_parameter_and_rejects_leak_or_changed_public_bytes(tmp_path):
     manifest, inputs, _ = _experiment()
     request = protocol.prepare(manifest, *inputs[:3], tmp_path / "blind")
-    assert request["runtime_isolation"] == "not_yet_demonstrated"
+    assert "runtime_isolation" not in request
     assert {path.name for path in (tmp_path / "blind").iterdir()} == {
         "packet.json",
         "rules.json",
@@ -230,7 +182,7 @@ def test_grade_requires_matching_seal_paired_arms_and_independent_review():
     assert not author_result["runs"][0]["cases"][0]["endpoints"][0]["content_pass"]
     no_review = protocol.evaluate(manifest, *inputs, runs, {"cases": []})
     assert no_review["acceptance"] != "passed"
-    assert "independent_content_and_blindness_review_missing" in no_review["runs"][0]["cases"][0]["issues"]
+    assert "independent_content_review_missing" in no_review["runs"][0]["cases"][0]["issues"]
     preseal = json.loads(runs[0])
     preseal["started_at"] = "2000-01-01T00:00:00Z"
     bad = protocol.evaluate(manifest, *inputs, [_bytes(preseal), runs[1]], reviews)

@@ -10,7 +10,7 @@ from bioradar.research.investigations import fetch_execution
 from bioradar.research.investigations.analysis_service import AnalysisService
 from test_opus_source_adapters import Host, fetch_action, fetch_fixed, run
 
-from scripts.query_policy_assertions import assert_query_policy
+from tests.query_policy_assertions import assert_query_policy
 
 
 def test_fetch_unknown_poll_retains_actual_known_prefix_and_rejects_forged_cost(monkeypatch):

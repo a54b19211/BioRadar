@@ -3508,16 +3508,6 @@
             ],
             "title": "Retry Of Analysis Id"
           },
-          "resume_report": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ResumeReportRequest"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "parent_analysis_id": {
             "anyOf": [
               {
@@ -15856,55 +15846,6 @@
         "additionalProperties": false,
         "type": "object",
         "title": "ResourceLimits"
-      },
-      "ResumeReportRequest": {
-        "properties": {
-          "expected_input_hash": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Expected Input Hash"
-          },
-          "stopped_call_id": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Stopped Call Id"
-          },
-          "reason": {
-            "type": "string",
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Reason"
-          },
-          "max_input_bytes": {
-            "type": "integer",
-            "maximum": 262144.0,
-            "minimum": 1024.0,
-            "title": "Max Input Bytes"
-          },
-          "extra_seconds": {
-            "type": "integer",
-            "maximum": 1800.0,
-            "minimum": 0.0,
-            "title": "Extra Seconds"
-          },
-          "biocheck_provider_version": {
-            "type": "string",
-            "maxLength": 200,
-            "minLength": 1,
-            "title": "Biocheck Provider Version"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "expected_input_hash",
-          "stopped_call_id",
-          "reason",
-          "max_input_bytes",
-          "extra_seconds",
-          "biocheck_provider_version"
-        ],
-        "title": "ResumeReportRequest"
       },
       "ReturnedSourceVersion": {
         "properties": {

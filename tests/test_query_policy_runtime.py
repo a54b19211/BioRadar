@@ -19,7 +19,7 @@ from test_graph import original_record
 from test_investigation_analysis import runtime as runtime  # noqa: F401
 from test_investigation_analysis import start
 
-from scripts.query_policy_assertions import assert_query_policy
+from tests.query_policy_assertions import assert_query_policy
 
 pytestmark = pytest.mark.ENGINE
 
@@ -573,81 +573,3 @@ def test_optional_structured_revision_budget_preserves_checked_draft(runtime, st
             row.progress["initial_draft"]["conditional_answer"]
             == result.result.conditional_answer.model_dump()
         )
-
-
-def test_supervised_resumption_keeps_receipts_tokens_and_enforces_its_deadline(runtime, monkeypatch):
-    import bioradar.research.investigations.analysis_service as module
-    from bioradar.research.investigations.analysis import analysis_budget
-
-    make, actor, view, _, model, _, _ = runtime
-    service = make()
-    accepted = start(runtime)
-    observed = {}
-
-    def exercise(identifier, token, fixed, progress):
-        schema, payload = {"type": "object"}, {"task": "shared_verify"}
-        output, progress = service._call(identifier, token, "shared_verify", schema, fixed, progress, payload)
-        now = datetime.now(UTC)
-        original_start = now - timedelta(seconds=fixed["budget"]["max_seconds"] + 60)
-        progress["started_at"] = original_start.isoformat()
-        progress["execution_resumptions"] = [
-            {
-                "kind": "supervised_continuation",
-                "authorization": "SYNTHETIC explicit operator test",
-                "original_started_at": progress["started_at"],
-                "started_at": now.isoformat(),
-                "max_seconds": 5,
-            }
-        ]
-        service._checkpoint(identifier, token, progress)
-        before = analysis_budget(fixed, progress, now)
-        assert before["usage"]["calls"] == 1 and before["usage"]["known_total_tokens"] == 150
-        assert before["usage"]["original_elapsed_seconds"] > fixed["budget"]["max_seconds"]
-        assert before["usage"]["elapsed_seconds"] == 0
-        repeated, progress = service._call(
-            identifier, token, "shared_verify", schema, fixed, progress, payload
-        )
-        assert repeated == output and len(model.requests) == 1
-        _, progress = service._call(
-            identifier, token, "shared_verify", schema, fixed, progress, payload, call_key="during-resumption"
-        )
-        after = analysis_budget(fixed, progress, now + timedelta(seconds=1))
-        assert after["usage"]["calls"] == 2 and after["usage"]["known_total_tokens"] == 300
-
-        progress["finished_at"] = (now + timedelta(seconds=1)).isoformat()
-        service._checkpoint(identifier, token, progress)
-        # A stale ended marker affects display only; it cannot renew the live clock.
-        expired = analysis_budget(fixed, progress, now + timedelta(seconds=6))
-        assert expired["usage"]["elapsed_seconds"] == 1
-        assert expired["usage"]["remaining_seconds"] == -1
-
-        class ExpiredClock(datetime):
-            @classmethod
-            def now(cls, tz=None):
-                return now + timedelta(seconds=6)
-
-        monkeypatch.setattr(module, "datetime", ExpiredClock)
-        repeated, progress = service._call(
-            identifier, token, "shared_verify", schema, fixed, progress, payload
-        )
-        assert repeated == output and len(model.requests) == 2
-        with pytest.raises(DomainError) as error:
-            service._call(
-                identifier,
-                token,
-                "shared_verify",
-                schema,
-                fixed,
-                progress,
-                payload,
-                call_key="after-deadline",
-            )
-        assert error.value.code == "analysis_time_budget" and len(model.requests) == 2
-        observed.update(before=before, after=after)
-        raise DomainError("analysis_time_budget", "SYNTHETIC ended bounded continuation", 409)
-
-    service._research_result = exercise
-    service.execute(accepted["id"], accepted["input_hash"])
-    result = service.get(actor, view["id"], accepted["id"])
-    assert result.state == "blocked" and result.error_code == "analysis_time_budget"
-    assert len(result.calls) == 2 and len(model.requests) == 2 and observed

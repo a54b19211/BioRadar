@@ -4,7 +4,7 @@ import copy
 import hashlib
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from pydantic import ValidationError
 
@@ -402,11 +402,7 @@ def validate_hypothesis_judgment(result):
 def research_task_context(fixed):
     """Versioned tasks; baseline and existing frozen runs retain their original prompts."""
     policy = fixed.get("query_policy", {})
-    if not (
-        policy.get("schema_version") == "query-planner.external.v2"
-        and policy.get("effective") == "query_planner"
-        and policy.get("research_contract_version") == "bioradar-research-input-v1"
-    ):
+    if policy.get("effective") != "query_planner":
         return {}
     direction = policy.get("direction", "research")
     tasks = {
@@ -429,7 +425,7 @@ def research_task_context(fixed):
         ),
     }
     return {
-        "version": policy["research_contract_version"],
+        "version": "bioradar-research-input-v1",
         "direction": direction,
         "task": tasks.get(direction, tasks["research"]),
         "claim_instruction": (
@@ -667,7 +663,7 @@ def freeze_payload(
         "search_scope": fixed_input["search_scope"],
     }
     if (
-        fixed_input.get("query_context_version") == "semantic-v2"
+        True
         and fixed_input.get("query_policy", {}).get("effective") == "query_planner"
     ):
         payload.update(material_context_payload(evidence))
@@ -1174,97 +1170,14 @@ def analysis_budget(fixed, progress, now):
     started = progress.get("started_at")
     ended = datetime.fromisoformat(progress["finished_at"]) if progress.get("finished_at") else now
     elapsed = max(0, (ended - datetime.fromisoformat(started)).total_seconds()) if started else 0
-    original_elapsed = elapsed
     clock_started = datetime.fromisoformat(started) if started else now
-    resumption = None
-    attempts = progress.get("execution_resumptions", [])
-    if attempts:
-        # Written only by an explicitly authorized operator recovery, never by a
-        # request body, model response or automatic retry. One bounded window.
-        if len(attempts) != 1 or not started:
-            raise DomainError("analysis_resumption_invalid", "修复续跑记录不完整，未延长期限", 409)
-        resumption = attempts[0]
-        try:
-            resumed_at = datetime.fromisoformat(resumption["started_at"])
-            seconds = resumption["max_seconds"]
-            valid = (
-                resumption["kind"] == "supervised_continuation"
-                and resumption["original_started_at"] == started
-                and bool(resumption["authorization"])
-                and type(seconds) is int
-                and 0 < seconds <= min(1800, limits["max_seconds"])
-                and resumed_at.tzinfo is not None
-                and resumed_at >= datetime.fromisoformat(started) + timedelta(seconds=limits["max_seconds"])
-                and resumed_at <= now
-            )
-        except (KeyError, TypeError, ValueError):
-            valid = False
-        if not valid:
-            raise DomainError("analysis_resumption_invalid", "修复续跑记录无效，未延长期限", 409)
-        limits = {**limits, "max_seconds": seconds}
-        clock_started = resumed_at
-        elapsed = max(0, ((ended if ended >= resumed_at else now) - resumed_at).total_seconds())
     from bioradar.research.investigations.execution_budget import waiting_seconds
 
-    wait_progress = progress if not resumption else {**progress, "started_at": clock_started.isoformat()}
-    paused = waiting_seconds(fixed, wait_progress, now)
-    display_end = ended if not resumption or ended >= clock_started else now
-    display_paused = waiting_seconds(fixed, wait_progress, min(display_end, now))
-    continuation = progress.get("report_continuation")
-    continuation_remaining = None
-    standby = 0
-    if continuation is not None:
-        try:
-            authorized = datetime.fromisoformat(continuation["authorized_at"])
-            original_deadline = datetime.fromisoformat(continuation["original_deadline"])
-            new_deadline = datetime.fromisoformat(continuation["new_deadline"])
-            extra = continuation["extra_seconds"]
-            paused_at_authorization = continuation["automatic_wait_seconds_at_authorization"]
-            valid = (
-                not resumption
-                and bool(started)
-                and continuation["original_started_at"] == started
-                and bool(continuation["actor_id"])
-                and bool(continuation["reason"])
-                and type(extra) is int
-                and 0 <= extra <= 1800
-                and type(paused_at_authorization) in (int, float)
-                and 0 <= paused_at_authorization <= max(0, (authorized - clock_started).total_seconds())
-                and all(value.tzinfo is not None for value in (authorized, original_deadline, new_deadline))
-                and clock_started <= authorized <= now
-                and original_deadline
-                == clock_started + timedelta(seconds=limits["max_seconds"] + paused_at_authorization)
-                and new_deadline == max(original_deadline, authorized) + timedelta(seconds=extra)
-            )
-        except (KeyError, TypeError, ValueError, OverflowError):
-            valid = False
-        if not valid:
-            raise DomainError("analysis_report_continuation_invalid", "续稿授权期限无效，未延长执行窗口", 409)
-        standby = max(0, (authorized - original_deadline).total_seconds())
-        limits = {
-            **limits,
-            "max_seconds": (new_deadline - clock_started).total_seconds() - paused_at_authorization,
-        }
-        continuation_remaining = (new_deadline - now).total_seconds()
-        display_end = ended if ended >= authorized else now
-        display_paused = waiting_seconds(fixed, wait_progress, min(display_end, now))
-        elapsed = max(0, (display_end - clock_started).total_seconds())
+    paused = waiting_seconds(fixed, progress, now)
+    display_paused = waiting_seconds(fixed, progress, min(ended, now))
     elapsed = max(0, elapsed - display_paused)
     return {
         "limits": limits,
-        **(
-            {
-                "execution_resumption": copy.deepcopy(resumption),
-                "original_limits": copy.deepcopy(fixed["budget"]),
-            }
-            if resumption
-            else {
-                "report_continuation": copy.deepcopy(continuation),
-                "original_limits": copy.deepcopy(fixed["budget"]),
-            }
-            if continuation
-            else {}
-        ),
         "usage": {
             "calls": calls,
             "total_tokens": None if unknown else total,
@@ -1276,12 +1189,9 @@ def analysis_budget(fixed, progress, now):
             "budgeted_tokens": charged,
             "queries": len(progress.get("queries", [])),
             "elapsed_seconds": elapsed,
-            "remaining_seconds": continuation_remaining
-            if continuation_remaining is not None
-            else (limits["max_seconds"] - max(0, (now - clock_started).total_seconds() - paused)),
+            "remaining_seconds": limits["max_seconds"]
+            - max(0, (now - clock_started).total_seconds() - paused),
             **({"automatic_budget_wait_seconds": paused} if paused else {}),
-            **({"original_elapsed_seconds": original_elapsed} if resumption or continuation else {}),
-            **({"report_continuation_standby_seconds": standby} if continuation else {}),
             "monetary_cost": None,
             "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。",
         },

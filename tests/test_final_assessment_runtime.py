@@ -29,7 +29,6 @@ def test_final_current_claim_repair_received_restart_preserves_prose_and_never_r
     make, actor, view, _, model, settings, _ = runtime
     settings.query_planner_project_dir = Path(directory)
     settings.analysis_query_policy = "query_planner"
-    settings.analysis_kdd_enabled = True
     posts = []
 
     def warning(identifier):
@@ -57,7 +56,7 @@ def test_final_current_claim_repair_received_restart_preserves_prose_and_never_r
     def transport(request):
         payload = json.loads(json.loads(request.content)["messages"][1]["content"])
         posts.append(payload["task"])
-        if payload["task"] != "repair_final_assessment":
+        if payload["task"] != "repair_final_references":
             return model.handler(request)
         original = payload["invalid_output"]
         repaired = copy.deepcopy(original)
@@ -73,17 +72,6 @@ def test_final_current_claim_repair_received_restart_preserves_prose_and_never_r
             },
         )
 
-    # Persisted v1 requests retain this exact protocol after future v2 tasks are enabled.
-    from bioradar.research.investigations import query_policy
-
-    freeze = query_policy.freeze_policy
-
-    def legacy_policy(*args, **kwargs):
-        value = freeze(*args, **kwargs)
-        value.pop("final_reference_repair_version", None)
-        return value
-
-    monkeypatch.setattr(query_policy, "freeze_policy", legacy_policy)
     accepted = start(runtime, auto_retrieve=True, query_policy="query_planner")
     with httpx.Client(base_url="http://127.0.0.1", transport=httpx.MockTransport(transport)) as client:
         service = make()
@@ -101,7 +89,7 @@ def test_final_current_claim_repair_received_restart_preserves_prose_and_never_r
         service._checkpoint = exit_after_received
         with pytest.raises(RuntimeError):
             service.execute(accepted["id"], accepted["input_hash"])
-        assert posts.count("repair_final_assessment") == 1
+        assert posts.count("repair_final_references") == 1
         with Session(database) as session:
             row = session.get(InvestigationAnalysisRecord, accepted["id"])
             repair = copy.deepcopy(row.progress["calls"][-1])
@@ -115,7 +103,7 @@ def test_final_current_claim_repair_received_restart_preserves_prose_and_never_r
     assert result.state in {"completed", "needs_review"}, result.error_code
     assert result.result.warning_assessment.supporting_claim_ids == ["SYNTHETIC_final_claim"]
     assert result.result.assessment_binding["status"] == "bound"
-    assert posts.count("repair_final_assessment") == 1
+    assert posts.count("repair_final_references") == 1
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
         first = next(c for c in row.progress["calls"] if c.get("call_key") == "synthesize")

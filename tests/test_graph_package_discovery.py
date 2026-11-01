@@ -40,7 +40,9 @@ def setup_graph():
         "is_demo": True,
         "graph_scope": ["reviewed_graph"],
         "evidence_time": {"mode": "current", "cutoff": AS_OF.isoformat()},
-        "query_policy": {"research_contract_version": "bioradar-research-input-v1"},
+        "query_policy": {
+            "effective": "query_planner", "research_contract_version": "bioradar-research-input-v1"
+        },
     }
     progress = {"query_policy": {"named_objects": [{"id": "b", "name": "SYNTHETIC B"}]}}
     return settings, fixed, progress, reader, calls, catalog_calls

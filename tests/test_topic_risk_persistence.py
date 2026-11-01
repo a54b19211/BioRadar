@@ -43,7 +43,6 @@ def risk_http(runtime):
     make, _, _, source, model, settings, _ = runtime
     state = SimpleNamespace(scope=None, stages=[], operations=[])
     settings.analysis_query_policy = "query_planner"
-    settings.analysis_kdd_enabled = True
     settings.analysis_max_calls = 24
     settings.analysis_max_tokens = 524288
     settings.analysis_max_seconds = 1800

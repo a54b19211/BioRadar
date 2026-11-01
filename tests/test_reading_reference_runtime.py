@@ -31,7 +31,6 @@ def test_reference_repair_uses_pg_receipts_without_repeating_or_claiming_full_co
     source.include_collection_sequence = True
     settings.query_planner_project_dir = Path(directory)
     settings.analysis_query_policy = "query_planner"
-    settings.analysis_kdd_enabled = True
     reads = 0
     posts = []
     prior = {}

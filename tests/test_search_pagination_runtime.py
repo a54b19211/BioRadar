@@ -152,7 +152,6 @@ def test_native_executor_reads_next_page_and_received_restart_does_not_repeat_it
     make, actor, _, source, model, settings, _ = runtime
     settings.query_planner_project_dir = Path(directory)
     settings.analysis_query_policy = "query_planner"
-    settings.analysis_kdd_enabled = True
     settings.analysis_v2_records_per_query = 2
     source.records = [
         original_record("synthetic-page-" + str(i), {"body": f"SYNTHETIC membrane observation {i}."})
@@ -236,7 +235,7 @@ def test_native_executor_reads_next_page_and_received_restart_does_not_repeat_it
                 pytest.fail(str(saved.progress.get("execution_diagnostic", saved.error_code)))
     result = make().get(actor, inquiry["id"], accepted["id"])
     assert result.state in {"completed", "needs_review"}, result.error_code
-    from scripts.query_policy_assertions import assert_query_policy
+    from tests.query_policy_assertions import assert_query_policy
 
     assert_query_policy(result, expected_policy="query_planner")
     pages = [q for q in result.queries if q.pagination is not None]

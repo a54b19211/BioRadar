@@ -132,11 +132,9 @@ def selector():
 
 def test_freeze_limits_new_discovery_to_new_external_v2_and_keeps_prompt_payload(tmp_path):
     settings = write_planner(tmp_path)
-    settings.analysis_kdd_enabled = True
     assert freeze_policy(settings)["discovery_version"] == VERSION
     assert "discovery_version" not in freeze_policy(settings, "baseline")
-    settings.analysis_kdd_enabled = False
-    assert "discovery_version" not in freeze_policy(settings)
+    assert freeze_policy(settings)["discovery_version"] == VERSION
     current, _, _ = setup_case()
     legacy = copy.deepcopy(current)
     legacy["query_policy"].pop("discovery_version")
@@ -154,13 +152,6 @@ def test_unexecuted_initial_keeps_real_gap_value_when_general_coverage_is_passed
     selected = decide_query(selector(), extend_context(fixed, state, request))
     assert selected["decision"] == "continue", selected
     assert GAP in selected["action"]["covers"]
-    legacy = copy.deepcopy(fixed)
-    legacy["query_policy"].pop("discovery_version")
-    old = context(legacy, state, items)
-    assert all(GAP not in x["covers"] for x in old["candidates"])
-    stopped = decide_query(selector(), extend_context(legacy, state, old))
-    assert stopped["decision"] == "insufficient"
-    assert stopped["reason"] == "no_expected_information_gain"
 
 
 def test_partial_directory_accepts_confirmed_duplicate_then_empty_with_exact_scope():
@@ -277,10 +268,8 @@ def test_only_specific_important_required_unresolved_checks_enable_discovery(cha
     assert all(GAP not in x["covers"] for x in context(fixed, initial, items)["candidates"])
 
 
-def test_no_flag_or_baseline_keeps_existing_partial_directory_behavior():
+def test_baseline_keeps_existing_partial_directory_behavior():
     fixed, state, items = partial_case()
-    fixed["query_policy"].pop("discovery_version")
-    assert directory(fixed, state, items) == []
     fixed["query_policy"].update(discovery_version=VERSION, effective="baseline")
     assert directory(fixed, state, items) == []
 

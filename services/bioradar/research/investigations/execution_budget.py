@@ -13,7 +13,7 @@ WAIT_CODE = "analysis_automatic_budget_wait"
 
 def reading_limits(fixed):
     """Old inputs retain their original ten-version, forty-thousand-character limit."""
-    if fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1":
+    if fixed.get("query_policy", {}).get("effective") == "query_planner":
         return fixed.get("reading_limits", {"max_versions": 32, "max_characters": 100000, "search_limit": 8})
     return {"max_versions": 10, "max_characters": 40000, "search_limit": 3}
 

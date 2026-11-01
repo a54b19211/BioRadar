@@ -41,7 +41,6 @@ class Settings(BaseSettings):
     weknora_kdd_demo_knowledge_base_id: str | None = Field(default=None, min_length=1, max_length=200)
     weknora_kdd_demo_source_scope: str = Field(default="simulation", min_length=1, max_length=200)
     weknora_kdd_feature_source_scopes: dict[str, str] = Field(default_factory=dict)
-    analysis_kdd_enabled: bool = False
     analysis_kdd_selector: Literal["information_gain_v1", "coverage_cost_baseline_v1"] = "information_gain_v1"
     monitor_kdd_directions: dict[str, Literal["research", "pipeline", "business", "public_health"]] = Field(
         default_factory=dict

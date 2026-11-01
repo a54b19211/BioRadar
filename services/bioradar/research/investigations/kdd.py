@@ -153,7 +153,7 @@ def ensure_artifacts(service, identifier, token, fixed, progress):
         for record in snapshot.records
     }
     progress["kdd_source_version_refs"] = [fixed_refs[key] for key in sorted(fixed_refs)]
-    if fixed.get("query_policy", {}).get("research_contract_version") == "bioradar-research-input-v1":
+    if fixed.get("query_policy", {}).get("effective") == "query_planner":
         catalog = {}
         for _, _, snapshot in snapshots:
             for record in snapshot.records:
@@ -369,7 +369,7 @@ def extend_context(fixed, progress, context, reading=None):
                 )
             )
     fetch_enabled = (
-        fixed["query_policy"].get("research_contract_version") == "bioradar-research-input-v1"
+        fixed["query_policy"].get("effective") == "query_planner"
         and fixed["evidence_time"]["mode"] == "current"
         and (
             not fixed["is_demo"] or fixed.get("providers", {}).get("fabric_fetch", {}).get("demo_instance_id")
@@ -505,7 +505,7 @@ def execute_action(service, identifier, token, fixed, progress, action, step):
     receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
     if receipt is None:
         if (
-            fixed.get("query_policy", {}).get("schema_version") != "query-planner.external.v2"
+            fixed.get("query_policy", {}).get("effective") != "query_planner"
             and len(progress["queries"]) >= fixed["budget"]["max_queries"]
         ):
             raise DomainError("analysis_query_budget", "本轮研究动作预算已用尽", 422)
@@ -937,48 +937,6 @@ def analysis_results(progress):
     return analyses
 
 
-def compact_report_continuation_scope(scope):
-    """Share identical calculation context in a new report round, without shortening evidence."""
-    projected = copy.deepcopy(scope)
-    version = "shared-calculation-context-v1"
-    rows = projected.get("analysis_results", [])
-    if "analysis_result_context" in projected:
-        return projected, projected["analysis_result_context"]["projection_version"]
-    if (
-        not isinstance(rows, list)
-        or len(rows) < 2
-        or any(not isinstance(row, dict) or not isinstance(row.get("id"), str) for row in rows)
-        or len({row["id"] for row in rows}) != len(rows)
-    ):
-        return projected, version
-    fields, paths = {}, {}
-    for name in ("parameters", "calculation_basis", "limitations"):
-        if not all(name in row for row in rows):
-            continue
-        encoded = [
-            json.dumps(row[name], ensure_ascii=False, sort_keys=True, separators=(",", ":")) for row in rows
-        ]
-        if len(set(encoded)) != 1:
-            continue
-        fields[name] = copy.deepcopy(rows[0][name])
-        paths[name] = [f"$.analysis_results[{index}].{name}" for index in range(len(rows))]
-    if not fields:
-        return projected, version
-    for row in rows:
-        for name in fields:
-            del row[name]
-    projected["analysis_result_context"] = {
-        "projection_version": version,
-        "applies_to_result_ids": [row["id"] for row in rows],
-        "fields": fields,
-        "source_paths": paths,
-    }
-
-    # Small cases can cost more in mapping overhead; retain the full rows then.
-    def size(value):
-        return len(json.dumps(value, ensure_ascii=False, separators=(",", ":")).encode())
-
-    return (projected if size(projected) < size(scope) else copy.deepcopy(scope)), version
 
 
 def _professional_cost(fixed, progress, receipt):
@@ -1006,7 +964,7 @@ def _professional_cost(fixed, progress, receipt):
 
 def source_update_context(fixed, progress):
     """Keep actual correction/retraction targets exact, including unread replacements."""
-    if fixed.get("query_policy", {}).get("research_contract_version") != "bioradar-research-input-v1":
+    if fixed.get("query_policy", {}).get("effective") != "query_planner":
         return {}
     catalog = (
         progress.get("kdd_source_catalog", []) + fixed.get("evidence", []) + progress.get("evidence", [])

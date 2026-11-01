@@ -80,13 +80,6 @@ class QuestionAsk(RuntimeModel):
     )
 
 
-class ResumeReportRequest(RuntimeModel):
-    expected_input_hash: str = Field(pattern=r"^[0-9a-f]{64}$")
-    stopped_call_id: str = Field(pattern=r"^[0-9a-f]{64}$")
-    reason: Text
-    max_input_bytes: int = Field(ge=1024, le=262144)
-    extra_seconds: int = Field(ge=0, le=1800)
-    biocheck_provider_version: str = Field(min_length=1, max_length=200)
 
 
 class AnalysisCreate(RuntimeModel):
@@ -104,7 +97,6 @@ class AnalysisCreate(RuntimeModel):
         default=None, exclude_if=lambda value: value is None
     )
     retry_of_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
-    resume_report: ResumeReportRequest | None = Field(default=None, exclude_if=lambda value: value is None)
     parent_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     material_entry_ids: list[str] = Field(default_factory=list, max_length=10)
 

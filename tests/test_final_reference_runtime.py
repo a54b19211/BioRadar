@@ -29,7 +29,6 @@ def test_synthesis_reference_repair_and_prior_reading_survive_durable_recovery(r
     make, actor, view, _, model, settings, _ = runtime
     settings.query_planner_project_dir = Path(directory)
     settings.analysis_query_policy = "query_planner"
-    settings.analysis_kdd_enabled = True
     posts = []
 
     def transform(payload, value):

@@ -117,7 +117,6 @@ def test_professional_rpc_raw_checkpoint_worker_exit_recovers_locally_without_an
     make, actor, view, _, _, settings, _ = runtime
     connection, queue, drain = actual_queue
     external(runtime)
-    settings.analysis_kdd_enabled = True
     settings.mech_evidence_transport = "http"
     settings.mech_evidence_service_url = "http://synthetic-method.invalid"
     settings.mech_evidence_service_token = SecretStr("SYNTHETIC-method-test-token")

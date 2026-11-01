@@ -15,7 +15,6 @@ from bioradar.api.errors import DomainError
 from bioradar.research.investigations.kdd import extend_context
 from bioradar.research.investigations.query_policy import (
     BOUNDED_INITIAL_VERSION,
-    INITIAL_RETRIEVAL_VERSION,
     build_policy_context,
     catalog_discovery_candidates,
     freeze_policy,
@@ -43,7 +42,7 @@ def fixed():
     data["query_policy"].update(
         schema_version="query-planner.external.v2",
         research_contract_version="bioradar-research-input-v1",
-        initial_retrieval_version=INITIAL_RETRIEVAL_VERSION,
+        initial_retrieval_version=BOUNDED_INITIAL_VERSION,
         direction="research",
         selector="information_gain_v1",
         max_steps=32,
@@ -90,9 +89,8 @@ def exhausted():
     return data, state, items
 
 
-def test_new_frozen_flag_uses_existing_six_plan_schema_and_preserves_old_payload(tmp_path):
+def test_current_contract_limits_generated_queries_and_preserves_baseline_payload(tmp_path):
     settings = write_planner(tmp_path)
-    settings.analysis_kdd_enabled = True
     settings.analysis_query_policy_v2_max_steps = 32
     assert freeze_policy(settings)["initial_retrieval_version"] == BOUNDED_INITIAL_VERSION
     current = freeze_policy(settings)
@@ -107,19 +105,20 @@ def test_new_frozen_flag_uses_existing_six_plan_schema_and_preserves_old_payload
 
     data = fixed()
     payload = question_plan_payload(data)
-    assert payload["max_queries"] == 6
-    assert payload["retrieval_strategy_version"] == INITIAL_RETRIEVAL_VERSION
+    assert payload["max_queries"] == 3
+    assert payload["retrieval_strategy_version"] == BOUNDED_INITIAL_VERSION
     assert "OR备选" in payload["instruction"]
     assert "不同语言或同义词强行放进同一terms" in payload["instruction"]
     assert "待检索假设" in payload["instruction"]
-    assert len(validate_initial_plans({"queries": plans()}, data)) == 6
+    assert len(validate_initial_plans({"queries": plans()[:3]}, data)) == 3
+    assert len(validate_initial_plans(plans(), data)) == 6
     data["budget"]["max_queries"] = 4
     with pytest.raises(DomainError) as error:
         validate_initial_plans({"queries": plans()}, data)
     assert error.value.code == "analysis_query_budget"
 
     data = fixed()
-    data["query_policy"].pop("initial_retrieval_version")
+    data["query_policy"]["effective"] = "baseline"
     old = question_plan_payload(data)
     assert old == {
         "task": "question_plan", "question": data["question"],
@@ -134,7 +133,7 @@ def test_new_frozen_flag_uses_existing_six_plan_schema_and_preserves_old_payload
     }
     with pytest.raises(DomainError):
         validate_initial_plans({"queries": plans()[:3]}, data)
-    data["query_policy"]["initial_retrieval_version"] = INITIAL_RETRIEVAL_VERSION
+    data["query_policy"]["initial_retrieval_version"] = BOUNDED_INITIAL_VERSION
     data["query_policy"]["effective"] = "baseline"
     assert question_plan_payload(data) == old
     with pytest.raises(DomainError):
@@ -335,9 +334,9 @@ def test_directory_never_turns_into_empty_query_live_fetch_or_old_baseline_candi
     )[0]
     assert action["arguments"]["as_of"] == "2019-12-31T23:59:59+00:00"
     assert action["arguments"]["mode"] == "public_history_reconstruction"
-    data["query_policy"].pop("initial_retrieval_version")
+    data["query_policy"]["effective"] = "baseline"
     assert catalog_discovery_candidates(data, state, items, []) == []
     data["query_policy"].update(
-        initial_retrieval_version=INITIAL_RETRIEVAL_VERSION, effective="baseline",
+        initial_retrieval_version=BOUNDED_INITIAL_VERSION, effective="baseline",
     )
     assert catalog_discovery_candidates(data, state, items, []) == []

@@ -42,7 +42,6 @@ def test_partial_catalog_revalidates_prepared_on_rq_and_replays_received_without
     make, actor, _, source, model, settings, _ = runtime
     connection, queue, drain = actual_queue
     external(runtime)
-    settings.analysis_kdd_enabled = True
     settings.analysis_max_queries = 8
     _, template, plans = setup_case(source_id="fixture-source")
     cutoff = "2026-10-20T00:00:00+00:00"
