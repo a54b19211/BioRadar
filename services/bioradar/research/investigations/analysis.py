@@ -4,7 +4,7 @@ import copy
 import hashlib
 import json
 import re
-from datetime import datetime, timedelta
+from datetime import datetime
 
 from pydantic import ValidationError
 
@@ -16,12 +16,19 @@ from bioradar.research.investigations.analysis_models import (
     AnalysisPassage,
     AnalysisResult,
     AnalysisUpdate,
+    FinalResearchSynthesis,
     GenericReview,
+    ModelClaim,
     ModelReading,
     ModelReview,
     ModelSynthesis,
     VerifiedClaim,
     VerifiedEvidenceLink,
+)
+from bioradar.research.investigations.research_assessment import (
+    assessment_binding,
+    assessment_binding_note,
+    validate_claim_assessments,
 )
 from bioradar.research.mining.models import canonical_hash
 
@@ -118,7 +125,52 @@ def material_context_payload(evidence):
     return result
 
 
-def model_evidence(evidence):
+def _model_fact_projection(item, *, compact=False):
+    facts, locators = item.get("facts", {}), item.get("field_locators", {})
+    if not compact:
+        return {"facts": facts, "field_locators": locators}
+    facts, locators = copy.deepcopy(facts), copy.deepcopy(locators)
+    removed = []
+    names = {
+        "body",
+        "full_text",
+        "fulltext",
+        "text",
+        "clean_text",
+        "normalized_text",
+        "abstract",
+        "abstract_text",
+    }
+    selected = item.get("text", "")
+    for key, value in list(facts.items()):
+        if key == "document_evidence" and value == item.get("source_context"):
+            removed.append(key)
+            continue
+        if key not in names or not isinstance(value, str) or not value:
+            continue
+        pointer = (locators.get(key) or {}).get("json_pointer", "")
+        native_body = pointer.rsplit("/", 1)[-1] in names
+        duplicate = selected and (
+            selected in value
+            or value in selected
+            or any(p["text"] in value for p in item.get("passages", []) if len(p["text"]) >= 40)
+        )
+        if native_body or duplicate:
+            removed.append(key)
+    for key in removed:
+        facts.pop(key, None)
+        locators.pop(key, None)
+    return {
+        "facts": facts,
+        "field_locators": locators,
+        **({"omitted_text_projections": removed} if removed else {}),
+    }
+
+
+def model_evidence(evidence, *, include_source_context=False, evidence_time=None):
+    from bioradar.adapters.fabric_document import context_at
+
+    temporal = evidence_time or {}
     return [
         {
             "evidence_key": item["key"],
@@ -128,8 +180,19 @@ def model_evidence(evidence):
             "passages": [{"id": p["id"], "text": p["text"]} for p in item["passages"]],
             "publication_time": item.get("publication_time"),
             "record_flags": item.get("record_flags", []),
-            "facts": item.get("facts", {}),
-            "field_locators": item.get("field_locators", {}),
+            **_model_fact_projection(item, compact=include_source_context),
+            **(
+                {
+                    "source_context": context_at(
+                        item["source_context"],
+                        mode=temporal.get("mode", "current"),
+                        cutoff=temporal.get("cutoff"),
+                        text=item["text"],
+                    )
+                }
+                if include_source_context and item.get("source_context") is not None
+                else {}
+            ),
             "limitations": item.get("limitations", []),
         }
         for item in evidence
@@ -203,21 +266,25 @@ def validate_selection(value):
     return item
 
 
-def validate_claims(claims, evidence):
+def validate_claims(claims, evidence, *, strict_references=True):
     lookup = {item["key"]: validate_selection(item) for item in evidence}
     if len({claim.id for claim in claims}) != len(claims):
         raise DomainError("analysis_output_invalid", "模型命题标识重复，未保存为有效分析", 422)
     verified = []
     for claim in claims:
         links = []
-        if claim.status != "insufficient" and not claim.evidence_links:
+        if strict_references and claim.status != "insufficient" and not claim.evidence_links:
             raise DomainError("analysis_unbound_claim", "非未知命题缺少固定证据，未采信模型输出", 422)
         for link in claim.evidence_links:
             item = lookup.get(link.evidence_key)
             if item is None:
+                if not strict_references:
+                    continue
                 raise DomainError("analysis_reference_invalid", "模型引用了输入以外的材料", 422)
             passage = next((p for p in item.passages if p.id == link.passage_id), None)
             if passage is None:
+                if not strict_references:
+                    continue
                 raise DomainError("analysis_passage_invalid", "模型选择了不存在或不属于该材料的片段", 422)
             links.append(
                 VerifiedEvidenceLink(
@@ -227,7 +294,10 @@ def validate_claims(claims, evidence):
                     end=passage.end,
                 )
             )
-        verified.append(VerifiedClaim(**claim.model_dump(exclude={"evidence_links"}), evidence_links=links))
+        fields = claim.model_dump(exclude={"evidence_links"})
+        if not strict_references and not links:
+            fields["status"] = "insufficient"
+        verified.append(VerifiedClaim(**fields, evidence_links=links))
     return verified
 
 
@@ -262,14 +332,27 @@ def parse_policy_reading(raw):
     return normalized, adjustments
 
 
-def validate_reading(value, evidence, search_scope):
+def validate_reading(value, evidence, search_scope, *, strict_references=False):
     try:
         result = ModelReading.model_validate(value)
     except ValidationError:
         raise DomainError(
             "analysis_reading_invalid", "模型首次解读输出不完整或格式无效，未补造内容", 422
         ) from None
-    validate_claims(result.claims, evidence)
+    verified = validate_claims(result.claims, evidence, strict_references=strict_references)
+    if not strict_references:
+        result.claims = [
+            ModelClaim.model_validate(
+                {
+                    **claim.model_dump(exclude={"evidence_links"}),
+                    "evidence_links": [
+                        link.model_dump(include={"evidence_key", "passage_id", "role", "reason"})
+                        for link in claim.evidence_links
+                    ],
+                }
+            )
+            for claim in verified
+        ]
     claim_ids = {c.id for c in result.claims}
     gap_ids = {g.id for g in result.gaps}
     keys = {e["key"] for e in evidence}
@@ -285,6 +368,84 @@ def validate_reading(value, evidence, search_scope):
         if not set(alternative.for_claim_ids + alternative.against_claim_ids).issubset(claim_ids):
             raise DomainError("analysis_output_invalid", "竞争解释指向不存在的命题", 422)
     return result
+
+
+def validate_policy_reading(value, evidence, search_scope, *, strict_references=True):
+    """Retain hard source/position checks for optional structured research judgments."""
+    from bioradar.research.investigations.analysis_models import PolicyReading
+
+    try:
+        result = PolicyReading.model_validate(value)
+    except ValidationError:
+        raise DomainError("analysis_reading_invalid", "模型研究解读结构无效，原回执保留", 422) from None
+    core = result.model_dump(
+        mode="json",
+        exclude={"coverage_checks", "warning_assessment", "competing_hypotheses", "current_judgment"},
+    )
+    for query in core["next_queries"]:
+        query.pop("coverage_check_ids", None)
+    core_reading = validate_reading(core, evidence, search_scope, strict_references=strict_references)
+    result.claims = core_reading.claims
+    validate_claim_assessments(result, result.claims)
+    validate_hypothesis_judgment(result)
+    return result
+
+
+def validate_hypothesis_judgment(result):
+    judgment = getattr(result, "current_judgment", None)
+    if judgment is not None and judgment.least_refuted_hypothesis_id not in {
+        item.id for item in getattr(result, "competing_hypotheses", None) or []
+    }:
+        raise DomainError("analysis_assessment_invalid", "当前模型判断指向不存在的竞争假设", 422)
+
+
+def research_task_context(fixed):
+    """Versioned tasks; baseline and existing frozen runs retain their original prompts."""
+    policy = fixed.get("query_policy", {})
+    if policy.get("effective") != "query_planner":
+        return {}
+    direction = policy.get("direction", "research")
+    tasks = {
+        "public_health": (
+            "明确判断建议预警(alert)、立即核实(verify_now)或暂不预警但继续观察(watch)，"
+            "依据当时已见材料、成立条件、反证、病原与传播关键未知及下一动作；"
+            "是否已获官方发文与是否值得预警分别回答。未发现不等于已排除。"
+        ),
+        "business": (
+            "分别核对订单、更正、可比期间、验收与收入确认、预收与现金、产能利用率和样本范围；"
+            "只采用程序已计算并明确口径的数值，不以模型心算代替计算，不能从三家样本外推行业。"
+        ),
+        "pipeline": (
+            "明确试验、项目和适应证身份，区分人群、预设终点(PFS与OS)、安全性、"
+            "监管与发表状态以及更正；同试验更正不算新试验或新增受试者。"
+        ),
+        "research": (
+            "明确研究命题和成立条件；涉及临床进展时分别核对人群、预设终点、安全性、"
+            "监管与发表状态和更正，有限PFS信号不等于OS获益或获批。"
+        ),
+    }
+    return {
+        "version": "bioradar-research-input-v1",
+        "direction": direction,
+        "task": tasks.get(direction, tasks["research"]),
+        "claim_instruction": (
+            "将传言拆为可核对命题：事件、地点、数量、归属说话人及自称来源；"
+            "来源类型、独立性、更正和未证实状态必须沿用输入，转载不算独立确认。"
+            "匿名截图、删帖、辟谣或处罚仅是待核来源/反应信号，不证明病原存在或传言为假。"
+        ),
+        "hypothesis_instruction": (
+            "并列合理竞争假设，分别列支持命题、反向命题、未检验条件及最能区分它们的下一证据；"
+            "填写current_judgment，指出当前反证较少且更符合材料范围的hypothesis id、理由及"
+            "下一条最有区分力的证据，明确‘这是模型判断，未证实’；不能按支持或反证条数机械排名，"
+            "不能把未发现反证当作属实。确无合理竞争假设时设null，不编造赢家。"
+        ),
+        "output_instruction": (
+            "公卫预警问题填写warning_assessment，支持与反证引用当前已验证claim id，"
+            "alert必须附原文支持、关键未知和核实动作；需要比较解释时填写competing_hypotheses与"
+            "current_judgment（least_refuted_hypothesis_id/reason/next_discriminating_evidence）。"
+            "结构合法与文字转述准确不证明传言属实，保留据称/网传/未证实限定。"
+        ),
+    }
 
 
 def validate_update(value, claims, evidence, *, parent):
@@ -370,22 +531,50 @@ def normalize_policy_synthesis(raw):
     return normalized, adjustments
 
 
-def validate_synthesis(value, evidence, *, parent):
+def validate_synthesis(
+    value, evidence, *, parent, schema=ModelSynthesis, topic_risk_scope=None, strict_references=None
+):
+    if strict_references is None:
+        strict_references = issubclass(schema, FinalResearchSynthesis)
     try:
-        result = ModelSynthesis.model_validate(value)
+        result = schema.model_validate(value)
     except ValidationError:
         raise DomainError("analysis_output_invalid", "模型当前稿结构不完整或格式无效", 422) from None
-    verified = validate_claims(result.claims, evidence)
+    verified = validate_claims(result.claims, evidence, strict_references=strict_references)
     validate_update(result.update, result.claims, evidence, parent=parent)
     claims = {c.id for c in result.claims}
     for alternative in result.explanations:
         if not set(alternative.for_claim_ids + alternative.against_claim_ids).issubset(claims):
             raise DomainError("analysis_output_invalid", "竞争解释指向不存在的本版命题", 422)
+    if isinstance(result, FinalResearchSynthesis):
+        validate_claim_assessments(
+            result, result.claims, error_code="analysis_assessment_invalid", topic_risk_scope=topic_risk_scope
+        )
+        validate_hypothesis_judgment(result)
     return result, verified
 
 
-def validated_result(value, check, evidence, *, parent, limitations):
-    result, verified = validate_synthesis(value, evidence, parent=parent)
+def validated_result(
+    value,
+    check,
+    evidence,
+    *,
+    parent,
+    limitations,
+    schema=ModelSynthesis,
+    topic_risk_scope=None,
+    strict_references=None,
+):
+    if strict_references is None:
+        strict_references = issubclass(schema, FinalResearchSynthesis)
+    result, verified = validate_synthesis(
+        value,
+        evidence,
+        parent=parent,
+        schema=schema,
+        topic_risk_scope=topic_risk_scope,
+        strict_references=strict_references,
+    )
     keys, claims = {e["key"] for e in evidence}, {c.id for c in result.claims}
     try:
         review = ModelReview.model_validate(check)
@@ -401,7 +590,15 @@ def validated_result(value, check, evidence, *, parent, limitations):
     for finding in review.findings:
         if finding.claim_id is not None and finding.claim_id not in claims:
             raise DomainError("analysis_review_invalid", "核验问题指向不存在的当前命题", 422)
-    if review.findings or any(item.verdict != "grounded" for item in review.claims):
+    stripped = not strict_references and any(
+        len(raw.get("evidence_links", [])) > len(checked.evidence_links)
+        or raw["status"] != "insufficient"
+        and checked.status == "insufficient"
+        for raw, checked in zip(value["claims"], verified, strict=True)
+    )
+    if stripped:
+        limitations = [*limitations, "baseline模型的无效引用已剔除；没有有效来源的命题保留为未知待核。"]
+    if stripped or review.findings or any(item.verdict != "grounded" for item in review.claims):
         review.status = "needs_review"
     return AnalysisResult(
         claims=verified,
@@ -410,6 +607,16 @@ def validated_result(value, check, evidence, *, parent, limitations):
         conditional_answer=result.conditional_answer,
         update=result.update,
         review=GenericReview.model_validate(review.model_dump(mode="json")),
+        **(
+            {
+                "warning_assessment": result.warning_assessment,
+                "competing_hypotheses": result.competing_hypotheses,
+                "topic_risk_reassessment": result.topic_risk_reassessment,
+                "current_judgment": result.current_judgment,
+            }
+            if isinstance(result, FinalResearchSynthesis)
+            else {}
+        ),
         limitations=[*limitations, "通用模型核验不等于专业审核或人工批准。"],
     )
 
@@ -448,14 +655,21 @@ def freeze_payload(
         "as_of": fixed_input["as_of"],
         "analysis_version": ANALYSIS_VERSION,
         "prompt_version": PROMPT_VERSION,
-        "evidence": model_evidence(evidence),
+        "evidence": model_evidence(
+            evidence,
+            include_source_context=bool(research_task_context(fixed_input)),
+            evidence_time=fixed_input.get("evidence_time"),
+        ),
         "search_scope": fixed_input["search_scope"],
     }
     if (
-        fixed_input.get("query_context_version") == "semantic-v2"
+        True
         and fixed_input.get("query_policy", {}).get("effective") == "query_planner"
     ):
         payload.update(material_context_payload(evidence))
+    task_context = research_task_context(fixed_input)
+    if task_context and stage in {"read_plan", "synthesize"}:
+        payload["research_task"] = task_context
     if stage == "read_plan":
         payload["query_instruction"] = (
             "补查terms是必须同时满足的字面条件（AND），不是任选词。"
@@ -486,6 +700,13 @@ def freeze_payload(
             payload["quality_feedback_qualification"] = (
                 "成稿核验和所选片段复核提出的机器缺口或待核问题，不是新增原始事实。"
                 "先检查已读原文能否解决，再规划必要补查；只按允许的repair_units修订。"
+            )
+        if context.get("analysis_results"):
+            payload["analysis_results"] = copy.deepcopy(context["analysis_results"])
+            payload["analysis_results_qualification"] = (
+                "这是程序对固定成员的实际计算。逐项保留方法、成员范围、单位、期间与分母；"
+                "不得把检索文档数或候选数改称独立研究、药物项目、总体发生率或因果。"
+                "结果可引用其analysis id及output路径，不要伪称是某篇原文直接报告的数字。"
             )
         if query_context is not None:
             payload["graph_context"] = copy.deepcopy(context.get("graph_context", []))
@@ -619,6 +840,9 @@ def compact_mechanism(mechanism):
     """One mechanism view with fixed-reference locations for every downstream request."""
     assessment = None
     if isinstance(mechanism, dict):
+        from bioradar.adapters.mech_evidence import mechanism_model_context
+
+        mechanism = mechanism_model_context(mechanism)
         assessment = {
             key: copy.deepcopy(mechanism[key])
             for key in (
@@ -642,6 +866,8 @@ def compact_mechanism(mechanism):
                 "passage_namespace_qualification",
                 "independence",
                 "unresolved_counterevidence",
+                "source_notes",
+                "source_reporting",
                 "witnesses",
             )
             if key in mechanism
@@ -659,14 +885,48 @@ def compact_mechanism(mechanism):
     return assessment
 
 
+def generation_input_allowances(settings, packet, candidate, max_input_bytes):
+    """Forecast native generation inputs, with real transport encoding and bounded margins."""
+    from bioradar.adapters.reasoning_model import encode_request
+
+    # BioCheck packet_input excludes evidence_map from every model prompt. The
+    # complete packet and mapping remain untouched in RPC and durable receipts.
+    source = {key: packet[key] for key in ("question", "evidence", "assessment") if key in packet}
+    encoded = {
+        stage: len(
+            encode_request(
+                settings,
+                stage=stage,
+                system_prompt="",
+                payload=source,
+                response_schema={"type": "object"},
+            )
+        )
+        for stage in ("biocheck_plan", "biocheck_write")
+    }
+    # Margins cover native instructions/segmentation and the not-yet-generated plan.
+    # This forecast is not billed usage; each actual send keeps its own hard limits.
+    return {
+        "plan": min(max_input_bytes, encoded["biocheck_plan"] + 8192) + 1024,
+        "write": min(max_input_bytes, encoded["biocheck_write"] + len(candidate.encode()) + 16384) + 1024,
+    }
+
+
 def verification_input_allowance(payload, candidate, max_input_bytes):
     """Reserve from this packet and draft, with room for a longer report and unit framing."""
     source = {key: payload[key] for key in ("question", "evidence", "assessment") if key in payload}
     source_bytes = len(json.dumps(source, ensure_ascii=False, separators=(",", ":")).encode())
     draft_bytes = max(len(candidate.encode()), len(payload.get("draft", "").encode()))
-    # Verify includes the draft and each paragraph once. Allow a report twice the
-    # current rendered length; the actual subsequent request still uses the ledger.
-    return min(max_input_bytes + 1024, source_bytes + 4 * draft_bytes + 8192)
+    # The verifier sees one draft plus the actual paragraph projection once.
+    # Before that projection exists, one draft-sized copy estimates its text;
+    # fixed framing covers paragraph IDs and native instructions, not four drafts.
+    paragraphs = payload.get("paragraphs")
+    paragraph_bytes = (
+        len(json.dumps(paragraphs, ensure_ascii=False, separators=(",", ":")).encode())
+        if isinstance(paragraphs, list)
+        else draft_bytes
+    )
+    return min(max_input_bytes + 1024, source_bytes + draft_bytes + paragraph_bytes + 8192)
 
 
 def support_audit_input_allowance(payload, candidate, max_input_bytes):
@@ -690,6 +950,17 @@ def report_context(result, mechanism):
         for key in ("claims", "conditional_answer", "explanations", "gaps", "update")
         if key in result
     }
+    findings = {
+        key: copy.deepcopy(result[key])
+        for key in ("warning_assessment", "competing_hypotheses", "topic_risk_reassessment")
+        if key in result and result[key] is not None
+    }
+    if findings:
+        binding = assessment_binding(result)
+        if binding["status"] == "bound":
+            analysis.update(findings)
+        elif binding["status"] == "unbound":
+            analysis["assessment_binding"] = binding
     for claim in analysis.get("claims", []):
         for link in claim.get("evidence_links", []):
             for key in ("quote", "start", "end"):
@@ -711,7 +982,12 @@ def report_context(result, mechanism):
 def render_report(result, question):
     """Render only saved structured fields; no model writes follow final verification."""
     answer = result["conditional_answer"]
-    lines = ["# 研究分析报告", "", question, "", answer["answer"], "", "## 适用条件"]
+    stopped = (result.get("query_policy") or {}).get("synthesis_reading_basis") or {}
+    heading = "# 阅读草稿（综合未完成）" if stopped else "# 研究分析报告"
+    lines = [heading, "", question, ""]
+    if stopped:
+        lines.extend([stopped["qualification"], ""])
+    lines.extend([answer["answer"], "", "## 适用条件"])
     lines.extend("- " + text for text in answer["conditions"])
     lines.extend(["", "## 证据与命题"])
     for claim in result["claims"]:
@@ -755,8 +1031,12 @@ def basis_hash(question, evidence, parent_id, model, revision, search_scope):
 
 
 def readable_result(result):
+    note = assessment_binding_note(result)
+    prefix = note + "\n" if note else ""
     if (result.get("report") or {}).get("final_text"):
-        return ("机器分析报告（专业方法或模型核验不等于人工批准）\n" + result["report"]["final_text"])[:7900]
+        return (
+            prefix + "机器分析报告（专业方法或模型核验不等于人工批准）\n" + result["report"]["final_text"]
+        )[:7900]
     answer = result["conditional_answer"]
     lines = [
         "机器分析草稿（未作专业审核，未签研究人员判断）",
@@ -765,18 +1045,27 @@ def readable_result(result):
         "尚未解决：" + "；".join(answer["unknowns"]),
         "本版与前版：" + "；".join(result["update"]["reasons"]),
     ]
-    return "\n".join(lines)[:7900]
+    stopped = (result.get("query_policy") or {}).get("synthesis_reading_basis")
+    if stopped:
+        lines.insert(1, stopped["qualification"])
+    return (prefix + "\n".join(lines))[:7900]
 
 
-def source_excerpt(original, remaining):
+def source_excerpt(original, remaining, *, start=None, max_characters=6000):
     """Select exact source text; native fields are never rewritten as source quotations."""
     raw_basis = original["record_kind"] == "trial" and original["raw_media_type"].startswith(
         "application/json"
     )
     source_text = original["raw_content"] if raw_basis else original["clean_text"]
-    start = 0
+    explicit_start = start is not None
+    if start is None:
+        start = 0
+    if type(start) is not int or not 0 <= start <= len(source_text):
+        raise DomainError("analysis_selection_mismatch", "读取窗口不是实际原件的合法Unicode下标", 422)
+    if type(max_characters) is not int or max_characters < 1:
+        raise DomainError("analysis_selection_mismatch", "读取窗口长度无效", 422)
     reason = original["facts"].get("why_stopped")
-    if raw_basis and isinstance(reason, str):
+    if not explicit_start and raw_basis and isinstance(reason, str):
         position = source_text.find(reason)
         if position < 0:
             position = source_text.find(json.dumps(reason, ensure_ascii=False)[1:-1])
@@ -811,7 +1100,7 @@ def source_excerpt(original, remaining):
             continue
         fields[key] = value
         used += size
-    content = source_text[start : start + max(0, min(6000, remaining - used))]
+    content = source_text[start : start + max(0, min(max_characters, remaining - used))]
     limitations = []
     if len(content) != len(source_text):
         limitations.append("本轮仅输入原件连续片段，其余内容未作已读证据。")
@@ -822,6 +1111,12 @@ def source_excerpt(original, remaining):
         "start": start,
         "end": start + len(content),
         "text_sha256": hashlib.sha256(source_text.encode()).hexdigest(),
+        "source_length": len(source_text),
+        **(
+            {"source_context": copy.deepcopy(original["document_evidence"])}
+            if original.get("document_evidence") is not None
+            else {}
+        ),
         "text_basis": "source_raw_content" if raw_basis else "source_clean_text",
         "facts": fields,
         "field_locators": {k: original["field_locators"][k] for k in fields},
@@ -850,11 +1145,11 @@ def analysis_budget(fixed, progress, now):
     )
     total = prompt = completion = charged = calls = unknown = estimated = 0
     for call in progress.get("calls", []):
-        receipt = call.get("receipt", {})
+        receipt = call.get("receipt") or {}
         if call["status"] == "prepared" or receipt.get("status") == "not_sent":
             continue
         calls += 1
-        usage = receipt.get("usage", {})
+        usage = receipt.get("usage") or {}
         count = usage.get("total_tokens")
         if count is None and all(usage.get(k) is not None for k in ("prompt_tokens", "completion_tokens")):
             count = usage["prompt_tokens"] + usage["completion_tokens"]
@@ -875,46 +1170,14 @@ def analysis_budget(fixed, progress, now):
     started = progress.get("started_at")
     ended = datetime.fromisoformat(progress["finished_at"]) if progress.get("finished_at") else now
     elapsed = max(0, (ended - datetime.fromisoformat(started)).total_seconds()) if started else 0
-    original_elapsed = elapsed
     clock_started = datetime.fromisoformat(started) if started else now
-    resumption = None
-    attempts = progress.get("execution_resumptions", [])
-    if attempts:
-        # Written only by an explicitly authorized operator recovery, never by a
-        # request body, model response or automatic retry. One bounded window.
-        if len(attempts) != 1 or not started:
-            raise DomainError("analysis_resumption_invalid", "修复续跑记录不完整，未延长期限", 409)
-        resumption = attempts[0]
-        try:
-            resumed_at = datetime.fromisoformat(resumption["started_at"])
-            seconds = resumption["max_seconds"]
-            valid = (
-                resumption["kind"] == "supervised_continuation"
-                and resumption["original_started_at"] == started
-                and bool(resumption["authorization"])
-                and type(seconds) is int
-                and 0 < seconds <= min(1800, limits["max_seconds"])
-                and resumed_at.tzinfo is not None
-                and resumed_at >= datetime.fromisoformat(started) + timedelta(seconds=limits["max_seconds"])
-                and resumed_at <= now
-            )
-        except (KeyError, TypeError, ValueError):
-            valid = False
-        if not valid:
-            raise DomainError("analysis_resumption_invalid", "修复续跑记录无效，未延长期限", 409)
-        limits = {**limits, "max_seconds": seconds}
-        clock_started = resumed_at
-        elapsed = max(0, ((ended if ended >= resumed_at else now) - resumed_at).total_seconds())
+    from bioradar.research.investigations.execution_budget import waiting_seconds
+
+    paused = waiting_seconds(fixed, progress, now)
+    display_paused = waiting_seconds(fixed, progress, min(ended, now))
+    elapsed = max(0, elapsed - display_paused)
     return {
         "limits": limits,
-        **(
-            {
-                "execution_resumption": copy.deepcopy(resumption),
-                "original_limits": copy.deepcopy(fixed["budget"]),
-            }
-            if resumption
-            else {}
-        ),
         "usage": {
             "calls": calls,
             "total_tokens": None if unknown else total,
@@ -926,8 +1189,9 @@ def analysis_budget(fixed, progress, now):
             "budgeted_tokens": charged,
             "queries": len(progress.get("queries", [])),
             "elapsed_seconds": elapsed,
-            "remaining_seconds": limits["max_seconds"] - max(0, (now - clock_started).total_seconds()),
-            **({"original_elapsed_seconds": original_elapsed} if resumption else {}),
+            "remaining_seconds": limits["max_seconds"]
+            - max(0, (now - clock_started).total_seconds() - paused),
+            **({"automatic_budget_wait_seconds": paused} if paused else {}),
             "monetary_cost": None,
             "qualification": "实际用量来自模型回执；缺用量时按本次输入字节与输出上限保守预留，费用未知。",
         },
@@ -959,7 +1223,7 @@ def compact_query_context(context):
             for key in ("id", "required", "status", "evidence_ids", "question")
             if key in check
         }
-        if check.get("question") in repeated_questions:
+        if isinstance(check.get("question"), str) and check["question"] in repeated_questions:
             index = repeated_questions[check["question"]]
             item["question"] = f"专业缺口见mechanism_query_context.critical_gaps[{index}]，含条件与待查实验。"
             item["mechanism_gap_index"] = index
@@ -1170,6 +1434,8 @@ def semantic_reading_state(evidence, context):
             "critical_gaps",
             "missing_experiment",
             "unresolved_counterevidence",
+            "source_notes",
+            "source_reporting",
         )
         if key in mechanism
     }
@@ -1182,6 +1448,11 @@ def semantic_reading_state(evidence, context):
             for key in ("evidence_gaps", "review_required", "repair_units")
             if key in feedback
         },
+        **(
+            {"analysis_results": copy.deepcopy(compact["analysis_results"])}
+            if compact.get("analysis_results")
+            else {}
+        ),
         "neighborhoods": [
             {key: value for key, value in item.items() if key not in {"binding", "read_cutoff"}}
             for item in compact["graph_context"]

@@ -19,6 +19,13 @@ from pydantic import ValidationError
 
 from bioradar.adapters.fabric_graph import read_graph_version, read_neighborhood
 from bioradar.adapters.fabric_history import time_upper
+from bioradar.adapters.fixed_graph import (
+    build_fixed_graph_candidates,
+    execute_fixed_graph_action,
+)
+from bioradar.adapters.fixed_graph import (
+    remember_graph_package as remember_graph_package,
+)
 from bioradar.api.errors import DomainError
 from bioradar.research.investigations.graph import GraphNeighborhood
 
@@ -124,12 +131,17 @@ def _candidate(operation, arguments, covers, calls, relations=0):
 
 def build_graph_candidates(settings, fixed, progress, reading, *, checks):
     """Pure candidate construction. No guessed IDs, implicit HTTP, or mutation."""
+    fixed_candidates = build_fixed_graph_candidates(settings, fixed, progress, reading, checks=checks)
     scope = fixed["graph_scope"] if "graph_scope" in fixed else fixed.get("search_scope", [])
     if SOURCE not in scope:
-        return []
-    instance = "fixture" if fixed.get("is_demo") else "datafabric-test"
+        return fixed_candidates
+    instance = (
+        (getattr(settings, "data_fabric_demo_source_instance", None) or "fixture")
+        if fixed.get("is_demo")
+        else getattr(settings, "data_fabric_source_instance", "datafabric-test")
+    )
     if SOURCE not in getattr(settings, "engine_source_id_allowlist", {}).get(instance, []):
-        return []
+        return fixed_candidates
     history = fixed.get("evidence_time", {})
     current = history.get("mode", "current") == "current" and not history.get("study_id")
     # Background relationships can suggest technical follow-ups. They cannot
@@ -229,7 +241,7 @@ def build_graph_candidates(settings, fixed, progress, reading, *, checks):
             if sum(item["arguments"]["operation"] == "lookup" for item in result) >= 6:
                 break
     unique = {item["id"]: item for item in result}
-    return list(unique.values())[:12]
+    return list({item["id"]: item for item in [*fixed_candidates, *unique.values()]}.values())[:12]
 
 
 def _result(
@@ -287,6 +299,18 @@ def execute_graph_action(settings, reader, arguments, *, mode, cutoff, idempoten
     Unknown POST outcomes stay unconfirmed. The host must persist and reconcile
     the same idempotency key; this function never automatically retries.
     """
+    if isinstance(arguments, dict) and (
+        arguments.get("operation") in {"resolve", "catalog", "adopt"}
+        or isinstance(arguments.get("binding"), dict)
+        and arguments["binding"].get("source_id") != SOURCE
+    ):
+        return execute_fixed_graph_action(
+            reader,
+            arguments,
+            mode=mode,
+            cutoff=cutoff,
+            timeout_seconds=timeout_seconds,
+        )
     start = time.monotonic()
     extra = 0
     before = getattr(reader, "requests_made", 0)

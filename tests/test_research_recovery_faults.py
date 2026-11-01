@@ -228,7 +228,7 @@ def test_received_five_stage_report_survives_worker_exit_deadline_and_duplicate_
     drain()
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
-        assert row.state == "running" and row.result is None
+        assert row.state == "running" and (row.result or {}).get("report") is None
         assert Job.fetch(row.rq_job_id, connection=connection).is_failed
         assert "final_report" not in row.progress
         saved_calls = copy.deepcopy(row.progress["calls"])
@@ -328,7 +328,9 @@ def test_upstream_fault_does_not_turn_an_unverified_revision_into_success(runtim
     accepted = start(runtime)
     factory().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.state == "blocked" and result.note_entry_id is None and result.result is None
+    assert result.state == "blocked" and result.note_entry_id is None
+    assert result.result is not None and result.result.report is None
+    assert result.result.review.status == "needs_review"
     last = result.calls[-1]
     assert last["stage"] == stage
     assert last["status"] == ("unconfirmed" if fault == "timeout" else "failed")
@@ -356,7 +358,8 @@ def test_failed_received_receipt_save_remains_unknown_and_is_not_resent(runtime,
         service.execute(accepted["id"], accepted["input_hash"])
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
-        assert row.state == "running" and row.result is None
+        assert row.state == "running" and row.result is not None
+        assert row.result["report"] is None and row.result["review"]["status"] == "needs_review"
         assert row.progress["calls"][-1]["status"] == "sent"
     posts = list(meter.stages)
     expire_lease(database, accepted["id"])
@@ -364,7 +367,10 @@ def test_failed_received_receipt_save_remains_unknown_and_is_not_resent(runtime,
     factory().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
     assert result.state == "blocked" and result.error_code == "model_call_outcome_unconfirmed"
-    assert result.note_entry_id is None and result.result is None and meter.stages == posts
+    assert result.note_entry_id is None and meter.stages == posts
+    assert result.result is not None and result.result.report is None
+    assert result.result.review.status == "needs_review"
+    assert result.result.conditional_answer.model_dump(mode="json") == row.result["conditional_answer"]
 
 
 def test_completed_receipts_do_not_bypass_current_source_revocation(runtime, database, model_http):
@@ -391,7 +397,9 @@ def test_completed_receipts_do_not_bypass_current_source_revocation(runtime, dat
     assert failure.value.code == "history_source_revoked"
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
-        assert row.state == "queued" and row.result is None and row.note_entry_id is None
+        assert row.state == "queued" and row.note_entry_id is None
+        assert row.result is not None and row.result["report"] is None
+        assert row.result["review"]["status"] == "needs_review"
     assert meter.stages == posts
 
 
@@ -430,7 +438,9 @@ def test_optional_repair_deadline_preserves_checked_original_and_never_sends_nex
 
 
 @pytest.fixture
-def send_clock(monkeypatch):
+def send_clock(monkeypatch, runtime):
+    runtime[5].analysis_min_call_seconds = 1
+
     class Clock(datetime):
         offset = timedelta()
 
@@ -526,6 +536,13 @@ def test_weknora_intent_commit_crossing_deadline_is_not_sent_or_retried(
 
     monkeypatch.setattr(weknora, "search_candidates", unexpected_post)
     accepted = start(runtime, budget=AnalysisBudget(max_seconds=5))
+    # Exercise the retained pre-step execution path that owns _weknora_retrieval.
+    # New query-step runs dispatch through _execute_policy_action instead.
+    with Session(database) as session, session.begin():
+        row = session.get(InvestigationAnalysisRecord, accepted["id"])
+        fixed = copy.deepcopy(row.fixed_input)
+        fixed.pop("execution_version", None)
+        row.fixed_input = fixed
     service = factory()
     checkpoint, stalled, interrupted = service._checkpoint, [False], [False]
 
@@ -712,20 +729,35 @@ def test_new_budget_prioritizes_support_audit_over_optional_repair(runtime, data
         assert plan["repair"] is False and plan["reserve_support_audit"] is True
 
 
+@pytest.mark.parametrize("requested_tokens", [None, 131072], ids=["current-default", "explicit-cap"])
 def test_material_update_append_automatically_runs_late_version_child_through_real_rq(
-    runtime, database, model_http, actual_queue, monkeypatch
+    runtime, database, model_http, actual_queue, monkeypatch, requested_tokens
 ):
     from hashlib import sha256
 
+    from bioradar.research.engine.models import EngineIdempotency
+    from bioradar.research.investigations.analysis_models import AnalysisCreate
     from bioradar.research.investigations.models import InvestigationEntryCreate
     from bioradar.research.investigations.service import InvestigationService
     from bioradar.research.mining.models import canonical_hash
 
-    make, actor, view, _, _, settings, adopted = runtime
+    make, actor, view, source, _, settings, adopted = runtime
     factory, meter = model_http
     connection, queue, drain = actual_queue
     settings.biocheck_project_dir = None
     settings.mech_evidence_project_dir = None
+    settings.analysis_max_tokens = 262144
+    settings.analysis_search_source_ids = ["clinicaltrials"]
+    settings.analysis_graph_source_ids = ["reviewed_graph"]
+    settings.data_fabric_graph_query_token = SecretStr("SYNTHETIC-GRAPH-TOKEN")
+    settings.engine_source_id_allowlist["fixture"] = [
+        "fixture-source",
+        "clinicaltrials",
+        "reviewed_graph",
+    ]
+    source.enabled.update({"clinicaltrials", "reviewed_graph"})
+    requested_budget = AnalysisBudget(max_tokens=requested_tokens) if requested_tokens is not None else None
+    question = "SYNTHETIC pipeline: what changed in the fixed clinical source?"
 
     @wraps(analysis_service.execute_analysis)
     def execute(identifier, input_hash):
@@ -733,7 +765,15 @@ def test_material_update_append_automatically_runs_late_version_child_through_re
         return factory().execute(identifier, input_hash)
 
     monkeypatch.setattr(analysis_service, "execute_analysis", execute)
-    parent = start(runtime)
+    parent = start(
+        runtime,
+        question=question,
+        auto_retrieve=True,
+        source_ids=["clinicaltrials", "reviewed_graph"],
+        query_policy="baseline",
+        kdd_direction="pipeline",
+        budget=requested_budget,
+    )
     assert queue.count == 1
     drain()
     assert factory().get(actor, view["id"], parent["id"]).state == "completed"
@@ -741,6 +781,17 @@ def test_material_update_append_automatically_runs_late_version_child_through_re
         row = session.get(InvestigationAnalysisRecord, parent["id"])
         parent_frozen = copy.deepcopy((row.input_hash, row.fixed_input, row.result, row.progress["calls"]))
         assert Job.fetch(row.rq_job_id, connection=connection).is_finished
+        assert row.fixed_input["requested_budget"] == (
+            {"max_tokens": requested_tokens} if requested_tokens is not None else None
+        )
+        assert row.fixed_input["requested_direction"] == "pipeline"
+    settings.analysis_max_tokens = 524288
+    # A frozen source name is not a permission grant for the new automatic request.
+    source.enabled.remove("clinicaltrials")
+    with pytest.raises(DomainError, match="初查来源") as revoked:
+        factory().request_material_update(view["id"])
+    assert revoked.value.code == "analysis_query_invalid" and queue.count == 0
+    source.enabled.add("clinicaltrials")
     snapshot = make().engine.get_snapshot(actor, adopted["id"]).snapshot
     original = snapshot.records[0]
     late_text = original.normalized_text + " SYNTHETIC late-version result is newly available."
@@ -793,6 +844,37 @@ def test_material_update_append_automatically_runs_late_version_child_through_re
             )
         )
         assert child is not None and child.trigger == "material_update" and child.state == "queued"
+        assert child.fixed_input["question"] == question
+        assert child.fixed_input["search_scope"] == ["clinicaltrials"]
+        assert child.fixed_input["graph_scope"] == ["reviewed_graph"]
+        assert child.fixed_input["retrieval"]["auto_retrieve"] is True
+        assert child.fixed_input["query_policy"]["requested"] == "baseline"
+        assert child.fixed_input["query_policy"]["effective"] == "baseline"
+        assert child.fixed_input["requested_direction"] == "pipeline"
+        assert child.fixed_input["query_policy"]["schema_version"] == "query-planner.external.v1"
+        assert child.fixed_input["requested_budget"] == parent_frozen[1]["requested_budget"]
+        expected_tokens = 524288 if requested_tokens is None else requested_tokens
+        assert child.fixed_input["budget"]["max_tokens"] == expected_tokens
+        assert child.fixed_input["retrieval"]["budget"]["max_tokens"] == expected_tokens
+        assert child.fixed_input["as_of"] > parent_frozen[1]["as_of"]
+        assert child.fixed_input["evidence_time"]["mode"] == "current"
+        assert "kdd_mining_policy" not in child.fixed_input
+        expected_request = AnalysisCreate(
+            expected_revision=child.based_on_revision,
+            parent_analysis_id=parent["id"],
+            question=question,
+            auto_retrieve=True,
+            source_ids=["clinicaltrials", "reviewed_graph"],
+            query_policy="baseline",
+            kdd_direction="pipeline",
+            budget=requested_budget,
+        )
+        expected_key = "analysis-material-update:" + canonical_hash(
+            ["inherited-request-v2", view["id"], parent["id"], expected_request.model_dump(mode="json")]
+        )
+        assert (
+            session.scalar(select(EngineIdempotency).where(EngineIdempotency.key == expected_key)) is not None
+        )
         assert child.fixed_input["parent_result"] == parent_frozen[2]
         assert any(
             item["record_ref"]["object_id"] == late_ref.object_id

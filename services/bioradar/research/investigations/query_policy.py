@@ -3,12 +3,18 @@
 import copy
 import hashlib
 import json
+import re
 
 from bioradar.api.errors import DomainError
 from bioradar.research.investigations.analysis_models import InitialQuery, QuestionPlan
 
 SCHEMA_VERSION = "query-planner.external.v1"
 BASELINE_VERSION = "bioradar-query-baseline-v1"
+BOUNDED_INITIAL_VERSION = "literal-language-budget-v2"
+PAGINATION_VERSION = "fabric-receipt-bound-pagination-v1"
+PAGINATION_COVER_VERSION = "fabric-parent-gap-pagination-v1"
+DISCOVERY_VERSION = "bounded-required-gap-discovery-v1"
+COVERAGE_QUALIFICATION = "机器取证覆盖判断，不是科学结论或人工审批。"
 _DIMENSIONS = {"tool_calls", "tokens", "relation_access"}
 _GRAPH_KINDS = {"entity_relations", "graph_neighbors", "graph_path"}
 _PENDING = {"prepared", "sent", "unknown", "unconfirmed"}
@@ -68,19 +74,79 @@ def _canonical(value, name=""):
 
 def semantic_key(kind, arguments):
     """Hash real tool meaning; changing a stage, reason or action ID cannot enable a retry."""
-    if kind not in {"document_search", *_GRAPH_KINDS} or not isinstance(arguments, dict):
+    if kind not in {
+        "document_search",
+        "document_read",
+        "source_fetch",
+        *_GRAPH_KINDS,
+        "dataset_prepare",
+        "analysis_run",
+        "professional_assess",
+    } or not isinstance(arguments, dict):
         raise DomainError("query_policy_action_invalid", "查询动作种类或参数无效", 422)
     effective = {key: value for key, value in arguments.items() if key not in _HOST_ARGUMENTS}
+    if kind == "document_search" and "cursor" in arguments:
+        # A changed display ID, page label or predecessor cannot resend an opaque cursor.
+        required = ("source_id", "terms", "limit", "scope", "cursor")
+        if arguments.get("provider") != "fabric" or any(k not in arguments for k in required):
+            raise DomainError("query_policy_action_invalid", "续页缺少真实游标或固定检索范围", 422)
+        return _hash(
+            [
+                kind,
+                {
+                    "provider": "fabric",
+                    "source_id": arguments["source_id"],
+                    "terms": sorted({term.strip() for term in arguments["terms"]}),
+                    "limit": arguments["limit"],
+                    "scope": arguments["scope"],
+                    "catalog_discovery": arguments.get("catalog_discovery", False),
+                    "cursor": arguments["cursor"],
+                },
+            ]
+        )
+    if kind == "document_search" and arguments.get("catalog_discovery") is True:
+        if (
+            arguments.get("provider") != "fabric"
+            or arguments.get("terms") != []
+            or "query" in arguments
+            or not isinstance(arguments.get("source_id"), str)
+            or not arguments["source_id"]
+            or type(arguments.get("is_demo")) is not bool
+            or arguments.get("mode")
+            not in {
+                "current",
+                "operational_replay",
+                "public_history_reconstruction",
+            }
+            or not isinstance(arguments.get("as_of"), str)
+            or not arguments["as_of"]
+        ):
+            raise DomainError("query_policy_action_invalid", "目录发现缺少明确来源或固定时点", 422)
+        effective = {
+            key: arguments[key]
+            for key in ("provider", "source_id", "mode", "as_of", "is_demo", "catalog_discovery")
+        }
+    if kind == "document_read":
+        records = copy.deepcopy(effective.get("records"))
+        if not isinstance(records, list) or not records:
+            raise DomainError("query_policy_action_invalid", "固定读取动作缺少原件窗口", 422)
+        for record in records:
+            if not isinstance(record, dict) or any(
+                not isinstance(record.get(key), str) or not record[key]
+                for key in ("source_record_id", "version_id")
+            ):
+                raise DomainError("query_policy_action_invalid", "固定读取原件身份无效", 422)
+            window = record.get("window_start", 0)
+            if type(window) is not int or window < 0:
+                raise DomainError("query_policy_action_invalid", "固定读取窗口无效", 422)
+            if window == 0:
+                record.pop("window_start", None)
+        records.sort(key=lambda r: (r["source_record_id"], r["version_id"], r.get("window_start", 0)))
+        effective["records"] = records
     try:
         return _hash([kind, _canonical(effective)])
     except (TypeError, ValueError, RecursionError):
         raise DomainError("query_policy_action_invalid", "查询动作参数不是有限JSON对象", 422) from None
-
-
-def _baseline_source():
-    from pathlib import Path
-
-    return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
 
 
 def freeze_policy(settings, requested=None):
@@ -92,41 +158,102 @@ def freeze_policy(settings, requested=None):
         raise DomainError("query_policy_invalid", "查询策略只能选baseline或query_planner", 422)
     status = provider_status(settings)
     version = BASELINE_VERSION
-    source = _baseline_source()
+    source = BASELINE_VERSION
     if selected == "query_planner":
         _, version = load_query_planner(settings)
         source = version
+    kdd = selected == "query_planner"
     return {
         "requested": selected,
         "effective": selected,
         "version": version,
         "source_sha256": source,
-        "schema_version": SCHEMA_VERSION,
-        "selector": "legacy_sequence" if selected == "baseline" else "heuristic",
-        "stop": "legacy_bounded_sequence" if selected == "baseline" else "rule",
+        "schema_version": "query-planner.external.v2" if kdd else SCHEMA_VERSION,
+        "selector": getattr(settings, "analysis_kdd_selector", "information_gain_v1")
+        if kdd
+        else "legacy_sequence"
+        if selected == "baseline"
+        else "heuristic",
+        "stop": "observed_checks_reading_pages_objects_v4"
+        if kdd
+        else "legacy_bounded_sequence"
+        if selected == "baseline"
+        else "rule",
         "training_status": "llm_rules_baseline" if selected == "baseline" else "heuristic_untrained",
-        "max_steps": getattr(settings, "analysis_query_policy_max_steps", 12),
+        "max_steps": getattr(settings, "analysis_query_policy_v2_max_steps", 32)
+        if kdd
+        else getattr(settings, "analysis_query_policy_max_steps", 12),
+        **(
+            {
+                "research_contract_version": "bioradar-research-input-v1",
+                "initial_retrieval_version": BOUNDED_INITIAL_VERSION,
+                "pagination_version": PAGINATION_VERSION,
+                "pagination_cover_version": PAGINATION_COVER_VERSION,
+                "discovery_version": DISCOVERY_VERSION,
+                "professional_retry_version": "biocheck-contract-repair-v1",
+                "biocheck_input_version": "adopted-window-declared-audit-v1",
+                "narrative_contract_version": "literal-narrative-observations-v2",
+                "narrative_proposal_version": "literal-narrative-proposal-v1",
+                "source_intelligence_version": "public-health-source-intelligence-v1",
+                "material_impact_version": "dependency-aware-material-update-v1",
+                "final_assessment_version": "bioradar-research-final-v1",
+                "final_reference_repair_version": "bioradar-synthesis-reference-repair-v1",
+                "retrieval_allocation": {
+                    "automatic_initial_queries": 3,
+                    "explicit_queries": "preserved_within_existing_limits",
+                    "qualification": (
+                        "初查、目录和新补查计document_search首查总额；续页计工具与步骤，每条最多五页。"
+                    ),
+                },
+                "action_limits": copy.deepcopy(getattr(settings, "analysis_v2_action_limits", {})),
+            }
+            if kdd
+            else {}
+        ),
         "provider_status": status,
         "qualification": "取证覆盖决策，不代表科学结论或人工审批。",
     }
 
 
-def validate_frozen_policy(settings, frozen):
-    from bioradar.adapters.query_planner import provider_status
+def _language_alternatives(fixed):
+    return fixed.get("query_policy", {}).get("effective") == "query_planner"
 
-    if frozen.get("effective") == "baseline":
-        current = _baseline_source()
-        expected = frozen.get("source_sha256")
-    elif frozen.get("effective") == "query_planner":
-        current = provider_status(settings).get("version")
-        expected = frozen.get("source_sha256") or frozen.get("version")
-    else:
-        raise DomainError("query_policy_invalid", "保存的查询策略不可识别", 409)
-    if not current or current != expected:
-        raise DomainError("query_policy_version_changed", "查询策略源码与本轮固定版本不同，未重选动作", 409)
+
+def pagination_enabled(fixed):
+    return _language_alternatives(fixed)
 
 
 def question_plan_payload(fixed):
+    if _language_alternatives(fixed):
+        return {
+            "task": "question_plan",
+            "question": fixed["question"],
+            "search_scope": fixed["search_scope"],
+            "max_queries": min(3, fixed["budget"]["max_queries"]),
+            "retrieval_strategy_version": BOUNDED_INITIAL_VERSION,
+            "instruction": (
+                (
+                    "在允许来源内规划最多三项独立字面查询，每项最多三个词，预算更小时按max_queries。"
+                    "初查与目录、后续补查和续页共享总额，应保留后续余量。"
+                )
+                + "不同queries是依次可执行的OR备选；同一query的terms仍须全部字面同时满足（AND）。"
+                "根据问题中的实际对象或核心现象，安排原问题语言、英语等义表达及少量常用同义变体。"
+                "问题不是英语时，至少安排一个独立英语等义备选；"
+                "若对象只有固定专名或缩写且无需翻译，则保留原名并在reason说明。"
+                "绝不把不同语言或同义词强行放进同一terms要求同时出现。"
+                "优先仅用一个辨识力强的对象或核心现象词，不叠加试验类型、机制等额外限定。"
+                "只能翻译或改写问题已有含义，禁止补入问题未给的疾病、地点、年份、病例答案或文档编号。"
+                "reason说明原词与等义表达或同义变体的关系，并标明待检索假设、尚非原始事实或证据。"
+                "当前没有已读证据，不输出事实、命题或结论；一次字面查询为空不否定其余语言备选。"
+                + (
+                    "named_objects列出问题实际点名的对象；name必须逐字出现在问题里，"
+                    "question_span使用Unicode码点半开区间start/end。不要补入答案、材料编号或推测对象。"
+                    "独立对象各自列出；若名称组合表达两个对象的关系，可在components声明各子项的"
+                    "id/name/question_span，子项必须逐字位于该组合内。斜杠也可能是单个真实标识符，"
+                    "不能仅按标点拆分。读到子项仅表示材料提及对象，组合关系仍须另查。"
+                )
+            ),
+        }
     return {
         "task": "question_plan",
         "question": fixed["question"],
@@ -148,11 +275,12 @@ def validate_initial_plans(raw, fixed):
         plans = (
             [InitialQuery.model_validate(item) for item in raw]
             if explicit
-            else QuestionPlan.model_validate(raw).queries
+            else QuestionPlan.model_validate({k: v for k, v in raw.items() if k != "named_objects"}).queries
         )
     except ValueError:
         raise DomainError("analysis_question_plan_invalid", "初查规划格式无效，未补造查询", 422) from None
-    maximum = min(6 if explicit else 2, fixed["budget"]["max_queries"])
+    initial_limit = 6 if explicit else 3 if _language_alternatives(fixed) else 2
+    maximum = min(initial_limit, fixed["budget"]["max_queries"])
     if len(plans) > maximum:
         raise DomainError("analysis_query_budget", "初查规划超过本轮固定查询预算", 422)
     if any(plan.source_id not in fixed["search_scope"] for plan in plans):
@@ -202,7 +330,7 @@ def _check(identifier, question, *, reason=None):
         "status": "unknown",
         "evidence_ids": [],
         "reason": reason or "本轮尚未取得明确覆盖判断。",
-        "qualification": "机器取证覆盖判断，不是科学结论或人工审批。",
+        "qualification": COVERAGE_QUALIFICATION,
     }
 
 
@@ -237,12 +365,121 @@ def _gap_check_key(identifier, question=None, checks=None):
     return key
 
 
+_DIRECTION_CHECKS = {
+    "public_health": {
+        "warning_judgment": "是否预警、立即核实或继续观察及其条件；不以官方是否发文替代判断",
+        "independent_confirmation": "来源独立性、机构确认与转载去重",
+        "competing_hypotheses": "各竞争假设的支持、反证、未检验条件与区分证据",
+        "counterevidence": "反证、否定边界、替代解释与来源限制",
+        "count_revision": "人数去重、累计与净增以及更正替代关系",
+        "pathogen_uncertainty": "病原未确认、疑似与已排除的区别",
+        "transmission_uncertainty": "传播方式和持续人传人证据及未确认范围",
+    },
+    "business": {
+        "orders": "毛订单、净订单、退订及原始口径",
+        "corrections": "已知更正、撤回及其明确替代目标",
+        "comparable_periods": "同主体、指标、期间、币种与范围的可比性",
+        "revenue_recognition": "验收、收入确认、销售额的区别",
+        "cash_receipts": "现金、预收款和收入确认的区别",
+        "capacity_utilization": "产能利用率的实际口径与程序计算",
+        "sample_scope": "已采用样本和不能外推的总体范围",
+    },
+}
+_CLINICAL_CHECKS = {
+    "population": "限定人群、队列、入组与实际评价人数",
+    "endpoints": "预设终点、PFS与OS及不能外推的获益",
+    "safety": "早期和当前安全性、毒性以及不良事件上修",
+    "corrections": "同研究的更正、撤回和补充，不能当新研究",
+    "regulatory_status": "实际监管状态与批准边界",
+    "publication_status": "论文、会议、新闻稿与正式发表状态",
+}
+
+
+def normalize_policy_coverage(reading, declared_checks, evidence):
+    """Only model coverage decoration is recoverable; source/action checks stay strict."""
+    value = _plain(reading)
+    declared = {}
+    for check in declared_checks:
+        key = check.get("id")
+        if not isinstance(key, str) or not key or key in declared:
+            raise DomainError("analysis_policy_coverage_invalid", "覆盖检查声明编号无效或重复", 422)
+        declared[key] = check
+    if not isinstance(value, dict):
+        return value, []
+    rows = value.get("coverage_checks", [])
+    if not isinstance(rows, list):
+        return value, []
+    issues, reported = [], {}
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str):
+            return value, []
+        reported.setdefault(row["id"], []).append(row)
+    normalized = []
+    for key, updates in reported.items():
+        if key not in declared:
+            issues.append({"check_id": key, "source": "model_coverage", "status": "unknown"})
+            continue
+        if len(updates) != 1:
+            normalized.append(
+                {
+                    "id": key,
+                    "status": "unknown",
+                    "evidence_ids": [],
+                    "reason": "模型重复报告同一覆盖编号，状态保留未知。",
+                }
+            )
+            issues.append({"check_id": key, "source": "model_coverage", "status": "unknown"})
+        else:
+            normalized.append(copy.deepcopy(updates[0]))
+    available = {row["key"] for row in evidence}
+    for row in normalized:
+        refs = row.get("evidence_ids", [])
+        if row.get("status") == "passed" and (
+            not refs or not isinstance(refs, list) or any(ref not in available for ref in refs)
+        ):
+            row.update(status="unknown", evidence_ids=[], reason="覆盖声明未绑定本轮已读证据。")
+            issues.append({"check_id": row["id"], "source": "model_coverage", "status": "unknown"})
+    value["coverage_checks"] = normalized
+    for plan in value.get("next_queries", []):
+        if not isinstance(plan, dict) or not isinstance(plan.get("coverage_check_ids", []), list):
+            continue
+        identifiers = plan.get("coverage_check_ids", [])
+        if any(not isinstance(key, str) for key in identifiers):
+            continue
+        valid = []
+        for key in identifiers:
+            if key not in declared or key in valid:
+                issues.append({"check_id": key, "source": "model_query_coverage", "status": "unknown"})
+            else:
+                valid.append(key)
+        if "coverage_check_ids" in plan:
+            plan["coverage_check_ids"] = valid
+    unique = {(item["source"], item["check_id"]): item for item in issues}
+    return value, list(unique.values())
+
+
+def _coverage_question_text(value):
+    """Keep structured provider gaps lossless while exposing a textual check question."""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    except (TypeError, ValueError):
+        raise DomainError(
+            "analysis_policy_coverage_invalid", "取证检查问题须为字符串或有限JSON值", 422
+        ) from None
+
+
 def build_coverage_checks(fixed, progress, *, reading=None):
     evidence_ids = {item["key"] for item in progress.get("evidence", [])}
     saved = progress.get("query_policy", {}).get("checks", [])
     external = fixed.get("query_policy", {}).get("effective") == "query_planner"
     checks, aliases = {}, {}
+    saved_ids = set()
     for original in saved:
+        if original.get("id") in saved_ids:
+            raise DomainError("analysis_policy_coverage_invalid", "已声明覆盖检查编号重复", 422)
+        saved_ids.add(original.get("id"))
         item = copy.deepcopy(original)
         old_key = item["id"]
         key = (
@@ -272,6 +509,35 @@ def build_coverage_checks(fixed, progress, *, reading=None):
     if _pipeline_question(fixed["question"]):
         for key, question in _PIPELINE_CHECKS.items():
             checks.setdefault(key, _check(key, question))
+    if external:
+        direction = fixed.get("query_policy", {}).get("direction", "research")
+        extra = dict(_DIRECTION_CHECKS.get(direction, {}))
+        if direction in {"research", "pipeline"} and any(
+            word in fixed["question"].casefold()
+            for word in ("药", "临床", "治疗", "试验", "trial", "therapy", "drug")
+        ):
+            extra.update(_CLINICAL_CHECKS)
+        for key, question in extra.items():
+            checks.setdefault(key, _check(key, question))
+        validated_objects = question_named_objects(
+            fixed, progress.get("query_policy", {}).get("named_objects", [])
+        )
+        for item in validated_objects:
+            if item.get("components"):
+                key = "question_relation:" + _hash([item["name"], item["question_span"]])[:12]
+                checks.setdefault(
+                    key,
+                    _check(
+                        key,
+                        "原问题组合“" + item["name"] + "”的关系及成立条件是否有材料支持；"
+                        "子项分别被提及只完成对象查找，不能代替关系取证。",
+                    ),
+                )
+        from bioradar.adapters.fixed_graph import question_relationship_need
+
+        need = question_relationship_need(fixed, validated_objects)
+        if need:
+            checks.setdefault(need["id"], _check(need["id"], need["question"]))
     value = _plain(reading) if reading else {}
     for gap in value.get("gaps", []):
         question = gap["question"]
@@ -317,14 +583,18 @@ def build_coverage_checks(fixed, progress, *, reading=None):
                 reason="成稿核验或所选片段复核提出的取证缺口；先检查已读原文，再规划必要补查。",
             ),
         )
+    value, _ = normalize_policy_coverage(value, list(checks.values()), progress.get("evidence", []))
     seen = set()
     for update in value.get("coverage_checks", []):
         update = _plain(update)
         key = update.get("id")
         if external and key not in checks:
             key = aliases.get(key, key)
-        if key not in checks or key in seen or update.get("status") not in {"passed", "failed", "unknown"}:
-            raise DomainError("analysis_policy_coverage_invalid", "覆盖判断引用未声明或重复的检查", 422)
+        if key not in checks:
+            continue
+        if key in seen or update.get("status") not in {"passed", "failed", "unknown"}:
+            checks[key].update(status="unknown", evidence_ids=[], reason="模型覆盖声明无效，保留未知。")
+            continue
         seen.add(key)
         checks[key].update(
             {k: copy.deepcopy(update[k]) for k in ("status", "evidence_ids", "reason") if k in update}
@@ -342,7 +612,7 @@ def build_coverage_checks(fixed, progress, *, reading=None):
             )
         elif not valid_refs:
             item["evidence_ids"] = []
-        item["qualification"] = "机器取证覆盖判断，不是科学结论或人工审批。"
+        item["qualification"] = COVERAGE_QUALIFICATION
     if evidence_ids:
         checks["source_materials"].update(
             status="passed",
@@ -355,6 +625,9 @@ def build_coverage_checks(fixed, progress, *, reading=None):
         )
     if len(checks) > 64:
         raise DomainError("analysis_policy_input_limit", "本轮取证覆盖检查超过策略接口上限", 422)
+    for item in checks.values():
+        # Also cover saved checks received before structured quality gaps were supported.
+        item["question"] = _coverage_question_text(item.get("question"))
     return list(checks.values())
 
 
@@ -382,8 +655,24 @@ def _action_arguments(plan, provider, phase, index, fixed):
         "phase": phase,
         "index": index,
         "plan": copy.deepcopy(plan),
-        "as_of": fixed.get("as_of"),
+        "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of"))
+        if fixed.get("query_policy", {}).get("research_contract_version")
+        else fixed.get("as_of"),
         "mode": fixed.get("evidence_time", {}).get("mode", "current"),
+        **(
+            {
+                "limit": fixed.get("reading_limits", {}).get("search_limit", 8),
+                "is_demo": fixed.get("is_demo", False),
+                "scope": {
+                    "direction": fixed["query_policy"].get("direction", "research"),
+                    "mode": fixed.get("evidence_time", {}).get("mode", "current"),
+                    "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of")),
+                    "is_demo": fixed.get("is_demo", False),
+                },
+            }
+            if provider == "fabric" and pagination_enabled(fixed)
+            else {}
+        ),
     }
 
 
@@ -425,19 +714,60 @@ def _category_covers(plan, checks, reading, *, normalize_gaps=False):
     return list(dict.fromkeys(covers))
 
 
+def _required_gap_discovery(fixed):
+    return (
+        _language_alternatives(fixed)
+    )
+
+
+def _required_discovery_checks(checks):
+    return [
+        item["id"]
+        for item in checks
+        if item["id"] not in {"source_materials", "answer_scope"}
+        and not item["id"].startswith("kdd_")
+        and item.get("required", True) is True
+        and type(item.get("importance", 1)) in {int, float}
+        and item.get("importance", 1) > 0
+        and item.get("status") != "passed"
+    ]
+
+
 def _candidate(plan, provider, phase, index, fixed, checks, reading):
     arguments = _action_arguments(plan, provider, phase, index, fixed)
+    hypothesis = _language_alternatives(fixed) and phase == "initial"
+    if hypothesis:
+        arguments["plan"]["reason"] = "待检索假设（非原始事实或证据）：" + plan["reason"]
+    covers = _category_covers(
+        plan,
+        checks,
+        reading,
+        normalize_gaps=fixed.get("query_policy", {}).get("effective") == "query_planner",
+    )
+    if _required_gap_discovery(fixed) and hypothesis and provider == "fabric":
+        unmet = _required_discovery_checks(checks)
+        passed = {item["id"] for item in checks if item.get("status") == "passed"}
+        if unmet and set(covers).issubset(passed):
+            covers = list(dict.fromkeys(covers + unmet))
+            arguments["plan"]["reason"] += "；本备选尚未执行，待查当前重要缺口，不保证能解决这些缺口。"
     key = semantic_key("document_search", arguments)
     return {
         "id": f"{phase}-{provider}-{index}-" + key[:16],
         "kind": "document_search",
         "arguments": arguments,
-        "covers": _category_covers(
-            plan,
-            checks,
-            reading,
-            normalize_gaps=fixed.get("query_policy", {}).get("effective") == "query_planner",
+        **(
+            {
+                "reason": arguments["plan"]["reason"],
+                "applicability": {
+                    "status": "eligible",
+                    "scope_match": 1,
+                    "reason": "固定问题规划的独立字面备选，执行前仍核当前来源许可。",
+                },
+            }
+            if hypothesis
+            else {}
         ),
+        "covers": covers,
         "estimated_cost": {
             "tool_calls": 1,
             "tokens": 0 if provider == "fabric" else None,
@@ -449,7 +779,8 @@ def _candidate(plan, provider, phase, index, fixed, checks, reading):
 def _receipt_matches(query, candidate):
     arguments = candidate["arguments"]
     return (
-        query.get("provider", "fabric") == arguments["provider"]
+        query.get("kind", "document_search") == candidate["kind"]
+        and query.get("provider", "fabric") == arguments["provider"]
         and query.get("phase", "followup") == arguments["phase"]
         and query["index"] == arguments["index"]
     )
@@ -461,7 +792,9 @@ def _indices(plans, phase, queries, fixed):
     previous = [
         query
         for query in queries
-        if query.get("phase", "followup") == phase and query.get("provider", "fabric") == "fabric"
+        if query.get("kind", "document_search") == "document_search"
+        and query.get("phase", "followup") == phase
+        and query.get("provider", "fabric") == "fabric"
     ]
     next_index = max((query["index"] for query in previous), default=-1) + 1
     result = []
@@ -517,7 +850,8 @@ def _relaxation_candidate(fixed, progress, plans, phase, checks, reading, origin
         candidate = _candidate(relaxed, "fabric", phase, index, fixed, checks, reading)
         key = semantic_key(candidate["kind"], candidate["arguments"])
         if any(
-            query.get("provider", "fabric") == "fabric"
+            query.get("kind", "document_search") == "document_search"
+            and query.get("provider", "fabric") == "fabric"
             and semantic_key(
                 "document_search",
                 _action_arguments(
@@ -588,6 +922,11 @@ def _history(fixed, progress):
                 "status": status,
                 "new_evidence_ids": [key for key in query.get("evidence_keys", []) if key in current],
                 "actual_cost": copy.deepcopy(actual),
+                **(
+                    {"pagination": copy.deepcopy(query["pagination"])}
+                    if query.get("pagination") is not None
+                    else {}
+                ),
             }
         )
     pending = _selected_action(state.get("pending_action"))
@@ -611,6 +950,25 @@ def _history(fixed, progress):
     return history
 
 
+def search_query_count(fixed, progress):
+    """KDD first-page searches have their own limit; every page still costs tools/steps."""
+    queries = progress.get("queries", [])
+    if not _language_alternatives(fixed):
+        return len(queries)
+    actions = {
+        action["id"]: action
+        for entry in progress.get("query_policy", {}).get("decisions", [])
+        if (action := _selected_action(entry))
+    }
+    return sum(
+        query.get("kind", "document_search") == "document_search"
+        and not actions.get(query.get("action_id"), {}).get("arguments", {}).get("cursor")
+        and not (query.get("usage") or {}).get("search_cursor")
+        and (query.get("pagination") or {}).get("page_number", 1) == 1
+        for query in queries
+    )
+
+
 def _policy_budget(fixed, progress):
     supplied = progress.get("query_policy", {}).get("budget")
     if supplied:
@@ -632,6 +990,623 @@ def _policy_budget(fixed, progress):
     return {"limits": limits, "remaining": remaining}
 
 
+def build_read_manifest(fixed, progress, *, fixed_version_refs=(), checks=None):
+    """Only fixed/adopted originals and actual successful query receipts may name a read."""
+    if not _language_alternatives(fixed):
+        return []
+    scope = set(fixed.get("search_scope", [])) | {
+        item["source_id"] for item in fixed.get("dependency_sources", []) if item.get("history")
+    }
+    known, metadata, read, windows = {}, {}, set(), {}
+
+    def bind(value):
+        value = _plain(value)
+        if not isinstance(value, dict):
+            return None
+        if "is_demo" in value and value["is_demo"] is not fixed.get("is_demo", False):
+            return None
+        ref = value.get("record_ref", value)
+        if isinstance(ref, dict) and isinstance(ref.get("object_id"), str):
+            try:
+                native = json.loads(ref["object_id"])
+            except (ValueError, TypeError):
+                return None
+            if (
+                not isinstance(native, list)
+                or len(native) != 3
+                or native[2] is not fixed.get("is_demo", False)
+            ):
+                return None
+            sid, rid, version = native[0], native[1], ref.get("adopted_version")
+        else:
+            sid = value.get("source_id")
+            rid = value.get("source_record_id", value.get("record_id"))
+            version = value.get("version_id", value.get("version"))
+        if sid not in scope or not all(isinstance(x, str) and x for x in (sid, rid, version)):
+            return None
+        if len(version) != 64 or any(c not in "0123456789abcdef" for c in version):
+            return None
+        return sid, rid, version
+
+    def adopt(value):
+        key = bind(value)
+        if key is not None:
+            known[key] = {
+                "source_id": key[0],
+                "source_record_id": key[1],
+                "version_id": key[2],
+                "status": "unread",
+                "priority": "normal",
+                "reason": "scope",
+                "covers": ["answer_scope"],
+            }
+            metadata.setdefault(key, []).append(_plain(value))
+        return key
+
+    fixed_members = (
+        list(fixed_version_refs)
+        + progress.get("kdd_source_version_refs", [])
+        + progress.get("kdd_source_catalog", [])
+        + fixed.get("evidence", [])
+    )
+    for value in fixed_members:
+        adopt(value)
+    for value in progress.get("evidence", []):
+        key = adopt(value)
+        if key is not None:
+            read.add(key)
+            if (
+                type(value.get("end")) is int
+                and type(value.get("source_length")) is int
+                and 0 <= value["end"] <= value["source_length"]
+            ):
+                old = windows.get(key, (0, value["source_length"]))
+                windows[key] = (max(old[0], value["end"]), value["source_length"])
+    for query in progress.get("queries", []):
+        if query.get("status") == "read":
+            for value in query.get("records", []):
+                adopt(value)
+    declared = {
+        x["id"]
+        for x in (checks if checks is not None else progress.get("query_policy", {}).get("checks", []))
+    }
+    declared.add("answer_scope")
+
+    def critical(key, reason, covers=(), *, basis=None):
+        if key in known:
+            if basis is None:
+                return
+            known[key].update(priority="critical", reason=reason, basis=copy.deepcopy(basis))
+            known[key]["covers"] = list(
+                dict.fromkeys([x for x in covers if x in declared] + known[key]["covers"])
+            )
+
+    for key, items in metadata.items():
+        for item in items:
+            context = item.get("signal_context") or {}
+            relations = context.get("source_relations", [])
+            for relation in relations:
+                if relation.get("kind") in {"correction", "retraction"}:
+                    basis = {"kind": "visible_source_relation", "reference_ids": [key[1]]}
+                    critical(
+                        key,
+                        "correction",
+                        ["corrections", "count_revision", "counterevidence"],
+                        basis=basis,
+                    )
+                    target = bind(relation.get("target_ref", {}))
+                    critical(
+                        target,
+                        "correction",
+                        ["corrections", "count_revision", "counterevidence"],
+                        basis=basis,
+                    )
+            facts = item.get("facts") or {}
+            document = (
+                item.get("source_context")
+                or item.get("document_evidence")
+                or facts.get("document_evidence")
+                or context.get("document_evidence")
+                or {}
+            )
+            for relation in document.get("document_relations", []):
+                if relation.get("relation_type") not in {"corrects", "retracts"}:
+                    continue
+                basis = {"kind": "visible_source_relation", "reference_ids": [key[1]]}
+                critical(key, "correction", ["corrections", "count_revision", "counterevidence"], basis=basis)
+                target = bind(
+                    {
+                        "source_id": relation.get("target_source_id"),
+                        "source_record_id": relation.get("target_source_record_id"),
+                        "version_id": relation.get("target_version_id"),
+                    }
+                )
+                critical(
+                    target,
+                    "correction",
+                    ["corrections", "count_revision", "counterevidence"],
+                    basis=basis,
+                )
+            if set(item.get("record_flags", [])) & {"retracted", "corrected"}:
+                critical(
+                    key,
+                    "counterevidence",
+                    ["counterevidence", "corrections"],
+                    basis={"kind": "visible_source_relation", "reference_ids": [key[1]]},
+                )
+    quality = progress.get("quality_feedback") or {}
+    requests = list(quality.get("read_requests") or [])
+    for gap in quality.get("evidence_gaps", []):
+        requests.extend(gap.get("read_requests") or [])
+    for request in requests:
+        if not isinstance(request, dict):
+            continue
+        matches = [
+            key
+            for key in known
+            if key[1] == request.get("record_id")
+            and key[2] == request.get("version")
+            and (not request.get("source_id") or key[0] == request["source_id"])
+        ]
+        if len(matches) == 1:
+            quality_checks = [x for x in declared if x.startswith("quality:")]
+            if quality_checks:
+                critical(
+                    matches[0],
+                    "counterevidence",
+                    quality_checks,
+                    basis={"kind": "observed_gap", "reference_ids": quality_checks},
+                )
+    for key in read:
+        known[key]["status"] = "read"
+        if key in windows:
+            end, length = windows[key]
+            if end < length:
+                known[key].update(status="unread", window_start=end)
+    return sorted(
+        known.values(),
+        key=lambda x: (x["priority"] != "critical", x["source_id"], x["source_record_id"], x["version_id"]),
+    )
+
+
+def document_read_candidates(fixed, progress, manifest, checks):
+    """A one-record fixed read has the same legality and retry identity as its receipt."""
+    if not _language_alternatives(fixed):
+        return []
+    declared = {item["id"] for item in checks}
+    result = []
+    for item in manifest:
+        if item["status"] != "unread":
+            continue
+        args = {
+            "provider": "fabric",
+            "source_id": item["source_id"],
+            "records": [
+                {
+                    "source_record_id": item["source_record_id"],
+                    "version_id": item["version_id"],
+                    **({"window_start": item["window_start"]} if "window_start" in item else {}),
+                }
+            ],
+            "scope": {
+                "direction": fixed["query_policy"].get("direction", "research"),
+                "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of")),
+                "mode": fixed.get("evidence_time", {}).get("mode", "current"),
+                "is_demo": fixed.get("is_demo", False),
+            },
+        }
+        result.append(
+            {
+                "id": "read:" + semantic_key("document_read", args)[:32],
+                "kind": "document_read",
+                "arguments": args,
+                "covers": [key for key in item["covers"] if key in declared],
+                "reason": item["reason"],
+                "applicability": {
+                    "status": "eligible",
+                    "scope_match": 1,
+                    "reason": "原件版本及Unicode窗口来自本轮已采用manifest；执行前仍核当前许可。",
+                },
+                "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
+            }
+        )
+    return result
+
+
+def _pagination_covers(fixed, progress, previous, checks):
+    """A continuation retains only still-unmet checks of its recorded parent action."""
+    declared = {item["id"]: item for item in checks}
+    covers = [key for key in ("source_materials", "answer_scope") if key in declared]
+    if not _language_alternatives(fixed):
+        return covers
+    entries = [
+        entry
+        for entry in progress.get("query_policy", {}).get("decisions", [])
+        if (_selected_action(entry) or {}).get("id") == previous["action_id"]
+    ]
+    queries = [q for q in progress.get("queries", []) if q.get("action_id") == previous["action_id"]]
+    if len(entries) != 1 or len(queries) != 1:
+        return covers
+    parent = _selected_action(entries[0])
+    query, args = queries[0], parent["arguments"]
+    if (
+        parent["kind"] != "document_search"
+        or not _receipt_matches(query, parent)
+        or any(query.get("plan", {}).get(key) != args.get(key) for key in ("source_id", "terms"))
+        or semantic_key(parent["kind"], args) != semantic_key(previous["kind"], previous["arguments"])
+    ):
+        return covers
+    original_checks = {item["id"] for item in (entries[0].get("policy_request") or {}).get("checks", [])}
+    for key in parent.get("covers", []):
+        if (
+            key in original_checks
+            and key in declared
+            and declared[key]["status"] != "passed"
+            and key not in covers
+        ):
+            covers.append(key)
+    return covers
+
+
+def pagination_candidates(fixed, progress, checks):
+    """Offer only the exact next page returned by a completed, fixed Fabric query."""
+    if not pagination_enabled(fixed):
+        return []
+    history = _history(fixed, progress)
+    if any(entry["status"] in _PENDING for entry in history):
+        return []
+    attempted = {semantic_key(entry["kind"], entry["arguments"]) for entry in history}
+    candidates = []
+    for previous in history:
+        page, args = previous.get("pagination") or {}, previous["arguments"]
+        if (
+            previous["kind"] != "document_search"
+            or previous["status"] != "completed"
+            or args.get("provider") != "fabric"
+            or not page.get("has_more")
+            or not isinstance(page.get("next_cursor"), str)
+            or not page["next_cursor"]
+            or type(page.get("max_seq")) is not int
+            or page["max_seq"] < 0
+            or type(page.get("page_number")) is not int
+            or not 1 <= page["page_number"] < 5
+            or args.get("source_id") not in fixed["search_scope"]
+        ):
+            continue
+        original = args.get("plan") or {
+            "source_id": args["source_id"],
+            "terms": args["terms"],
+            "reason": "读取实际后续页",
+        }
+        next_args = _action_arguments(
+            original,
+            "fabric",
+            args.get("phase", "followup"),
+            len(history) + len(candidates),
+            fixed,
+        )
+        # A frozen page is tied to the exact original query, page size and source scope.
+        for key in ("provider", "source_id", "terms", "limit", "mode", "as_of", "is_demo", "scope"):
+            if key not in args or args[key] != next_args[key]:
+                raise DomainError("analysis_query_invalid", "已存分页回执与固定查询范围不符", 422)
+        next_args.update(
+            cursor=page["next_cursor"],
+            previous_action_id=previous["action_id"],
+            page_number=page["page_number"] + 1,
+            max_seq=page["max_seq"],
+        )
+        if args.get("catalog_discovery") is True:
+            next_args["catalog_discovery"] = True
+        identity = semantic_key("document_search", next_args)
+        if identity in attempted:
+            continue
+        reason = "上一页真实回执仍有后续资料；按同一来源、查询、时点和页大小继续一页。"
+        candidates.append(
+            {
+                "id": "page:" + identity[:32],
+                "kind": "document_search",
+                "arguments": next_args,
+                "covers": _pagination_covers(fixed, progress, previous, checks),
+                "reason": reason,
+                "applicability": {"status": "eligible", "scope_match": 1, "reason": reason},
+                "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
+            }
+        )
+    return candidates
+
+
+def _repeat_search_catalog_basis(fixed, progress, history, checks):
+    """Require received duplicate originals, rather than a zero adoption counter alone."""
+    check_ids = _required_discovery_checks(checks)
+    manifest = build_read_manifest(fixed, progress, checks=checks)
+    if not check_ids or not manifest or any(item["status"] != "read" for item in manifest):
+        return {}, set()
+    adopted = {(item["source_id"], item["source_record_id"], item["version_id"]) for item in manifest}
+    completed, duplicate, closed_pages, open_pages = set(), {}, set(), []
+    for index, (query, entry) in enumerate(zip(progress.get("queries", []), history, strict=False)):
+        args = entry["arguments"]
+        source_id = args.get("source_id") or (args.get("parameters") or {}).get("source_id")
+        usage = query.get("usage") or {}
+        actual_cost = entry.get("actual_cost") or {}
+        cost = actual_cost.get("tool_calls")
+        request_status = usage.get("request_status")
+        confirmed = (
+            entry["status"] == "completed"
+            and query.get("status") in {"read", "empty"}
+            and type(cost) is int
+            and cost >= 1
+            and all(value is not None for value in actual_cost.values())
+            and request_status not in {"not_sent", "unknown", "unconfirmed"}
+            and not usage.get("adoption_stop_reason")
+            and not (usage.get("fetch") or {}).get("adoption_stop_reason")
+        )
+        zero_increment = (
+            confirmed
+            and type(query.get("new_versions")) is int
+            and query["new_versions"] == 0
+            and not query.get("evidence_keys")
+        )
+        if entry["kind"] != "document_search" or args.get("provider") != "fabric":
+            # Later reads/fetches can invalidate an old duplicate, but cannot prove one.
+            if not zero_increment or query.get("has_more"):
+                duplicate.pop(source_id, None)
+            continue
+        if args.get("catalog_discovery") is True:
+            continue
+        records, returned = query.get("records"), query.get("returned")
+        expected = _action_arguments(query["plan"], "fabric", args.get("phase"), query["index"], fixed)
+        known = (
+            confirmed
+            and type(returned) is int
+            and returned >= 0
+            and isinstance(records, list)
+            and len(records) == returned
+            and (query["status"] == "empty") == (returned == 0)
+            and all(
+                args.get(key) == expected[key]
+                for key in ("provider", "source_id", "terms", "limit", "mode", "as_of", "is_demo", "scope")
+            )
+        )
+        if known:
+            completed.add(semantic_key("document_search", args))
+            if args.get("previous_action_id"):
+                closed_pages.add(args["previous_action_id"])
+            if (entry.get("pagination") or {}).get("has_more"):
+                open_pages.append((source_id, entry["action_id"]))
+        if not (known and zero_increment):
+            duplicate.pop(source_id, None)
+            continue
+        if returned == 0:
+            continue
+        if all(
+            isinstance(record, dict)
+            and record.get("is_demo") is fixed.get("is_demo", False)
+            and record.get("source_id") == source_id
+            and all(isinstance(record.get(key), str) for key in ("source_record_id", "version_id"))
+            and (record["source_id"], record["source_record_id"], record["version_id"]) in adopted
+            for record in records
+        ):
+            duplicate[source_id] = {
+                "version": DISCOVERY_VERSION,
+                "kind": "required_gap_repeat_search",
+                "query_index": index,
+                "check_ids": list(check_ids),
+            }
+        else:
+            duplicate.pop(source_id, None)
+    for source_id, action_id in open_pages:
+        if action_id not in closed_pages:
+            duplicate.pop(source_id, None)
+    return duplicate, completed
+
+
+def catalog_discovery_candidates(fixed, progress, plans, checks):
+    """One scoped directory page after exhausted literal alternatives and confirmed receipts."""
+    partial = bool(progress.get("evidence"))
+    if not _language_alternatives(fixed) or (partial and not _required_gap_discovery(fixed)):
+        return []
+    history = _history(fixed, progress)
+    if any(entry["status"] in _PENDING for entry in history):
+        return []
+    initial = [_plain(plan) for plan in plans]
+    by_source = {}
+    for plan in initial:
+        if plan["source_id"] not in fixed["search_scope"]:
+            raise DomainError("analysis_query_invalid", "目录发现越过本轮授权来源", 422)
+        key = semantic_key("document_search", _action_arguments(plan, "fabric", "initial", 0, fixed))
+        by_source.setdefault(plan["source_id"], set()).add(key)
+    observed_empty, attempted_directory = set(), set()
+    for query, entry in zip(progress.get("queries", []), history, strict=False):
+        args = entry["arguments"]
+        if entry["kind"] != "document_search" or args.get("provider") != "fabric":
+            continue
+        if args.get("catalog_discovery") is True:
+            attempted_directory.add(args.get("source_id"))
+            continue
+        cost = (query.get("cost") or {}).get("tool_calls")
+        request_status = (query.get("usage") or {}).get("request_status")
+        if (
+            query.get("status") == "empty"
+            and type(query.get("returned")) is int
+            and query["returned"] == 0
+            and type(cost) is int
+            and cost >= 1
+            and request_status not in {"not_sent", "unknown", "unconfirmed"}
+        ):
+            observed_empty.add(semantic_key("document_search", args))
+    repeat_basis, completed = (
+        _repeat_search_catalog_basis(fixed, progress, history, checks) if partial else ({}, set())
+    )
+    declared = {item["id"] for item in checks}
+    limit = fixed.get("reading_limits", {}).get("search_limit", 8)
+    if type(limit) is not int or not 1 <= limit <= 20:
+        raise DomainError("analysis_query_invalid", "目录发现页大小不在固定读取范围内", 422)
+    result = []
+    for offset, (source_id, required) in enumerate(sorted(by_source.items())):
+        basis = repeat_basis.get(source_id)
+        exhausted = (
+            bool(basis) and required.issubset(completed) if partial else required.issubset(observed_empty)
+        )
+        if source_id in attempted_directory or not exhausted:
+            continue
+        reason = (
+            "该来源初查均已完成，最近连续零新增查询中已确认只命中本轮已读固定版本；仍有重要必查缺口。"
+            if basis
+            else "该来源的独立语言或同义备选均实际返回空，且本轮尚无已读证据；"
+        ) + (
+            "先读取同一授权来源、同一时点的一页固定原件；真实后续页仍逐页占用查询额度，所得候选仍非证据。"
+            if pagination_enabled(fixed)
+            else "仅发现同一授权来源、同一时点的一页固定原件，不翻页、不搜全网，所得候选仍非证据。"
+        )
+        plan = {"source_id": source_id, "terms": [], "reason": reason}
+        args = _action_arguments(plan, "fabric", "initial", len(initial) + 1 + offset, fixed)
+        args.update(
+            catalog_discovery=True,
+            limit=limit,
+            is_demo=fixed.get("is_demo", False),
+            scope={
+                "direction": fixed["query_policy"].get("direction", "research"),
+                "as_of": fixed.get("evidence_time", {}).get("cutoff", fixed.get("as_of")),
+                "mode": fixed.get("evidence_time", {}).get("mode", "current"),
+                "is_demo": fixed.get("is_demo", False),
+            },
+        )
+        result.append(
+            {
+                "id": "catalog:" + semantic_key("document_search", args)[:32],
+                "kind": "document_search",
+                "arguments": args,
+                "covers": list(
+                    dict.fromkeys(
+                        [key for key in ("source_materials", "answer_scope") if key in declared]
+                        + (basis["check_ids"] if basis else [])
+                    )
+                ),
+                **({"discovery_basis": copy.deepcopy(basis)} if basis else {}),
+                "reason": reason,
+                "applicability": {
+                    "status": "eligible",
+                    "scope_match": 1,
+                    "reason": (
+                        "仅本来源全部初查已完成且确认重复命中，目录仍是待查假设；发送前核许可与固定时点。"
+                        if basis
+                        else "仅本来源已有全部字面空回执；发送前仍核当前许可与固定时点。"
+                    ),
+                },
+                "estimated_cost": {"tool_calls": 1, "tokens": 0, "relation_access": 0},
+            }
+        )
+    return result
+
+
+def question_named_objects(fixed, raw):
+    """Accept only exact spans of the user's question, never inferred answer objects."""
+    result, seen = [], set()
+    for item in raw:
+        span = item.get("question_span", {})
+        start, end = span.get("start"), span.get("end")
+        if (
+            type(start) is not int
+            or type(end) is not int
+            or not 0 <= start < end <= len(fixed["question"])
+            or item.get("name") != fixed["question"][start:end]
+            or not isinstance(item.get("id"), str)
+            or not item["id"]
+            or item["id"] in seen
+        ):
+            raise DomainError("analysis_question_object_invalid", "点名对象未绑定原问题的准确位置", 422)
+        seen.add(item["id"])
+        value = {key: copy.deepcopy(item[key]) for key in ("id", "name", "question_span")}
+        components = item.get("components", [])
+        if components:
+            if (
+                not isinstance(components, list)
+                or not 2 <= len(components) <= 4
+                or any(c.get("components") for c in components if isinstance(c, dict))
+            ):
+                raise DomainError(
+                    "analysis_question_object_invalid", "组合对象须明确列出二至四个原文子项", 422
+                )
+            members = question_named_objects(fixed, components)
+            ordered = sorted(members, key=lambda c: c["question_span"]["start"])
+            if any(
+                not start <= c["question_span"]["start"] < c["question_span"]["end"] <= end
+                or c["id"] == item["id"]
+                for c in members
+            ) or any(
+                a["question_span"]["end"] > b["question_span"]["start"] for a, b in zip(ordered, ordered[1:])
+            ):
+                raise DomainError("analysis_question_object_invalid", "组合子项须位于原名称内且不能重叠", 422)
+            value["components"] = members
+        result.append(value)
+    return result
+
+
+def _object_occurs(name, text):
+    left = r"(?<![A-Za-z0-9_-])" if name and name[0].isascii() and name[0].isalnum() else ""
+    right = r"(?![A-Za-z0-9_-])" if name and name[-1].isascii() and name[-1].isalnum() else ""
+    return bool(name and re.search(left + re.escape(name) + right, text, re.IGNORECASE))
+
+
+def named_object_context(fixed, progress, candidates, checks):
+    objects = question_named_objects(fixed, progress.get("query_policy", {}).get("named_objects", []))
+    history = _history(fixed, progress)
+    attempted = {semantic_key(item["kind"], item["arguments"]) for item in history}
+
+    def read_object(item):
+        refs = [
+            e["key"] for e in progress.get("evidence", []) if _object_occurs(item["name"], e.get("text", ""))
+        ]
+        ids = []
+        if not refs:
+            for source in fixed["search_scope"]:
+                plan = {
+                    "source_id": source,
+                    "terms": [item["name"]],
+                    "reason": "补查问题点名但已读正文尚未覆盖的对象",
+                }
+                candidate = _candidate(plan, "fabric", "followup", len(history), fixed, checks, {})
+                identity = semantic_key(candidate["kind"], candidate["arguments"])
+                if identity not in attempted and not any(c["id"] == candidate["id"] for c in candidates):
+                    candidates.append(candidate)
+            for candidate in candidates:
+                args = candidate["arguments"]
+                terms = args.get("terms", [])
+                query = args.get("parameters", {}).get("query", "")
+                if any(item["name"].casefold() in term.casefold() for term in terms) or (
+                    query and item["name"].casefold() in query.casefold()
+                ):
+                    ids.append(candidate["id"])
+        return {
+            **item,
+            "status": "read" if refs else "unread" if ids else "unavailable",
+            "evidence_ids": refs,
+            "candidate_ids": ids,
+            **(
+                {"reason": "本轮已尝试的查询未取得该对象正文，且没有可执行候选。"}
+                if not refs and not ids
+                else {}
+            ),
+        }
+
+    output = []
+    for item in objects:
+        if not item.get("components"):
+            output.append(read_object(item))
+            continue
+        for member in item["components"]:
+            value = read_object(member)
+            value["id"] = item["id"] + ":" + member["id"]
+            value["reason"] = (
+                "来自原问题组合“"
+                + item["name"]
+                + "”；这里只记录子项提及，组合关系仍由question_relation覆盖项评价。"
+                + value.get("reason", "")
+            )
+            output.append(value)
+    return output
+
+
 def build_policy_context(
     fixed, progress, *, phase, plans, reading=None, provider_status=None, graph_candidates=None
 ):
@@ -641,6 +1616,16 @@ def build_policy_context(
     value = _plain(reading) if reading else {}
     plans = [_plain(plan) for plan in plans]
     checks = build_coverage_checks(fixed, progress, reading=value)
+    coverage_issues = []
+    if policy == "query_planner":
+        value, coverage_issues = normalize_policy_coverage(value, checks, progress.get("evidence", []))
+        normalized_plans, plan_issues = normalize_policy_coverage(
+            {"next_queries": plans}, checks, progress.get("evidence", [])
+        )
+        plans = normalized_plans["next_queries"]
+        coverage_issues = list(
+            {(item["source"], item["check_id"]): item for item in coverage_issues + plan_issues}.values()
+        )
     queries = progress.get("queries", [])
     history = _history(fixed, progress)
     stages = [(phase, plans)]
@@ -648,7 +1633,8 @@ def build_policy_context(
         initial = state.get("initial_plans") or fixed.get("retrieval", {}).get("initial_queries", [])
         if initial:
             stages.insert(0, ("initial", [_plain(plan) for plan in initial]))
-    candidates = []
+    reading_manifest = build_read_manifest(fixed, progress, checks=checks)
+    candidates = document_read_candidates(fixed, progress, reading_manifest, checks)
     for stage, items in stages:
         originals = [
             _candidate(plan, "fabric", stage, index, fixed, checks, value)
@@ -664,19 +1650,35 @@ def build_policy_context(
             relaxed = _relaxation_candidate(fixed, progress, items, stage, checks, value, originals)
             if relaxed and not any(_receipt_matches(query, relaxed) for query in queries):
                 candidates.append(relaxed)
+    initial = next((items for stage, items in stages if stage == "initial"), [])
+    candidates.extend(catalog_discovery_candidates(fixed, progress, initial, checks))
+    candidates.extend(pagination_candidates(fixed, progress, checks))
     status = provider_status or fixed.get("providers", {})
     weknora = status.get("weknora", {})
     available = weknora.get("available", False) if isinstance(weknora, dict) else bool(weknora)
     mode = fixed.get("evidence_time", {}).get("mode", "current")
+    if fixed.get("is_demo"):
+        available = bool(
+            policy == "query_planner"
+            and isinstance(weknora, dict)
+            and weknora.get("is_demo") is True
+            and weknora.get("knowledge_base_id")
+            and weknora.get("source_scope")
+            and available
+        )
     if (
         plans
         and available
         and mode == "current"
         and not any(query.get("provider") == "weknora" for query in queries)
-        and len(progress.get("evidence", [])) < 10
+        and len({_hash(item["record_ref"]) for item in progress.get("evidence", [])})
+        < fixed.get("reading_limits", {}).get("max_versions", 10)
         and (policy == "query_planner" or not candidates)
     ):
         candidates.append(_candidate(plans[0], "weknora", phase, 0, fixed, checks, value))
+    named = []
+    if _language_alternatives(fixed):
+        named = named_object_context(fixed, progress, candidates, checks)
     if policy == "query_planner":
         for candidate in graph_candidates or []:
             item = _plain(candidate)
@@ -698,6 +1700,8 @@ def build_policy_context(
     return {
         "schema_version": SCHEMA_VERSION,
         "question": fixed["question"],
+        **({"discovery_version": DISCOVERY_VERSION} if _required_gap_discovery(fixed) else {}),
+        **({"named_objects": named} if named else {}),
         "checks": checks,
         "evidence": [
             {
@@ -713,6 +1717,12 @@ def build_policy_context(
         "candidates": candidates,
         "budget": _policy_budget(fixed, progress),
         "max_steps": fixed.get("query_policy", {}).get("max_steps", 12),
+        **(
+            {"action_limits": copy.deepcopy(fixed["query_policy"]["action_limits"])}
+            if "action_limits" in fixed.get("query_policy", {})
+            else {}
+        ),
+        **({"reading_manifest": reading_manifest} if reading_manifest else {}),
         "host_budget": copy.deepcopy(state.get("budget")),
         "phase": phase,
         "mechanism_context": mechanism_query_context(
@@ -721,6 +1731,16 @@ def build_policy_context(
         "quality_feedback": copy.deepcopy(progress.get("quality_feedback") or fixed.get("quality_feedback")),
         "graph_context": copy.deepcopy(state.get("graph_context", progress.get("graph_context", []))),
         "graph_history": copy.deepcopy(state.get("graph_history", progress.get("graph_history", []))),
+        **(
+            {
+                "coverage_issues": coverage_issues,
+                "warnings": [
+                    "模型覆盖检查编号未知或重复，保留未知：" + item["check_id"] for item in coverage_issues
+                ],
+            }
+            if coverage_issues
+            else {}
+        ),
         "coverage_qualification": "取证覆盖与预计查询方向，不代表科学结论或人工审批。",
     }
 

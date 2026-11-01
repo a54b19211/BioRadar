@@ -327,6 +327,45 @@
           "default": null,
           "title": "Source Url"
         },
+        "public_available_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Public Available At"
+        },
+        "availability_proof": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Availability Proof"
+        },
+        "signal_context": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SignalContext"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "ingestion_mode": {
           "default": "sample_export",
           "enum": [
@@ -644,6 +683,22 @@
           "title": "Regional Indicators",
           "type": "array"
         },
+        "graph_hints": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/GraphHint"
+          },
+          "title": "Graph Hints",
+          "type": "array"
+        },
+        "metric_observations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/MetricObservation"
+          },
+          "title": "Metric Observations",
+          "type": "array"
+        },
         "timeline": {
           "anyOf": [
             {
@@ -728,6 +783,106 @@
       "title": "Event",
       "type": "object"
     },
+    "GraphHint": {
+      "additionalProperties": false,
+      "description": "A fixed graph relation to verify; never a confirmed project or effect.",
+      "properties": {
+        "hint_ref": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "subject_id": {
+          "title": "Subject Id",
+          "type": "string"
+        },
+        "subject_label": {
+          "title": "Subject Label",
+          "type": "string"
+        },
+        "relation_type": {
+          "title": "Relation Type",
+          "type": "string"
+        },
+        "object_id": {
+          "title": "Object Id",
+          "type": "string"
+        },
+        "object_label": {
+          "title": "Object Label",
+          "type": "string"
+        },
+        "identity_statuses": {
+          "maxItems": 2,
+          "minItems": 2,
+          "prefixItems": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Identity Statuses",
+          "type": "array"
+        },
+        "review_status": {
+          "title": "Review Status",
+          "type": "string"
+        },
+        "declared_binding_status": {
+          "title": "Declared Binding Status",
+          "type": "string"
+        },
+        "originals_validated": {
+          "default": false,
+          "title": "Originals Validated",
+          "type": "boolean"
+        },
+        "query_terms": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Query Terms",
+          "type": "array"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "scope_description": {
+          "title": "Scope Description",
+          "type": "string"
+        },
+        "selection_truncated": {
+          "default": false,
+          "title": "Selection Truncated",
+          "type": "boolean"
+        },
+        "provenance": {
+          "$ref": "#/$defs/SectionProvenance"
+        }
+      },
+      "required": [
+        "hint_ref",
+        "subject_id",
+        "subject_label",
+        "relation_type",
+        "object_id",
+        "object_label",
+        "identity_statuses",
+        "review_status",
+        "declared_binding_status",
+        "scope_description",
+        "provenance"
+      ],
+      "title": "GraphHint",
+      "type": "object"
+    },
+    "JsonValue": {},
     "Locator": {
       "additionalProperties": false,
       "properties": {
@@ -807,6 +962,215 @@
         }
       },
       "title": "Locator",
+      "type": "object"
+    },
+    "MetricObservation": {
+      "additionalProperties": false,
+      "description": "An adopted typed metric; source parsing and binding remain upstream.",
+      "properties": {
+        "observation_id": {
+          "minLength": 1,
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "domain": {
+          "enum": [
+            "business",
+            "public_health"
+          ],
+          "title": "Domain",
+          "type": "string"
+        },
+        "subject_ref": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "metric_id": {
+          "minLength": 1,
+          "title": "Metric Id",
+          "type": "string"
+        },
+        "metric_version": {
+          "minLength": 1,
+          "title": "Metric Version",
+          "type": "string"
+        },
+        "value_lower": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Value Lower"
+        },
+        "value_upper": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "title": "Value Upper"
+        },
+        "unit": {
+          "minLength": 1,
+          "title": "Unit",
+          "type": "string"
+        },
+        "value_kind": {
+          "default": "other",
+          "enum": [
+            "monetary",
+            "count",
+            "ratio",
+            "other"
+          ],
+          "title": "Value Kind",
+          "type": "string"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
+        },
+        "reporting_scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reporting Scope"
+        },
+        "population": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Population"
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Region"
+        },
+        "period_start": {
+          "format": "date-time",
+          "title": "Period Start",
+          "type": "string"
+        },
+        "period_end": {
+          "format": "date-time",
+          "title": "Period End",
+          "type": "string"
+        },
+        "denominator": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Denominator"
+        },
+        "denominator_unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Denominator Unit"
+        },
+        "measurement_basis": {
+          "default": "unknown",
+          "enum": [
+            "reported",
+            "forecast",
+            "estimate",
+            "unknown"
+          ],
+          "title": "Measurement Basis",
+          "type": "string"
+        },
+        "binding_status": {
+          "default": "declared",
+          "enum": [
+            "source_bound",
+            "declared"
+          ],
+          "title": "Binding Status",
+          "type": "string"
+        },
+        "field_locators": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Field Locators",
+          "type": "object"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "provenance": {
+          "$ref": "#/$defs/SectionProvenance"
+        }
+      },
+      "required": [
+        "observation_id",
+        "domain",
+        "subject_ref",
+        "metric_id",
+        "metric_version",
+        "value_lower",
+        "value_upper",
+        "unit",
+        "period_start",
+        "period_end",
+        "provenance"
+      ],
+      "title": "MetricObservation",
       "type": "object"
     },
     "MiningEntity": {
@@ -1321,6 +1685,132 @@
       "title": "SectionProvenance",
       "type": "object"
     },
+    "SignalContext": {
+      "additionalProperties": false,
+      "description": "Attributed source claims; named sources are not thereby confirmed.",
+      "properties": {
+        "material_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Material Type"
+        },
+        "origin_group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origin Group"
+        },
+        "attribution": {
+          "default": "unknown",
+          "enum": [
+            "named_institution",
+            "named_author",
+            "anonymous",
+            "unknown"
+          ],
+          "title": "Attribution",
+          "type": "string"
+        },
+        "claimed_origin": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claimed Origin"
+        },
+        "entity_names": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Entity Names",
+          "type": "array"
+        },
+        "source_relations": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SourceRelation"
+          },
+          "title": "Source Relations",
+          "type": "array"
+        },
+        "claim_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Text"
+        },
+        "verification_status": {
+          "default": "unknown",
+          "enum": [
+            "source_confirmed",
+            "unverified",
+            "unknown"
+          ],
+          "title": "Verification Status",
+          "type": "string"
+        },
+        "statement_status": {
+          "default": "unknown",
+          "enum": [
+            "source_reported",
+            "unverified_report",
+            "unknown"
+          ],
+          "title": "Statement Status",
+          "type": "string"
+        },
+        "document_evidence": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Document Evidence"
+        },
+        "evidence_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "title": "SignalContext",
+      "type": "object"
+    },
     "SnapshotCoverage": {
       "additionalProperties": false,
       "properties": {
@@ -1386,6 +1876,30 @@
         "record_count"
       ],
       "title": "SnapshotCoverage",
+      "type": "object"
+    },
+    "SourceRelation": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "correction",
+            "retraction",
+            "supplement",
+            "repost"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "target_ref": {
+          "$ref": "#/$defs/ProviderRef"
+        }
+      },
+      "required": [
+        "kind",
+        "target_ref"
+      ],
+      "title": "SourceRelation",
       "type": "object"
     },
     "StateAssertion": {

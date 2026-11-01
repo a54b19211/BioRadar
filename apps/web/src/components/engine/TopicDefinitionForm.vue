@@ -226,6 +226,8 @@ function save() {
         <div class="topic-form-row">
           <label
             >汇总周期<select v-model="definition.bucket" :disabled="busy">
+              <option value="hour">小时</option>
+              <option value="day">日</option>
               <option value="month">月</option>
               <option value="week">周</option>
             </select></label

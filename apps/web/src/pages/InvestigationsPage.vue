@@ -45,6 +45,7 @@ const sourceAccessLimited = ref(false);
 const message = ref("");
 const investigations = ref<InvestigationSummary[]>([]);
 const selected = ref<InvestigationView | null>(null);
+const reviewAnalysis = ref<ResearchAnalysisView | null>(null);
 const snapshots = ref<SnapshotSummary[]>([]);
 const sourceCursor = ref<string | null>(null);
 const historyCursor = ref<string | null>(null);
@@ -661,6 +662,7 @@ onUnmounted(() => {
               read-only
               :preferred-analysis-id="preferredAnalysisId"
               @selected="selectAnalysis"
+               @analysis-view="reviewAnalysis = $event"
               @changed="openInvestigation(selected.id)"
               @unauthorized="fail"
             />
@@ -682,6 +684,7 @@ onUnmounted(() => {
                 :loading="loading"
                 :preferred-analysis-id="preferredAnalysisId"
                 @selected="selectAnalysis"
+               @analysis-view="reviewAnalysis = $event"
                 @changed="openInvestigation(selected.id)"
                 @unauthorized="fail"
               />
@@ -692,6 +695,7 @@ onUnmounted(() => {
             :key="selected.id + ':' + selected.revision"
             :investigation="selected"
             :snapshots="snapshots"
+            :review-analysis="reviewAnalysis?.investigation_id === selected.id ? reviewAnalysis : null"
             :busy="busy"
             :loading="loading"
             :source-cursor="sourceCursor"

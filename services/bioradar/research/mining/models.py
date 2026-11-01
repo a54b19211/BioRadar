@@ -10,6 +10,7 @@ import hashlib
 import json
 import math
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
@@ -30,7 +31,7 @@ METHOD_IDS = (
     "event_exposure",
     "regional_comparison",
 )
-ENGINE_COMPUTE_VERSION = "bioradar-mining-compute-v0.2"
+ENGINE_COMPUTE_VERSION = "bioradar-mining-compute-v0.4"
 
 
 class FrozenModel(BaseModel):
@@ -227,6 +228,65 @@ class RegionalIndicator(FrozenModel):
     provenance: SectionProvenance
 
 
+class MetricObservation(FrozenModel):
+    """An adopted typed metric; source parsing and binding remain upstream."""
+
+    observation_id: str = Field(min_length=1)
+    domain: Literal["business", "public_health"]
+    subject_ref: ProviderRef
+    metric_id: str = Field(min_length=1)
+    metric_version: str = Field(min_length=1)
+    value_lower: Decimal
+    value_upper: Decimal
+    unit: str = Field(min_length=1)
+    value_kind: Literal["monetary", "count", "ratio", "other"] = "other"
+    currency: str | None = None
+    reporting_scope: str | None = None
+    population: str | None = None
+    region: str | None = None
+    period_start: datetime
+    period_end: datetime
+    denominator: Decimal | None = Field(default=None, gt=0)
+    denominator_unit: str | None = None
+    measurement_basis: Literal["reported", "forecast", "estimate", "unknown"] = "unknown"
+    binding_status: Literal["source_bound", "declared"] = "declared"
+    field_locators: dict[str, JsonValue] = Field(default_factory=dict)
+    evidence_refs: tuple[ProviderRef, ...] = ()
+    provenance: SectionProvenance
+
+    @model_validator(mode="after")
+    def validate_metric(self):
+        if self.period_start.tzinfo is None or self.period_end.tzinfo is None:
+            raise ValueError("metric periods require timezone")
+        if self.period_start >= self.period_end:
+            raise ValueError("metric period must have positive duration")
+        if self.value_lower > self.value_upper:
+            raise ValueError("metric value bounds are reversed")
+        if not self.value_lower.is_finite() or not self.value_upper.is_finite():
+            raise ValueError("metric values must be finite")
+        return self
+
+
+class GraphHint(FrozenModel):
+    """A fixed graph relation to verify; never a confirmed project or effect."""
+
+    hint_ref: ProviderRef
+    subject_id: str
+    subject_label: str
+    relation_type: str
+    object_id: str
+    object_label: str
+    identity_statuses: tuple[str, str]
+    review_status: str
+    declared_binding_status: str
+    originals_validated: bool = False
+    query_terms: tuple[str, ...] = ()
+    evidence_refs: tuple[ProviderRef, ...] = ()
+    scope_description: str
+    selection_truncated: bool = False
+    provenance: SectionProvenance
+
+
 class ProjectTimeline(FrozenModel):
     project_ref: ProviderRef
     stage: str
@@ -240,6 +300,29 @@ class ProjectTimeline(FrozenModel):
     context: StudyContext
     evidence_refs: tuple[ProviderRef, ...] = ()
     provenance: SectionProvenance
+
+
+class SourceRelation(FrozenModel):
+    kind: Literal["correction", "retraction", "supplement", "repost"]
+    target_ref: ProviderRef
+
+
+class SignalContext(FrozenModel):
+    """Attributed source claims; named sources are not thereby confirmed."""
+
+    material_type: str | None = None
+    origin_group: str | None = None
+    attribution: Literal["named_institution", "named_author", "anonymous", "unknown"] = "unknown"
+    claimed_origin: str | None = None
+    entity_names: tuple[str, ...] = ()
+    source_relations: tuple[SourceRelation, ...] = ()
+    claim_text: str | None = None
+    verification_status: Literal["source_confirmed", "unverified", "unknown"] = "unknown"
+    statement_status: Literal["source_reported", "unverified_report", "unknown"] = "unknown"
+    document_evidence: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    evidence_refs: tuple[ProviderRef, ...] = ()
 
 
 class EngineRecord(FrozenModel):
@@ -260,6 +343,11 @@ class EngineRecord(FrozenModel):
     first_seen_at: datetime | None = None
     available_at: datetime | None = None
     source_url: str | None = None
+    public_available_at: datetime | None = Field(default=None, exclude_if=lambda value: value is None)
+    availability_proof: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    signal_context: SignalContext | None = Field(default=None, exclude_if=lambda value: value is None)
     ingestion_mode: Literal["live_delta", "historical_backfill", "sample_export", "fixture"] = "sample_export"
     text_status: Literal["inline_authorized", "reference_authorized", "unavailable"] = "unavailable"
     normalized_text: str | None = None
@@ -295,11 +383,19 @@ class EngineRecord(FrozenModel):
     dependencies: tuple[ClaimDependency, ...] = ()
     events: tuple[Event, ...] = ()
     regional_indicators: tuple[RegionalIndicator, ...] = ()
+    graph_hints: tuple[GraphHint, ...] = Field(default=(), exclude_if=lambda value: not value)
+    metric_observations: tuple[MetricObservation, ...] = Field(default=(), exclude_if=lambda value: not value)
     timeline: ProjectTimeline | None = None
 
     @model_validator(mode="after")
     def check_evidence(self) -> EngineRecord:
-        timestamps = (self.observed_at, self.published_at, self.available_at, self.first_seen_at)
+        timestamps = (
+            self.observed_at,
+            self.published_at,
+            self.available_at,
+            self.first_seen_at,
+            self.public_available_at,
+        )
         if any(t is not None and t.tzinfo is None for t in timestamps):
             raise ValueError("record timestamps must have a timezone")
         if self.time_precision in {"month", "year", "interval", "unknown"} and self.published_at:
@@ -380,6 +476,9 @@ class MiningPolicy(FrozenModel):
     policy_version: Literal["bioradar.mining.policy.v1"] = "bioradar.mining.policy.v1"
     as_of: datetime
     time_mode: Literal["publication_retrospective", "availability_replay"] = "publication_retrospective"
+    availability_basis: Literal["operational_replay", "public_history_reconstruction"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     discovery_mode: Literal["stock_and_incremental", "incremental"] = "stock_and_incremental"
     baseline_start: datetime | None = None
     baseline_end: datetime | None = None
@@ -441,6 +540,62 @@ class MiningPolicy(FrozenModel):
         return self
 
 
+class ValuePolicy(FrozenModel):
+    """Frozen descriptive thresholds, separate from queue capacity."""
+
+    minimum_pattern_support: int = Field(default=2, ge=1, le=100000)
+    relative_change_threshold: float = Field(default=0.1, ge=0)
+    absolute_change_threshold: float = Field(default=0.0, ge=0)
+    novelty_distance_threshold: float = Field(default=0.45, ge=0, le=2)
+    allow_singleton_exploration: bool = True
+
+
+class KddPolicy(MiningPolicy):
+    source_intelligence_version: Literal["public-health-source-intelligence-v1"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Retain public-health source statements and information events separately from metrics.",
+    )
+    kdd_direction: Literal["research", "pipeline", "business", "public_health"]
+    narrative_contract_version: (
+        Literal["literal-narrative-observations-v1", "literal-narrative-observations-v2"] | None
+    ) = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Frozen literal business extraction contract; omitted preserves legacy v1.",
+    )
+    value_policy: ValuePolicy = Field(default_factory=ValuePolicy)
+    monitor_changed_refs: tuple[ProviderRef, ...] | None = Field(
+        default=None,
+        max_length=2000,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Actual changed fixed record versions; only qualified prior versions establish new periods."
+        ),
+    )
+
+
+class DiscoveryPolicy(MiningPolicy):
+    source_intelligence_version: Literal["public-health-source-intelligence-v1"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Retain public-health source statements and information events separately from metrics.",
+    )
+    discovery_directions: tuple[Literal["research", "pipeline", "business", "public_health"], ...] = Field(
+        min_length=1, max_length=4
+    )
+    value_policy: ValuePolicy = Field(default_factory=ValuePolicy)
+    monitor_changed_refs: tuple[ProviderRef, ...] | None = Field(
+        default=None, max_length=2000, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def unique_directions(self):
+        if len(set(self.discovery_directions)) != len(self.discovery_directions):
+            raise ValueError("discovery directions must be unique")
+        return self
+
+
 class EvidenceSupport(FrozenModel):
     record_ref: ProviderRef
     document_hash: str
@@ -454,6 +609,110 @@ class EvidenceSupport(FrozenModel):
     source_url: str | None = None
 
 
+class AxisAssessment(FrozenModel):
+    record_ref: ProviderRef
+    assessment_status: Literal["not_assessed", "machine_assessed", "human_reviewed"] = "not_assessed"
+    reason_code: str = "basis_missing"
+    assessment_basis_refs: tuple[ProviderRef, ...] = ()
+    assessment_basis: str = ""
+    assessed_by: str | None = None
+    assessed_at: datetime | None = None
+    taxonomy_name: Literal["admiralty-scale"] = "admiralty-scale"
+    taxonomy_version: Literal[5] = 5
+    native_review_entry_id: str | None = None
+    review_revision: int | None = None
+    previous_assessment_ref: str | None = None
+
+    @model_validator(mode="after")
+    def assessed_basis(self):
+        if self.assessed_at is not None and self.assessed_at.tzinfo is None:
+            raise ValueError("assessment timestamps require a timezone")
+        if self.assessment_status != "not_assessed" and not (
+            self.assessed_by
+            and self.assessed_at
+            and self.assessment_basis.strip()
+            and self.assessment_basis_refs
+        ):
+            raise ValueError("assessed grades require basis, actor and timestamp")
+        if self.assessment_status == "human_reviewed" and not (
+            self.native_review_entry_id and self.review_revision is not None
+        ):
+            raise ValueError("human assessment requires the native judgment entry")
+        return self
+
+
+class SourceReliabilityAssessment(AxisAssessment):
+    # The product uses the classic A-F subset; external G is not remapped here.
+    grade: Literal["A", "B", "C", "D", "E", "F"] = "F"
+    publisher_scope: str | None = None
+
+    @model_validator(mode="after")
+    def reliability_scope(self):
+        if self.assessment_status == "not_assessed" and self.grade != "F":
+            raise ValueError("unassessed source reliability must remain F")
+        if self.assessment_status != "not_assessed" and not (self.publisher_scope or "").strip():
+            raise ValueError("assessed source reliability requires publisher scope")
+        return self
+
+
+class InformationCredibilityAssessment(AxisAssessment):
+    grade: Literal["1", "2", "3", "4", "5", "6"] = "6"
+    claim_id: str | None = None
+    claim_text: str | None = None
+    claim_text_sha256: str | None = None
+    independent_confirmation_refs: tuple[ProviderRef, ...] = ()
+    independent_confirmation_basis: str = ""
+
+    @model_validator(mode="after")
+    def credibility_scope(self):
+        if self.assessment_status == "not_assessed" and self.grade != "6":
+            raise ValueError("unassessed information credibility must remain 6")
+        if (
+            self.claim_text is not None
+            and self.claim_text_sha256 != hashlib.sha256(self.claim_text.encode()).hexdigest()
+        ):
+            raise ValueError("claim text hash does not match this assessment")
+        if self.assessment_status != "not_assessed" and not (self.claim_id and self.claim_text):
+            raise ValueError("information assessment requires an explicit claim")
+        if self.grade == "1" and (
+            len(self.independent_confirmation_refs) < 2 or not self.independent_confirmation_basis.strip()
+        ):
+            raise ValueError("information 1 requires explicit independent confirmation basis")
+        return self
+
+
+class AssessmentAxes(FrozenModel):
+    source_reliability: tuple[SourceReliabilityAssessment, ...] = ()
+    information_credibility: tuple[InformationCredibilityAssessment, ...] = ()
+    evidence_level: str | None = None
+    heat: dict[str, JsonValue] | None = None
+
+
+class SourceReliabilityReviewInput(FrozenModel):
+    grade: Literal["A", "B", "C", "D", "E", "F"]
+    record_ref: ProviderRef
+    publisher_scope: str = Field(min_length=1, max_length=2000)
+    assessment_basis_refs: tuple[ProviderRef, ...] = Field(min_length=1, max_length=128)
+    assessment_basis: str = Field(min_length=1, max_length=4000)
+
+
+class InformationCredibilityReviewInput(FrozenModel):
+    grade: Literal["1", "2", "3", "4", "5", "6"]
+    record_ref: ProviderRef
+    claim_id: str = Field(min_length=1, max_length=200)
+    claim_text: str = Field(min_length=1, max_length=4000)
+    assessment_basis_refs: tuple[ProviderRef, ...] = Field(min_length=1, max_length=128)
+    assessment_basis: str = Field(min_length=1, max_length=4000)
+    independent_confirmation_refs: tuple[ProviderRef, ...] = Field(default=(), max_length=128)
+    independent_confirmation_basis: str = Field(default="", max_length=4000)
+
+
+class AssessmentAxesReviewInput(FrozenModel):
+    # Client ratings carry no actor, time, authority, evidence level or heat.
+    source_reliability: tuple[SourceReliabilityReviewInput, ...] = Field(default=(), max_length=32)
+    information_credibility: tuple[InformationCredibilityReviewInput, ...] = Field(default=(), max_length=128)
+
+
 class Candidate(FrozenModel):
     candidate_key: str
     method_id: str
@@ -464,6 +723,7 @@ class Candidate(FrozenModel):
     reasons: tuple[str, ...]
     supports: tuple[EvidenceSupport, ...]
     metrics: dict[str, JsonValue] = Field(default_factory=dict)
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     score: float = 0.0
     evidence_status: Literal["unverified", "partial"] = "unverified"
     importance: Literal["undetermined", "low", "medium", "high"] = "undetermined"
@@ -493,15 +753,28 @@ class MethodResult(FrozenModel):
 
 class MiningResult(FrozenModel):
     schema_version: Literal["bioradar.engine.result.v1"] = "bioradar.engine.result.v1"
-    compute_version: Literal["bioradar-mining-compute-v1", "bioradar-mining-compute-v0.2"] = (
-        ENGINE_COMPUTE_VERSION
-    )
+    compute_version: Literal[
+        "bioradar-mining-compute-v1",
+        "bioradar-mining-compute-v0.2",
+        "bioradar-mining-compute-v0.3",
+        "bioradar-mining-compute-v0.4",
+        "bioradar-mining-compute-v0.5",
+    ] = ENGINE_COMPUTE_VERSION
     snapshot_hash: str
     policy_hash: str
     method_results: tuple[MethodResult, ...]
     candidates: tuple[Candidate, ...]
     result_hash: str
     limitations: tuple[str, ...] = ()
+    data_preparation: dict[str, JsonValue] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    pattern_evaluations: tuple[dict[str, JsonValue], ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
+    selection_decisions: tuple[dict[str, JsonValue], ...] = Field(
+        default=(), exclude_if=lambda value: not value
+    )
 
 
 def canonical_hash(value: Any) -> str:

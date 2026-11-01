@@ -25,9 +25,11 @@ const emit = defineEmits<{
   changed: [];
   unauthorized: [error: unknown];
   selected: [id: string];
+  analysisView: [view: AnalysisView | null];
 }>();
 const list = ref<AnalysisList | null>(null);
 const selected = ref<AnalysisView | null>(null);
+watch(selected, value => emit("analysisView", value));
 const source = ref<EvidenceRead | null>(null);
 const sourceOpen = ref(false);
 const sourceError = ref("");
@@ -65,24 +67,47 @@ const queryLabels: Record<string, string> = {
   sent: "正在检索", unavailable: "来源暂不可用", unconfirmed: "请求结果尚未确认",
 };
 function queryProvider(query: AnalysisView["queries"][number]) {
+  const actions: Record<string, string> = {
+    document_read: "Fabric 固定原件点读", dataset_prepare: "分析数据整理（本地工具）",
+    analysis_run: "实际计算（本地工具）", professional_assess: "专业评价", source_fetch: "公开来源补采",
+  };
+  const action = actions[String(query.kind)];
+  if (action) return action;
   return query.provider === "weknora" ? "WeKnora 检索候选"
     : ["graph", "fabric_graph"].includes(String(query.provider)) ? "图谱背景查询" : "Fabric 固定资料检索";
 }
 function querySource(query: AnalysisView["queries"][number]) {
-  const source = (query.plan as Record<string, unknown>).source_id;
-  return typeof source === "string" ? sourceLabels[source] || source : "来源见策略动作";
+  const plan = query.plan as Record<string, unknown>;
+  const source = plan.source_id;
+  if (typeof source === "string") return sourceLabels[source] || source;
+  if (Array.isArray(plan.source_ids)) return plan.source_ids.filter((item): item is string => typeof item === "string").map(item => sourceLabels[item] || item).join("、");
+  return "来源见策略动作";
 }
 function queryTerms(query: AnalysisView["queries"][number]) {
   const plan = query.plan as Record<string, unknown>;
+  if (String(query.kind) === "document_read" && Array.isArray(plan.records)) {
+    return plan.records.map(value => {
+      const item = value && typeof value === "object" ? value as Record<string, unknown> : {};
+      return [typeof item.source_record_id === "string" ? item.source_record_id : "原件编号未记录",
+        typeof item.version_id === "string" ? "固定版本 " + item.version_id : "版本未记录",
+        "Unicode窗口起点 " + (typeof item.window_start === "number" ? item.window_start : 0)].join(" · ");
+    }).join("；");
+  }
+  if (String(query.kind) === "dataset_prepare") return "实际分析单位、排除与适用范围见数据加工摘要。";
+  if (String(query.kind) === "analysis_run") return "实际算法、产物与科学限制见计算摘要。";
+  if (String(query.kind) === "professional_assess") return "实际专业方法与结果见策略回执；不表示人工批准。";
   if (Array.isArray(plan.terms)) return plan.terms.filter((value) => typeof value === "string").join(" + ");
   if (typeof plan.query === "string") return plan.query;
-  return "图谱动作参数见本版策略轨迹";
+  return String(query.kind) === "source_fetch" ? "实际补采来源与范围见本版策略轨迹。" : "动作参数见本版策略轨迹。";
 }
 function queryReason(query: AnalysisView["queries"][number]) {
   const reason = (query.plan as Record<string, unknown>).reason;
   return typeof reason === "string" ? reason : "查询目的见本版策略轨迹。";
 }
 function queryState(query: AnalysisView["queries"][number]) {
+  if (["dataset_prepare", "analysis_run", "professional_assess"].includes(String(query.kind)) && ["read", "empty"].includes(query.status)) {
+    return "动作已返回，适用性与方法状态见本版结果";
+  }
   if (query.provider === "weknora" && ["read", "empty"].includes(query.status)) {
     return query.candidates?.length ? "候选检索完成" : "本次未检索到候选";
   }
@@ -113,6 +138,11 @@ const canStart = computed(() =>
   props.investigation.status === "open" && !props.busy && !props.loading && !writing.value &&
   !list.value.items.some((item) => ["queued", "running"].includes(item.state)),
 );
+const latestHumanDecision = computed(() => props.investigation.entries.find(
+  entry => entry.id === props.investigation.latest_judgment_entry_id && entry.kind === "judgment",
+) ?? null);
+const materialScope = computed(() => selected.value?.progress?.material_scope ?? null);
+const unreadQueryHits = computed(() => materialScope.value?.unread_versions.filter(item => item.query_hit) ?? []);
 const researchOptions = computed<ResearchOptions | null>(() => list.value ? {
   enabled: list.value.enabled,
   configured: list.value.configured,
@@ -294,6 +324,15 @@ async function exportAnalysis(format: "json" | "markdown" = "json") {
   } catch (value) { if (current(generation, id) && selected.value?.id === view.id) fail(value); }
   finally { if (current(generation, id)) exporting.value = false; }
 }
+function exportDiagnostics() {
+  const view = selected.value;
+  if (!view?.progress?.diagnostics) return;
+  const content = JSON.stringify(view.progress.diagnostics, null, 2);
+  const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url; link.download = "研究诊断-" + view.id + ".json";
+  link.click(); URL.revokeObjectURL(url);
+}
 async function printAnalysis() {
   const view = selected.value;
   if (!view || printing.value) return;
@@ -329,6 +368,10 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
         <ElButton v-if="!readOnly && list?.items.length" :loading="writing" :disabled="!canStart" @click="startAnalysis()">按当前材料更新</ElButton>
       </div>
     </div>
+    <p v-if="investigation.origin" class="muted">
+      本调查源自一条固定计算候选；模式依据、价值筛选和审阅容量在原计算中保留。
+      <RouterLink :to="{ path: '/radar', query: { run: investigation.origin.run_id, candidate: investigation.origin.candidate_key } }">返回该模式与本轮筛选</RouterLink>
+    </p>
     <p v-if="error" class="error-panel no-print" role="alert">{{ error }}</p>
     <p v-if="list && (!list.enabled || !list.configured)" class="notice">
       {{ unavailableLabels[list.unavailable_reason || ""] || list.unavailable_reason || "研究模型当前不可用；已有材料和报告仍可阅读。" }}
@@ -353,6 +396,7 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
         <div class="analysis-actions no-print">
           <ElButton text :loading="exporting" @click="exportAnalysis('markdown')">下载研报</ElButton>
           <ElButton text :loading="exporting" @click="exportAnalysis('json')">下载完整记录</ElButton>
+          <ElButton v-if="selected.progress?.diagnostics" text @click="exportDiagnostics">下载无原文诊断</ElButton>
           <ElButton text :loading="printing" @click="printAnalysis">打印本版</ElButton>
         </div>
       </div>
@@ -363,16 +407,44 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
         <details v-if="selected.error_code"><summary>查看停止代码</summary><small>{{ selected.error_code }}</small></details>
         <ElButton v-if="!readOnly" class="no-print" :loading="writing" :disabled="!canStart" @click="startAnalysis(selected.id)">重新研究</ElButton>
       </div>
-      <MachineAnalysisResult :analysis="selected" @source="readSource" />
+      <section v-if="materialScope" class="material-scope notice" aria-label="本轮资料阅读范围">
+        <h3>本轮资料范围（系统记录）</h3>
+        <p><strong>固定资料 {{ materialScope.fixed_version_count }} 个版本；实际读取其中 {{ materialScope.read_version_count }} 个版本的选定片段。</strong></p>
+        <p class="material-scope-counts">未进入本轮原文片段：{{ materialScope.unread_versions.length }} 个版本；补查未完成：{{ materialScope.source_failures.length }} 次。</p>
+        <p>这些数字不是全文阅读量、独立研究数或全领域覆盖率。未读材料与失败补查不代表没有相关证据。</p>
+        <p v-if="unreadQueryHits.length" class="material-scope-counts">
+          成功补查命中但未读：{{ unreadQueryHits.length }} 个固定版本。
+          <span v-if="unreadQueryHits.some(item => item.adoption_stop_reason === 'analysis_evidence_budget')">本轮原文片段容量已满，这些命中未进入已读证据。</span>
+        </p>
+        <p v-if="materialScope.qualification" class="muted">{{ materialScope.qualification }}</p>
+        <details v-if="materialScope.unread_versions.length || materialScope.source_failures.length" class="no-print">
+          <summary>查看未读版本与未完成补查</summary>
+          <ul v-if="materialScope.unread_versions.length">
+            <li v-for="item in materialScope.unread_versions" :key="[item.source_id, item.source_record_id, item.version_id].join(':')">
+              未进入原文片段 · {{ sourceLabels[item.source_id] || item.source_id }} · {{ item.source_record_id }} · 固定版本 {{ item.version_id }}
+              <span v-if="item.query_hit"> · 成功补查命中，尚未进入已读片段</span>
+              <small v-if="item.adoption_stop_reason"> · {{ item.adoption_stop_reason === 'analysis_evidence_budget' ? '本轮原文片段容量已满' : item.adoption_stop_reason }}</small>
+            </li>
+          </ul>
+          <ul v-if="materialScope.source_failures.length">
+            <li v-for="(item, index) in materialScope.source_failures" :key="index">
+              补查未完成 · {{ sourceLabels[item.source_id || ''] || item.source_id || item.provider || '来源未记录' }}
+              · {{ queryLabels[item.status] || item.status }}<template v-if="item.error_code"> · {{ item.error_code }}</template>
+            </li>
+          </ul>
+        </details>
+      </section>
+      <MachineAnalysisResult :analysis="selected" :human-decision="latestHumanDecision" :human-entries="investigation.entries" @source="readSource" />
       <details v-if="selected.initial_draft" :open="!selected.result" class="initial-draft">
         <summary>修订前的分析与发现的问题</summary>
-        <MachineAnalysisResult :analysis="{ ...selected, result: selected.initial_draft }" @source="readSource" />
+        <p class="muted">修订前草稿未装配专属的固定对象人审与四轴评定，按未评定看待；不沿用最终稿的判断。</p>
+        <MachineAnalysisResult :analysis="{ ...selected, human_review_context: null, result: { ...selected.initial_draft, assessment_axes: undefined } }" :human-decision="latestHumanDecision" :human-entries="investigation.entries" @source="readSource" />
       </details>
       <details :open="['queued', 'running', 'blocked', 'failed'].includes(selected.state)" class="research-queries">
         <summary>实际检索与补查（{{ selected.queries.length }} 项）</summary>
         <article v-for="query in selected.queries" :key="[query.provider, query.phase, query.index].join(':')" class="investigation-entry">
           <p><strong>{{ queryProvider(query) }}</strong>
-            <small class="muted"> · {{ query.phase === "initial" ? "初查" : "补查" }}<template v-if="query.provider !== 'weknora'"> · {{ querySource(query) }}</template></small>
+            <small class="muted"> · {{ String(query.kind) === "document_read" ? "固定窗口点读" : query.phase === "initial" ? "初查" : "补查" }}<template v-if="query.provider !== 'weknora'"> · {{ querySource(query) }}</template></small>
           </p>
           <p>{{ queryTerms(query) }}</p>
           <p>{{ queryReason(query) }}</p>
@@ -381,6 +453,9 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
             {{ queryState(query) }}
             <template v-if="query.provider === 'weknora' && (['read', 'empty'].includes(query.status) || query.candidates?.length)">
               · 候选 {{ query.candidates?.length ?? 0 }} 项，成功绑定原件 {{ query.returned }} 份，新增采用 {{ query.new_versions }} 个版本
+            </template>
+            <template v-else-if="['dataset_prepare', 'analysis_run', 'professional_assess'].includes(String(query.kind))">
+              · 实际产物与科学限制见本版策略回执和计算摘要
             </template>
             <template v-else-if="['read', 'empty'].includes(query.status)">
               · 返回 {{ query.returned }} 条，新增采用 {{ query.new_versions }} 个版本
@@ -447,6 +522,9 @@ onUnmounted(() => { disposed = true; clearPrivate(); });
 .analysis-history .history-item { max-width: 100%; width: auto; }
 .analysis-history .history-item small { display: block; margin-top: .2rem; }
 .research-queries { margin: 18px 0; }
+.material-scope { margin: 20px 0; border-inline-start: 4px solid #a56414; break-inside: avoid; }
+.material-scope h3 { margin-top: 0; }
+.material-scope-counts { font-weight: 600; }
 .machine-analysis-panel > .research-question-form { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--el-border-color); }
 @media print { .machine-analysis-panel { border: 0; box-shadow: none; } }
 </style>

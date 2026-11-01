@@ -145,6 +145,14 @@
           ],
           "default": null,
           "title": "Unbound Reason"
+        },
+        "field_evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/GraphFieldEvidence"
+          },
+          "title": "Field Evidence",
+          "type": "array"
         }
       },
       "required": [
@@ -215,6 +223,66 @@
         "locator"
       ],
       "title": "GraphEvidence",
+      "type": "object"
+    },
+    "GraphFieldEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_record_id": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Source Record Id",
+          "type": "string"
+        },
+        "version_id": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Version Id",
+          "type": "string"
+        },
+        "raw_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Raw Sha256",
+          "type": "string"
+        },
+        "origin_doc_uuid": {
+          "anyOf": [
+            {
+              "maxLength": 400,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Origin Doc Uuid"
+        },
+        "json_pointer": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "^/",
+          "title": "Json Pointer",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_record_id",
+        "version_id",
+        "raw_sha256",
+        "json_pointer",
+        "value"
+      ],
+      "title": "GraphFieldEvidence",
       "type": "object"
     },
     "GraphIdentity": {
@@ -307,9 +375,15 @@
           "title": "External Ids",
           "type": "object"
         },
+        "properties": {
+          "type": "object",
+          "additionalProperties": true,
+          "title": "Properties"
+        },
         "identity_status": {
           "enum": [
             "confirmed",
+            "rule_confirmed",
             "unresolved",
             "background"
           ],
@@ -327,6 +401,27 @@
           ],
           "default": null,
           "title": "Identity Review Basis"
+        },
+        "identity_rule": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identity Rule"
+        },
+        "field_evidence": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/GraphFieldEvidence"
+          },
+          "title": "Field Evidence",
+          "type": "array"
         },
         "review": {
           "$ref": "#/$defs/GraphReview"
@@ -524,6 +619,7 @@
       "enum": [
         "legacy_reviewed_export",
         "primekg_current_capture",
+        "source_field_projection",
         "explicit_demo"
       ],
       "title": "Origin",

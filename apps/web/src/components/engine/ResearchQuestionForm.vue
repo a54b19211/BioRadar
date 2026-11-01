@@ -39,6 +39,10 @@ const customBudget = ref(false);
 const budget = ref<ResearchBudget>({});
 let disposed = false;
 const available = computed(() => props.options ?? loadedOptions.value);
+const displayedLimits = computed(() => ({
+  ...(available.value?.limits ?? {}),
+  ...(queryPolicy.value ? available.value?.limits_by_policy?.[queryPolicy.value] : {}),
+}));
 const blocked = computed(() =>
   Boolean(
     props.disabled ||
@@ -55,6 +59,13 @@ const sourceNames: Record<string, string> = {
   fda_crl: "FDA 审评信函",
   who_don: "WHO 疾病通报",
   external_archive: "已导入原始档案",
+};
+const limitLabels: Record<string, string> = {
+  max_calls: "模型调用上限", max_tokens: "本轮 token 上限", max_seconds: "执行秒数上限",
+  max_queries: "查询上限", max_tool_calls: "工具请求上限",
+  document_search: "新关键词查询上限", document_read: "原件读取动作上限", pages_per_chain: "每链最大页数",
+  monitor_investigations_per_batch: "每批自动调查上限", records_per_query: "每次查询返回条数",
+  evidence_versions: "采用版本上限", evidence_characters: "原文片段字符上限",
 };
 const budgetFields = [
   { key: "max_calls", label: "模型调用次数", unit: "次", minimum: 1 },
@@ -163,6 +174,13 @@ onUnmounted(() => {
         <ElOption label="原有顺序基线" value="baseline" />
       </ElSelect>
     </label>
+    <details v-if="available" class="actual-execution-settings">
+      <summary>实际执行配置</summary>
+      <p class="muted">以下来自本次服务响应；明确选择策略时显示该策略上限，未选择时显示服务默认上限。已保存版本仍以自身预算和范围回执为准。</p>
+      <dl><template v-for="(value, key) in displayedLimits" :key="key">
+        <dt>{{ limitLabels[key] || key }}</dt><dd>{{ value.toLocaleString() }}</dd>
+      </template></dl>
+    </details>
     <details class="research-budget-settings">
       <summary>本轮预算</summary>
       <p class="muted">

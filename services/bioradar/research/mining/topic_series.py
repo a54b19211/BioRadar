@@ -10,12 +10,13 @@ from statistics import median
 
 from bioradar.research.mining.methods_text import STOP, is_structured_json, phrase_spans
 from bioradar.research.mining.models import TimeExpression, canonical_hash
-from bioradar.research.mining.prepare import time_interval
+from bioradar.research.mining.prepare import public_availability, time_interval
+from bioradar.research.mining.signals import assess_records
 from bioradar.research.mining.temporal import batch_bursts
 
-TOPIC_COMPUTE_VERSION = "bioradar-topic-series-v0.3"
+TOPIC_COMPUTE_VERSION = "bioradar-topic-series-v0.5"
 # This release changes assessment/follow-up semantics, not stored feature extraction.
-TOPIC_FEATURE_VERSION = "bioradar-topic-series-v0.1"
+TOPIC_FEATURE_VERSION = "bioradar-topic-series-v0.2"
 MAX_FEATURES_PER_RECORD = 256
 MAX_NARRATIVE_CHARACTERS = 20000
 MAX_EVIDENCE_PREVIEW = 200
@@ -59,8 +60,26 @@ def _time(raw):
         return None
 
 
-def project_contribution(record, history, definition, *, as_of):
+def project_contribution(record, history, definition, *, as_of, evidence_time=None):
     """Reduce existing validated EngineRecord fields without copying prose or guessing identities."""
+    temporal = {}
+    if evidence_time is not None:
+        mode = evidence_time["mode"]
+        cutoff = datetime.fromisoformat(evidence_time["cutoff"].replace("Z", "+00:00"))
+        if cutoff.tzinfo is None or cutoff != as_of:
+            raise ValueError("historical availability cutoff mismatch")
+        if mode == "public_history_reconstruction":
+            available = public_availability(record)
+        elif mode == "operational_replay":
+            available = record.observed_at
+        else:
+            raise ValueError("historical availability mode required")
+        if available is None or available > cutoff:
+            raise ValueError("historical availability unknown or after cutoff")
+        temporal = {
+            "exposure_available_at": available.isoformat(),
+            "exposure_time_basis": mode,
+        }
     facts, site = history["facts"], source_site(history)
     narrative = record.normalized_text or ""
     if is_structured_json(narrative):
@@ -144,7 +163,16 @@ def project_contribution(record, history, definition, *, as_of):
         )
         if key in facts
     }
+    from bioradar.research.mining.intelligence_assessment import default_assessment_axes
+
+    attention = assess_records([record])
     value = {
+        "assessment_axes": default_assessment_axes(
+            [record], evidence_level=attention["evidence_level"], claims=attention["checkable_claims"]
+        ).model_dump(mode="json"),
+        "attention": attention,
+        "signal_context": record.signal_context.model_dump(mode="json") if record.signal_context else None,
+        "source_independence_status": record.source_independence_status,
         "feature_version": TOPIC_FEATURE_VERSION,
         "source_id": history["source_id"],
         "source_record_id": history["source_record_id"],
@@ -175,6 +203,7 @@ def project_contribution(record, history, definition, *, as_of):
         "parser_version": history["parser_version"],
         "facts": retained,
         "observation": raw_schema,
+        **temporal,
     }
     value["content_fingerprint"] = canonical_hash(
         {
@@ -189,17 +218,26 @@ def project_contribution(record, history, definition, *, as_of):
 
 
 def _bucket_start(value, bucket):
-    date = value.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    date = value.astimezone(UTC).replace(minute=0, second=0, microsecond=0)
+    if bucket == "hour":
+        return date
+    date = date.replace(hour=0)
+    if bucket == "day":
+        return date
     return date.replace(day=1) if bucket == "month" else date - timedelta(days=date.weekday())
 
 
 def _next_bucket(value, bucket):
+    if bucket in {"hour", "day"}:
+        return value + timedelta(hours=1) if bucket == "hour" else value + timedelta(days=1)
     if bucket == "week":
         return value + timedelta(days=7)
     return value.replace(year=value.year + (value.month == 12), month=value.month % 12 + 1)
 
 
 def _previous_bucket(value, bucket):
+    if bucket in {"hour", "day"}:
+        return value - timedelta(hours=1) if bucket == "hour" else value - timedelta(days=1)
     if bucket == "week":
         return value - timedelta(days=7)
     return value.replace(year=value.year - (value.month == 1), month=(value.month - 2) % 12 + 1)
@@ -228,7 +266,9 @@ def _evidence(value):
             "raw_sha256",
             "source_site",
             "field_locators",
+            "assessment_axes",
         )
+        if key in value
     }
 
 
@@ -363,8 +403,8 @@ def evaluate_series(
     for i, (left, right) in enumerate(bounds):
         buckets.append(
             {
-                "start": left.date().isoformat(),
-                "end": right.date().isoformat(),
+                "start": left.isoformat() if definition["bucket"] == "hour" else left.date().isoformat(),
+                "end": right.isoformat() if definition["bucket"] == "hour" else right.date().isoformat(),
                 "complete_time_bucket": right <= as_of,
                 "exposures": len(units[i]),
                 "confirmed_study_units": len(studies[i]),

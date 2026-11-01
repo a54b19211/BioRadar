@@ -10,7 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from bioradar.data.database import Base
 from bioradar.research.engine.schemas import RuntimeModel
-from bioradar.research.mining.models import ProviderRef
+from bioradar.research.mining.models import AssessmentAxes, ProviderRef
 
 TopicDomain = Literal[
     "pipeline", "research", "business", "public_health", "policy", "regulatory", "supply", "regional", "other"
@@ -30,7 +30,7 @@ class TopicDefinition(RuntimeModel):
     terms_any: list[ShortText] = Field(default_factory=list, max_length=16)
     profiles: list[TopicProfile] = Field(min_length=1, max_length=4)
     metric_ids: list[ShortText] = Field(default_factory=list, max_length=16)
-    bucket: Literal["week", "month"] = "month"
+    bucket: Literal["hour", "day", "week", "month"] = "month"
     lookback_buckets: int = Field(default=24, ge=3, le=120)
     cadence_hours: int = Field(default=24, ge=1, le=720)
     minimum_support: int = Field(default=2, ge=2, le=100)
@@ -57,11 +57,15 @@ class TopicUpdate(TopicCreate):
 class TopicControl(RuntimeModel):
     expected_revision: int = Field(ge=1)
     paused: bool
+    lifecycle: Literal["closed", "warming"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    reason: str | None = Field(default=None, max_length=2000, exclude_if=lambda value: value is None)
 
 
 class TopicSourceProgress(RuntimeModel):
     source_id: str
-    after: int = 0
+    after: int | None = 0
     scan_max_seq: int | None = None
     seed_complete: bool = False
     last_success_at: datetime | None = None
@@ -70,6 +74,7 @@ class TopicSourceProgress(RuntimeModel):
 
 
 class TopicView(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     id: str
     is_demo: bool
     definition: TopicDefinition
@@ -87,6 +92,13 @@ class TopicView(RuntimeModel):
     observation_count: int
     latest_evaluation_id: str | None = None
     data_gaps: list[str]
+    tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    evidence_time: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+
+
+class TopicRiskReviewView(RuntimeModel):
+    topic: TopicView
+    assessment: dict
 
 
 class TopicList(RuntimeModel):
@@ -130,6 +142,7 @@ class TopicSignal(RuntimeModel):
         "metric_change",
         "source_event",
         "evidence_revision",
+        "source_claim",
     ]
     title: str
     reason: str
@@ -179,6 +192,7 @@ class TopicMetricSeries(RuntimeModel):
 
 
 class TopicEvidence(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     key: str
     record_ref: ProviderRef
     source_id: str
@@ -190,7 +204,7 @@ class TopicEvidence(RuntimeModel):
 
 
 class TopicCoverage(RuntimeModel):
-    scope: Literal["committed_adoptions"] = "committed_adoptions"
+    scope: Literal["committed_adoptions", "verified_historical_availability"] = "committed_adoptions"
     seed_complete: bool
     source_watermarks: dict[str, int]
     source_errors: dict[str, str]
@@ -209,6 +223,7 @@ class TopicCoverage(RuntimeModel):
 
 
 class TopicEvaluation(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     id: str
     topic_id: str
     scope_revision: int
@@ -230,7 +245,11 @@ class TopicEvaluation(RuntimeModel):
     next_questions: list[str]
     draft: str
     investigation_id: str | None = None
-    automation_status: Literal["not_needed", "deferred", "saved", "needs_review", "blocked"] = "not_needed"
+    automation_status: Literal[
+        "not_needed", "deferred", "saved", "needs_review", "blocked", "waiting_budget"
+    ] = "not_needed"
+    tracking: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    evidence_time: dict | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class TopicEvaluationList(RuntimeModel):

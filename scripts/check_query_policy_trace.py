@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from query_policy_assertions import assert_query_policy
+from tests.query_policy_assertions import assert_query_policy
 
 
 def saved_view():

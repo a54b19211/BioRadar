@@ -17,10 +17,14 @@ class MethodSpec:
 
 METHODS = {
     "lexical_emergence": MethodSpec(
-        "lexical_emergence", "lexical-v1", "文本短语、组合与曝光变化", ("authorized_text",), ("M02", "M03")
+        "lexical_emergence",
+        "lexical-anchored-v2",
+        "文本短语、组合与曝光变化",
+        ("authorized_text",),
+        ("M02", "M03"),
     ),
     "text_topics": MethodSpec(
-        "text_topics", "topics-v1", "文本主题与语义新颖线索", ("authorized_text",), ("M02",)
+        "text_topics", "topics-anchored-v2", "文本主题与语义新颖线索", ("authorized_text",), ("M02",)
     ),
     "entity_combinations": MethodSpec(
         "entity_combinations",

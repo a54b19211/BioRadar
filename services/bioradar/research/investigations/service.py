@@ -1,5 +1,6 @@
 """Two PostgreSQL tables and direct operations for a manual research record."""
 
+import hashlib
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -22,6 +23,7 @@ from bioradar.data.database import Base
 from bioradar.research.engine.auth import DevelopmentAccess, EngineActor
 from bioradar.research.engine.service import SOURCE_LIST_NOTE, SOURCE_READ_UNAVAILABLE, EngineService
 from bioradar.research.investigations.models import (
+    HumanReview,
     InvestigationAutomation,
     InvestigationCreate,
     InvestigationEntry,
@@ -34,7 +36,7 @@ from bioradar.research.investigations.models import (
     InvestigationSummary,
     InvestigationView,
 )
-from bioradar.research.mining.models import EvidenceSupport, MiningResult, NormalizedSnapshot
+from bioradar.research.mining.models import EvidenceSupport, MiningResult, NormalizedSnapshot, canonical_hash
 
 MAX_ENTRIES = 128
 MAX_VIEW_BYTES = 2_000_000
@@ -130,6 +132,11 @@ class InvestigationService:
             for entry in entries
             if entry.payload.get("machine_analysis_id")
         }
+        analysis_ids.update(
+            target["analysis_id"]
+            for entry in entries
+            if (target := (entry.payload.get("review") or {}).get("target") or {}).get("analysis_id")
+        )
         if analysis_ids:
             from bioradar.research.investigations.analysis_service import AnalysisService
 
@@ -326,6 +333,98 @@ class InvestigationService:
             support=support,
         ), snapshot.is_demo
 
+    def _human_review(self, session, actor, row, entries, request):
+        review = request.review
+        if review is None:
+            return None
+        if review.decision in {"dismissed", "accepted_within_scope"} and not request.basis_entry_ids:
+            raise DomainError("human_review_basis_required", "采纳或不采纳须选择固定依据材料", 422)
+        if review.decision == "accepted_within_scope" and request.assessment != "provisional":
+            raise DomainError("human_review_assessment_invalid", "范围内采纳须明确记录临时判断及其条件", 422)
+        target = review.target
+        analysis_hash = None
+        if target.type == "candidate":
+            expected = {name: getattr(target, name) for name in ("run_id", "result_hash", "candidate_key")}
+            if row.origin is None or any(row.origin.get(k) != v for k, v in expected.items()):
+                raise DomainError("human_review_target_mismatch", "候选不属于本调查的固定来源", 422)
+        else:
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            analysis = AnalysisService(self.engine)._row(session, actor, target.analysis_id)
+            if analysis.investigation_id != row.id:
+                raise DomainError("human_review_target_mismatch", "审核目标不属于本调查", 422)
+            if analysis.state in {"queued", "running"} or not analysis.result:
+                raise DomainError("human_review_target_unfinished", "请先等待目标形成固定结果", 409)
+            analysis_hash = analysis.input_hash
+            if target.type == "report":
+                text = (analysis.result.get("report") or {}).get("final_text")
+                valid = (
+                    isinstance(text, str)
+                    and bool(text)
+                    and hashlib.sha256(text.encode()).hexdigest() == target.text_sha256
+                )
+            else:
+                matches = [c for c in analysis.result.get("claims", []) if c.get("id") == target.claim_id]
+                valid = len(matches) == 1 and canonical_hash(matches[0]) == target.claim_sha256
+            if not valid:
+                raise DomainError("human_review_target_mismatch", "审核目标正文或命题版本已不一致", 409)
+        basis = [e.payload["support"]["record_ref"] for e in entries if e.id in request.basis_entry_ids]
+        return HumanReview(
+            **review.model_dump(mode="json"), basis_record_refs=basis, analysis_input_hash=analysis_hash
+        )
+
+    def _human_assessment(self, session, actor, row, entries, request, entry):
+        from bioradar.research.mining.intelligence_assessment import finalize_human_assessment_axes
+
+        if request.assessment_axes is None:
+            return
+        target = request.review.target
+        information = request.assessment_axes.information_credibility
+        if information:
+            if target.type == "candidate":
+                raise DomainError("human_review_claim_required", "信息评级须选择本版报告或具体命题", 422)
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            analysis = AnalysisService(self.engine)._row(session, actor, target.analysis_id)
+            claims = {c["id"]: c for c in analysis.result.get("claims", [])}
+            if any(
+                item.claim_id not in claims
+                or item.claim_text != claims[item.claim_id]["text"]
+                or (target.type == "claim" and item.claim_id != target.claim_id)
+                for item in information
+            ):
+                raise DomainError(
+                    "human_review_claim_mismatch", "评级命题必须逐字绑定所选分析的固定命题", 422
+                )
+        records = []
+        for basis in entries:
+            if basis.id not in request.basis_entry_ids:
+                continue
+            adopted = self.engine._snapshot(session, actor, basis.payload["snapshot_id"])
+            snapshot = NormalizedSnapshot.model_validate(adopted.payload)
+            records.extend(
+                r
+                for r in snapshot.records
+                if r.record_ref.model_dump(mode="json") == basis.payload["support"]["record_ref"]
+            )
+        previous = next((e.id for e in reversed(entries) if e.payload.get("assessment_axes")), None)
+        try:
+            axes = finalize_human_assessment_axes(
+                request.assessment_axes,
+                records,
+                actor_id=entry.created_by,
+                assessed_at=entry.created_at,
+                entry_id=entry.id,
+                revision=entry.revision,
+                previous_assessment_ref=previous,
+            )
+        except ValueError:
+            raise DomainError(
+                "assessment_review_invalid", "评级依据、固定版本或独立确认不满足要求", 422
+            ) from None
+        entry.payload = {**entry.payload, "assessment_axes": axes.model_dump(mode="json")}
+        session.flush()
+
     def append(
         self,
         actor: EngineActor,
@@ -342,11 +441,17 @@ class InvestigationService:
             "material",
             "note",
         }:
-            raise DomainError("automation_judgment_forbidden", "后台仅可整理材料和笔记，不能签研究判断", 422)
+            raise DomainError(
+                "automation_judgment_forbidden",
+                "后台仅可整理材料和笔记，不能签研究判断",
+                422,
+            )
         with Session(self.engine.database) as session:
             self._row(session, actor, identifier)
             if machine_analysis_id is not None:
-                from bioradar.research.investigations.analysis_service import AnalysisService
+                from bioradar.research.investigations.analysis_service import (
+                    AnalysisService,
+                )
 
                 analysis = AnalysisService(self.engine)._row(session, actor, machine_analysis_id)
                 if analysis.investigation_id != identifier:
@@ -362,11 +467,38 @@ class InvestigationService:
             def mutate():
                 sources = {}
                 row, entries = self._row(session, actor, identifier, lock=True, sources=sources)
+                if (
+                    automation is not None
+                    and machine_analysis_id is None
+                    and request.kind == "material"
+                    and request.stance == "context"
+                ):
+                    from bioradar.research.investigations.analysis_service import (
+                        InvestigationAnalysisRecord,
+                    )
+
+                    active = session.scalar(
+                        select(InvestigationAnalysisRecord.id)
+                        .where(
+                            InvestigationAnalysisRecord.workspace_id == actor.workspace_id,
+                            InvestigationAnalysisRecord.investigation_id == identifier,
+                            InvestigationAnalysisRecord.state.in_(("queued", "running")),
+                        )
+                        .limit(1)
+                    )
+                    if active is not None:
+                        raise DomainError(
+                            "analysis_in_progress",
+                            "本调查正在分析；自动新版本材料保留待追加",
+                            409,
+                        )
                 if row.revision != request.expected_revision:
                     raise DomainError("revision_conflict", "调查已更新，请重新读取后保存", 409)
                 if len(entries) >= MAX_ENTRIES:
                     raise DomainError(
-                        "investigation_budget_exceeded", "调查记录已达保存上限，请拆分研究问题", 422
+                        "investigation_budget_exceeded",
+                        "调查记录已达保存上限，请拆分研究问题",
+                        422,
                     )
                 if row.status == "closed" and (request.kind != "status" or request.status == "closed"):
                     raise DomainError("investigation_closed", "调查已关闭，请先重新开启", 409)
@@ -374,17 +506,32 @@ class InvestigationService:
                 if request.kind == "material":
                     saved, source_demo = self._material(session, actor, request, sources)
                     if any(source.payload["is_demo"] != source_demo for source in sources.values()):
-                        raise DomainError("fixture_scope_mismatch", "教学与真实来源不能混入同一调查", 422)
+                        raise DomainError(
+                            "fixture_scope_mismatch",
+                            "教学与真实来源不能混入同一调查",
+                            422,
+                        )
                     payload = saved.model_dump(mode="json")
                     row.is_demo = row.is_demo or source_demo
                 elif request.kind == "judgment":
                     allowed = {entry.id for entry in entries if entry.kind == "material"}
                     basis = request.basis_entry_ids
                     if len(set(basis)) != len(basis) or not set(basis).issubset(allowed):
-                        raise DomainError("judgment_basis_invalid", "判断依据必须是本调查已有的材料记录", 422)
+                        raise DomainError(
+                            "judgment_basis_invalid",
+                            "判断依据必须是本调查已有的材料记录",
+                            422,
+                        )
                     if request.assessment == "provisional" and not basis:
-                        raise DomainError("judgment_basis_required", "没有采用材料时请记录无法判断", 422)
-                    latest = next((entry for entry in reversed(entries) if entry.kind == "judgment"), None)
+                        raise DomainError(
+                            "judgment_basis_required",
+                            "没有采用材料时请记录无法判断",
+                            422,
+                        )
+                    latest = next(
+                        (entry for entry in reversed(entries) if entry.kind == "judgment"),
+                        None,
+                    )
                     payload = InvestigationJudgment(
                         text=request.text,
                         conditions=request.conditions,
@@ -392,6 +539,7 @@ class InvestigationService:
                         basis_entry_ids=basis,
                         based_on_revision=row.revision,
                         parent_judgment_entry_id=latest.id if latest else None,
+                        review=self._human_review(session, actor, row, entries, request),
                     ).model_dump(mode="json")
                 elif request.kind == "status":
                     updates = {update.question_id: update.status for update in request.question_updates}
@@ -400,7 +548,10 @@ class InvestigationService:
                     ):
                         raise DomainError("question_update_invalid", "核实问题不存在或重复更新", 422)
                     row.questions = [
-                        {**question, "status": updates.get(question["question_id"], question["status"])}
+                        {
+                            **question,
+                            "status": updates.get(question["question_id"], question["status"]),
+                        }
                         for question in row.questions
                     ]
                     row.status = request.status
@@ -420,6 +571,8 @@ class InvestigationService:
                 )
                 session.add(entry)
                 session.flush()
+                if request.kind == "judgment":
+                    self._human_assessment(session, actor, row, entries, request, entry)
                 return self._response(row, [*entries, entry])
 
             idempotent_body = body
@@ -430,11 +583,18 @@ class InvestigationService:
                 if machine_analysis_id is not None:
                     idempotent_body["machine_analysis_id"] = machine_analysis_id
             code, payload = self.engine._idempotent(
-                session, actor, "investigation.append:" + identifier, key, idempotent_body, mutate
+                session,
+                actor,
+                "investigation.append:" + identifier,
+                key,
+                idempotent_body,
+                mutate,
             )
             self._row(session, actor, identifier)
         if request.kind == "material" and machine_analysis_id is None and automation is None:
-            from bioradar.research.investigations.analysis_service import AnalysisService
+            from bioradar.research.investigations.analysis_service import (
+                AnalysisService,
+            )
 
             if self.engine.settings.semantic_llm_enabled:
                 try:

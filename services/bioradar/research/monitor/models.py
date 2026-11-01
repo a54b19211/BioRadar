@@ -10,6 +10,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from bioradar.data.database import Base
 from bioradar.research.engine.schemas import RuntimeModel
+from bioradar.research.mining.models import AssessmentAxes
 
 MONITOR_VERSION = "bioradar-monitor-v0.1"
 BatchState = Literal["accepted", "queued", "investigating", "completed", "blocked"]
@@ -114,6 +115,9 @@ class MonitorSelectionSummary(RuntimeModel):
     unknown: int = Field(ge=0)
     methods: list[dict]
     record_outcomes: list[dict]
+    runtime_configuration: dict[str, int | None] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     limitations: list[str]
 
 
@@ -126,9 +130,10 @@ class MonitorBatchView(RuntimeModel):
     updated_at: datetime
     run_id: str | None
     snapshot_id: str | None
-    from_after: int
-    next_after: int
-    max_seq: int
+    from_after: int | None = None
+    next_after: int | None = None
+    max_seq: int | None = None
+    historical_sampling: dict | None = Field(default=None, exclude_if=lambda value: value is None)
     changed_versions: int
     window_records: int
     scope_complete: bool = False
@@ -139,6 +144,7 @@ class MonitorBatchView(RuntimeModel):
 
 
 class MonitorLeadView(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     id: str
     lead_key: str
     title: str

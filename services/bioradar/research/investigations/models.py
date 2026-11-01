@@ -6,7 +6,13 @@ from typing import Annotated, Literal
 from pydantic import Field, RootModel, model_validator
 
 from bioradar.research.engine.schemas import RuntimeModel
-from bioradar.research.mining.models import Candidate, EvidenceSupport, ProviderRef
+from bioradar.research.mining.models import (
+    AssessmentAxes,
+    AssessmentAxesReviewInput,
+    Candidate,
+    EvidenceSupport,
+    ProviderRef,
+)
 
 InvestigationStatus = Literal["open", "paused", "closed"]
 QuestionStatus = Literal["pending", "checking", "resolved", "blocked"]
@@ -58,6 +64,52 @@ class InvestigationMaterialCreate(RuntimeModel):
     text: str = Field(min_length=1, max_length=8000)
 
 
+ReviewHash = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
+
+
+class CandidateReviewTarget(RuntimeModel):
+    type: Literal["candidate"]
+    run_id: ShortId
+    result_hash: ReviewHash
+    candidate_key: str = Field(min_length=1, max_length=200)
+
+
+class ReportReviewTarget(RuntimeModel):
+    type: Literal["report"]
+    analysis_id: ShortId
+    text_sha256: ReviewHash
+
+
+class ClaimReviewTarget(RuntimeModel):
+    type: Literal["claim"]
+    analysis_id: ShortId
+    claim_id: str = Field(min_length=1, max_length=100)
+    claim_sha256: ReviewHash
+
+
+ReviewTarget = Annotated[
+    CandidateReviewTarget | ReportReviewTarget | ClaimReviewTarget,
+    Field(discriminator="type"),
+]
+
+
+class HumanReviewCreate(RuntimeModel):
+    decision: Literal["needs_verification", "dismissed", "accepted_within_scope"]
+    scope: str = Field(min_length=1, max_length=2000)
+    target: ReviewTarget
+
+    @model_validator(mode="after")
+    def nonempty_scope(self):
+        if not self.scope.strip():
+            raise ValueError("review scope cannot be blank")
+        return self
+
+
+class HumanReview(HumanReviewCreate):
+    basis_record_refs: list[ProviderRef]
+    analysis_input_hash: ReviewHash | None = Field(default=None, exclude_if=lambda v: v is None)
+
+
 class InvestigationJudgmentCreate(RuntimeModel):
     expected_revision: int = Field(ge=1)
     kind: Literal["judgment"]
@@ -65,6 +117,14 @@ class InvestigationJudgmentCreate(RuntimeModel):
     conditions: str = Field(default="", max_length=4000)
     assessment: JudgmentAssessment
     basis_entry_ids: list[ShortId] = Field(default_factory=list, max_length=128)
+    review: HumanReviewCreate | None = Field(default=None, exclude_if=lambda v: v is None)
+    assessment_axes: AssessmentAxesReviewInput | None = Field(default=None, exclude_if=lambda v: v is None)
+
+    @model_validator(mode="after")
+    def ratings_need_fixed_review(self):
+        if self.assessment_axes is not None and self.review is None:
+            raise ValueError("explicit ratings require a fixed review target")
+        return self
 
 
 class InvestigationStatusCreate(RuntimeModel):
@@ -130,6 +190,8 @@ class InvestigationJudgment(RuntimeModel):
     basis_entry_ids: list[str]
     based_on_revision: int
     parent_judgment_entry_id: str | None
+    review: HumanReview | None = Field(default=None, exclude_if=lambda v: v is None)
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class InvestigationStatusChange(RuntimeModel):

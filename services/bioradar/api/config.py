@@ -17,11 +17,36 @@ class Settings(BaseSettings):
     data_fabric_url: str | None = None
     data_fabric_research_url: str | None = None
     data_fabric_history_read_token: SecretStr | None = None
+    data_fabric_history_fetch_token: SecretStr | None = None
+    data_fabric_demo_fetch_url: str | None = None
+    data_fabric_demo_fetch_instance_id: str | None = Field(default=None, min_length=1, max_length=200)
     data_fabric_graph_query_token: SecretStr | None = None
     data_fabric_graph_query_url: str | None = None
 
     biocheck_project_dir: Path | None = None
     mech_evidence_project_dir: Path | None = None
+    biocheck_transport: Literal["local", "http"] = "local"
+    biocheck_service_url: str | None = None
+    biocheck_service_token: SecretStr | None = None
+    mech_evidence_transport: Literal["local", "http"] = "local"
+    mech_evidence_service_url: str | None = None
+    mech_evidence_service_token: SecretStr | None = None
+    professional_http_timeout_seconds: float = Field(default=30, gt=0, le=120)
+    professional_http_max_bytes: int = Field(default=8388608, ge=4096, le=16777216)
+    professional_max_steps: int = Field(default=24, ge=1, le=64)
+    weknora_kdd_url: str | None = None
+    weknora_kdd_token: SecretStr | None = None
+    weknora_kdd_knowledge_base_id: str | None = Field(default=None, min_length=1, max_length=200)
+    weknora_kdd_source_scope: str | None = Field(default=None, min_length=1, max_length=200)
+    weknora_kdd_demo_knowledge_base_id: str | None = Field(default=None, min_length=1, max_length=200)
+    weknora_kdd_demo_source_scope: str = Field(default="simulation", min_length=1, max_length=200)
+    weknora_kdd_feature_source_scopes: dict[str, str] = Field(default_factory=dict)
+    analysis_kdd_selector: Literal["information_gain_v1", "coverage_cost_baseline_v1"] = "information_gain_v1"
+    monitor_kdd_directions: dict[str, Literal["research", "pipeline", "business", "public_health"]] = Field(
+        default_factory=dict
+    )
+    data_fabric_source_instance: str = Field(default="datafabric-test", min_length=1, max_length=200)
+    data_fabric_demo_source_instance: str | None = Field(default=None, min_length=1, max_length=200)
     weknora_url: str | None = None
     weknora_api_key: SecretStr | None = None
     weknora_knowledge_base_ids: list[str] = Field(default_factory=list, max_length=8)
@@ -51,12 +76,21 @@ class Settings(BaseSettings):
     monitor_enabled: bool = False
     monitor_is_demo: bool = False
     monitor_poll_seconds: int = Field(default=30, ge=1, le=3600)
+    monitor_current_window_days: int = Field(default=30, ge=1, le=365)
     monitor_batch_records: int = Field(default=50, ge=1, le=100)
     monitor_context_records: int = Field(default=2000, ge=10, le=20000)
     monitor_pending_runs: int = Field(default=2, ge=1, le=8)
     monitor_hourly_investigations: int = Field(default=6, ge=0, le=100)
     monitor_cooldown_minutes: int = Field(default=60, ge=1, le=1440)
-    monitor_investigations_per_batch: int = Field(default=2, ge=1, le=5)
+    monitor_investigations_per_batch: int = Field(default=1, ge=1, le=5)
+
+    topic_max_auto_active: int = Field(default=20, ge=0, le=1000)
+    topic_hourly_investigations: int = Field(default=2, ge=0, le=100)
+    topic_daily_model_tokens: int = Field(default=262144, ge=0, le=100_000_000)
+    automatic_daily_model_tokens: int = Field(default=1048576, ge=0, le=100_000_000)
+    history_replay_dispatch_policy: Literal["history-new-visible-evidence-v1"] = (
+        "history-new-visible-evidence-v1"
+    )
 
     # Server-only model access. These credentials never enter a browser request.
     semantic_llm_enabled: bool = False
@@ -67,7 +101,7 @@ class Settings(BaseSettings):
     semantic_llm_model: str | None = Field(default=None, max_length=200)
     semantic_llm_model_revision: str | None = Field(default=None, max_length=200)
     semantic_llm_timeout_seconds: int = Field(default=45, ge=5, le=180)
-    semantic_llm_max_input_bytes: int = Field(default=65_536, ge=1024, le=131_072)
+    semantic_llm_max_input_bytes: int = Field(default=65_536, ge=1024, le=1_048_576)
     semantic_llm_max_output_tokens: int = Field(default=4096, ge=128, le=32_768)
     semantic_llm_enable_thinking: bool = False
     semantic_llm_temperature: float = Field(default=0, ge=0, le=2, allow_inf_nan=False)
@@ -79,12 +113,66 @@ class Settings(BaseSettings):
     analysis_auto_enabled: bool = False
     analysis_max_calls: int = Field(default=16, ge=1, le=32)
     analysis_max_tokens: int = Field(default=262144, ge=1, le=10_000_000)
-    analysis_max_seconds: int = Field(default=1800, ge=1, le=1800)
-    analysis_max_queries: int = Field(default=6, ge=0, le=6)
+    analysis_max_seconds: int = Field(default=1800, ge=1, le=3600)
+    analysis_min_call_seconds: int = Field(default=60, ge=1, le=180)
+    analysis_token_calibration_version: str | None = Field(default=None, min_length=1, max_length=200)
+    analysis_token_stage_ratios: dict[str, float] = Field(default_factory=dict)
+    analysis_max_queries: int = Field(default=6, ge=0, le=32)
     analysis_max_tool_calls: int = Field(default=64, ge=1, le=256)
     analysis_query_policy: Literal["baseline", "query_planner"] = "baseline"
     query_planner_project_dir: Path | None = None
     analysis_query_policy_max_steps: int = Field(default=12, ge=1, le=256)
+    analysis_query_policy_v2_max_steps: int = Field(default=32, ge=1, le=256)
+    analysis_v2_max_evidence: int = Field(default=32, ge=10, le=64)
+    analysis_v2_max_characters: int = Field(default=100000, ge=40000, le=400000)
+    analysis_v2_records_per_query: int = Field(default=8, ge=3, le=20)
+
+    analysis_v2_action_limits: dict[str, int] = Field(
+        default_factory=lambda: {
+            "document_read": 32,
+            "document_search": 16,
+            "source_fetch": 2,
+            "dataset_prepare": 4,
+            "analysis_run": 4,
+            "professional_assess": 2,
+            "entity_relations": 4,
+            "graph_neighbors": 4,
+            "graph_path": 2,
+        }
+    )
+
+    @model_validator(mode="after")
+    def token_calibration(self):
+        import math
+
+        if self.analysis_token_stage_ratios and not self.analysis_token_calibration_version:
+            raise ValueError("Measured token ratios require a calibration version")
+        if any(
+            not name or not math.isfinite(ratio) or not 0 < ratio <= 2
+            for name, ratio in self.analysis_token_stage_ratios.items()
+        ):
+            raise ValueError("Token calibration ratios must be finite, positive and at most two")
+        return self
+
+    @field_validator("analysis_v2_action_limits")
+    @classmethod
+    def bounded_action_limits(cls, value: dict[str, int]) -> dict[str, int]:
+        allowed = {
+            "document_read",
+            "document_search",
+            "source_fetch",
+            "dataset_prepare",
+            "analysis_run",
+            "professional_assess",
+            "entity_relations",
+            "graph_neighbors",
+            "graph_path",
+        }
+        if set(value) - allowed or any(
+            type(limit) is not int or not 0 <= limit <= 64 for limit in value.values()
+        ):
+            raise ValueError("Action limits require known action kinds and integer upper bounds from 0 to 64")
+        return dict(sorted(value.items()))
 
     @model_validator(mode="after")
     def flash_thinking_sampling(self):
@@ -137,7 +225,12 @@ class Settings(BaseSettings):
             raise ValueError("Analysis search requires explicit source identifiers")
         return sorted(set(value))
 
-    @field_validator("data_fabric_url", "data_fabric_research_url", "data_fabric_graph_query_url")
+    @field_validator(
+        "data_fabric_url",
+        "data_fabric_research_url",
+        "data_fabric_graph_query_url",
+        "data_fabric_demo_fetch_url",
+    )
     @classmethod
     def local_fabric(cls, value: str | None) -> str | None:
         from urllib.parse import urlsplit
@@ -159,7 +252,7 @@ class Settings(BaseSettings):
             raise ValueError("History reader requires a configured loopback base URL")
         return value.rstrip("/")
 
-    @field_validator("weknora_url")
+    @field_validator("weknora_url", "weknora_kdd_url", "biocheck_service_url", "mech_evidence_service_url")
     @classmethod
     def configured_knowledge_endpoint(cls, value: str | None) -> str | None:
         from urllib.parse import urlsplit
@@ -181,7 +274,14 @@ class Settings(BaseSettings):
             raise ValueError("Use an explicit server-configured WeKnora root URL without credentials")
         return value.rstrip("/")
 
-    @field_validator("data_fabric_history_read_token", "weknora_api_key")
+    @field_validator(
+        "data_fabric_history_read_token",
+        "data_fabric_history_fetch_token",
+        "weknora_api_key",
+        "weknora_kdd_token",
+        "biocheck_service_token",
+        "mech_evidence_service_token",
+    )
     @classmethod
     def empty_history_token(cls, value: SecretStr | None) -> SecretStr | None:
         return value if value and value.get_secret_value() else None
@@ -192,6 +292,25 @@ class Settings(BaseSettings):
         if value is not None and (not value.is_absolute() or ".." in value.parts):
             raise ValueError("Shared provider source requires an absolute server-configured directory")
         return value
+
+    @field_validator("weknora_kdd_source_scope")
+    @classmethod
+    def configured_retrieval_source_scope(cls, value: str | None) -> str | None:
+        if value is not None and (value != value.strip() or any(ord(char) < 32 for char in value)):
+            raise ValueError("WeKnora reads require an exact explicit authorization scope")
+        return value
+
+    @field_validator("weknora_kdd_feature_source_scopes")
+    @classmethod
+    def configured_feature_source_scopes(cls, value: dict[str, str]) -> dict[str, str]:
+        # Selection is explicit; the feature service must still authorize this KB/scope.
+        if any(
+            not item or len(item) > 200 or item != item.strip() or any(ord(char) < 32 for char in item)
+            for pair in value.items()
+            for item in pair
+        ):
+            raise ValueError("Feature reads require explicit source identifiers and source scopes")
+        return dict(sorted(value.items()))
 
     @field_validator("weknora_knowledge_base_ids")
     @classmethod

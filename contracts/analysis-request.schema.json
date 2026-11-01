@@ -77,6 +77,30 @@
       "title": "AnalysisBudget",
       "type": "object"
     },
+    "HistoricalAnalysisScope": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "public_history_reconstruction",
+            "operational_replay"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "cutoff": {
+          "format": "date-time",
+          "title": "Cutoff",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "cutoff"
+      ],
+      "title": "HistoricalAnalysisScope",
+      "type": "object"
+    },
     "InitialQuery": {
       "additionalProperties": false,
       "properties": {
@@ -166,6 +190,17 @@
       ],
       "default": null
     },
+    "historical_scope": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HistoricalAnalysisScope"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "query_policy": {
       "anyOf": [
         {
@@ -181,6 +216,24 @@
       ],
       "default": null,
       "title": "Query Policy"
+    },
+    "kdd_direction": {
+      "anyOf": [
+        {
+          "enum": [
+            "research",
+            "pipeline",
+            "business",
+            "public_health"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kdd Direction"
     },
     "retry_of_analysis_id": {
       "anyOf": [

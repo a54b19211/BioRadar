@@ -21,7 +21,6 @@ from bioradar.research.investigations.query_policy import (
     freeze_policy,
     mechanism_query_context,
     semantic_key,
-    validate_frozen_policy,
     validate_initial_plans,
 )
 
@@ -245,8 +244,13 @@ def test_pipeline_coverage_requires_current_evidence_and_never_follows_covers_or
     checks = {item["id"]: item for item in context(data, state, reading=reading)["checks"]}
     assert checks["support"]["status"] == "passed"
     assert checks["patent"]["status"] == "unknown" and checks["patent"]["evidence_ids"] == []
-    with pytest.raises(DomainError, match="覆盖判断"):
-        context(data, state, reading={"coverage_checks": [{"id": "invented", "status": "passed"}]})
+    # The existing baseline ignores undeclared coverage decoration and continues;
+    # it must not manufacture a successful scientific check from that decoration.
+    unknown = context(data, state, reading={"coverage_checks": [{"id": "invented", "status": "passed"}]})
+    by_id = {item["id"]: item for item in unknown["checks"]}
+    assert "invented" not in by_id
+    assert by_id["support"]["status"] == "unknown"
+    assert by_id["source_materials"]["status"] == "passed"
 
 
 def test_mechanism_gaps_and_opposing_observations_become_real_declared_query_coverage():
@@ -369,13 +373,12 @@ def test_controlled_adapter_freezes_actual_source_and_preserves_candidate(tmp_pa
     frozen = freeze_policy(settings)
     assert frozen["version"] == loaded[1]
     assert frozen["training_status"] == "heuristic_untrained"
-    validate_frozen_policy(settings, frozen)
     request = context(fixed("query_planner"))
     result = decide(request, policy="query_planner", planner=lambda req: decide_query(settings, req))
     assert result["action"] == request["candidates"][0]
     (tmp_path / "src/method.py").write_text("METHOD = 'SYNTHETIC changed'\n")
     with pytest.raises(DomainError, match="固定版本"):
-        validate_frozen_policy(settings, frozen)
+        decide_query(settings, request, expected_version=frozen["version"])
     with pytest.raises(DomainError, match="源码已变化"):
         decide_query(settings, request, loaded=loaded)
 

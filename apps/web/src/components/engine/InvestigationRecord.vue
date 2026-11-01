@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { object, reviewLabels } from "../../api/humanReview";
+import AssessmentAxesPanel from "./AssessmentAxesPanel.vue";
 import { ElButton, ElOption, ElSelect, ElTag } from "element-plus";
 import type { InvestigationView, EvidenceSupport } from "../../api/engine";
 const props = defineProps<{
@@ -189,7 +191,7 @@ function basisEntries(ids: string[]) {
     </section>
     <slot name="machine-analysis" />
     <section class="engine-panel">
-      <h2>当前研究人员判断</h2>
+      <h2>最近人工判断（仅适用于所列对象和范围）</h2>
       <p v-if="investigation.needs_review" class="notice">
         有材料尚未纳入最新判断，请重新检查。旧判断及其原依据范围保留。
       </p>
@@ -209,6 +211,13 @@ function basisEntries(ids: string[]) {
           <strong>条件、缺口与下一步：</strong
           >{{ latestJudgment.judgment.conditions }}
         </p>
+        <div v-if="object(latestJudgment.judgment).review" class="notice">
+          <strong>{{ reviewLabels[String(object(object(latestJudgment.judgment).review).decision)] }}</strong>
+          <p>适用范围：{{ object(object(latestJudgment.judgment).review).scope }}</p>
+          <p>固定对象：{{ object(object(latestJudgment.judgment).review).target }}</p>
+          <p>这项记录不自动适用于其他对象或新版，也不签发对外警报。</p>
+        </div>
+        <AssessmentAxesPanel :axes="object(latestJudgment.judgment).assessment_axes" />
         <p class="muted">
           本版明确纳入
           {{ latestJudgment.judgment.basis_entry_ids.length }}
@@ -306,6 +315,8 @@ function basisEntries(ids: string[]) {
         </p>
         <p class="investigation-prose">{{ entry.payload.text }}</p>
         <template v-if="entry.payload.kind === 'judgment'">
+          <div v-if="object(entry.payload).review" class="notice"><strong>{{ reviewLabels[String(object(object(entry.payload).review).decision)] }}</strong><p>固定适用范围：{{ object(object(entry.payload).review).scope }}；对象：{{ object(object(entry.payload).review).target }}</p></div>
+          <AssessmentAxesPanel :axes="object(entry.payload).assessment_axes" />
           <p class="muted">
             {{ assessmentLabels[entry.payload.assessment] }} · 依据调查第
             {{ entry.payload.based_on_revision }} 版的

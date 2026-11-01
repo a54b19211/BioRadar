@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from "vue";
-import { ElButton } from "element-plus";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import { ElButton, ElInput } from "element-plus";
 import { useRoute, useRouter } from "vue-router";
 import { engineRequest, EngineError, post } from "../api/engine";
 import type { components } from "../api/generated/engine";
 import EngineLogin from "../components/engine/EngineLogin.vue";
 import TopicDefinitionForm from "../components/engine/TopicDefinitionForm.vue";
 import TopicEvaluationDetail from "../components/engine/TopicEvaluationDetail.vue";
+import TopicTrackingCard from "../components/engine/TopicTrackingCard.vue";
 
 type Topic = components["schemas"]["TopicView"];
 type Evaluation = components["schemas"]["TopicEvaluation"];
@@ -22,6 +23,10 @@ const error = ref("");
 const topics = ref<Topic[]>([]);
 const templates = ref<Template[]>([]);
 const selected = ref<Topic | null>(null);
+const tracking = computed(() => (selected.value as (Topic & { tracking?: unknown }) | null)?.tracking);
+const trackingLifecycle = computed(() => String((tracking.value as { lifecycle?: unknown } | null)?.lifecycle || ""));
+const lifecycleReason = ref("");
+watch(() => selected.value?.id, () => { lifecycleReason.value = ""; });
 const evaluations = ref<Evaluation[]>([]);
 const evaluation = ref<Evaluation | null>(null);
 const unavailable = ref(0);
@@ -371,9 +376,13 @@ async function save(body: Create) {
     }
   }
 }
-async function togglePause() {
+async function togglePause(lifecycle?: "closed" | "warming") {
   const topic = selected.value;
   if (!topic || busy.value) return;
+  if (lifecycle && !lifecycleReason.value.trim()) {
+    error.value = "请先记录调整跟踪状态的原因。";
+    return;
+  }
   ++refreshVersion;
   loading.value = false;
   const epoch = sessionEpoch,
@@ -385,7 +394,8 @@ async function togglePause() {
       "/topics/" + encodeURIComponent(topic.id) + "/control",
       {
         expected_revision: topic.control_revision,
-        paused: !topic.paused,
+        paused: lifecycle === "closed" ? true : lifecycle === "warming" ? false : !topic.paused,
+        ...(lifecycle ? { lifecycle, reason: lifecycleReason.value.trim() } : {}),
       },
     );
     if (!current(epoch) || selectionVersion !== version) return;
@@ -519,6 +529,7 @@ onUnmounted(() => {
           >
         </aside>
         <section v-if="selected" class="topic-detail">
+          <TopicTrackingCard v-if="tracking" :tracking="tracking" title="当前专题跟踪状态" :axes="selected.assessment_axes" :as-of="selected.updated_at" />
           <section class="engine-panel">
             <div class="section-heading">
               <h2>{{ selected.definition.title }}</h2>
@@ -529,13 +540,22 @@ onUnmounted(() => {
             </div>
             <p class="topic-question">{{ selected.definition.question }}</p>
             <div class="heading-actions">
-              <ElButton :disabled="busy" @click="togglePause">{{
+              <ElButton :disabled="busy" @click="togglePause()">{{
                 selected.paused ? "继续观察" : "暂停本专题"
               }}</ElButton>
               <ElButton :disabled="busy" @click="startForm('edit')"
                 >修改范围</ElButton
               >
             </div>
+            <details v-if="tracking" class="no-print lifecycle-control">
+              <summary>人工调整跟踪状态</summary>
+              <p class="muted">停止跟踪或重新关注均需记录原因；停止跟踪不会自动解除未解决的风险。</p>
+              <ElInput v-model="lifecycleReason" type="textarea" :rows="2" maxlength="2000" :disabled="busy" placeholder="记录本次调整的证据与原因" aria-label="跟踪状态调整原因" />
+              <div class="heading-actions">
+                <ElButton v-if="trackingLifecycle !== 'closed'" :disabled="busy || !lifecycleReason.trim()" @click="togglePause('closed')">记录原因并结束跟踪</ElButton>
+                <ElButton :disabled="busy || !lifecycleReason.trim()" @click="togglePause('warming')">记录原因并重新关注</ElButton>
+              </div>
+            </details>
             <dl class="topic-facts">
               <div>
                 <dt>最近检查</dt>

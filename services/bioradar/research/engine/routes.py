@@ -235,7 +235,11 @@ def create_engine_router(settings: Settings) -> APIRouter:
             cutoff = datetime.now(UTC)
         if cutoff.tzinfo is None or cutoff.utcoffset() is None or cutoff > datetime.now(UTC):
             raise DomainError("graph_cutoff_invalid", "列表截止时间须为已有的含时区时间", 422)
-        instance = "fixture" if is_demo else "datafabric-test"
+        instance = (
+            (settings.data_fabric_demo_source_instance or "fixture")
+            if is_demo
+            else settings.data_fabric_source_instance
+        )
         if instance not in actor.source_allowlist or source_id not in settings.engine_source_id_allowlist.get(
             instance, []
         ):
@@ -329,6 +333,19 @@ def create_engine_router(settings: Settings) -> APIRouter:
         else:
             yield AnalysisService(engine)
 
+    def analysis_delivery_view(analyses, actor, investigation_id, analysis):
+        from bioradar.delivery.research_report import human_review_context
+        from bioradar.research.mining.intelligence_assessment import analysis_assessment_axes
+
+        entries = InvestigationService(analyses.engine).get(actor, investigation_id).entries
+        value = analysis.model_dump(mode="json")
+        changes = {"human_review_context": human_review_context(value, entries)}
+        if analysis.result is not None:
+            changes["result"] = analysis.result.model_copy(
+                update={"assessment_axes": analysis_assessment_axes(value, entries)}
+            )
+        return analysis.model_copy(update=changes)
+
     @router.post("/investigations/ask", status_code=202)
     def research_ask(
         body: QuestionAsk,
@@ -358,10 +375,14 @@ def create_engine_router(settings: Settings) -> APIRouter:
                         initial_queries=body.initial_queries,
                         budget=body.budget,
                         query_policy=body.query_policy,
+                        kdd_direction=body.kdd_direction,
+                        historical_scope=body.historical_scope,
                     ),
                     "ask-analysis:" + canonical_hash(idempotency_key),
                 )
-                current = analyses.get(actor, identifier, analysis["id"])
+                current = analysis_delivery_view(
+                    analyses, actor, identifier, analyses.get(actor, identifier, analysis["id"])
+                )
         except DomainError as exc:
             return JSONResponse(
                 status_code=exc.status_code,
@@ -405,7 +426,10 @@ def create_engine_router(settings: Settings) -> APIRouter:
     ):
         with analysis_runtime(request) as analyses:
             code, payload = analyses.start(actor, investigation_id, body, idempotency_key)
-            return JSONResponse(status_code=code, content=payload)
+            view = analysis_delivery_view(
+                analyses, actor, investigation_id, AnalysisView.model_validate(payload)
+            )
+            return JSONResponse(status_code=code, content=view.model_dump(mode="json"))
 
     @router.get("/investigations/{investigation_id}/analyses/{analysis_id}", response_model=AnalysisView)
     def analysis_get(
@@ -415,7 +439,9 @@ def create_engine_router(settings: Settings) -> APIRouter:
         actor: EngineActor = Depends(access.require_actor),
     ):
         with analysis_runtime(request) as analyses:
-            return analyses.get(actor, investigation_id, analysis_id)
+            return analysis_delivery_view(
+                analyses, actor, investigation_id, analyses.get(actor, investigation_id, analysis_id)
+            )
 
     @router.get(
         "/investigations/{investigation_id}/analyses/{analysis_id}/evidence/{evidence_key}",
@@ -440,22 +466,29 @@ def create_engine_router(settings: Settings) -> APIRouter:
         actor: EngineActor = Depends(access.require_actor),
     ):
         with analysis_runtime(request) as analyses:
-            analysis = analyses.get(actor, investigation_id, analysis_id)
+            analysis = analysis_delivery_view(
+                analyses, actor, investigation_id, analyses.get(actor, investigation_id, analysis_id)
+            )
             if format == "markdown":
                 if analysis.result is None:
                     raise DomainError("analysis_report_unavailable", "本轮尚无可导出的分析稿", 409)
-                from bioradar.research.investigations.analysis import render_report
+                from bioradar.delivery.research_report import render_report_markdown
 
-                content = (analysis.result.report or {}).get("final_text") or render_report(
-                    analysis.result.model_dump(mode="json"), analysis.question
-                )
+                content = render_report_markdown(analysis.model_dump(mode="json"))
                 return Response(
                     content=content,
                     media_type="text/markdown; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="analysis-{analysis_id}.md"'},
                 )
+            from bioradar.delivery.research_report import build_report_delivery
+
             return {
                 "analysis": analysis.model_dump(mode="json"),
+                "delivery": (
+                    build_report_delivery(analysis.model_dump(mode="json"))
+                    if analysis.result is not None
+                    else None
+                ),
                 "warning": "有出处的机器分析，专业方法评价或模型核验不等于人工批准。",
             }
 

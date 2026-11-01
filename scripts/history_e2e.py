@@ -17,7 +17,8 @@ from urllib.parse import urlsplit
 from uuid import uuid4
 
 import httpx
-from query_policy_assertions import assert_query_policy
+
+from tests.query_policy_assertions import assert_query_policy
 
 
 def canonical(value):

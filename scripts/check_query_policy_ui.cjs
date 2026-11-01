@@ -28,9 +28,35 @@ function compileComponent(relative, imports = {}) {
   return context.exports.default;
 }
 
-const policyPanel = compileComponent("apps/web/src/components/engine/PolicyTracePanel.vue");
+const apiCache = new Map();
+function loadApi(relative) {
+  const filename = path.resolve(root, relative);
+  if (apiCache.has(filename)) return apiCache.get(filename);
+  const context = { exports: {}, crypto: require("node:crypto").webcrypto, TextEncoder, require(name) {
+    if (name.startsWith(".")) return loadApi(path.relative(root, path.resolve(path.dirname(filename), name + ".ts")));
+    throw new Error("Unexpected offline import: " + name);
+  } };
+  const code = ts.transpileModule(fs.readFileSync(filename, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  vm.runInNewContext(code, context);
+  apiCache.set(filename, context.exports);
+  return context.exports;
+}
+const kddApi = loadApi("apps/web/src/api/kdd.ts");
+const queryPolicyApi = loadApi("apps/web/src/api/queryPolicy.ts");
+const kddSummary = compileComponent("apps/web/src/components/engine/KddRunSummary.vue", {
+  "../../api/kdd": kddApi,
+  "../../api/engine": { engineRequest() { throw new Error("Offline UI check must not make HTTP"); } },
+});
+const policyPanel = compileComponent("apps/web/src/components/engine/PolicyTracePanel.vue", {
+  "../../api/kdd": kddApi, "../../api/queryPolicy": queryPolicyApi,
+  "./KddRunSummary.vue": { default: kddSummary },
+});
+const diagnosticPanel = compileComponent("apps/web/src/components/engine/ResearchDiagnostics.vue");
 const progressPanel = compileComponent("apps/web/src/components/engine/ResearchProgress.vue", {
-  "./PolicyTracePanel.vue": { default: policyPanel },
+  "./PolicyTracePanel.vue": { default: policyPanel }, "../../api/queryPolicy": queryPolicyApi,
+  "./ResearchDiagnostics.vue": { default: diagnosticPanel },
 });
 function render(policy, queries = []) {
   return renderToString(Vue.createSSRApp(policyPanel, { policy, queries }));
@@ -131,12 +157,166 @@ async function main() {
   assert.doesNotMatch(printed, /逐步动作、真实回执与下一决策/);
   assert.doesNotMatch(printed, /策略版本与原始轨迹/);
   assert.equal(printableText('<div class="no-print"><p>hidden ancestor</p></div><p>visible</p>').trim(), "visible");
+  const impactAnalysis = {
+    id: "latest-failed-analysis", state: "needs_review", calls: [], queries: [], providers: {}, budget: { limits: {}, usage: {} },
+    query_policy: { evidence_time: { mode: "current", cutoff: "2026-02-03T00:00:00Z" } },
+    result: { report: { status: "FAIL", final_text: "SYNTHETIC immutable later report" } },
+    progress: { material_update_impact: { version: "dependency-aware-material-update-v1", parent_analysis_id: "prior-analysis",
+      report_currentness: "prior_fixed_materials", report_as_of: "2026-01-02T00:00:00Z", checked_revision: 8, status: "impact_pending", decisions: [{ entry_id: "source-version-change", revision: 8,
+        old_ref: { provider: "fixture", object_id: "source", adopted_version: "v1" },
+        new_ref: { provider: "fixture", object_id: "source", adopted_version: "v2" },
+        status: "impact_pending", reason: "changed_context_or_unmapped_dependency", affected_claim_ids: ["calculation"] }] } },
+  };
+  const impactBefore = JSON.stringify(impactAnalysis);
+  const impactHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: impactAnalysis }));
+  assert.match(printableText(impactHtml), /有新版本等待判断/);
+  assert.match(printableText(impactHtml), /下方已有报告仍绑定自身原固定材料/);
+  assert.match(printableText(impactHtml), /本次影响比较依据的报告：prior-analysis/);
+  assert.doesNotMatch(impactHtml, /涉及本版命题/);
+  assert.match(impactHtml, /受影响命题／计算依据：calculation/);
+  assert.match(printableText(impactHtml), /该报告资料截止/);
+  assert.ok(printableText(impactHtml).includes(new Date("2026-01-02T00:00:00Z").toLocaleString("zh-CN", { hour12: false })));
+  assert.match(impactHtml, /fixture \/ source \/ v1/);
+  assert.match(impactHtml, /fixture \/ source \/ v2/);
+  assert.equal(JSON.stringify(impactAnalysis), impactBefore, "Impact projection never edits the prior report/state/hash inputs");
+  const equivalentAnalysis = JSON.parse(impactBefore);
+  equivalentAnalysis.progress.material_update_impact.status = "equivalent_inputs";
+  const equivalentHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: equivalentAnalysis }));
+  assert.match(equivalentHtml, /系统只确认下述依据报告的本次已比较输入等同/);
+  assert.match(equivalentHtml, /这不代表下方其他版本已经完成比较或重新研判/);
+  const missingBasis = JSON.parse(impactBefore);
+  delete missingBasis.progress.material_update_impact.parent_analysis_id;
+  delete missingBasis.progress.material_update_impact.report_as_of;
+  const missingBasisHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: missingBasis }));
+  assert.match(printableText(missingBasisHtml), /未记录，未推测对应报告/);
+  assert.match(printableText(missingBasisHtml), /该报告资料截止：未提供，未补成当前时点/);
+  const diagnosticAnalysis = {
+    state: "needs_review", calls: [], queries: [], budget: { limits: {}, usage: {} },
+    result: { report: { status: "FAIL", final_text: "SYNTHETIC unchanged report" } },
+    progress: { diagnostics: {
+      analysis_id: "diagnostic-analysis", report_status: "FAIL", error_code: "analysis_passage_invalid",
+      execution_limits: { document_search: 13, document_read: 29, pages_per_chain: 4 },
+      usage: { total_tokens: null, known_total_tokens: 70, unknown_usage_calls: 1,
+        verified_pass_report: false, verified_pass_total_tokens: null,
+        stages: [{ stage: "read_plan", total_tokens: 70, known_total_tokens: 70,
+          request_bytes: 2048, known_request_bytes: 2048, call_count: 1 },
+        { stage: "biocheck_check", total_tokens: null, known_total_tokens: 0,
+          request_bytes: null, known_request_bytes: 0, call_count: 1 }],
+        calls: [{ stage: "biocheck_check", receipt_status: "unconfirmed", request_bytes: null,
+          usage: { prompt_tokens: null, completion_tokens: null, total_tokens: null } }] },
+      queries: [{ query_index: 0, source_id: "fixture", terms: ["alpha", "cohort"], status: "read",
+        pagination: { page_number: 2, has_more: true, next_cursor_sha256: "cursor-hash" } }],
+      reading_repairs: [{ reason: "analysis_passage_invalid", original_call_key: "read-1",
+        repair_call_key: "read-1:structure-repair", status: "validated",
+        field_paths: [["claims", 0, "evidence_links", 0]] }],
+      biocheck_issues: [{ unit_id: "U2", unit_index: 1, sentence_index: 2, claim_index: 0,
+        label: "causal_overstatement" }],
+      numeric_candidates: [{ observation_index: 3,
+        record_ref: { object_id: "record-7", adopted_version: "fixed-v3" },
+        issues: [{ stage: "pairing", reason: "ordered_period_value_mismatch" }] }],
+    } },
+  };
+  const diagnosticBefore = JSON.stringify(diagnosticAnalysis);
+  const diagnosticHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: diagnosticAnalysis }));
+  assert.match(printableText(diagnosticHtml), /本稿全流程实耗/);
+  assert.match(diagnosticHtml, /已知 70/);
+  assert.match(diagnosticHtml, /未知/);
+  assert.match(diagnosticHtml, /alpha、cohort/);
+  assert.match(diagnosticHtml, /causal_overstatement/);
+  assert.match(diagnosticHtml, /ordered_period_value_mismatch/);
+  assert.match(diagnosticHtml, /analysis_passage_invalid/);
+  assert.doesNotMatch(diagnosticHtml, /文字核验PASS稿总 token：0/);
+  assert.equal(JSON.stringify(diagnosticAnalysis), diagnosticBefore);
+
   const styles = fs.readFileSync(path.join(root, "apps/web/src/style.css"), "utf8");
   assert.match(styles, /@media print[\s\S]*?\.no-print[\s\S]*?display:\s*none\s*!important/);
   trace.effective = "baseline";
   const fallback = await render(trace);
   assert.match(fallback, /请求策略：逐步查询策略/);
   assert.match(fallback, /本版实际策略：原有顺序基线/);
+  const dataset = {
+    schema_version: "bioradar-analysis-dataset-v1", direction: "research", input_count: 3,
+    qualified_count: 2, unit_contract: "study_x_conditions_or_explicit_exploratory_document",
+    units: [], excluded_records: [], unknown_reasons: ["independent_study_or_conditions_unresolved_document_exploration_only"],
+    denominator: { kind: "qualified_adopted_units", population_total: null, population_rate_permitted: false },
+    dataset_hash: "offline-dataset-version",
+  };
+  const refs = [{ id: "dataset:offline", version: "offline-dataset-version" }];
+  const capability = { id: "offline-prepare", kind: "dataset_prepare",
+    arguments: { capability_id: "radar.dataset.prepare", scope: { direction: "research" } },
+  };
+  const v2 = { ...trace, schema_version: "query-planner.external.v2", direction: "research", direction_basis: "explicit",
+    effective: "query_planner", requested: "query_planner", status: "insufficient", pending_action: null,
+    artifacts: [{ ...refs[0], kind: "analysis_dataset", qualified_count: 2 }],
+    artifact_results: { "dataset:offline": dataset }, execution: [],
+    checks: [{ id: "kdd_dataset", status: "passed", artifact_refs: refs, reason: "只证明加工已执行" }],
+    decisions: [{ step: 0, decision: "continue", action: capability, receipt: {
+      status: "read", query_index: 0, new_artifact_refs: refs, cost: { tool_calls: 1, tokens: 0, model_calls: 0 },
+    } }, { step: 1, decision: "insufficient", reason: "no_legal_action", state_summary: {
+      observed_history: [{ action_id: capability.id, status: "read", new_artifact_refs: refs }],
+    } }],
+  };
+  const kddHtml = await render(v2, [{ action_id: capability.id, kind: capability.kind, status: "read", returned: 1 }]);
+  assert.match(kddHtml, /加工固定资料/);
+  assert.match(kddHtml, /本动作实际产物/);
+  assert.match(kddHtml, /加工后的分析数据/);
+  assert.match(kddHtml, /已有固定产物支持本项执行检查/);
+  assert.match(kddHtml.replace(/<!--[\s\S]*?-->/g, ""), /offline-prepare（已取得回执，/);
+  const kddPrinted = printableText(kddHtml);
+  assert.match(kddPrinted, /合格分析单位\s*2/);
+  assert.match(kddPrinted, /执行检查完成不表示模式有科研价值/);
+  assert.match(kddPrinted, /独立研究或条件未确认/);
+  assert.match(kddPrinted, /总体数量：未提供/);
+  assert.match(kddPrinted, /未训练启发式/);
+  assert.match(kddPrinted, /本地数据加工和计算各计一次工具动作、零模型调用/);
+
+  const laterArtifact = { id: "professional:offline-later", version: "offline-later-version",
+    kind: "professional_assessment", provider: "mech_evidence", status: "completed" };
+  const retainedBasis = {
+    call_key: "read_plan:before-later-results", call_id: "offline-read-call", reading_evidence_hash: "original-reading-hash",
+    status: "unfinished_reading_draft", qualification: "SYNTHETIC original reading qualification",
+    coverage_version: "retained-reading-coverage-v1", cannot_use_as_current_conclusion: true,
+    call_index: 2, after_query_index: 0, after_decision_step: 1,
+    input_evidence: [{ evidence_key: "original-input", source_id: "europe_pmc",
+      record_ref: { provider: "fabric", object_id: "original-document", adopted_version: "original-version" },
+      text_sha256: "original-window-hash", selection_hash: "original-selection-hash", start: 0, end: 16 }],
+    input_artifact_refs: refs,
+    not_incorporated: {
+      evidence: [{ evidence_key: "later-input", source_id: "europe_pmc",
+        record_ref: { provider: "fabric", object_id: "later-document", adopted_version: "later-fixed-version" },
+        text_sha256: "later-window-hash", selection_hash: "later-selection-hash", start: 16, end: 32 }],
+      artifacts: [laterArtifact],
+    },
+  };
+  const retainedAnalysis = {
+    state: "needs_review", calls: [], queries: [], budget: { limits: {}, usage: {} },
+    result: { report: null, conditional_answer: { answer: "SYNTHETIC exact earlier reading answer" } },
+    query_policy: { ...v2, synthesis_stop_reason: "analysis_token_budget", synthesis_reading_basis: retainedBasis,
+      artifacts: [...v2.artifacts, laterArtifact],
+      artifact_results: { ...v2.artifact_results, [laterArtifact.id]: { status: "completed", overall: { verdict: "insufficient" } } },
+    },
+  };
+  const retainedBefore = JSON.stringify(retainedAnalysis);
+  const retainedHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: retainedAnalysis }));
+  const retainedPrinted = printableText(retainedHtml);
+  assert.match(retainedPrinted, /此前阅读草稿（综合未完成）/);
+  assert.match(retainedPrinted, /尚未纳入后续结果，不能作为当前结论/);
+  assert.match(retainedHtml, /read_plan:before-later-results/);
+  assert.match(retainedHtml, /original-document \/ original-version/);
+  assert.match(retainedHtml, /later-document \/ later-fixed-version/);
+  assert.match(retainedPrinted, /原样状态：completed/);
+  const artifactAnchor = queryPolicyApi.queryPolicyArtifactAnchor(laterArtifact);
+  assert.ok(retainedHtml.includes('href="#' + artifactAnchor + '"'));
+  assert.ok(retainedHtml.includes('id="' + artifactAnchor + '"'));
+  assert.match(retainedHtml, /阅读这份固定专业产物记录/);
+  assert.match(retainedHtml, /insufficient/);
+  assert.equal(JSON.stringify(retainedAnalysis), retainedBefore, "Showing the old draft must not change its answer, refs or professional results");
+  const mismatchedArtifact = JSON.parse(retainedBefore);
+  mismatchedArtifact.query_policy.synthesis_reading_basis.not_incorporated.artifacts[0].version = "unmatched-version";
+  const mismatchedHtml = await renderToString(Vue.createSSRApp(progressPanel, { analysis: mismatchedArtifact }));
+  assert.doesNotMatch(mismatchedHtml, /查看这份专业产物记录/);
+  assert.match(mismatchedHtml, /未找到可展开的对应专业产物记录，未猜测入口/);
+
   const historyWrites = [];
   const history = historyPage(async (url, options) => {
     historyWrites.push({ url, options });
@@ -156,9 +336,15 @@ async function main() {
     "actual_as_of_input_boundary_visible", "effective_fallback_policy_visible",
     "printed_report_keeps_actual_policy_unknown_budget_and_unchecked_scope",
     "history_uses_server_frozen_scope_and_never_retries_unknown_write",
+    "v2_capability_receipt_artifact_and_next_observation_visible",
+    "v2_print_keeps_real_processing_scope_and_scientific_limits",
+    "impact_comparison_names_its_parent_report_without_relabeling_the_displayed_later_report",
+    "retained_reading_input_boundary_later_results_and_exact_artifact_record_links_remain_separate",
   ], qualification: "Offline UI controls only." }));
 }
 
 module.exports = main;
 module.exports.printableText = printableText;
+module.exports.compileComponent = compileComponent;
+module.exports.loadApi = loadApi;
 if (require.main === module) main().catch(error => { console.error(error); process.exitCode = 1; });

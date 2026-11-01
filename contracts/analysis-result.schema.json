@@ -52,6 +52,56 @@
       "title": "AnalysisUpdate",
       "type": "object"
     },
+    "AssessmentAxes": {
+      "additionalProperties": false,
+      "properties": {
+        "source_reliability": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SourceReliabilityAssessment"
+          },
+          "title": "Source Reliability",
+          "type": "array"
+        },
+        "information_credibility": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InformationCredibilityAssessment"
+          },
+          "title": "Information Credibility",
+          "type": "array"
+        },
+        "evidence_level": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Level"
+        },
+        "heat": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "$ref": "#/$defs/JsonValue"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Heat"
+        }
+      },
+      "title": "AssessmentAxes",
+      "type": "object"
+    },
     "ClaimReview": {
       "additionalProperties": false,
       "properties": {
@@ -142,6 +192,66 @@
         "evidence_keys"
       ],
       "title": "ClaimUpdate",
+      "type": "object"
+    },
+    "CompetingHypothesis": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "explanation": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Explanation",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "opposing_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Opposing Claim Ids",
+          "type": "array"
+        },
+        "discriminating_evidence_needed": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Discriminating Evidence Needed",
+          "type": "string"
+        },
+        "untested_conditions": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Untested Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "explanation",
+        "discriminating_evidence_needed"
+      ],
+      "title": "CompetingHypothesis",
       "type": "object"
     },
     "ConditionalAnswer": {
@@ -412,6 +522,555 @@
       "title": "GenericReview",
       "type": "object"
     },
+    "HypothesisJudgment": {
+      "additionalProperties": false,
+      "properties": {
+        "least_refuted_hypothesis_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Least Refuted Hypothesis Id",
+          "type": "string"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        },
+        "next_discriminating_evidence": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Next Discriminating Evidence",
+          "type": "string"
+        },
+        "qualification": {
+          "const": "这是模型判断，未证实",
+          "default": "这是模型判断，未证实",
+          "title": "Qualification",
+          "type": "string"
+        }
+      },
+      "required": [
+        "least_refuted_hypothesis_id",
+        "reason",
+        "next_discriminating_evidence"
+      ],
+      "title": "HypothesisJudgment",
+      "type": "object"
+    },
+    "InformationCredibilityAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "record_ref": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "assessment_status": {
+          "default": "not_assessed",
+          "enum": [
+            "not_assessed",
+            "machine_assessed",
+            "human_reviewed"
+          ],
+          "title": "Assessment Status",
+          "type": "string"
+        },
+        "reason_code": {
+          "default": "basis_missing",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "assessment_basis_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Assessment Basis Refs",
+          "type": "array"
+        },
+        "assessment_basis": {
+          "default": "",
+          "title": "Assessment Basis",
+          "type": "string"
+        },
+        "assessed_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assessed By"
+        },
+        "assessed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assessed At"
+        },
+        "taxonomy_name": {
+          "const": "admiralty-scale",
+          "default": "admiralty-scale",
+          "title": "Taxonomy Name",
+          "type": "string"
+        },
+        "taxonomy_version": {
+          "const": 5,
+          "default": 5,
+          "title": "Taxonomy Version",
+          "type": "integer"
+        },
+        "native_review_entry_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Review Entry Id"
+        },
+        "review_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Revision"
+        },
+        "previous_assessment_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Assessment Ref"
+        },
+        "grade": {
+          "default": "6",
+          "enum": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "claim_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Id"
+        },
+        "claim_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Text"
+        },
+        "claim_text_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Claim Text Sha256"
+        },
+        "independent_confirmation_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Independent Confirmation Refs",
+          "type": "array"
+        },
+        "independent_confirmation_basis": {
+          "default": "",
+          "title": "Independent Confirmation Basis",
+          "type": "string"
+        }
+      },
+      "required": [
+        "record_ref"
+      ],
+      "title": "InformationCredibilityAssessment",
+      "type": "object"
+    },
+    "JsonValue": {},
+    "ProviderRef": {
+      "additionalProperties": false,
+      "properties": {
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "object_type": {
+          "minLength": 1,
+          "title": "Object Type",
+          "type": "string"
+        },
+        "object_id": {
+          "minLength": 1,
+          "title": "Object Id",
+          "type": "string"
+        },
+        "adopted_version": {
+          "minLength": 1,
+          "title": "Adopted Version",
+          "type": "string"
+        },
+        "version_source": {
+          "enum": [
+            "provider",
+            "export_hash"
+          ],
+          "title": "Version Source",
+          "type": "string"
+        },
+        "content_hash": {
+          "minLength": 1,
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "authorization_ref": {
+          "minLength": 1,
+          "title": "Authorization Ref",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "object_type",
+        "object_id",
+        "adopted_version",
+        "version_source",
+        "content_hash",
+        "authorization_ref"
+      ],
+      "title": "ProviderRef",
+      "type": "object"
+    },
+    "SourceReliabilityAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "record_ref": {
+          "$ref": "#/$defs/ProviderRef"
+        },
+        "assessment_status": {
+          "default": "not_assessed",
+          "enum": [
+            "not_assessed",
+            "machine_assessed",
+            "human_reviewed"
+          ],
+          "title": "Assessment Status",
+          "type": "string"
+        },
+        "reason_code": {
+          "default": "basis_missing",
+          "title": "Reason Code",
+          "type": "string"
+        },
+        "assessment_basis_refs": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ProviderRef"
+          },
+          "title": "Assessment Basis Refs",
+          "type": "array"
+        },
+        "assessment_basis": {
+          "default": "",
+          "title": "Assessment Basis",
+          "type": "string"
+        },
+        "assessed_by": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assessed By"
+        },
+        "assessed_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assessed At"
+        },
+        "taxonomy_name": {
+          "const": "admiralty-scale",
+          "default": "admiralty-scale",
+          "title": "Taxonomy Name",
+          "type": "string"
+        },
+        "taxonomy_version": {
+          "const": 5,
+          "default": 5,
+          "title": "Taxonomy Version",
+          "type": "integer"
+        },
+        "native_review_entry_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Native Review Entry Id"
+        },
+        "review_revision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Review Revision"
+        },
+        "previous_assessment_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Previous Assessment Ref"
+        },
+        "grade": {
+          "default": "F",
+          "enum": [
+            "A",
+            "B",
+            "C",
+            "D",
+            "E",
+            "F"
+          ],
+          "title": "Grade",
+          "type": "string"
+        },
+        "publisher_scope": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publisher Scope"
+        }
+      },
+      "required": [
+        "record_ref"
+      ],
+      "title": "SourceReliabilityAssessment",
+      "type": "object"
+    },
+    "TopicRiskReassessment": {
+      "additionalProperties": false,
+      "properties": {
+        "scope": {
+          "$ref": "#/$defs/TopicRiskScopeStamp"
+        },
+        "decision": {
+          "enum": [
+            "unresolved",
+            "resolved_within_scope"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "decision_claim_id": {
+          "maxLength": 80,
+          "minLength": 1,
+          "title": "Decision Claim Id",
+          "type": "string"
+        },
+        "decision_statement": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Decision Statement",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "scope_control_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "minItems": 1,
+          "title": "Scope Control Claim Ids",
+          "type": "array"
+        },
+        "opposing_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Opposing Claim Ids",
+          "type": "array"
+        },
+        "scope_coverage": {
+          "enum": [
+            "full_declared_scope",
+            "partial",
+            "unknown"
+          ],
+          "title": "Scope Coverage",
+          "type": "string"
+        },
+        "remaining_critical_gaps": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Remaining Critical Gaps",
+          "type": "array"
+        },
+        "conditions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope",
+        "decision",
+        "decision_claim_id",
+        "decision_statement",
+        "supporting_claim_ids",
+        "scope_control_claim_ids",
+        "scope_coverage",
+        "reason"
+      ],
+      "title": "TopicRiskReassessment",
+      "type": "object"
+    },
+    "TopicRiskScopeStamp": {
+      "additionalProperties": false,
+      "properties": {
+        "topic_id": {
+          "maxLength": 36,
+          "minLength": 1,
+          "title": "Topic Id",
+          "type": "string"
+        },
+        "scope_revision": {
+          "minimum": 1,
+          "title": "Scope Revision",
+          "type": "integer"
+        },
+        "observation_revision": {
+          "minimum": 0,
+          "title": "Observation Revision",
+          "type": "integer"
+        },
+        "definition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Definition Sha256",
+          "type": "string"
+        },
+        "risk_basis_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Risk Basis Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "topic_id",
+        "scope_revision",
+        "observation_revision",
+        "definition_sha256",
+        "risk_basis_sha256"
+      ],
+      "title": "TopicRiskScopeStamp",
+      "type": "object"
+    },
     "VerifiedClaim": {
       "additionalProperties": false,
       "properties": {
@@ -546,10 +1205,87 @@
       ],
       "title": "VerifiedEvidenceLink",
       "type": "object"
+    },
+    "WarningAssessment": {
+      "additionalProperties": false,
+      "properties": {
+        "decision": {
+          "enum": [
+            "verify_now",
+            "alert",
+            "watch"
+          ],
+          "title": "Decision",
+          "type": "string"
+        },
+        "supporting_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Supporting Claim Ids",
+          "type": "array"
+        },
+        "opposing_claim_ids": {
+          "items": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Opposing Claim Ids",
+          "type": "array"
+        },
+        "critical_unknowns": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 8,
+          "title": "Critical Unknowns",
+          "type": "array"
+        },
+        "next_actions": {
+          "items": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 6,
+          "title": "Next Actions",
+          "type": "array"
+        },
+        "reason": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "decision",
+        "reason"
+      ],
+      "title": "WarningAssessment",
+      "type": "object"
     }
   },
   "additionalProperties": false,
   "properties": {
+    "assessment_axes": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AssessmentAxes"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "version": {
       "default": "bioradar-investigation-analysis-v0.5",
       "enum": [
@@ -643,6 +1379,68 @@
       ],
       "default": null,
       "title": "Query Policy"
+    },
+    "warning_assessment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/WarningAssessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "competing_hypotheses": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/CompetingHypothesis"
+          },
+          "maxItems": 4,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Competing Hypotheses"
+    },
+    "assessment_binding": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Assessment Binding"
+    },
+    "topic_risk_reassessment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TopicRiskReassessment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "current_judgment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/HypothesisJudgment"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "limitations": {
       "items": {

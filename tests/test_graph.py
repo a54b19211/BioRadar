@@ -507,11 +507,19 @@ def test_unavailable_graph_is_a_saved_failed_read_not_a_fake_empty_neighborhood(
     assert result.reads[0]["status"] == "failed"
 
 
-def test_http_api_uses_current_permission_for_graph_and_legacy_snapshot_read(runtime, monkeypatch):
+@pytest.mark.parametrize("demo_namespace", [None, "explicit-simulation-namespace"])
+def test_http_api_uses_current_permission_for_graph_and_legacy_snapshot_read(
+    runtime, monkeypatch, demo_namespace
+):
     engine, actor = runtime
     value, doc = bundle()
     reader, graph, _ = source(value, doc)
     allowed = {"reviewed_graph", "fixture-source"}
+    if demo_namespace:
+        engine.settings.data_fabric_demo_source_instance = demo_namespace
+        engine.settings.engine_source_allowlist = [demo_namespace]
+        engine.settings.engine_source_id_allowlist = {demo_namespace: sorted(allowed)}
+        reader.demo_source_instance = demo_namespace
 
     @contextmanager
     def controlled_reader(_settings):

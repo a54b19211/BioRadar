@@ -44,6 +44,8 @@ def snapshot_hash(snapshot: NormalizedSnapshot) -> str:
     # Precise compatibility for the nullable provenance facet introduced after
     # the first adopted v1 snapshot. Non-null facet evidence always changes hash.
     for record in value["records"]:
+        if not record.get("metric_observations"):
+            record.pop("metric_observations", None)
         if record["labels"].get("provenance") is None:
             record["labels"].pop("provenance", None)
     value["coverage"] = sorted(value["coverage"], key=canonical_hash)
@@ -99,8 +101,34 @@ def publication_interval(record: EngineRecord) -> tuple[datetime, datetime] | No
     )
 
 
+def analysis_interval(record: EngineRecord, policy: MiningPolicy):
+    if (
+        policy.time_mode == "availability_replay"
+        and policy.availability_basis == "public_history_reconstruction"
+    ):
+        if public_availability(record) is None:
+            return None
+        raw = (record.availability_proof or {}).get("available_at")
+        if isinstance(raw, dict) and raw.get("precision") != "instant":
+            return time_interval(
+                TimeExpression(raw=raw.get("value"), precision=raw.get("precision", "unknown"))
+            )
+        upper = public_availability(record)
+        return upper, upper
+    return publication_interval(record)
+
+
 def window_for(record: EngineRecord, policy: MiningPolicy) -> str:
-    interval = publication_interval(record)
+    interval = analysis_interval(record, policy)
+    if (
+        policy.time_mode == "availability_replay"
+        and policy.availability_basis == "public_history_reconstruction"
+        and interval
+    ):
+        # Conservative bucket entry uses the latest possible public time. The
+        # proof interval remains available for coarse-granularity bin exclusion.
+        upper = public_availability(record)
+        interval = (upper, upper)
     if interval is None:
         return "undated"
     low, high = interval
@@ -120,12 +148,49 @@ def window_for(record: EngineRecord, policy: MiningPolicy) -> str:
     return "stock"
 
 
+def public_availability(record: EngineRecord) -> datetime | None:
+    """Latest possible public time, only with the actual verified archival proof."""
+    proof = record.availability_proof or {}
+    if not all(proof.get(key) for key in ("verified_by", "verified_at", "uri", "sha256")):
+        return None
+    raw = proof.get("available_at")
+    try:
+        if isinstance(raw, str):
+            upper = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        elif isinstance(raw, dict):
+            precision = raw.get("precision", "unknown")
+            if precision == "instant":
+                upper = datetime.fromisoformat(str(raw.get("value", "")).replace("Z", "+00:00"))
+            else:
+                interval = time_interval(TimeExpression(raw=raw.get("value"), precision=precision))
+                upper = interval[1] - timedelta(microseconds=1) if interval else None
+        else:
+            return None
+        if upper is None or upper.tzinfo is None or record.public_available_at != upper:
+            return None
+        return upper.astimezone(UTC)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def availability_time(record: EngineRecord, policy: MiningPolicy) -> datetime | None:
+    if policy.availability_basis == "public_history_reconstruction":
+        return public_availability(record)
+    return record.available_at
+
+
 def section_visible(provenance: SectionProvenance, record: EngineRecord, policy: MiningPolicy) -> bool:
     if provenance.available_at is not None:
         if provenance.available_at.tzinfo is None or provenance.available_at > policy.as_of:
             return False
     if policy.time_mode == "availability_replay":
-        return provenance.available_at is not None and record.observed_at <= policy.as_of
+        return provenance.available_at is not None and (
+            policy.availability_basis == "public_history_reconstruction"
+            and public_availability(record) is not None
+            and public_availability(record) <= policy.as_of
+            or policy.availability_basis != "public_history_reconstruction"
+            and record.observed_at <= policy.as_of
+        )
     return True
 
 
@@ -155,6 +220,7 @@ class PreparedRecord:
     confirmed_source: bool
     growth_eligible: bool
     reasons: tuple[str, ...]
+    policy: MiningPolicy | None = None
 
 
 @dataclass(frozen=True)
@@ -196,9 +262,13 @@ def prepare(snapshot: NormalizedSnapshot, policy: MiningPolicy) -> PreparedSnaps
         if interval and interval[0] > policy.as_of:
             reason = "future_publication"
         if policy.time_mode == "availability_replay":
-            if record.available_at is None:
+            available = availability_time(record, policy)
+            if available is None:
                 reason = "availability_unknown_for_replay"
-            elif record.available_at > policy.as_of or record.observed_at > policy.as_of:
+            elif available > policy.as_of or (
+                policy.availability_basis != "public_history_reconstruction"
+                and record.observed_at > policy.as_of
+            ):
                 reason = "version_not_observed_by_replay_cutoff"
         elif record.observed_at > policy.as_of:
             limitations.add("retrospective_publication_analysis_is_not_historical_availability_replay")
@@ -213,10 +283,12 @@ def prepare(snapshot: NormalizedSnapshot, policy: MiningPolicy) -> PreparedSnaps
     latest: list[EngineRecord] = []
     ambiguous_versions: set[tuple] = set()
     for key, group in sorted(versions.items()):
-        group.sort(key=lambda r: (r.available_at or r.observed_at, r.record_ref.adopted_version))
+        group.sort(
+            key=lambda r: (availability_time(r, policy) or r.observed_at, r.record_ref.adopted_version)
+        )
         latest.append(group[-1])
-        if len(group) > 1 and (group[-1].available_at or group[-1].observed_at) == (
-            group[-2].available_at or group[-2].observed_at
+        if len(group) > 1 and (availability_time(group[-1], policy) or group[-1].observed_at) == (
+            availability_time(group[-2], policy) or group[-2].observed_at
         ):
             ambiguous_versions.add(key)
             limitations.add("source_version_order_ambiguous")
@@ -240,6 +312,8 @@ def prepare(snapshot: NormalizedSnapshot, policy: MiningPolicy) -> PreparedSnaps
         reasons: set[str] = set()
         window = window_for(record, policy)
         study_ok = record.study_cluster_ref is not None and record.study_independence_status == "confirmed"
+        if study_ok and policy.time_mode == "availability_replay" and policy.availability_basis is not None:
+            study_ok = confirmed_ref(record, record.study_cluster_ref, policy)
         source_ok = record.source_family is not None and record.source_independence_status == "confirmed"
         if not study_ok:
             reasons.add("study_independence_unresolved")
@@ -263,7 +337,9 @@ def prepare(snapshot: NormalizedSnapshot, policy: MiningPolicy) -> PreparedSnaps
         unit = (
             "study:" + ref_key(record.study_cluster_ref) if study_ok else "document:" + record.document_hash
         )
-        return PreparedRecord(record, window, unit, study_ok, source_ok, growth, tuple(sorted(reasons)))
+        return PreparedRecord(
+            record, window, unit, study_ok, source_ok, growth, tuple(sorted(reasons)), policy
+        )
 
     selected = tuple(prepared(r) for r in latest)
     history = tuple(prepared(r) for r in eligible if r.record_ref.identity_key in retained)

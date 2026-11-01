@@ -607,6 +607,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/engine/topics/simulation/tick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Simulation Tick */
+        post: operations["simulation_tick_api_engine_topics_simulation_tick_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/engine/topics/templates": {
         parameters: {
             query?: never;
@@ -671,6 +688,23 @@ export interface paths {
         put?: never;
         /** Control */
         post: operations["control_api_engine_topics__identifier__control_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/engine/topics/{identifier}/risk-reassessments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Risk Reassessment */
+        post: operations["risk_reassessment_api_engine_topics__identifier__risk_reassessments_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -829,8 +863,11 @@ export interface components {
             /** Initial Queries */
             initial_queries?: components["schemas"]["InitialQuery"][];
             budget?: components["schemas"]["AnalysisBudget"] | null;
+            historical_scope?: components["schemas"]["HistoricalAnalysisScope"] | null;
             /** Query Policy */
             query_policy?: ("baseline" | "query_planner") | null;
+            /** Kdd Direction */
+            kdd_direction?: ("research" | "pipeline" | "business" | "public_health") | null;
             /** Retry Of Analysis Id */
             retry_of_analysis_id?: string | null;
             /** Parent Analysis Id */
@@ -861,6 +898,10 @@ export interface components {
             history_binding?: {
                 [key: string]: unknown;
             } | null;
+            /** Source Context */
+            source_context?: {
+                [key: string]: unknown;
+            } | null;
             /** Facts */
             facts?: {
                 [key: string]: unknown;
@@ -884,6 +925,8 @@ export interface components {
             end: number;
             /** Text Sha256 */
             text_sha256: string;
+            /** Source Length */
+            source_length?: number | null;
             /** Passages */
             passages?: components["schemas"]["AnalysisPassage"][];
             /** Selection Hash */
@@ -979,7 +1022,7 @@ export interface components {
              * @default fabric
              * @enum {string}
              */
-            provider: "fabric" | "weknora" | "graph" | "fabric_graph";
+            provider: "fabric" | "weknora" | "graph" | "fabric_graph" | "radar" | "professional";
             /**
              * Kind
              * @default document_search
@@ -999,6 +1042,14 @@ export interface components {
             graph_context?: {
                 [key: string]: unknown;
             } | unknown[] | null;
+            /** Artifact Refs */
+            artifact_refs?: {
+                [key: string]: unknown;
+            }[];
+            /** Check Updates */
+            check_updates?: {
+                [key: string]: unknown;
+            }[];
             /** Plan */
             plan: components["schemas"]["PolicyPlannedQuery"] | components["schemas"]["PlannedQuery"] | components["schemas"]["InitialQuery"] | {
                 [key: string]: unknown;
@@ -1022,6 +1073,8 @@ export interface components {
              * @default 0
              */
             returned: number;
+            /** Returned Versions */
+            returned_versions?: components["schemas"]["ReturnedSourceVersion"][] | null;
             /**
              * New Versions
              * @default 0
@@ -1032,6 +1085,7 @@ export interface components {
              * @default false
              */
             has_more: boolean;
+            pagination?: components["schemas"]["QueryPagination"] | null;
             /** Error Code */
             error_code?: string | null;
             /** Evidence Keys */
@@ -1047,6 +1101,7 @@ export interface components {
         };
         /** AnalysisResult */
         AnalysisResult: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /**
              * Version
              * @default bioradar-investigation-analysis-v0.5
@@ -1080,6 +1135,15 @@ export interface components {
             query_policy?: {
                 [key: string]: unknown;
             } | null;
+            warning_assessment?: components["schemas"]["WarningAssessment"] | null;
+            /** Competing Hypotheses */
+            competing_hypotheses?: components["schemas"]["CompetingHypothesis"][] | null;
+            /** Assessment Binding */
+            assessment_binding?: {
+                [key: string]: unknown;
+            } | null;
+            topic_risk_reassessment?: components["schemas"]["TopicRiskReassessment"] | null;
+            current_judgment?: components["schemas"]["HypothesisJudgment"] | null;
             /** Limitations */
             limitations: string[];
         };
@@ -1184,6 +1248,14 @@ export interface components {
              * @constant
              */
             professional_status: "not_reviewed";
+            /** Evidence Time */
+            evidence_time?: {
+                [key: string]: unknown;
+            } | null;
+            /** Human Review Context */
+            human_review_context?: {
+                [key: string]: unknown;
+            } | null;
             /** Is Demo */
             is_demo: boolean;
             /** Input Hash */
@@ -1251,6 +1323,38 @@ export interface components {
             evidence_refs: components["schemas"]["ProviderRef"][];
             provenance: components["schemas"]["SectionProvenance"];
         };
+        /** AssessmentAxes */
+        AssessmentAxes: {
+            /**
+             * Source Reliability
+             * @default []
+             */
+            source_reliability: components["schemas"]["SourceReliabilityAssessment"][];
+            /**
+             * Information Credibility
+             * @default []
+             */
+            information_credibility: components["schemas"]["InformationCredibilityAssessment"][];
+            /** Evidence Level */
+            evidence_level?: string | null;
+            /** Heat */
+            heat?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+        };
+        /** AssessmentAxesReviewInput */
+        AssessmentAxesReviewInput: {
+            /**
+             * Source Reliability
+             * @default []
+             */
+            source_reliability: components["schemas"]["SourceReliabilityReviewInput"][];
+            /**
+             * Information Credibility
+             * @default []
+             */
+            information_credibility: components["schemas"]["InformationCredibilityReviewInput"][];
+        };
         /** AttemptDiagnostic */
         AttemptDiagnostic: {
             /** Attempt */
@@ -1308,6 +1412,7 @@ export interface components {
             metrics?: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /**
              * Score
              * @default 0
@@ -1347,6 +1452,20 @@ export interface components {
              */
             next_data_requirements: string[];
         };
+        /** CandidateReviewTarget */
+        CandidateReviewTarget: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "candidate";
+            /** Run Id */
+            run_id: string;
+            /** Result Hash */
+            result_hash: string;
+            /** Candidate Key */
+            candidate_key: string;
+        };
         /** ClaimDependency */
         ClaimDependency: {
             /** Judgment Id */
@@ -1382,6 +1501,20 @@ export interface components {
             /** Evidence Keys */
             evidence_keys: string[];
         };
+        /** ClaimReviewTarget */
+        ClaimReviewTarget: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "claim";
+            /** Analysis Id */
+            analysis_id: string;
+            /** Claim Id */
+            claim_id: string;
+            /** Claim Sha256 */
+            claim_sha256: string;
+        };
         /** ClaimUpdate */
         ClaimUpdate: {
             /** Claim Id */
@@ -1392,6 +1525,21 @@ export interface components {
             reason: string;
             /** Evidence Keys */
             evidence_keys: string[];
+        };
+        /** CompetingHypothesis */
+        CompetingHypothesis: {
+            /** Id */
+            id: string;
+            /** Explanation */
+            explanation: string;
+            /** Supporting Claim Ids */
+            supporting_claim_ids?: string[];
+            /** Opposing Claim Ids */
+            opposing_claim_ids?: string[];
+            /** Discriminating Evidence Needed */
+            discriminating_evidence_needed: string;
+            /** Untested Conditions */
+            untested_conditions?: string[];
         };
         /** ConditionalAnswer */
         ConditionalAnswer: {
@@ -1834,6 +1982,187 @@ export interface components {
             text: string;
             basis: components["schemas"]["InputBasis"];
         };
+        /** DiscoveryPolicy */
+        DiscoveryPolicy: {
+            /**
+             * Policy Version
+             * @default bioradar.mining.policy.v1
+             * @constant
+             */
+            policy_version: "bioradar.mining.policy.v1";
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Time Mode
+             * @default publication_retrospective
+             * @enum {string}
+             */
+            time_mode: "publication_retrospective" | "availability_replay";
+            /** Availability Basis */
+            availability_basis?: ("operational_replay" | "public_history_reconstruction") | null;
+            /**
+             * Discovery Mode
+             * @default stock_and_incremental
+             * @enum {string}
+             */
+            discovery_mode: "stock_and_incremental" | "incremental";
+            /** Baseline Start */
+            baseline_start?: string | null;
+            /** Baseline End */
+            baseline_end?: string | null;
+            /** Current Start */
+            current_start?: string | null;
+            /** Current End */
+            current_end?: string | null;
+            /**
+             * Method Ids
+             * @default [
+             *       "lexical_emergence",
+             *       "text_topics",
+             *       "entity_combinations",
+             *       "state_transitions",
+             *       "pipeline_landscape",
+             *       "research_network",
+             *       "maturity_shift",
+             *       "counterevidence_impact",
+             *       "translation_dwell",
+             *       "event_exposure",
+             *       "regional_comparison"
+             *     ]
+             */
+            method_ids: string[];
+            limits?: components["schemas"]["ResourceLimits"];
+            /**
+             * Scope Label
+             * @description Annotation only; records are not filtered by this label
+             */
+            scope_label?: string | null;
+            /**
+             * Minimum Support
+             * @default 2
+             */
+            minimum_support: number;
+            /**
+             * Minimum Growth
+             * @default 2
+             */
+            minimum_growth: number;
+            /**
+             * Exploration Fraction
+             * @default 0.2
+             */
+            exploration_fraction: number;
+            /**
+             * Known Vocabulary
+             * @default []
+             */
+            known_vocabulary: string[];
+            /** Vocabulary Version */
+            vocabulary_version?: string | null;
+            /**
+             * Stoplist
+             * @default []
+             */
+            stoplist: string[];
+            /**
+             * Topic Components
+             * @default 8
+             */
+            topic_components: number;
+            /**
+             * Topic Similarity
+             * @default 0.55
+             */
+            topic_similarity: number;
+            /**
+             * Novelty Distance
+             * @default 0.45
+             */
+            novelty_distance: number;
+            /**
+             * Random Seed
+             * @default 0
+             */
+            random_seed: number;
+            /**
+             * Burst Scale
+             * @default 2
+             */
+            burst_scale: number;
+            /**
+             * Burst Penalty
+             * @default 1
+             */
+            burst_penalty: number;
+            /**
+             * Burst States
+             * @default 3
+             */
+            burst_states: number;
+            /**
+             * Dwell Threshold Days
+             * @default 365
+             */
+            dwell_threshold_days: number;
+            /**
+             * Maturity Stage Order
+             * @default [
+             *       "hypothesis",
+             *       "in_vitro",
+             *       "animal",
+             *       "human_early_result",
+             *       "human_late_result",
+             *       "regulatory"
+             *     ]
+             */
+            maturity_stage_order: string[];
+            /**
+             * Cooperation Relations
+             * @default [
+             *       "coauthored",
+             *       "collaborated"
+             *     ]
+             */
+            cooperation_relations: string[];
+            /**
+             * Exposure Relations
+             * @default [
+             *       "supplies",
+             *       "depends_on",
+             *       "licensed_to",
+             *       "manufactures"
+             *     ]
+             */
+            exposure_relations: string[];
+            /**
+             * Exposure Reverse Relations
+             * @default [
+             *       "depends_on"
+             *     ]
+             */
+            exposure_reverse_relations: string[];
+            /**
+             * Urgent Event Types
+             * @default [
+             *       "regulatory_safety_action",
+             *       "product_recall"
+             *     ]
+             */
+            urgent_event_types: string[];
+            /**
+             * Source Intelligence Version
+             * @description Retain public-health source statements and information events separately from metrics.
+             */
+            source_intelligence_version?: "public-health-source-intelligence-v1" | null;
+            /** Discovery Directions */
+            discovery_directions: ("research" | "pipeline" | "business" | "public_health")[];
+            value_policy?: components["schemas"]["ValuePolicy"];
+            /** Monitor Changed Refs */
+            monitor_changed_refs?: components["schemas"]["ProviderRef"][] | null;
+        };
         /** DraftFinding */
         DraftFinding: {
             /** Path */
@@ -1862,7 +2191,7 @@ export interface components {
             provenance: components["schemas"]["SectionProvenance"];
         };
         /** EngineRecord */
-        EngineRecord: {
+        "EngineRecord-Input": {
             record_ref: components["schemas"]["ProviderRef"];
             /**
              * Evidence Refs
@@ -1916,6 +2245,13 @@ export interface components {
             available_at?: string | null;
             /** Source Url */
             source_url?: string | null;
+            /** Public Available At */
+            public_available_at?: string | null;
+            /** Availability Proof */
+            availability_proof?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            signal_context?: components["schemas"]["SignalContext"] | null;
             /**
              * Ingestion Mode
              * @default sample_export
@@ -2028,6 +2364,202 @@ export interface components {
              * @default []
              */
             regional_indicators: components["schemas"]["RegionalIndicator"][];
+            /**
+             * Graph Hints
+             * @default []
+             */
+            graph_hints: components["schemas"]["GraphHint"][];
+            /**
+             * Metric Observations
+             * @default []
+             */
+            metric_observations: components["schemas"]["MetricObservation-Input"][];
+            timeline?: components["schemas"]["ProjectTimeline"] | null;
+        };
+        /** EngineRecord */
+        "EngineRecord-Output": {
+            record_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            /** Document Hash */
+            document_hash: string;
+            /** Source Instance */
+            source_instance: string;
+            /** Source Id */
+            source_id: string;
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Source Family */
+            source_family?: string | null;
+            /**
+             * Source Independence Status
+             * @default unresolved
+             * @enum {string}
+             */
+            source_independence_status: "confirmed" | "unresolved";
+            study_cluster_ref?: components["schemas"]["ProviderRef"] | null;
+            /**
+             * Study Independence Status
+             * @default unresolved
+             * @enum {string}
+             */
+            study_independence_status: "confirmed" | "unresolved" | "not_applicable";
+            /** Published At */
+            published_at?: string | null;
+            /** Published Time Raw */
+            published_time_raw?: string | null;
+            /**
+             * Time Precision
+             * @default unknown
+             * @enum {string}
+             */
+            time_precision: "instant" | "day" | "month" | "year" | "interval" | "unknown";
+            /**
+             * Publication Time Verified
+             * @default false
+             */
+            publication_time_verified: boolean;
+            /** First Seen At */
+            first_seen_at?: string | null;
+            /** Available At */
+            available_at?: string | null;
+            /** Source Url */
+            source_url?: string | null;
+            /** Public Available At */
+            public_available_at?: string | null;
+            /** Availability Proof */
+            availability_proof?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            signal_context?: components["schemas"]["SignalContext"] | null;
+            /**
+             * Ingestion Mode
+             * @default sample_export
+             * @enum {string}
+             */
+            ingestion_mode: "live_delta" | "historical_backfill" | "sample_export" | "fixture";
+            /**
+             * Text Status
+             * @default unavailable
+             * @enum {string}
+             */
+            text_status: "inline_authorized" | "reference_authorized" | "unavailable";
+            /** Normalized Text */
+            normalized_text?: string | null;
+            /** Normalized Text Hash */
+            normalized_text_hash?: string | null;
+            /** Normalization Version */
+            normalization_version?: string | null;
+            authorized_text_ref?: components["schemas"]["ProviderRef"] | null;
+            locator?: components["schemas"]["Locator"];
+            /**
+             * Canonical Entity Refs
+             * @default []
+             */
+            canonical_entity_refs: components["schemas"]["MiningEntity"][];
+            labels?: components["schemas"]["MiningLabels"];
+            project_ref?: components["schemas"]["ProviderRef"] | null;
+            /** Project Stage */
+            project_stage?: string | null;
+            /**
+             * Company Refs
+             * @default []
+             */
+            company_refs: components["schemas"]["ProviderRef"][];
+            drug_ref?: components["schemas"]["ProviderRef"] | null;
+            /**
+             * Trial Refs
+             * @default []
+             */
+            trial_refs: components["schemas"]["ProviderRef"][];
+            /** Project Status */
+            project_status?: string | null;
+            entry_time?: components["schemas"]["TimeExpression"] | null;
+            exit_time?: components["schemas"]["TimeExpression"] | null;
+            /** Exit Reason */
+            exit_reason?: string | null;
+            /**
+             * State Assertions
+             * @default []
+             */
+            state_assertions: components["schemas"]["StateAssertion"][];
+            /**
+             * Record Flags
+             * @default []
+             */
+            record_flags: ("revised" | "deleted" | "retracted" | "historical_backfill" | "new_source")[];
+            /**
+             * Quality Refs
+             * @default []
+             */
+            quality_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Lineage Refs
+             * @default []
+             */
+            lineage_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Missing Fields
+             * @default []
+             */
+            missing_fields: string[];
+            /**
+             * Available Fields
+             * @default []
+             */
+            available_fields: string[];
+            /**
+             * Rule Readiness
+             * @default []
+             */
+            rule_readiness: components["schemas"]["RuleReadiness"][];
+            /** Upstream Status */
+            upstream_status?: {
+                [key: string]: string | null;
+            };
+            context?: components["schemas"]["StudyContext"] | null;
+            embedding?: components["schemas"]["Embedding"] | null;
+            /**
+             * Relations
+             * @default []
+             */
+            relations: components["schemas"]["Relation"][];
+            /**
+             * Assessments
+             * @default []
+             */
+            assessments: components["schemas"]["Assessment"][];
+            /**
+             * Dependencies
+             * @default []
+             */
+            dependencies: components["schemas"]["ClaimDependency"][];
+            /**
+             * Events
+             * @default []
+             */
+            events: components["schemas"]["Event"][];
+            /**
+             * Regional Indicators
+             * @default []
+             */
+            regional_indicators: components["schemas"]["RegionalIndicator"][];
+            /**
+             * Graph Hints
+             * @default []
+             */
+            graph_hints: components["schemas"]["GraphHint"][];
+            /**
+             * Metric Observations
+             * @default []
+             */
+            metric_observations: components["schemas"]["MetricObservation-Output"][];
             timeline?: components["schemas"]["ProjectTimeline"] | null;
         };
         /** Event */
@@ -2182,6 +2714,23 @@ export interface components {
             quote: string;
             locator: components["schemas"]["GraphLocator"];
         };
+        /** GraphFieldEvidence */
+        GraphFieldEvidence: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+            /** Raw Sha256 */
+            raw_sha256: string;
+            /** Origin Doc Uuid */
+            origin_doc_uuid?: string | null;
+            /** Json Pointer */
+            json_pointer: string;
+            /** Value */
+            value: unknown;
+        };
         /** GraphFollowUp */
         GraphFollowUp: {
             /** Edge Id */
@@ -2207,6 +2756,55 @@ export interface components {
              * @default []
              */
             search_terms: string[];
+        };
+        /**
+         * GraphHint
+         * @description A fixed graph relation to verify; never a confirmed project or effect.
+         */
+        GraphHint: {
+            hint_ref: components["schemas"]["ProviderRef"];
+            /** Subject Id */
+            subject_id: string;
+            /** Subject Label */
+            subject_label: string;
+            /** Relation Type */
+            relation_type: string;
+            /** Object Id */
+            object_id: string;
+            /** Object Label */
+            object_label: string;
+            /** Identity Statuses */
+            identity_statuses: [
+                string,
+                string
+            ];
+            /** Review Status */
+            review_status: string;
+            /** Declared Binding Status */
+            declared_binding_status: string;
+            /**
+             * Originals Validated
+             * @default false
+             */
+            originals_validated: boolean;
+            /**
+             * Query Terms
+             * @default []
+             */
+            query_terms: string[];
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            /** Scope Description */
+            scope_description: string;
+            /**
+             * Selection Truncated
+             * @default false
+             */
+            selection_truncated: boolean;
+            provenance: components["schemas"]["SectionProvenance"];
         };
         /** GraphIdentity */
         GraphIdentity: {
@@ -2373,13 +2971,26 @@ export interface components {
             external_ids?: {
                 [key: string]: unknown;
             };
+            /** Properties */
+            properties?: {
+                [key: string]: unknown;
+            };
             /**
              * Identity Status
              * @enum {string}
              */
-            identity_status: "confirmed" | "unresolved" | "background";
+            identity_status: "confirmed" | "rule_confirmed" | "unresolved" | "background";
             /** Identity Review Basis */
             identity_review_basis?: string | null;
+            /** Identity Rule */
+            identity_rule?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Field Evidence
+             * @default []
+             */
+            field_evidence: components["schemas"]["GraphFieldEvidence"][];
             review: components["schemas"]["GraphReview"];
             /**
              * Mention Ids
@@ -2542,6 +3153,19 @@ export interface components {
             /** Unknown Reason */
             unknown_reason?: string | null;
             basis: components["schemas"]["InputBasis"];
+        };
+        /** HistoricalAnalysisScope */
+        HistoricalAnalysisScope: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "public_history_reconstruction" | "operational_replay";
+            /**
+             * Cutoff
+             * Format: date-time
+             */
+            cutoff: string;
         };
         /** HistoricalEvent */
         HistoricalEvent: {
@@ -2939,6 +3563,145 @@ export interface components {
             /** Run Id */
             run_id: string;
         };
+        /** HumanReview */
+        HumanReview: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "needs_verification" | "dismissed" | "accepted_within_scope";
+            /** Scope */
+            scope: string;
+            /** Target */
+            target: components["schemas"]["CandidateReviewTarget"] | components["schemas"]["ReportReviewTarget"] | components["schemas"]["ClaimReviewTarget"];
+            /** Basis Record Refs */
+            basis_record_refs: components["schemas"]["ProviderRef"][];
+            /** Analysis Input Hash */
+            analysis_input_hash?: string | null;
+        };
+        /** HumanReviewCreate */
+        HumanReviewCreate: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "needs_verification" | "dismissed" | "accepted_within_scope";
+            /** Scope */
+            scope: string;
+            /** Target */
+            target: components["schemas"]["CandidateReviewTarget"] | components["schemas"]["ReportReviewTarget"] | components["schemas"]["ClaimReviewTarget"];
+        };
+        /** HypothesisJudgment */
+        HypothesisJudgment: {
+            /** Least Refuted Hypothesis Id */
+            least_refuted_hypothesis_id: string;
+            /** Reason */
+            reason: string;
+            /** Next Discriminating Evidence */
+            next_discriminating_evidence: string;
+            /**
+             * Qualification
+             * @default 这是模型判断，未证实
+             * @constant
+             */
+            qualification: "这是模型判断，未证实";
+        };
+        /** InformationCredibilityAssessment */
+        InformationCredibilityAssessment: {
+            record_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Assessment Status
+             * @default not_assessed
+             * @enum {string}
+             */
+            assessment_status: "not_assessed" | "machine_assessed" | "human_reviewed";
+            /**
+             * Reason Code
+             * @default basis_missing
+             */
+            reason_code: string;
+            /**
+             * Assessment Basis Refs
+             * @default []
+             */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Assessment Basis
+             * @default
+             */
+            assessment_basis: string;
+            /** Assessed By */
+            assessed_by?: string | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Taxonomy Name
+             * @default admiralty-scale
+             * @constant
+             */
+            taxonomy_name: "admiralty-scale";
+            /**
+             * Taxonomy Version
+             * @default 5
+             * @constant
+             */
+            taxonomy_version: 5;
+            /** Native Review Entry Id */
+            native_review_entry_id?: string | null;
+            /** Review Revision */
+            review_revision?: number | null;
+            /** Previous Assessment Ref */
+            previous_assessment_ref?: string | null;
+            /**
+             * Grade
+             * @default 6
+             * @enum {string}
+             */
+            grade: "1" | "2" | "3" | "4" | "5" | "6";
+            /** Claim Id */
+            claim_id?: string | null;
+            /** Claim Text */
+            claim_text?: string | null;
+            /** Claim Text Sha256 */
+            claim_text_sha256?: string | null;
+            /**
+             * Independent Confirmation Refs
+             * @default []
+             */
+            independent_confirmation_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Independent Confirmation Basis
+             * @default
+             */
+            independent_confirmation_basis: string;
+        };
+        /** InformationCredibilityReviewInput */
+        InformationCredibilityReviewInput: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "1" | "2" | "3" | "4" | "5" | "6";
+            record_ref: components["schemas"]["ProviderRef"];
+            /** Claim Id */
+            claim_id: string;
+            /** Claim Text */
+            claim_text: string;
+            /** Assessment Basis Refs */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /** Assessment Basis */
+            assessment_basis: string;
+            /**
+             * Independent Confirmation Refs
+             * @default []
+             */
+            independent_confirmation_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Independent Confirmation Basis
+             * @default
+             */
+            independent_confirmation_basis: string;
+        };
         /** InitialQuery */
         InitialQuery: {
             /** Source Id */
@@ -3074,6 +3837,8 @@ export interface components {
             based_on_revision: number;
             /** Parent Judgment Entry Id */
             parent_judgment_entry_id: string | null;
+            review?: components["schemas"]["HumanReview"] | null;
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
         };
         /** InvestigationJudgmentCreate */
         InvestigationJudgmentCreate: {
@@ -3098,6 +3863,8 @@ export interface components {
             assessment: "provisional" | "unable_to_determine";
             /** Basis Entry Ids */
             basis_entry_ids?: string[];
+            review?: components["schemas"]["HumanReviewCreate"] | null;
+            assessment_axes?: components["schemas"]["AssessmentAxesReviewInput"] | null;
         };
         /** InvestigationList */
         InvestigationList: {
@@ -3350,6 +4117,198 @@ export interface components {
             data_fabric_retrieval: "bounded_cli_available";
         };
         JsonValue: unknown;
+        /** KddPolicy */
+        KddPolicy: {
+            /**
+             * Policy Version
+             * @default bioradar.mining.policy.v1
+             * @constant
+             */
+            policy_version: "bioradar.mining.policy.v1";
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Time Mode
+             * @default publication_retrospective
+             * @enum {string}
+             */
+            time_mode: "publication_retrospective" | "availability_replay";
+            /** Availability Basis */
+            availability_basis?: ("operational_replay" | "public_history_reconstruction") | null;
+            /**
+             * Discovery Mode
+             * @default stock_and_incremental
+             * @enum {string}
+             */
+            discovery_mode: "stock_and_incremental" | "incremental";
+            /** Baseline Start */
+            baseline_start?: string | null;
+            /** Baseline End */
+            baseline_end?: string | null;
+            /** Current Start */
+            current_start?: string | null;
+            /** Current End */
+            current_end?: string | null;
+            /**
+             * Method Ids
+             * @default [
+             *       "lexical_emergence",
+             *       "text_topics",
+             *       "entity_combinations",
+             *       "state_transitions",
+             *       "pipeline_landscape",
+             *       "research_network",
+             *       "maturity_shift",
+             *       "counterevidence_impact",
+             *       "translation_dwell",
+             *       "event_exposure",
+             *       "regional_comparison"
+             *     ]
+             */
+            method_ids: string[];
+            limits?: components["schemas"]["ResourceLimits"];
+            /**
+             * Scope Label
+             * @description Annotation only; records are not filtered by this label
+             */
+            scope_label?: string | null;
+            /**
+             * Minimum Support
+             * @default 2
+             */
+            minimum_support: number;
+            /**
+             * Minimum Growth
+             * @default 2
+             */
+            minimum_growth: number;
+            /**
+             * Exploration Fraction
+             * @default 0.2
+             */
+            exploration_fraction: number;
+            /**
+             * Known Vocabulary
+             * @default []
+             */
+            known_vocabulary: string[];
+            /** Vocabulary Version */
+            vocabulary_version?: string | null;
+            /**
+             * Stoplist
+             * @default []
+             */
+            stoplist: string[];
+            /**
+             * Topic Components
+             * @default 8
+             */
+            topic_components: number;
+            /**
+             * Topic Similarity
+             * @default 0.55
+             */
+            topic_similarity: number;
+            /**
+             * Novelty Distance
+             * @default 0.45
+             */
+            novelty_distance: number;
+            /**
+             * Random Seed
+             * @default 0
+             */
+            random_seed: number;
+            /**
+             * Burst Scale
+             * @default 2
+             */
+            burst_scale: number;
+            /**
+             * Burst Penalty
+             * @default 1
+             */
+            burst_penalty: number;
+            /**
+             * Burst States
+             * @default 3
+             */
+            burst_states: number;
+            /**
+             * Dwell Threshold Days
+             * @default 365
+             */
+            dwell_threshold_days: number;
+            /**
+             * Maturity Stage Order
+             * @default [
+             *       "hypothesis",
+             *       "in_vitro",
+             *       "animal",
+             *       "human_early_result",
+             *       "human_late_result",
+             *       "regulatory"
+             *     ]
+             */
+            maturity_stage_order: string[];
+            /**
+             * Cooperation Relations
+             * @default [
+             *       "coauthored",
+             *       "collaborated"
+             *     ]
+             */
+            cooperation_relations: string[];
+            /**
+             * Exposure Relations
+             * @default [
+             *       "supplies",
+             *       "depends_on",
+             *       "licensed_to",
+             *       "manufactures"
+             *     ]
+             */
+            exposure_relations: string[];
+            /**
+             * Exposure Reverse Relations
+             * @default [
+             *       "depends_on"
+             *     ]
+             */
+            exposure_reverse_relations: string[];
+            /**
+             * Urgent Event Types
+             * @default [
+             *       "regulatory_safety_action",
+             *       "product_recall"
+             *     ]
+             */
+            urgent_event_types: string[];
+            /**
+             * Source Intelligence Version
+             * @description Retain public-health source statements and information events separately from metrics.
+             */
+            source_intelligence_version?: "public-health-source-intelligence-v1" | null;
+            /**
+             * Kdd Direction
+             * @enum {string}
+             */
+            kdd_direction: "research" | "pipeline" | "business" | "public_health";
+            /**
+             * Narrative Contract Version
+             * @description Frozen literal business extraction contract; omitted preserves legacy v1.
+             */
+            narrative_contract_version?: ("literal-narrative-observations-v1" | "literal-narrative-observations-v2") | null;
+            value_policy?: components["schemas"]["ValuePolicy"];
+            /**
+             * Monitor Changed Refs
+             * @description Actual changed fixed record versions; only qualified prior versions establish new periods.
+             */
+            monitor_changed_refs?: components["schemas"]["ProviderRef"][] | null;
+        };
         /** Locator */
         Locator: {
             /**
@@ -3427,6 +4386,154 @@ export interface components {
              * @default []
              */
             limitations: string[];
+        };
+        /**
+         * MetricObservation
+         * @description An adopted typed metric; source parsing and binding remain upstream.
+         */
+        "MetricObservation-Input": {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Domain
+             * @enum {string}
+             */
+            domain: "business" | "public_health";
+            subject_ref: components["schemas"]["ProviderRef"];
+            /** Metric Id */
+            metric_id: string;
+            /** Metric Version */
+            metric_version: string;
+            /** Value Lower */
+            value_lower: number | string;
+            /** Value Upper */
+            value_upper: number | string;
+            /** Unit */
+            unit: string;
+            /**
+             * Value Kind
+             * @default other
+             * @enum {string}
+             */
+            value_kind: "monetary" | "count" | "ratio" | "other";
+            /** Currency */
+            currency?: string | null;
+            /** Reporting Scope */
+            reporting_scope?: string | null;
+            /** Population */
+            population?: string | null;
+            /** Region */
+            region?: string | null;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Denominator */
+            denominator?: number | string | null;
+            /** Denominator Unit */
+            denominator_unit?: string | null;
+            /**
+             * Measurement Basis
+             * @default unknown
+             * @enum {string}
+             */
+            measurement_basis: "reported" | "forecast" | "estimate" | "unknown";
+            /**
+             * Binding Status
+             * @default declared
+             * @enum {string}
+             */
+            binding_status: "source_bound" | "declared";
+            /** Field Locators */
+            field_locators?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            provenance: components["schemas"]["SectionProvenance"];
+        };
+        /**
+         * MetricObservation
+         * @description An adopted typed metric; source parsing and binding remain upstream.
+         */
+        "MetricObservation-Output": {
+            /** Observation Id */
+            observation_id: string;
+            /**
+             * Domain
+             * @enum {string}
+             */
+            domain: "business" | "public_health";
+            subject_ref: components["schemas"]["ProviderRef"];
+            /** Metric Id */
+            metric_id: string;
+            /** Metric Version */
+            metric_version: string;
+            /** Value Lower */
+            value_lower: string;
+            /** Value Upper */
+            value_upper: string;
+            /** Unit */
+            unit: string;
+            /**
+             * Value Kind
+             * @default other
+             * @enum {string}
+             */
+            value_kind: "monetary" | "count" | "ratio" | "other";
+            /** Currency */
+            currency?: string | null;
+            /** Reporting Scope */
+            reporting_scope?: string | null;
+            /** Population */
+            population?: string | null;
+            /** Region */
+            region?: string | null;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /** Denominator */
+            denominator?: string | null;
+            /** Denominator Unit */
+            denominator_unit?: string | null;
+            /**
+             * Measurement Basis
+             * @default unknown
+             * @enum {string}
+             */
+            measurement_basis: "reported" | "forecast" | "estimate" | "unknown";
+            /**
+             * Binding Status
+             * @default declared
+             * @enum {string}
+             */
+            binding_status: "source_bound" | "declared";
+            /** Field Locators */
+            field_locators?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            };
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
+            provenance: components["schemas"]["SectionProvenance"];
         };
         /** MetricSpec */
         "MetricSpec-Input": {
@@ -3561,6 +4668,8 @@ export interface components {
              * @enum {string}
              */
             time_mode: "publication_retrospective" | "availability_replay";
+            /** Availability Basis */
+            availability_basis?: ("operational_replay" | "public_history_reconstruction") | null;
             /**
              * Discovery Mode
              * @default stock_and_incremental
@@ -3721,10 +4830,10 @@ export interface components {
             schema_version: "bioradar.engine.result.v1";
             /**
              * Compute Version
-             * @default bioradar-mining-compute-v0.2
+             * @default bioradar-mining-compute-v0.4
              * @enum {string}
              */
-            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2";
+            compute_version: "bioradar-mining-compute-v1" | "bioradar-mining-compute-v0.2" | "bioradar-mining-compute-v0.3" | "bioradar-mining-compute-v0.4" | "bioradar-mining-compute-v0.5";
             /** Snapshot Hash */
             snapshot_hash: string;
             /** Policy Hash */
@@ -3740,6 +4849,24 @@ export interface components {
              * @default []
              */
             limitations: string[];
+            /** Data Preparation */
+            data_preparation?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /**
+             * Pattern Evaluations
+             * @default []
+             */
+            pattern_evaluations: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
+            /**
+             * Selection Decisions
+             * @default []
+             */
+            selection_decisions: {
+                [key: string]: components["schemas"]["JsonValue"];
+            }[];
         };
         /** MonitorBatchList */
         MonitorBatchList: {
@@ -3781,11 +4908,15 @@ export interface components {
             /** Snapshot Id */
             snapshot_id: string | null;
             /** From After */
-            from_after: number;
+            from_after?: number | null;
             /** Next After */
-            next_after: number;
+            next_after?: number | null;
             /** Max Seq */
-            max_seq: number;
+            max_seq?: number | null;
+            /** Historical Sampling */
+            historical_sampling?: {
+                [key: string]: unknown;
+            } | null;
             /** Changed Versions */
             changed_versions: number;
             /** Window Records */
@@ -3824,6 +4955,7 @@ export interface components {
         };
         /** MonitorLeadView */
         MonitorLeadView: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Id */
             id: string;
             /** Lead Key */
@@ -3926,6 +5058,10 @@ export interface components {
             record_outcomes: {
                 [key: string]: unknown;
             }[];
+            /** Runtime Configuration */
+            runtime_configuration?: {
+                [key: string]: number | null;
+            } | null;
             /** Limitations */
             limitations: string[];
         };
@@ -3992,7 +5128,7 @@ export interface components {
             limitations: string[];
         };
         /** NormalizedSnapshot */
-        NormalizedSnapshot: {
+        "NormalizedSnapshot-Input": {
             /**
              * Schema Version
              * @default bioradar.engine.snapshot.v1
@@ -4020,7 +5156,48 @@ export interface components {
              */
             observed_at: string;
             /** Records */
-            records: components["schemas"]["EngineRecord"][];
+            records: components["schemas"]["EngineRecord-Input"][];
+            /**
+             * Coverage
+             * @default []
+             */
+            coverage: components["schemas"]["SnapshotCoverage"][];
+            /**
+             * Metadata Gaps
+             * @default []
+             */
+            metadata_gaps: string[];
+        };
+        /** NormalizedSnapshot */
+        "NormalizedSnapshot-Output": {
+            /**
+             * Schema Version
+             * @default bioradar.engine.snapshot.v1
+             * @constant
+             */
+            schema_version: "bioradar.engine.snapshot.v1";
+            /** Snapshot Id */
+            snapshot_id: string;
+            /**
+             * Is Demo
+             * @default false
+             */
+            is_demo: boolean;
+            /** Source Instance */
+            source_instance: string;
+            /**
+             * Coverage Mode
+             * @default unknown
+             * @enum {string}
+             */
+            coverage_mode: "complete" | "bounded_sample" | "manual_package" | "unknown";
+            /**
+             * Observed At
+             * Format: date-time
+             */
+            observed_at: string;
+            /** Records */
+            records: components["schemas"]["EngineRecord-Output"][];
             /**
              * Coverage
              * @default []
@@ -4205,6 +5382,17 @@ export interface components {
             /** Value */
             value?: string | number | boolean | null;
         };
+        /** QueryPagination */
+        QueryPagination: {
+            /** Has More */
+            has_more: boolean;
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Max Seq */
+            max_seq: number;
+            /** Page Number */
+            page_number: number;
+        };
         /** QuestionAsk */
         QuestionAsk: {
             /** Question */
@@ -4221,8 +5409,11 @@ export interface components {
             /** Initial Queries */
             initial_queries?: components["schemas"]["InitialQuery"][];
             budget?: components["schemas"]["AnalysisBudget"] | null;
+            historical_scope?: components["schemas"]["HistoricalAnalysisScope"] | null;
             /** Query Policy */
             query_policy?: ("baseline" | "query_planner") | null;
+            /** Kdd Direction */
+            kdd_direction?: ("research" | "pipeline" | "business" | "public_health") | null;
         };
         /** RecordIdentity */
         RecordIdentity: {
@@ -4343,6 +5534,18 @@ export interface components {
             study_cluster_ref?: components["schemas"]["ProviderRef"] | null;
             provenance: components["schemas"]["SectionProvenance"];
         };
+        /** ReportReviewTarget */
+        ReportReviewTarget: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            type: "report";
+            /** Analysis Id */
+            analysis_id: string;
+            /** Text Sha256 */
+            text_sha256: string;
+        };
         /** ResourceLimits */
         ResourceLimits: {
             /**
@@ -4401,6 +5604,15 @@ export interface components {
              */
             max_temporal_bins: number;
         };
+        /** ReturnedSourceVersion */
+        ReturnedSourceVersion: {
+            /** Source Id */
+            source_id: string;
+            /** Source Record Id */
+            source_record_id: string;
+            /** Version Id */
+            version_id: string;
+        };
         /** ReviewPlan */
         ReviewPlan: {
             /** Review At */
@@ -4449,7 +5661,8 @@ export interface components {
         RunCreate: {
             /** Snapshot Id */
             snapshot_id: string;
-            policy: components["schemas"]["MiningPolicy"];
+            /** Policy */
+            policy: components["schemas"]["DiscoveryPolicy"] | components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"];
         };
         /** RunError */
         RunError: {
@@ -4484,8 +5697,11 @@ export interface components {
             original_policy: {
                 [key: string]: components["schemas"]["JsonValue"];
             };
-            /** @description Current schema view only; original_policy is the frozen input */
-            policy: components["schemas"]["MiningPolicy"] | null;
+            /**
+             * Policy
+             * @description Current schema view only; original_policy is the frozen input
+             */
+            policy: components["schemas"]["DiscoveryPolicy"] | components["schemas"]["KddPolicy"] | components["schemas"]["MiningPolicy"] | null;
             /**
              * Policy View Status
              * @enum {string}
@@ -4546,6 +5762,57 @@ export interface components {
             actor_id?: string | null;
             /** Workspace Id */
             workspace_id?: string | null;
+        };
+        /**
+         * SignalContext
+         * @description Attributed source claims; named sources are not thereby confirmed.
+         */
+        SignalContext: {
+            /** Material Type */
+            material_type?: string | null;
+            /** Origin Group */
+            origin_group?: string | null;
+            /**
+             * Attribution
+             * @default unknown
+             * @enum {string}
+             */
+            attribution: "named_institution" | "named_author" | "anonymous" | "unknown";
+            /** Claimed Origin */
+            claimed_origin?: string | null;
+            /**
+             * Entity Names
+             * @default []
+             */
+            entity_names: string[];
+            /**
+             * Source Relations
+             * @default []
+             */
+            source_relations: components["schemas"]["SourceRelation"][];
+            /** Claim Text */
+            claim_text?: string | null;
+            /**
+             * Verification Status
+             * @default unknown
+             * @enum {string}
+             */
+            verification_status: "source_confirmed" | "unverified" | "unknown";
+            /**
+             * Statement Status
+             * @default unknown
+             * @enum {string}
+             */
+            statement_status: "source_reported" | "unverified_report" | "unknown";
+            /** Document Evidence */
+            document_evidence?: {
+                [key: string]: components["schemas"]["JsonValue"];
+            } | null;
+            /**
+             * Evidence Refs
+             * @default []
+             */
+            evidence_refs: components["schemas"]["ProviderRef"][];
         };
         /** SnapshotComparison */
         SnapshotComparison: {
@@ -4650,7 +5917,7 @@ export interface components {
             id: string;
             /** Snapshot Hash */
             snapshot_hash: string;
-            snapshot: components["schemas"]["NormalizedSnapshot"];
+            snapshot: components["schemas"]["NormalizedSnapshot-Output"];
         };
         /** SnapshotList */
         SnapshotList: {
@@ -4692,6 +5959,85 @@ export interface components {
             created_at: string;
             /** Metadata Gaps */
             metadata_gaps: string[];
+        };
+        /** SourceRelation */
+        SourceRelation: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "correction" | "retraction" | "supplement" | "repost";
+            target_ref: components["schemas"]["ProviderRef"];
+        };
+        /** SourceReliabilityAssessment */
+        SourceReliabilityAssessment: {
+            record_ref: components["schemas"]["ProviderRef"];
+            /**
+             * Assessment Status
+             * @default not_assessed
+             * @enum {string}
+             */
+            assessment_status: "not_assessed" | "machine_assessed" | "human_reviewed";
+            /**
+             * Reason Code
+             * @default basis_missing
+             */
+            reason_code: string;
+            /**
+             * Assessment Basis Refs
+             * @default []
+             */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /**
+             * Assessment Basis
+             * @default
+             */
+            assessment_basis: string;
+            /** Assessed By */
+            assessed_by?: string | null;
+            /** Assessed At */
+            assessed_at?: string | null;
+            /**
+             * Taxonomy Name
+             * @default admiralty-scale
+             * @constant
+             */
+            taxonomy_name: "admiralty-scale";
+            /**
+             * Taxonomy Version
+             * @default 5
+             * @constant
+             */
+            taxonomy_version: 5;
+            /** Native Review Entry Id */
+            native_review_entry_id?: string | null;
+            /** Review Revision */
+            review_revision?: number | null;
+            /** Previous Assessment Ref */
+            previous_assessment_ref?: string | null;
+            /**
+             * Grade
+             * @default F
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "D" | "E" | "F";
+            /** Publisher Scope */
+            publisher_scope?: string | null;
+        };
+        /** SourceReliabilityReviewInput */
+        SourceReliabilityReviewInput: {
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "A" | "B" | "C" | "D" | "E" | "F";
+            record_ref: components["schemas"]["ProviderRef"];
+            /** Publisher Scope */
+            publisher_scope: string;
+            /** Assessment Basis Refs */
+            assessment_basis_refs: components["schemas"]["ProviderRef"][];
+            /** Assessment Basis */
+            assessment_basis: string;
         };
         /** StateAssertion */
         StateAssertion: {
@@ -4778,15 +6124,19 @@ export interface components {
             expected_revision: number;
             /** Paused */
             paused: boolean;
+            /** Lifecycle */
+            lifecycle?: ("closed" | "warming") | null;
+            /** Reason */
+            reason?: string | null;
         };
         /** TopicCoverage */
         TopicCoverage: {
             /**
              * Scope
              * @default committed_adoptions
-             * @constant
+             * @enum {string}
              */
-            scope: "committed_adoptions";
+            scope: "committed_adoptions" | "verified_historical_availability";
             /** Seed Complete */
             seed_complete: boolean;
             /** Source Watermarks */
@@ -4875,7 +6225,7 @@ export interface components {
              * @default month
              * @enum {string}
              */
-            bucket: "week" | "month";
+            bucket: "hour" | "day" | "week" | "month";
             /**
              * Lookback Buckets
              * @default 24
@@ -4894,6 +6244,7 @@ export interface components {
         };
         /** TopicEvaluation */
         TopicEvaluation: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Id */
             id: string;
             /** Topic Id */
@@ -4951,7 +6302,15 @@ export interface components {
              * @default not_needed
              * @enum {string}
              */
-            automation_status: "not_needed" | "deferred" | "saved" | "needs_review" | "blocked";
+            automation_status: "not_needed" | "deferred" | "saved" | "needs_review" | "blocked" | "waiting_budget";
+            /** Tracking */
+            tracking?: {
+                [key: string]: unknown;
+            } | null;
+            /** Evidence Time */
+            evidence_time?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** TopicEvaluationList */
         TopicEvaluationList: {
@@ -4967,6 +6326,7 @@ export interface components {
         };
         /** TopicEvidence */
         TopicEvidence: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Key */
             key: string;
             record_ref: components["schemas"]["ProviderRef"];
@@ -5077,6 +6437,66 @@ export interface components {
              */
             qualification: string;
         };
+        /** TopicRiskReassessment */
+        TopicRiskReassessment: {
+            scope: components["schemas"]["TopicRiskScopeStamp"];
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "unresolved" | "resolved_within_scope";
+            /** Decision Claim Id */
+            decision_claim_id: string;
+            /** Decision Statement */
+            decision_statement: string;
+            /** Supporting Claim Ids */
+            supporting_claim_ids: string[];
+            /** Scope Control Claim Ids */
+            scope_control_claim_ids: string[];
+            /** Opposing Claim Ids */
+            opposing_claim_ids?: string[];
+            /**
+             * Scope Coverage
+             * @enum {string}
+             */
+            scope_coverage: "full_declared_scope" | "partial" | "unknown";
+            /** Remaining Critical Gaps */
+            remaining_critical_gaps?: string[];
+            /** Conditions */
+            conditions?: string[];
+            /** Reason */
+            reason: string;
+        };
+        /** TopicRiskReviewRequest */
+        TopicRiskReviewRequest: {
+            /** Expected Revision */
+            expected_revision: number;
+            /** Evaluation Id */
+            evaluation_id: string;
+            /** Analysis Id */
+            analysis_id: string;
+        };
+        /** TopicRiskReviewView */
+        TopicRiskReviewView: {
+            topic: components["schemas"]["TopicView"];
+            /** Assessment */
+            assessment: {
+                [key: string]: unknown;
+            };
+        };
+        /** TopicRiskScopeStamp */
+        TopicRiskScopeStamp: {
+            /** Topic Id */
+            topic_id: string;
+            /** Scope Revision */
+            scope_revision: number;
+            /** Observation Revision */
+            observation_revision: number;
+            /** Definition Sha256 */
+            definition_sha256: string;
+            /** Risk Basis Sha256 */
+            risk_basis_sha256: string;
+        };
         /** TopicSignal */
         TopicSignal: {
             /** Key */
@@ -5085,7 +6505,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "text_pattern" | "state_change" | "milestone_check" | "metric_change" | "source_event" | "evidence_revision";
+            kind: "text_pattern" | "state_change" | "milestone_check" | "metric_change" | "source_event" | "evidence_revision" | "source_claim";
             /** Title */
             title: string;
             /** Reason */
@@ -5106,6 +6526,14 @@ export interface components {
             /** Next Questions */
             next_questions?: string[];
         };
+        /** TopicSimulationTick */
+        TopicSimulationTick: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+        };
         /** TopicSourceProgress */
         TopicSourceProgress: {
             /** Source Id */
@@ -5114,7 +6542,7 @@ export interface components {
              * After
              * @default 0
              */
-            after: number;
+            after: number | null;
             /** Scan Max Seq */
             scan_max_seq?: number | null;
             /**
@@ -5168,6 +6596,7 @@ export interface components {
         };
         /** TopicView */
         TopicView: {
+            assessment_axes?: components["schemas"]["AssessmentAxes"] | null;
             /** Id */
             id: string;
             /** Is Demo */
@@ -5210,6 +6639,14 @@ export interface components {
             latest_evaluation_id?: string | null;
             /** Data Gaps */
             data_gaps: string[];
+            /** Tracking */
+            tracking?: {
+                [key: string]: unknown;
+            } | null;
+            /** Evidence Time */
+            evidence_time?: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ValidationError */
         ValidationError: {
@@ -5223,6 +6660,37 @@ export interface components {
             input?: unknown;
             /** Context */
             ctx?: Record<string, never>;
+        };
+        /**
+         * ValuePolicy
+         * @description Frozen descriptive thresholds, separate from queue capacity.
+         */
+        ValuePolicy: {
+            /**
+             * Minimum Pattern Support
+             * @default 2
+             */
+            minimum_pattern_support: number;
+            /**
+             * Relative Change Threshold
+             * @default 0.1
+             */
+            relative_change_threshold: number;
+            /**
+             * Absolute Change Threshold
+             * @default 0
+             */
+            absolute_change_threshold: number;
+            /**
+             * Novelty Distance Threshold
+             * @default 0.45
+             */
+            novelty_distance_threshold: number;
+            /**
+             * Allow Singleton Exploration
+             * @default true
+             */
+            allow_singleton_exploration: boolean;
         };
         /** VerifiedClaim */
         VerifiedClaim: {
@@ -5266,6 +6734,24 @@ export interface components {
             end: number;
             /** Passage Id */
             passage_id?: string | null;
+        };
+        /** WarningAssessment */
+        WarningAssessment: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "verify_now" | "alert" | "watch";
+            /** Supporting Claim Ids */
+            supporting_claim_ids?: string[];
+            /** Opposing Claim Ids */
+            opposing_claim_ids?: string[];
+            /** Critical Unknowns */
+            critical_unknowns?: string[];
+            /** Next Actions */
+            next_actions?: string[];
+            /** Reason */
+            reason: string;
         };
         /** InvestigationQuestion */
         bioradar__research__decision__models__InvestigationQuestion: {
@@ -5450,7 +6936,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["NormalizedSnapshot"];
+                "application/json": components["schemas"]["NormalizedSnapshot-Input"];
             };
         };
         responses: {
@@ -6692,6 +8178,39 @@ export interface operations {
             };
         };
     };
+    simulation_tick_api_engine_topics_simulation_tick_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicSimulationTick"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     templates_api_engine_topics_templates_get: {
         parameters: {
             query?: never;
@@ -6871,6 +8390,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopicView"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    risk_reassessment_api_engine_topics__identifier__risk_reassessments_post: {
+        parameters: {
+            query?: never;
+            header: {
+                "Idempotency-Key": string;
+            };
+            path: {
+                identifier: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicRiskReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopicRiskReviewView"];
                 };
             };
             /** @description Validation Error */

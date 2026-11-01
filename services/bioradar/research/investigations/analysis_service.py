@@ -3,8 +3,10 @@
 import copy
 import hashlib
 import json
+import math
 import secrets
 import time
+import traceback
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -48,20 +50,18 @@ from bioradar.research.investigations.analysis import (
     needs_revision,
     program_update,
     readable_result,
-    relaxed_query_terms,
     render_report,
     report_context,
     source_excerpt,
-    support_audit_input_allowance,
     validate_reading,
     validate_synthesis,
     validate_update,
     validated_result,
-    verification_input_allowance,
 )
 from bioradar.research.investigations.analysis_models import (
     ANALYSIS_VERSION,
     PROMPT_VERSION,
+    AnalysisBudget,
     AnalysisCreate,
     AnalysisEvidence,
     AnalysisEvidenceRead,
@@ -81,7 +81,20 @@ from bioradar.research.investigations.analysis_models import (
     PolicyReading,
     QuestionPlan,
 )
+from bioradar.research.investigations.execution_budget import (
+    WAIT_CODE,
+    finish_budget_wait,
+    reading_limits,
+    reserve_automatic_call,
+)
 from bioradar.research.investigations.models import InvestigationEntryCreate
+from bioradar.research.investigations.research_assessment import (
+    assessment_result_view,
+    final_assessment_context,
+    final_reference_repair_payload,
+    synthesis_schema,
+    validate_final_reference_repair,
+)
 from bioradar.research.investigations.service import (
     InvestigationEntryRecord,
     InvestigationRecord,
@@ -116,10 +129,46 @@ class InvestigationAnalysisRecord(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-def execution_seconds(fixed_input):
+def execution_seconds(fixed_input, progress=None, *, now=None):
     parameters = fixed_input["model_parameters"]
-    return parameters.get(
+    seconds = parameters.get(
         "job_timeout_seconds", max(240, parameters.get("max_calls", 3) * parameters["timeout_seconds"] + 60)
+    )
+    return seconds
+
+
+def minimum_send_seconds(fixed, progress, stage):
+    """Freeze a floor, then respect observed latency of this same report stage."""
+    timeout = fixed["model_parameters"]["timeout_seconds"]
+    floor = fixed["model_parameters"].get("min_send_seconds", min(60, timeout))
+    aliases = {"biocheck_recheck": "biocheck_check", "recheck": "check"}
+    target = aliases.get(stage, stage)
+    observed = [
+        math.ceil((call.get("receipt") or {}).get("elapsed_ms", 0) / 1000)
+        for call in progress.get("calls", [])
+        if call.get("status") == "received" and aliases.get(call["stage"], call["stage"]) == target
+    ]
+    return min(timeout, max(1, floor, *observed))
+
+
+def _known_optional_read_failure(call):
+    receipt = (call or {}).get("receipt") or {}
+    if (call or {}).get("status") != "failed":
+        return False
+    if receipt.get("status") == "not_sent":
+        return receipt.get("error_code") in {
+            "analysis_model_budget",
+            "analysis_token_budget",
+            "analysis_time_budget",
+            "analysis_query_budget",
+            "analysis_tool_budget",
+            "model_input_budget",
+        }
+    return (
+        receipt.get("status") == "failed"
+        and receipt.get("http_status") == 200
+        and receipt.get("error_code")
+        in {"model_output_truncated", "model_output_invalid", "model_protocol_error"}
     )
 
 
@@ -154,6 +203,15 @@ class AnalysisService:
 
             self.engine.history_source_reader = current_sources
 
+    def _source_instance(self, is_demo):
+        if is_demo:
+            return (
+                getattr(self.reader, "demo_source_instance", None)
+                or self.settings.data_fabric_demo_source_instance
+                or "fixture"
+            )
+        return getattr(self.reader, "source_instance", self.settings.data_fabric_source_instance)
+
     def _row(self, session, actor, identifier, *, lock=False):
         InvestigationService(self.engine)._actor(actor)
         statement = select(InvestigationAnalysisRecord).where(
@@ -183,11 +241,7 @@ class AnalysisService:
             self.engine._snapshot(session, actor, identifier)
 
     def _search_scope(self, actor, is_demo):
-        instance = (
-            "fixture"
-            if is_demo
-            else (self.reader.source_instance if self.reader is not None else "datafabric-test")
-        )
+        instance = self._source_instance(is_demo)
         if instance not in actor.source_allowlist:
             return []
         allowed = set(self.settings.engine_source_id_allowlist.get(instance, []))
@@ -207,7 +261,7 @@ class AnalysisService:
     def _graph_scope(self, actor, is_demo):
         if not self.settings.data_fabric_graph_query_token:
             return []
-        instance = "fixture" if is_demo else getattr(self.reader, "source_instance", "datafabric-test")
+        instance = self._source_instance(is_demo)
         if instance not in actor.source_allowlist:
             return []
         allowed = set(self.settings.engine_source_id_allowlist.get(instance, []))
@@ -239,13 +293,58 @@ class AnalysisService:
             "limits": {
                 **self._budget_limits(),
                 "manual_analyses_per_hour": self.settings.analysis_manual_per_hour,
-                "evidence_versions": MAX_EVIDENCE,
-                "evidence_characters": MAX_CHARACTERS,
-                "records_per_query": 3,
+                "evidence_versions": self.settings.analysis_v2_max_evidence
+                if self.settings.analysis_query_policy == "query_planner"
+                else MAX_EVIDENCE,
+                "evidence_characters": self.settings.analysis_v2_max_characters
+                if self.settings.analysis_query_policy == "query_planner"
+                else MAX_CHARACTERS,
+                "records_per_query": self.settings.analysis_v2_records_per_query
+                if self.settings.analysis_query_policy == "query_planner"
+                else 3,
+                "document_search": self.settings.analysis_v2_action_limits.get(
+                    "document_search", self.settings.analysis_max_queries
+                ),
+                "document_read": self.settings.analysis_v2_action_limits.get(
+                    "document_read", self.settings.analysis_query_policy_v2_max_steps
+                ),
+                "pages_per_chain": 5,
+                "monitor_investigations_per_batch": self.settings.monitor_investigations_per_batch,
                 "support_audit_calls": 1,
             },
-            "providers": self._provider_status(),
+            "limits_by_policy": {
+                "baseline": {
+                    "evidence_versions": MAX_EVIDENCE,
+                    "evidence_characters": MAX_CHARACTERS,
+                    "records_per_query": 3,
+                    "document_search": self.settings.analysis_max_queries,
+                    "document_read": 0,
+                    "pages_per_chain": 1,
+                },
+                "query_planner": {
+                    "evidence_versions": self.settings.analysis_v2_max_evidence,
+                    "evidence_characters": self.settings.analysis_v2_max_characters,
+                    "records_per_query": self.settings.analysis_v2_records_per_query,
+                    "document_search": min(
+                        self.settings.analysis_max_queries,
+                        self.settings.analysis_v2_action_limits.get(
+                            "document_search", self.settings.analysis_max_queries
+                        ),
+                    ),
+                    "document_read": self.settings.analysis_v2_action_limits.get(
+                        "document_read", self.settings.analysis_query_policy_v2_max_steps
+                    ),
+                    "pages_per_chain": 5,
+                },
+            },
+            "providers": self._provider_status(
+                kdd=(
+                    self.settings.analysis_query_policy == "query_planner"
+                ),
+                is_demo=is_demo,
+            ),
             "runtime": {
+                "history_replay_dispatch_policy": self.settings.history_replay_dispatch_policy,
                 "environment": self.settings.environment,
                 "workspace_id": actor.workspace_id,
                 "database_name": self.engine.database.url.database
@@ -269,16 +368,39 @@ class AnalysisService:
                 limits[name] = value
         return limits
 
-    def _provider_status(self):
-        from bioradar.adapters.biocheck import provider_status as biocheck_status
-        from bioradar.adapters.mech_evidence import provider_status as mechanism_status
+    def _provider_status(self, *, kdd=False, direction="research", is_demo=False):
         from bioradar.adapters.weknora import provider_status as retrieval_status
+        from bioradar.research.investigations.professional import provider_status
 
-        return {
-            "biocheck": biocheck_status(self.settings),
-            "mech_evidence": mechanism_status(self.settings),
-            "weknora": retrieval_status(self.settings),
+        retrieval = retrieval_status(self.settings)
+        if kdd:
+            from bioradar.adapters.weknora_kdd import search_status
+
+            retrieval = search_status(self.settings, direction=direction, is_demo=is_demo)
+        result = {
+            "biocheck": provider_status(self.settings, "biocheck"),
+            "mech_evidence": provider_status(self.settings, "mech_evidence"),
+            "weknora": retrieval,
         }
+        if kdd:
+            from bioradar.adapters.fabric_fetch import FETCH_VERSION, demo_fetch_available
+
+            result["fabric_fetch"] = {
+                "provider": "data_fabric",
+                "version": FETCH_VERSION,
+                "available": bool(
+                    demo_fetch_available(self.settings)
+                    if is_demo
+                    else self.settings.data_fabric_url and self.settings.data_fabric_history_fetch_token
+                ),
+                "scope": "isolated_simulation" if is_demo else "current_real_sources_only",
+                **(
+                    {"demo_instance_id": self.settings.data_fabric_demo_fetch_instance_id}
+                    if is_demo and demo_fetch_available(self.settings)
+                    else {}
+                ),
+            }
+        return result
 
     @staticmethod
     def _summary(row):
@@ -300,21 +422,50 @@ class AnalysisService:
         )
 
     @classmethod
-    def _view(cls, row):
+    def _view(cls, row, *, fixed_version_refs=None):
+        from bioradar.delivery.analysis_diagnostics import build_analysis_diagnostics
+        from bioradar.research.investigations.kdd import material_scope
+
         progress = row.progress
+        query_views = [{k: v for k, v in q.items() if k != "records"} for q in progress.get("queries", [])]
+        if (
+            row.fixed_input.get("query_policy", {}).get("effective") == "query_planner"
+        ):
+            for query, view in zip(progress.get("queries", []), query_views, strict=True):
+                if query.get("provider") == "fabric" and query.get("kind") == "document_search":
+                    view["returned_versions"] = [
+                        {key: record[key] for key in ("source_id", "source_record_id", "version_id")}
+                        for record in query.get("records", [])
+                        if isinstance(record, dict)
+                        and all(
+                            isinstance(record.get(key), str) and record[key]
+                            for key in ("source_id", "source_record_id", "version_id")
+                        )
+                    ]
+        policy_view = cls._policy_view(row.fixed_input, progress)
+        result = assessment_result_view(row.result) if row.result else None
+        if result is not None and policy_view is not None:
+            # This read projection includes report HTTP receipts saved after retrieval.
+            # The stored result, source text and original provider receipts stay immutable.
+            result["query_policy"] = copy.deepcopy(policy_view)
         return AnalysisView(
             **cls._summary(row).model_dump(),
             is_demo=row.is_demo,
+            evidence_time=copy.deepcopy(row.fixed_input.get("evidence_time")),
             input_hash=row.input_hash,
             prompt_version=row.fixed_input["prompt_version"],
             search_scope=row.fixed_input["search_scope"],
             evidence=progress.get("evidence", row.fixed_input["evidence"]),
-            queries=[{k: v for k, v in q.items() if k != "records"} for q in progress.get("queries", [])],
+            queries=query_views,
             calls=[
-                {k: v for k, v in call.items() if k not in {"payload", "output"}}
+                {
+                    k: v
+                    for k, v in call.items()
+                    if k not in {"payload", "output", "private_response", "system_prompt"}
+                }
                 for call in progress["calls"]
             ],
-            result=AnalysisResult.model_validate(row.result) if row.result else None,
+            result=AnalysisResult.model_validate(result) if result else None,
             initial_draft=progress.get("initial_draft"),
             limitations=progress.get("limitations", row.fixed_input["limitations"]),
             note_entry_id=row.note_entry_id,
@@ -323,11 +474,47 @@ class AnalysisService:
                 "started_at": progress.get("started_at"),
                 "updated_at": progress.get("updated_at"),
                 "waiting_reason": row.error_code,
+                "budget_pool": row.fixed_input.get("execution_budget", {}).get("pool"),
+                "budget_wait": copy.deepcopy(progress.get("budget_wait")),
+                "waiting_fetch": copy.deepcopy(progress.get("waiting_fetch")),
+                **(
+                    {"material_update_impact": copy.deepcopy(progress["material_update_impact"])}
+                    if "material_update_impact" in progress
+                    else {}
+                ),
+                **(
+                    {"report_revision_error": copy.deepcopy(progress["report_revision_error"])}
+                    if "report_revision_error" in progress
+                    else {}
+                ),
                 "model_output_adjustments": copy.deepcopy(progress.get("model_output_adjustments", {})),
+                "diagnostics": build_analysis_diagnostics(
+                    {"id": row.id, "state": row.state, "result": result, "query_policy": policy_view},
+                    progress=progress,
+                    fixed=row.fixed_input,
+                ),
+                **(
+                    {
+                        "material_scope": material_scope(
+                            row.fixed_input, progress, fixed_version_refs=fixed_version_refs
+                        )
+                    }
+                    if (
+                        row.fixed_input.get("query_policy", {}).get("effective") == "query_planner"
+                    )
+                    else {}
+                ),
             },
-            budget=analysis_budget(row.fixed_input, progress, datetime.now(UTC)),
+            budget=analysis_budget(
+                row.fixed_input,
+                progress,
+                datetime.fromisoformat(progress["finished_at"])
+                if row.state in {"completed", "needs_review", "blocked", "failed"}
+                and progress.get("finished_at")
+                else datetime.now(UTC),
+            ),
             providers=progress.get("providers", row.fixed_input.get("providers", {})),
-            query_policy=cls._policy_view(row.fixed_input, progress),
+            query_policy=policy_view,
         )
 
     def get(self, actor, investigation_id, identifier):
@@ -335,7 +522,19 @@ class AnalysisService:
             row = self._row(session, actor, identifier)
             if row.investigation_id != investigation_id:
                 raise DomainError("not_found", "机器分析不属于本调查", 404)
-            return self._view(row)
+            fixed_version_refs = None
+            if (
+                row.fixed_input.get("query_policy", {}).get("effective") == "query_planner"
+                and "kdd_source_version_refs" not in row.progress
+            ):
+                # Old completed rows keep their saved model inputs. Only this read
+                # projection gets the full, authorized frozen snapshot identities.
+                fixed_version_refs = [
+                    record["record_ref"]
+                    for snapshot_id in row.fixed_input.get("snapshot_ids", [])
+                    for record in self.engine._snapshot(session, actor, snapshot_id).payload["records"]
+                ]
+            return self._view(row, fixed_version_refs=fixed_version_refs)
 
     def list(self, actor, investigation_id, *, cursor=None, limit=20):
         from bioradar.adapters.reasoning_model import model_status
@@ -394,7 +593,8 @@ class AnalysisService:
             unavailable_count=unavailable,
         )
 
-    def _initial_evidence(self, session, actor, view, selected_ids, *, allow_empty=False):
+    def _initial_evidence(self, session, actor, view, selected_ids, *, allow_empty=False, limits=None):
+        limits = limits or reading_limits({})
         # A machine-selected material still binds an original snapshot; machine notes do not.
         materials = [e for e in view.entries if e.kind == "material"]
         if selected_ids:
@@ -413,8 +613,8 @@ class AnalysisService:
             if identity in seen:
                 continue
             seen.add(identity)
-            if len(evidence) >= MAX_EVIDENCE:
-                limitations.append("材料超过10个版本，本轮只选择最近的10个外来版本。")
+            if len(evidence) >= limits["max_versions"]:
+                limitations.append(f"材料超过{limits['max_versions']}个版本，余下固定记录保留在补读清单。")
                 break
             if not record.normalized_text:
                 limitations.append("有材料缺少可供解读的授权文本，未补造内容。")
@@ -477,13 +677,17 @@ class AnalysisService:
             raise DomainError("analysis_no_material", "先加入至少一份有授权正文的材料，再开始机器分析", 422)
         return evidence, sorted(snapshots), list(dependencies.values()), sorted(set(limitations))
 
-    def _manual_count(self, session):
+    def _manual_count(self, session, *, pool="manual"):
         return session.scalar(
             select(func.count())
             .select_from(InvestigationAnalysisRecord)
             .where(
                 InvestigationAnalysisRecord.workspace_id == self.actor.workspace_id,
                 InvestigationAnalysisRecord.trigger.in_(("manual", "material_update", "history")),
+                func.coalesce(
+                    InvestigationAnalysisRecord.fixed_input["execution_budget"]["pool"].astext, "manual"
+                )
+                == pool,
                 func.coalesce(InvestigationAnalysisRecord.progress["manual_budget_pending"].astext, "false")
                 != "true",
                 func.coalesce(
@@ -517,30 +721,137 @@ class AnalysisService:
                 )
                 .limit(1)
             )
-            if latest is None or latest.fixed_input.get("evidence_time", {}).get("study_id"):
+            if (
+                latest is None
+                or latest.fixed_input.get("evidence_time", {}).get("mode", "current") != "current"
+            ):
                 return None
-            question = latest.fixed_input["question"]
             parent_id = parent.id if parent else None
+            basis = copy.deepcopy((parent or latest).fixed_input)
+            question = basis["question"]
+            prior_id = (parent or latest).id
+            prior_revision = (parent or latest).based_on_revision
+            prior_progress = copy.deepcopy((parent or latest).progress)
+            prior_result = copy.deepcopy((parent or latest).result)
+            latest_id, latest_state = latest.id, latest.state
         view = InvestigationService(self.engine).get(self.actor, investigation_id)
         if view.status != "open":
             return None
+        prior_policy = basis.get("query_policy") or {}
+        version = prior_policy.get("material_impact_version")
+        updates = [
+            entry
+            for entry in view.entries
+            if entry.kind == "material"
+            and entry.revision > prior_revision
+            and not entry.payload.machine_analysis_id
+        ]
+        if (
+            version is not None
+            and latest_state not in {"queued", "running"}
+            and updates
+            and all(
+                entry.payload.automation is not None and entry.payload.stance == "context"
+                for entry in updates
+            )
+        ):
+            from bioradar.research.investigations.material_impact import evaluate_material_impact
+
+            with Session(self.engine.database) as session:
+                prior_sources = sorted(
+                    set(basis.get("snapshot_ids", []))
+                    | {item["snapshot_id"] for item in prior_progress.get("evidence", [])}
+                )
+                new_sources = sorted({entry.payload.snapshot_id for entry in updates})
+
+                def records(identifiers):
+                    return [
+                        record
+                        for identifier in identifiers
+                        for record in NormalizedSnapshot.model_validate(
+                            self.engine._snapshot(session, self.actor, identifier).payload
+                        ).records
+                    ]
+
+                impact = evaluate_material_impact(
+                    basis,
+                    prior_progress,
+                    prior_result,
+                    [
+                        {
+                            "entry_id": entry.id,
+                            "revision": entry.revision,
+                            "new_ref": entry.payload.support.record_ref.model_dump(mode="json"),
+                        }
+                        for entry in updates
+                    ],
+                    records(prior_sources),
+                    records(new_sources),
+                )
+            impact["parent_analysis_id"] = prior_id
+            with Session(self.engine.database) as session, session.begin():
+                saved = session.get(InvestigationAnalysisRecord, latest_id, with_for_update=True)
+                if saved.state != latest_state or saved.state in {"queued", "running"}:
+                    return None
+                metadata = copy.deepcopy(saved.progress)
+                metadata["material_update_impact"] = impact
+                if impact["status"] != "affects_dependency":
+                    metadata["material_update_checked_revision"] = impact["checked_revision"]
+                saved.progress = metadata
+            if impact["status"] != "affects_dependency":
+                return None
+        requested_budget = basis.get("requested_budget")
         body = AnalysisCreate(
-            expected_revision=view.revision, parent_analysis_id=parent_id, question=question
+            expected_revision=view.revision,
+            parent_analysis_id=parent_id,
+            question=question,
+            auto_retrieve=bool(basis.get("retrieval", {}).get("auto_retrieve")),
+            source_ids=sorted(set(basis.get("search_scope", [])) | set(basis.get("graph_scope", []))),
+            query_policy=prior_policy.get("requested") or prior_policy.get("effective"),
+            kdd_direction=basis.get("requested_direction") or prior_policy.get("direction"),
+            budget=AnalysisBudget.model_validate(requested_budget) if requested_budget is not None else None,
         )
         key = "analysis-material-update:" + canonical_hash(
-            [investigation_id, parent_id, view.revision, question]
+            ["inherited-request-v2", investigation_id, parent_id, body.model_dump(mode="json")]
         )
         return self.start(self.actor, investigation_id, body, key, defer_on_budget=True)[1]["id"]
 
     @staticmethod
     def _same_historical_context(left, right):
-        if not left or not right or not left.get("study_id") or not right.get("study_id"):
+        if not left or not right or left.get("mode") == "current" or right.get("mode") == "current":
             return False
         try:
             same_cutoff = datetime.fromisoformat(left["cutoff"]) == datetime.fromisoformat(right["cutoff"])
         except (KeyError, TypeError, ValueError):
             return False
-        return same_cutoff and all(left.get(key) == right.get(key) for key in ("study_id", "mode", "run_id"))
+        return same_cutoff and all(
+            left.get(key) == right.get(key)
+            for key in (
+                "study_id",
+                "mode",
+                "run_id",
+                "history_request_id",
+                "history_series_id",
+                "history_scope_hash",
+            )
+        )
+
+    @staticmethod
+    def _forward_historical_context(left, right):
+        """A new supervised daily child may inherit an earlier same-series report."""
+        if not left or not right or left.get("mode") != "public_history_reconstruction":
+            return False
+        if (right.get("mode") != left["mode"] or left.get("study_id") != right.get("study_id")) or not all(
+            left.get(key) and left.get(key) == right.get(key)
+            for key in ("history_series_id", "history_scope_hash")
+        ):
+            return False
+        try:
+            before, after = (datetime.fromisoformat(value["cutoff"]) for value in (left, right))
+            return before.tzinfo is not None and after.tzinfo is not None and before < after
+        except (KeyError, TypeError, ValueError):
+            return False
+
 
     def start(
         self,
@@ -556,6 +867,20 @@ class AnalysisService:
         from bioradar.adapters.reasoning_model import model_status
         from bioradar.research.investigations.query_policy import freeze_policy
 
+        if body.historical_scope is not None:
+            if historical_context is not None:
+                raise DomainError("analysis_history_invalid", "历史范围只能从一个入口指定", 422)
+            if body.historical_scope.cutoff > datetime.now(UTC):
+                raise DomainError("analysis_history_invalid", "历史时点不能晚于当前时间", 422)
+            historical_context = {
+                **body.historical_scope.model_dump(mode="json"),
+                "history_request_id": canonical_hash(
+                    [
+                        investigation_id,
+                        body.historical_scope.model_dump(mode="json"),
+                    ]
+                ),
+            }
         policy = {**freeze_policy(self.settings, body.query_policy), "context_version": "semantic-v2"}
         evidence_time = {"mode": "current", "cutoff": datetime.now(UTC).isoformat()}
         if historical_context is not None:
@@ -570,8 +895,18 @@ class AnalysisService:
             evidence_time = {
                 "mode": historical_context["mode"],
                 "cutoff": cutoff.isoformat(),
-                "study_id": historical_context["study_id"],
+                "study_id": historical_context.get("study_id"),
                 "run_id": historical_context.get("run_id"),
+                **{
+                    key: historical_context[key]
+                    for key in ("history_series_id", "history_scope_hash")
+                    if historical_context.get(key)
+                },
+                **(
+                    {"history_request_id": historical_context["history_request_id"]}
+                    if historical_context.get("history_request_id")
+                    else {}
+                ),
             }
         time_identity = evidence_time if historical_context is not None else {"mode": "current"}
         status = model_status(self.settings)
@@ -593,18 +928,54 @@ class AnalysisService:
         if body.initial_queries and not body.auto_retrieve:
             raise DomainError("analysis_query_invalid", "初始查询须启用自动取资料", 422)
         budget = self._budget_limits(body.budget)
-        providers = self._provider_status()
         if len(body.initial_queries) > min(2, budget["max_queries"]):
             raise DomainError("analysis_query_budget", "初始查询最多两项，且不得超过本次查询预算", 422)
         question = body.question or view.question
+        if policy.get("effective") == "query_planner":
+            from bioradar.research.investigations.kdd import direction_for
+
+            policy["direction"] = direction_for(question, getattr(body, "kdd_direction", None))
+            policy["direction_basis"] = (
+                "explicit" if getattr(body, "kdd_direction", None) else "question_rule"
+            )
+            if view.origin is not None:
+                policy["mining_origin"] = view.origin.model_dump(mode="json")
+        risk_scope = (origin or {}).get("topic_risk_scope")
+        if risk_scope is not None and policy.get("final_assessment_version"):
+            # A fresh observation/scope must not deduplicate to a previous risk decision.
+            policy["topic_risk_scope_sha256"] = canonical_hash(risk_scope)
+        providers = self._provider_status(
+            kdd=policy.get("effective") == "query_planner",
+            direction=policy.get("direction", "research"),
+            is_demo=view.is_demo,
+        )
+        new_research = policy.get("effective") == "query_planner"
+        read_limits = (
+            {
+                "max_versions": self.settings.analysis_v2_max_evidence,
+                "max_characters": self.settings.analysis_v2_max_characters,
+                "search_limit": self.settings.analysis_v2_records_per_query,
+            }
+            if new_research
+            else reading_limits({})
+        )
+        budget_pool = origin["source"] if origin else "material_update" if defer_on_budget else "manual"
         retrieval = {
             "auto_retrieve": body.auto_retrieve,
             "initial_queries": [q.model_dump(mode="json") for q in body.initial_queries],
             "budget": budget,
         }
+        if new_research:
+            retrieval["reading_limits"] = copy.deepcopy(read_limits)
+        retrieval["budget_pool"] = budget_pool
         with Session(self.engine.database) as session:
             evidence, snapshots, dependencies, limitations = self._initial_evidence(
-                session, actor, view, body.material_entry_ids, allow_empty=body.auto_retrieve
+                session,
+                actor,
+                view,
+                body.material_entry_ids,
+                allow_empty=body.auto_retrieve,
+                limits=read_limits,
             )
             parent = None
             if origin:
@@ -654,12 +1025,17 @@ class AnalysisService:
                     retry.fixed_input.get("evidence_time"), evidence_time
                 ):
                     raise DomainError("analysis_retry_invalid", "重试与固定历史研究时点不相容", 422)
-                if parent is not None and not self._same_historical_context(
-                    parent.fixed_input.get("evidence_time"), evidence_time
+                if parent is not None and not (
+                    self._same_historical_context(parent.fixed_input.get("evidence_time"), evidence_time)
+                    or retry is None
+                    and parent.state in {"completed", "needs_review"}
+                    and self._forward_historical_context(
+                        parent.fixed_input.get("evidence_time"), evidence_time
+                    )
                 ):
                     if body.parent_analysis_id or retry is not None:
                         raise DomainError("analysis_parent_invalid", "父版不属于同一固定历史研究时点", 422)
-                    # Automatic historical comparison can only see the same historical input.
+                    # Exact-cutoff input or a strictly earlier server-owned daily lineage only.
                     candidates = session.scalars(
                         select(InvestigationAnalysisRecord)
                         .where(
@@ -676,6 +1052,10 @@ class AnalysisService:
                             if self._same_historical_context(
                                 candidate.fixed_input.get("evidence_time"), evidence_time
                             )
+                            or retry is None
+                            and self._forward_historical_context(
+                                candidate.fixed_input.get("evidence_time"), evidence_time
+                            )
                         ),
                         None,
                     )
@@ -683,7 +1063,7 @@ class AnalysisService:
             if (
                 historical_context is None
                 and inherited is not None
-                and inherited.fixed_input.get("evidence_time", {}).get("study_id")
+                and inherited.fixed_input.get("evidence_time", {}).get("mode", "current") != "current"
             ):
                 graph_scope = []
                 evidence_time = copy.deepcopy(inherited.fixed_input["evidence_time"])
@@ -693,10 +1073,33 @@ class AnalysisService:
                     inherited.fixed_input["search_scope"]
                 ):
                     raise DomainError("analysis_query_invalid", "历史追问不得扩大已冻结来源", 422)
-                search_scope = list(inherited.fixed_input["search_scope"])
+                search_scope = sorted(set(search_scope) & set(inherited.fixed_input["search_scope"]))
                 admitted = {canonical_hash(e["record_ref"]) for e in inherited.progress.get("evidence", [])}
                 evidence = [e for e in evidence if canonical_hash(e["record_ref"]) in admitted]
+            if evidence_time["mode"] != "current":
+                if "fabric_fetch" in providers:
+                    providers["fabric_fetch"]["available"] = False
+                providers["weknora"] = {
+                    **providers["weknora"],
+                    "available": False,
+                    "status": "history_current_index_unavailable",
+                }
+                admitted = [item for item in evidence if item.get("history_binding")]
+                if len(admitted) != len(evidence):
+                    limitations.append("历史分析已排除没有固定历史原件身份的材料。")
+                evidence = admitted
             parameters = model_parameters(self.settings)
+            if self.settings.analysis_token_stage_ratios:
+                parameters["token_calibration"] = {
+                    "version": self.settings.analysis_token_calibration_version,
+                    "ratios": dict(self.settings.analysis_token_stage_ratios),
+                    "margin": 1.2,
+                    "model": parameters["model"],
+                    "model_revision": parameters["model_revision"],
+                }
+            parameters["min_send_seconds"] = min(
+                self.settings.analysis_min_call_seconds, parameters["timeout_seconds"]
+            )
             transport_parameters = {
                 key: value for key, value in parameters.items() if key not in {"model", "model_revision"}
             }
@@ -733,18 +1136,25 @@ class AnalysisService:
                         previous.get("retrieval", {}),
                         previous.get("providers", {}),
                         evidence_basis_identity(evidence),
-                        normalize_model_parameters(
-                            {
-                                "model": previous["model"],
-                                "model_revision": previous["model_revision"],
-                                **previous["model_parameters"],
-                            }
-                        ),
+                        {
+                            **normalize_model_parameters(
+                                {
+                                    "model": previous["model"],
+                                    "model_revision": previous["model_revision"],
+                                    **previous["model_parameters"],
+                                }
+                            ),
+                            **(
+                                {"min_send_seconds": previous["model_parameters"]["min_send_seconds"]}
+                                if "min_send_seconds" in previous["model_parameters"]
+                                else {}
+                            ),
+                        },
                         previous["search_scope"],
                         previous.get("graph_scope", []),
                         previous.get("query_policy"),
                         previous.get("evidence_time")
-                        if previous.get("evidence_time", {}).get("study_id")
+                        if previous.get("evidence_time", {}).get("mode", "current") != "current"
                         else {"mode": "current"},
                     ]
                 )
@@ -817,6 +1227,17 @@ class AnalysisService:
                 "question": question,
                 "retrieval": retrieval,
                 "budget": budget,
+                **({"reading_limits": read_limits} if new_research else {}),
+                "execution_budget": {
+                    "version": "automatic-buckets-v1",
+                    "pool": budget_pool,
+                    "topic_id": (origin or {}).get("topic_id"),
+                    "automatic_daily_tokens": self.settings.automatic_daily_model_tokens,
+                    "topic_daily_tokens": self.settings.topic_daily_model_tokens,
+                    "day_timezone": "UTC",
+                },
+                "requested_budget": body.budget.model_dump(exclude_none=True) if body.budget else None,
+                "requested_direction": body.kdd_direction,
                 "providers": providers,
                 "basis_signature": signature,
                 "as_of": evidence_time["cutoff"],
@@ -833,6 +1254,11 @@ class AnalysisService:
                 "graph_scope": graph_scope,
                 "parent_result": copy.deepcopy(parent.result) if parent else None,
                 "origin": copy.deepcopy(origin),
+                **(
+                    {"kdd_origin": copy.deepcopy(policy.get("mining_origin"))}
+                    if policy.get("effective") == "query_planner"
+                    else {}
+                ),
                 "model": parameters["model"],
                 "model_revision": parameters["model_revision"],
                 "model_parameters": {
@@ -888,7 +1314,11 @@ class AnalysisService:
                     paused = monitor_control is not None and monitor_control.paused
                     if paused and not defer_on_budget:
                         raise DomainError("analysis_paused", "后台已暂停，尚未预约新的机器分析", 409)
-                    if paused or self._manual_count(session) >= self.settings.analysis_manual_per_hour:
+                    if (
+                        paused
+                        or self._manual_count(session, pool=budget_pool)
+                        >= self.settings.analysis_manual_per_hour
+                    ):
                         if not defer_on_budget:
                             raise DomainError("analysis_manual_budget", "本小时手动机器分析额度已用尽", 429)
                         budget_pending = True
@@ -968,6 +1398,8 @@ class AnalysisService:
                 row is None
                 or row.state != "queued"
                 or row.progress.get("manual_budget_pending")
+                or row.progress.get("budget_wait")
+                or row.progress.get("waiting_fetch")
                 or not self.settings.semantic_llm_enabled
             ):
                 return False
@@ -979,7 +1411,7 @@ class AnalysisService:
             if row.fixed_input.get("origin") and not semantic_enabled(self.settings):
                 return False
             job_id, input_hash = row.rq_job_id, row.input_hash
-            job_timeout = execution_seconds(row.fixed_input)
+            job_timeout = execution_seconds(row.fixed_input, row.progress)
         connection = Redis.from_url(
             self.settings.redis_url.get_secret_value(), socket_connect_timeout=2, socket_timeout=2
         )
@@ -1028,6 +1460,17 @@ class AnalysisService:
                                 DateTime(timezone=True),
                             )
                         ).label("checked"),
+                        func.max(
+                            func.coalesce(
+                                cast(
+                                    InvestigationAnalysisRecord.progress[
+                                        "material_update_checked_revision"
+                                    ].astext,
+                                    Integer,
+                                ),
+                                0,
+                            )
+                        ).label("impact_revision"),
                     )
                     .where(InvestigationAnalysisRecord.workspace_id == self.actor.workspace_id)
                     .group_by(InvestigationAnalysisRecord.investigation_id)
@@ -1054,7 +1497,9 @@ class AnalysisService:
                     session.scalars(
                         select(latest.c.id)
                         .join(material, latest.c.id == material.c.id)
-                        .where(material.c.revision > latest.c.revision)
+                        .where(
+                            material.c.revision > func.greatest(latest.c.revision, latest.c.impact_revision)
+                        )
                         .order_by(
                             latest.c.checked.asc().nullsfirst(), material.c.revision.desc(), latest.c.id
                         )
@@ -1104,9 +1549,50 @@ class AnalysisService:
                     .with_for_update(skip_locked=True)
                 )
             )
+            daily_waiting = list(
+                session.scalars(
+                    select(InvestigationAnalysisRecord)
+                    .where(
+                        InvestigationAnalysisRecord.workspace_id == self.actor.workspace_id,
+                        InvestigationAnalysisRecord.state == "queued",
+                        InvestigationAnalysisRecord.progress["budget_wait"]["reason"].astext == WAIT_CODE,
+                    )
+                    .order_by(InvestigationAnalysisRecord.created_at)
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
+                )
+            )
+            fetch_waiting = list(
+                session.scalars(
+                    select(InvestigationAnalysisRecord)
+                    .where(
+                        InvestigationAnalysisRecord.workspace_id == self.actor.workspace_id,
+                        InvestigationAnalysisRecord.state == "queued",
+                        InvestigationAnalysisRecord.progress["waiting_fetch"]["next_poll_at"].astext.is_not(
+                            None
+                        ),
+                    )
+                    .order_by(InvestigationAnalysisRecord.created_at)
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
+                )
+            )
             from bioradar.research.monitor.models import MonitorState
 
             control = session.get(MonitorState, self.actor.workspace_id)
+            if self.settings.semantic_llm_enabled and not (control is not None and control.paused):
+                for pending in daily_waiting:
+                    resumed = copy.deepcopy(pending.progress)
+                    if finish_budget_wait(resumed, now):
+                        pending.progress = resumed
+                        pending.dispatch_pending = True
+                        pending.error_code = None
+            if self.settings.semantic_llm_enabled and not (control is not None and control.paused):
+                for pending in fetch_waiting:
+                    resumed = copy.deepcopy(pending.progress)
+                    if datetime.fromisoformat(resumed["waiting_fetch"]["next_poll_at"]) <= now:
+                        resumed.pop("waiting_fetch")
+                        pending.progress, pending.dispatch_pending, pending.error_code = resumed, True, None
             for pending in waiting:
                 if not self.settings.semantic_llm_enabled or control is not None and control.paused:
                     break
@@ -1114,8 +1600,13 @@ class AnalysisService:
                 if inquiry is None or inquiry.status != "open":
                     pending.state, pending.error_code = "blocked", "investigation_closed"
                     continue
-                if self._manual_count(session) >= self.settings.analysis_manual_per_hour:
-                    break
+                if (
+                    self._manual_count(
+                        session, pool=pending.fixed_input.get("execution_budget", {}).get("pool", "manual")
+                    )
+                    >= self.settings.analysis_manual_per_hour
+                ):
+                    continue
                 state = copy.deepcopy(pending.progress)
                 state.update(manual_budget_pending=False, budget_reserved_at=now.isoformat())
                 pending.progress, pending.error_code = state, None
@@ -1135,7 +1626,7 @@ class AnalysisService:
             )
             for row in rows:
                 uncertain = [c for c in row.progress["calls"] if c["status"] in {"sent", "unconfirmed"}]
-                query_uncertain = row.fixed_input.get("execution_version") == "query-step-v1" and any(
+                query_uncertain = any(
                     q["status"] in {"sent", "unconfirmed"} for q in row.progress.get("queries", [])
                 )
                 comparison_only = bool(
@@ -1291,6 +1782,14 @@ class AnalysisService:
                     "error_code": receipt.get("error_code"),
                     "evidence_ids": list(receipt.get("evidence_keys", [])),
                     "cost": copy.deepcopy(receipt.get("cost")),
+                    **(
+                        {
+                            "new_artifact_refs": copy.deepcopy(receipt.get("artifact_refs", [])),
+                            "check_updates": copy.deepcopy(receipt.get("check_updates", [])),
+                        }
+                        if receipt.get("kind") in {"dataset_prepare", "analysis_run", "professional_assess"}
+                        else {}
+                    ),
                 }
 
     def _checkpoint(self, identifier, token, progress, *, fixed=None, result=None):
@@ -1313,7 +1812,7 @@ class AnalysisService:
     def _prepare(self, identifier, token, fixed, progress):
         if progress.get("prepared"):
             return progress
-        remaining = MAX_CHARACTERS
+        remaining = reading_limits(fixed)["max_characters"]
         evidence = []
         for item in fixed["evidence"]:
             self._guard(identifier, token, check_deadline=True)
@@ -1330,6 +1829,9 @@ class AnalysisService:
                     self._checkpoint(identifier, token, progress)
                 if original["raw_sha256"] != value["history_binding"]["raw_sha256"]:
                     raise DomainError("analysis_source_mismatch", "固定原件哈希不一致", 502)
+                from bioradar.adapters.query_graph import remember_graph_package
+
+                remember_graph_package(fixed, progress, original)
                 value.update(source_excerpt(original, remaining))
                 value["title"] = original["title"]
             full_length = len(value["text"])
@@ -1351,15 +1853,24 @@ class AnalysisService:
     def _report_context(fixed, progress, result, *, freeze=False):
         context = report_context(result, progress.get("mechanism_evaluation"))
         if not (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
+            fixed.get("query_policy", {}).get("effective") == "query_planner"
         ):
             return context
         context.update(material_context_payload(progress.get("evidence", [])))
         round_key = str(progress.get("active_report_round", 0))
         saved = progress.get("report_research_scopes", {})
         if round_key in saved:
-            context["research_scope"] = copy.deepcopy(saved[round_key])
+            context["research_scope"] = {
+                key: copy.deepcopy(value)
+                for key, value in saved[round_key].items()
+                if key not in {"analysis_results", "analysis_result_context"}
+            }
+            for name in ("analysis_results", "analysis_result_context"):
+                if name in saved[round_key]:
+                    context[name] = copy.deepcopy(saved[round_key][name])
+            for name in ("source_updates", "unresolved_source_updates"):
+                if name in saved[round_key]:
+                    context[name] = copy.deepcopy(saved[round_key][name])
             return context
         prefix = "report-round:" + round_key + ":" if round_key != "0" else ""
         if any(
@@ -1402,7 +1913,42 @@ class AnalysisService:
             }
             for q in compact["query_history"]
         ]
+        from bioradar.research.investigations.kdd import material_scope, source_update_context
+
+        updates = source_update_context(fixed, progress)
+        context.update(copy.deepcopy(updates))
+        reading_scope = material_scope(fixed, progress)
+        if reading_scope is not None:
+            reading_scope = copy.deepcopy(reading_scope)
+            for item in reading_scope["unread_versions"]:
+                # source/id/version already bind the entry; omit repeated transport
+                # identity and action bookkeeping only from the model projection.
+                item.pop("record_ref", None)
+                item.pop("action_ids", None)
+                item.pop("query_action_ids", None)
+        findings = result if synthesis_schema(fixed) is not ModelSynthesis else state.get("reading") or {}
+        research_findings = {
+            name: copy.deepcopy(findings[name])
+            for name in (
+                "warning_assessment",
+                "competing_hypotheses",
+                "current_judgment",
+                "topic_risk_reassessment",
+            )
+            if findings.get(name)
+        }
+        if synthesis_schema(fixed) is not ModelSynthesis and (fixed.get("origin") or {}).get(
+            "topic_risk_scope"
+        ):
+            research_findings["topic_risk_scope"] = copy.deepcopy(fixed["origin"]["topic_risk_scope"])
+            research_findings["topic_risk_definition"] = copy.deepcopy(
+                fixed["origin"].get("topic_risk_definition")
+            )
         scope = {
+            **copy.deepcopy(updates),
+            **research_findings,
+            "coverage_issues": copy.deepcopy(state.get("coverage_issues", [])),
+            **({"material_scope": reading_scope} if reading_scope is not None else {}),
             "source_ids": list(fixed.get("search_scope", [])),
             "graph_source_ids": list(fixed.get("graph_scope", [])),
             "evidence_time": copy.deepcopy(fixed.get("evidence_time", {})),
@@ -1423,56 +1969,62 @@ class AnalysisService:
                 "has_more表示仍有未读结果。图谱只作背景，未查资料不能解释为不存在。"
             ),
         }
+        prior = (fixed.get("parent_result") or {}).get("report") or {}
+        prior_text = prior.get("final_text")
+        if isinstance(prior_text, str) and prior_text.strip():
+            scope["prior_report"] = {
+                "text": prior_text,
+                "text_sha256": hashlib.sha256(prior_text.encode()).hexdigest(),
+                "verification_status": prior.get("status"),
+                "professional_approval": prior.get("professional_approval", "not_reviewed"),
+                "identity_basis": "fixed_input.parent_result.report",
+                "qualification": (
+                    "这是父版实际保存的机器报告，仅供核对旧稿表达、年份和判断变化，"
+                    "不是新的原始证据；旧稿错误须按本轮原件纠正，待核状态不能升级为事实。"
+                ),
+            }
+        if compact.get("analysis_results"):
+            scope["analysis_results"] = copy.deepcopy(compact["analysis_results"])
+            context["analysis_results"] = copy.deepcopy(compact["analysis_results"])
         if freeze:
             progress.setdefault("report_research_scopes", {})[round_key] = copy.deepcopy(scope)
-        context["research_scope"] = scope
+        context["research_scope"] = {key: value for key, value in scope.items() if key != "analysis_results"}
         return context
 
-    @staticmethod
-    def _final_token_allowance(fixed, progress):
-        final_calls = (
-            4
-            if fixed.get("providers", {}).get("biocheck", {}).get("available")
-            else int(fixed.get("parent_result") is not None)
-        )
-        if not final_calls:
-            return 0
-        source_bytes = sum(len(e["text"].encode()) for e in progress["evidence"])
-        if (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
-            and final_calls == 4
-        ):
-            from bioradar.adapters.biocheck import build_packet
-
-            reading = progress.get("query_policy", {}).get("reading") or {}
-            packet = build_packet(
-                fixed["question"],
-                progress["evidence"],
-                AnalysisService._report_context(fixed, progress, reading),
-            )
-            draft = "\n".join(
-                [reading.get("conditional_answer", {}).get("answer", "")]
-                + [claim["text"] for claim in reading.get("claims", [])]
-            )
-            return final_calls * (
-                verification_input_allowance(packet, draft, fixed["model_parameters"]["max_input_bytes"])
-                + 128
-            )
-        return final_calls * (min(fixed["model_parameters"]["max_input_bytes"], source_bytes + 4096) + 128)
+    def _final_token_allowance(self, fixed, progress):
+        # Later inputs do not exist yet. Each actual request is priced in _call.
+        return 0
 
     def _optional_budget(self, fixed, progress, calls, *, following=0, request_tokens=0, following_tokens=0):
         budget = analysis_budget(fixed, progress, datetime.now(UTC))
-        final_calls = (
-            4
-            if fixed.get("providers", {}).get("biocheck", {}).get("available")
-            else int(fixed.get("parent_result") is not None)
-        )
         return (
-            len(progress["calls"]) + calls + following + final_calls <= budget["limits"]["max_calls"]
+            len(progress["calls"]) + calls <= budget["limits"]["max_calls"]
             and (budget["limits"]["max_tokens"] or 10_000_000) - budget["usage"]["budgeted_tokens"]
-            >= self._final_token_allowance(fixed, progress) + request_tokens + following_tokens
+            >= request_tokens
         )
+
+    def _not_sent_call(self, identifier, token, fixed, progress, call, code, message, *, started_at=None):
+        from bioradar.adapters.reasoning_model import ModelCallError, ModelCallReceipt
+
+        now = datetime.now(UTC)
+        started = started_at or now
+        receipt = ModelCallReceipt(
+            call_id=call["call_id"],
+            stage=call["stage"],
+            input_hash=call["input_hash"],
+            prompt_version=call["prompt_version"],
+            requested_model=fixed["model"],
+            configured_model_revision=fixed["model_revision"],
+            status="not_sent",
+            error_code=code,
+            started_at=started,
+            completed_at=now,
+            elapsed_ms=max(0, round((now - started).total_seconds() * 1000)),
+            max_output_tokens=call["model_parameters"]["max_output_tokens"],
+        )
+        call["status"], call["receipt"] = "failed", receipt.model_dump(mode="json")
+        self._checkpoint(identifier, token, progress)
+        raise ModelCallError(code, message, receipt, 409)
 
     def _call(
         self,
@@ -1487,11 +2039,13 @@ class AnalysisService:
         system_prompt=None,
         call_key=None,
         reserve_tokens=0,
+        retry_of_call_id=None,
     ):
         from bioradar.adapters.reasoning_model import (
             ModelCallError,
             ModelCallReceipt,
             complete_json,
+            decode_received_content,
             encode_request,
         )
 
@@ -1514,6 +2068,24 @@ class AnalysisService:
         elif stage == "compare":
             response_schema["properties"]["stance"]["enum"] = ["maintained", "revised", "unable_to_compare"]
         signature = canonical_hash([prompt, payload, response_schema, fixed["model_parameters"]])
+        retry_original = None
+        if retry_of_call_id is not None:
+            from bioradar.adapters.mech_evidence import _STAGES
+            from bioradar.research.investigations.professional import _known_mech_format_failure
+
+            retry_original = next((c for c in progress["calls"] if c["call_id"] == retry_of_call_id), None)
+            retry_policy = progress.get("mech_format_retry") or {}
+            if (
+                stage not in _STAGES.values()
+                or not _known_mech_format_failure(retry_original)
+                or retry_original["stage"] != stage
+                or retry_original["request_signature"] != signature
+                or retry_policy.get("original_call_id") != retry_of_call_id
+                or retry_policy.get("retry_call_key") != key
+            ):
+                raise DomainError(
+                    "analysis_call_input_changed", "技术重试未绑定原失败和同一输入，未发送", 409
+                )
         call = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == key), None)
         if call:
             if call_key is not None and call.get("request_signature", signature) != signature:
@@ -1522,6 +2094,30 @@ class AnalysisService:
                 )
             if call["status"] == "received":
                 return call["output"], progress
+            if call["status"] == "response_received":
+                saved = call.get("private_response") or {}
+                receipt = saved.get("receipt") or {}
+                if (
+                    receipt != call.get("receipt")
+                    or receipt.get("call_id") != call["call_id"]
+                    or receipt.get("stage") != stage
+                    or receipt.get("input_hash") != call["input_hash"]
+                    or receipt.get("prompt_version") != call["prompt_version"]
+                ):
+                    raise DomainError(
+                        "model_saved_response_invalid", "已收到响应未绑定本次调用，未重发请求", 409
+                    )
+                try:
+                    completion = decode_received_content(saved)
+                except ModelCallError as failure:
+                    call["status"], call["receipt"] = "failed", failure.receipt.model_dump(mode="json")
+                    self._checkpoint(identifier, token, progress)
+                    raise
+                call["status"], call["output"] = "received", completion.parsed
+                call["receipt"] = completion.receipt.model_dump(mode="json")
+                self._checkpoint(identifier, token, progress)
+                self._guard(identifier, token)
+                return completion.parsed, progress
             if call["status"] == "failed":
                 saved_receipt = call.get("receipt") or {}
                 if saved_receipt.get("error_code"):
@@ -1535,6 +2131,7 @@ class AnalysisService:
                             "本阶段模型调用已停止；原回执保留，未自动重发",
                             receipt,
                             409,
+                            private_response=call.get("private_response"),
                         )
                 raise DomainError("model_call_failed", "本阶段模型调用已失败，未自动重发", 409)
             if call["status"] in {"sent", "unconfirmed"}:
@@ -1542,78 +2139,70 @@ class AnalysisService:
         # Reading a confirmed receipt and saving its report do not send another request.
         self._guard(identifier, token, check_deadline=True)
         if call is None:
-            parameters = dict(fixed["model_parameters"])
+            parameters = dict(
+                retry_original["model_parameters"] if retry_original else fixed["model_parameters"]
+            )
             budget = analysis_budget(fixed, progress, datetime.now(UTC))
             if len(progress["calls"]) >= parameters["max_calls"]:
                 raise DomainError("analysis_model_budget", "达到本轮实际模型调用上限", 422)
-            # This is a conservative reservation, never reported as actual provider token usage.
+            from bioradar.research.investigations.execution_budget import request_estimate
+
+            stage_cap = {
+                "read_plan_repair": 2048,
+                "biocheck_verify_paragraph": 12288,
+                "biocheck_recheck_paragraph": 12288,
+                "biocheck_verify_paragraph_retry": 16384,
+                "biocheck_recheck_paragraph_retry": 16384,
+                "biocheck_verify_claim": 12288,
+                "biocheck_recheck_claim": 12288,
+                "biocheck_verify_claim_retry": 16384,
+                "biocheck_recheck_claim_retry": 16384,
+                "biocheck_revise_claims": 16384,
+                "biocheck_verify_coverage": 8192,
+                "biocheck_recheck_coverage": 8192,
+            }.get(stage, parameters["max_output_tokens"])
+            output_cap = min(parameters["max_output_tokens"], stage_cap)
             try:
-                input_upper = (
-                    len(
-                        encode_request(
-                            self.settings,
-                            stage=stage,
-                            system_prompt=prompt,
-                            payload=payload,
-                            response_schema=response_schema,
-                        )
+                request_bytes = len(
+                    encode_request(
+                        self.settings.model_copy(update={"semantic_llm_max_output_tokens": output_cap}),
+                        stage=stage,
+                        system_prompt=prompt,
+                        payload=payload,
+                        response_schema=response_schema,
                     )
-                    + 1024
                 )
+                estimate = request_estimate(fixed, stage, request_bytes)
+                input_upper = estimate["estimated_input_tokens"]
             except (ValueError, TypeError, RecursionError):
                 raise DomainError("model_input_invalid", "模型输入不是受支持的有限JSON对象", 422) from None
             remaining = (budget["limits"]["max_tokens"] or 10_000_000) - budget["usage"]["budgeted_tokens"]
-            reserved = reserve_tokens
-            if (
-                stage.startswith("mech_")
-                or stage in {"revise", "recheck", "compare"}
-                or stage == "synthesize"
-                and fixed.get("query_context_version") == "semantic-v2"
-                and fixed.get("query_policy", {}).get("effective") == "query_planner"
-            ):
-                reserved = self._final_token_allowance(fixed, progress)
-            if stage in {"biocheck_write", "biocheck_revise"}:
-                # Generation and verification use different payloads. Reserve the
-                # remaining stages before allocating this request's bounded output.
-                # Received calls return above and are never reserved a second time.
-                verification_input = verification_input_allowance(
-                    payload, progress.get("final_candidate", ""), parameters["max_input_bytes"]
-                )
-                following_calls = 1 + int(
-                    progress.get("final_report_plan", {}).get("reserve_support_audit", False)
-                )
-                audit_input = (
-                    support_audit_input_allowance(
-                        payload, progress.get("final_candidate", ""), parameters["max_input_bytes"]
-                    )
-                    if following_calls == 2 else 0
-                )
-                # Reserve each remaining stage's own input and minimum output.
-                # Its full output allowance is recomputed from actual receipts;
-                # do not reserve a second full verifier for the selected-claims audit.
-                reserved = verification_input + audit_input + 128 * following_calls
-                if len(progress["calls"]) + 1 + following_calls > parameters["max_calls"]:
-                    raise DomainError(
-                        "analysis_model_budget", "剩余调用不足以生成后核验，未发送生成请求", 422
-                    )
-            final_minimum = 3 + int(progress.get("final_report_plan", {}).get("reserve_support_audit", False))
-            if stage == "biocheck_plan" and len(progress["calls"]) + final_minimum > parameters["max_calls"]:
-                raise DomainError(
-                    "analysis_model_budget", "剩余调用不足以完成最终规划、生成、核验与所选片段复核", 422
-                )
-            if stage in {"biocheck_check", "biocheck_recheck"} and progress.get("final_report_plan", {}).get(
-                "reserve_support_audit"
-            ):
-                reserved = (
-                    support_audit_input_allowance(
-                        payload, payload.get("draft", ""), parameters["max_input_bytes"]
-                    )
-                    + 128
-                )
-            output_cap = min(parameters["max_output_tokens"], remaining - input_upper - reserved)
+            if retry_original and remaining < input_upper + output_cap:
+                raise DomainError("analysis_token_budget", "剩余额度不足以原样重试，未缩小输出或发送", 422)
+            if retry_original is None:
+                output_cap = min(output_cap, remaining - input_upper)
             if output_cap < 128:
                 raise DomainError("analysis_token_budget", "剩余token预算不足以发送下一次有界请求", 422)
             parameters["max_output_tokens"] = output_cap
+            # The final cap changes the wire JSON too; retain its exact byte count.
+            request_wire = encode_request(
+                self.settings.model_copy(update={"semantic_llm_max_output_tokens": output_cap}),
+                stage=stage,
+                system_prompt=prompt,
+                payload=payload,
+                response_schema=response_schema,
+            )
+            if retry_original and (
+                hashlib.sha256(request_wire).hexdigest() != retry_original["receipt"]["request_sha256"]
+                or parameters != retry_original["model_parameters"]
+            ):
+                raise DomainError(
+                    "analysis_call_input_changed", "技术重试请求字节或模型参数与原请求不符", 409
+                )
+            request_bytes = len(request_wire)
+            estimate = request_estimate(fixed, stage, request_bytes)
+            input_upper = estimate["estimated_input_tokens"]
+
             call = {
                 "stage": stage,
                 "call_key": key,
@@ -1627,23 +2216,50 @@ class AnalysisService:
                 "prompt_version": fixed["prompt_version"],
                 "model_parameters": parameters,
                 "token_upper_bound": input_upper + output_cap,
+                "request_bytes": request_bytes,
+                "input_estimate": estimate,
+                **(
+                    {"action_id": progress["active_professional_action"]}
+                    if progress.get("active_professional_action")
+                    else {}
+                ),
             }
+            if retry_original:
+                call.update(
+                    retry_of_call_id=retry_original["call_id"],
+                    retry_policy="mech-format-retry-v1",
+                    retry_reason="known_model_content_format_failure",
+                    original_request_sha256=retry_original["receipt"]["request_sha256"],
+                )
             progress["calls"].append(call)
             progress["stage"] = stage
             self._checkpoint(identifier, token, progress)
-        self._guard(identifier, token, check_deadline=True)
+        self._guard(identifier, token)
         invoke = self.model_call or complete_json
         budget = analysis_budget(fixed, progress, datetime.now(UTC))
         seconds_left = budget["usage"]["remaining_seconds"]
-        if seconds_left < 1:
-            raise DomainError("analysis_time_budget", "剩余总时间不足以发送请求，未调用模型", 409)
-        call["model_parameters"]["timeout_seconds"] = min(
-            call["model_parameters"]["timeout_seconds"], max(1, int(seconds_left))
-        )
+        required_seconds = minimum_send_seconds(fixed, progress, stage)
+        call["required_send_seconds"] = required_seconds
+        if seconds_left < required_seconds:
+            self._not_sent_call(
+                identifier,
+                token,
+                fixed,
+                progress,
+                call,
+                "analysis_time_budget",
+                "剩余总时间不足本阶段固定及已观察到的发送窗口，模型请求未发送",
+            )
+        reserve_automatic_call(self, identifier, token, fixed, progress, call, datetime.now(UTC))
+        if retry_original is None:
+            call["model_parameters"]["timeout_seconds"] = min(
+                call["model_parameters"]["timeout_seconds"], max(1, int(seconds_left))
+            )
         actual_settings = self.settings.model_copy(
             update={
                 "semantic_llm_max_output_tokens": call["model_parameters"]["max_output_tokens"],
                 "semantic_llm_timeout_seconds": call["model_parameters"]["timeout_seconds"],
+                "semantic_llm_max_input_bytes": call["model_parameters"]["max_input_bytes"],
             }
         )
         call["input_hash"] = canonical_hash(
@@ -1656,25 +2272,16 @@ class AnalysisService:
         now = datetime.now(UTC)
         budget = analysis_budget(fixed, progress, now)
         seconds_left = budget["usage"]["remaining_seconds"]
-        if seconds_left < 1:
-            receipt = ModelCallReceipt(
-                call_id=call["call_id"],
-                stage=stage,
-                input_hash=call["input_hash"],
-                prompt_version=call["prompt_version"],
-                requested_model=fixed["model"],
-                configured_model_revision=fixed["model_revision"],
-                status="not_sent",
-                error_code="analysis_time_budget",
+        if seconds_left < required_seconds:
+            self._not_sent_call(
+                identifier,
+                token,
+                fixed,
+                progress,
+                call,
+                "analysis_time_budget",
+                "发送意图保存后剩余时间不足本阶段必要窗口，模型请求未发送",
                 started_at=intent_at,
-                completed_at=now,
-                elapsed_ms=max(0, round((now - intent_at).total_seconds() * 1000)),
-                max_output_tokens=call["model_parameters"]["max_output_tokens"],
-            )
-            call["status"], call["receipt"] = "failed", receipt.model_dump(mode="json")
-            self._checkpoint(identifier, token, progress)
-            raise ModelCallError(
-                "analysis_time_budget", "发送意图保存后时间预算已耗尽，模型请求未发送", receipt, 409
             )
         # Timeout is a transport cap, not part of encode_request's wire body. Keep
         # the durable intent/hash stable and record the tighter actual cap separately.
@@ -1684,6 +2291,21 @@ class AnalysisService:
         actual_settings = actual_settings.model_copy(
             update={"semantic_llm_timeout_seconds": call["transport_timeout_seconds"]}
         )
+
+        def save_response(saved):
+            receipt = saved["receipt"]
+            if (
+                receipt.get("call_id") != call["call_id"]
+                or receipt.get("stage") != stage
+                or receipt.get("input_hash") != call["input_hash"]
+                or receipt.get("prompt_version") != call["prompt_version"]
+            ):
+                raise DomainError("model_saved_response_invalid", "模型响应身份与原调用不符，未采用结果", 409)
+            call["private_response"] = copy.deepcopy(saved)
+            call["receipt"] = copy.deepcopy(receipt)
+            call["status"] = "response_received"
+            self._checkpoint(identifier, token, progress)
+
         try:
             completion = invoke(
                 actual_settings,
@@ -1694,10 +2316,13 @@ class AnalysisService:
                 call_id=call["call_id"],
                 input_hash=call["input_hash"],
                 prompt_version=call["prompt_version"],
+                on_response=save_response,
             )
         except ModelCallError as exc:
             call["status"] = "unconfirmed" if exc.receipt.status == "unconfirmed" else "failed"
             call["receipt"] = exc.receipt.model_dump(mode="json")
+            if exc.private_response is not None and "private_response" not in call:
+                call["private_response"] = copy.deepcopy(exc.private_response)
             self._checkpoint(identifier, token, progress)
             raise
         call["status"], call["output"] = "received", completion.parsed
@@ -1715,6 +2340,25 @@ class AnalysisService:
 
     @staticmethod
     def _policy_budget(fixed, progress):
+        from bioradar.research.investigations.professional import http_ledger
+        from bioradar.research.investigations.query_policy import search_query_count
+
+        query_count = search_query_count(fixed, progress)
+        ledger = http_ledger(progress)
+        by_action = {}
+        for item in ledger:
+            if item["action_id"] is not None:
+                by_action[item["action_id"]] = by_action.get(item["action_id"], 0) + item["known_tool_calls"]
+        route_calls = sum(
+            cost["tool_calls"]
+            if cost.get("tool_calls") is not None
+            else by_action.get(query.get("action_id"), 0)
+            if query.get("provider") == "professional"
+            else cost.get("known_tool_calls", 0)
+            for query in progress.get("queries", [])
+            for cost in [query.get("cost") or {}]
+        )
+        non_route_calls = sum(item["known_tool_calls"] for item in ledger if item["action_id"] is None)
         limits = fixed.get("budget", {})
         usage = progress.get("tool_usage", {})
         uncertain = [
@@ -1722,33 +2366,57 @@ class AnalysisService:
             for q in progress.get("queries", [])
             if q["status"] in {"sent", "unconfirmed"} and (q.get("cost") or {}).get("tool_calls") is None
         ]
-        reserved = sum((q.get("cost") or {}).get("reserved_tool_calls", 1) for q in uncertain)
-        known = usage.get("tool_calls", 0)
+        reserved = sum(
+            (q.get("cost") or {}).get("reserved_tool_calls", 1)
+            for q in uncertain
+            if q.get("provider") != "professional"
+        ) + (
+            sum(item["reserved_tool_calls"] for item in ledger)
+            if ledger
+            else usage.get("professional_reserved_tool_calls", 0)
+        )
+        # Keep the stored aggregate visible; this projection uses disjoint actual
+        # receipts and legacy response evidence without filling any attempt index.
+        known = usage.get("preparation_tool_calls", 0) + route_calls + non_route_calls
+        unmeasured = sum(
+            item["outcome"] == "received" and item["accounting_basis"] == "unmeasured_attempts"
+            for item in ledger
+        )
         return {
             "limits": {
                 "tool_calls": limits.get("max_tool_calls", 64),
                 "queries": limits.get("max_queries", 6),
             },
             "usage": {
-                "tool_calls": None if uncertain else known,
+                "tool_calls": None if uncertain or reserved or unmeasured else known,
                 "known_tool_calls": known,
+                "recorded_known_tool_calls": usage.get("tool_calls", 0),
+                "unmeasured_professional_http_exchanges": unmeasured,
                 "unknown_tool_calls": len(uncertain),
                 "reserved_tool_calls": reserved,
                 "budgeted_tool_calls": known + reserved,
-                "queries": len(progress.get("queries", [])),
+                "queries": query_count,
                 "relation_access": usage.get("relation_access", 0),
                 "preparation_tool_calls": usage.get("preparation_tool_calls", 0),
+                "route_action_tool_calls": route_calls,
+                "non_route_professional_tool_calls": non_route_calls,
+                "professional_http_unknown_outcomes": sum(
+                    item["attempts"] > 0 and item["outcome"] in {"sent", "unknown"} for item in ledger
+                ),
+                "model_unconfirmed_calls": sum(
+                    call.get("status") in {"sent", "unconfirmed"} for call in progress.get("calls", [])
+                ),
             },
             "remaining": {
                 "tool_calls": max(0, limits.get("max_tool_calls", 64) - known - reserved),
-                "queries": max(0, limits.get("max_queries", 6) - len(progress.get("queries", []))),
+                "queries": max(0, limits.get("max_queries", 6) - query_count),
             },
         }
 
     @classmethod
     def _policy_view(cls, fixed, progress):
-        if fixed.get("execution_version") != "query-step-v1":
-            return None
+        from bioradar.research.investigations.professional import http_ledger
+
         state = progress.get("query_policy", {})
         return {
             **copy.deepcopy(fixed.get("query_policy", {})),
@@ -1757,15 +2425,64 @@ class AnalysisService:
             "status": state.get("status", "running"),
             "reason": state.get("reason"),
             "checks": copy.deepcopy(state.get("checks", [])),
+            "coverage_issues": copy.deepcopy(state.get("coverage_issues", [])),
+            "reading_manifest": copy.deepcopy(state.get("reading_manifest", [])),
+            **(
+                {
+                    "synthesis_stop_reason": progress["synthesis_stop_reason"],
+                    "synthesis_reading_basis": copy.deepcopy(progress["synthesis_reading_basis"]),
+                }
+                if progress.get("synthesis_stop_reason")
+                else {}
+            ),
             "decisions": copy.deepcopy(state.get("decisions", [])),
             "phase_transitions": copy.deepcopy(state.get("phase_transitions", [])),
             "pending_action": copy.deepcopy(state.get("pending_action")),
             "budget": cls._policy_budget(fixed, progress),
+            "professional_http_ledger": http_ledger(progress),
+            "data_quality": [
+                {
+                    "code": "legacy_weknora_http_attempt_unaccounted",
+                    "action_id": query.get("action_id"),
+                    "query_index": index,
+                    "error_code": query["error_code"],
+                    "recorded_tool_calls": 0,
+                    "qualification": "旧回执确认HTTP错误但记录请求次数为0；保留原账，未推算或补写费用。",
+                }
+                for index, query in enumerate(progress.get("queries", []))
+                if query.get("provider") == "weknora"
+                and query.get("error_code") == "weknora_kdd_http_error"
+                and (query.get("cost") or {}).get("tool_calls") == 0
+            ]
+            + [
+                {
+                    "code": "legacy_professional_http_attempt_indices_missing",
+                    "operation_id": item["operation_id"],
+                    "exchange_index": item["exchange_index"],
+                    "known_tool_calls": item["known_tool_calls"],
+                    "reserved_tool_calls": item["reserved_tool_calls"],
+                    "accounting_basis": item["accounting_basis"],
+                    "qualification": (
+                        "旧HTTP回执缺尝试索引；已有有效响应仅确认1次，其余未测尝试保守预留，未补写索引。"
+                        if item["accounting_basis"] == "legacy_received_response"
+                        else "旧接收标记缺可用响应或有效尝试计数，未推算已知次数；只对确定的尝试数保守预留。"
+                    ),
+                }
+                for item in http_ledger(progress)
+                if item["outcome"] == "received" and item["accounting_basis"] != "http_attempted_indices"
+            ],
+            **(
+                {
+                    "artifacts": copy.deepcopy(progress.get("kdd_artifacts", [])),
+                    "artifact_results": copy.deepcopy(progress.get("kdd_results", {})),
+                    "execution": copy.deepcopy(progress.get("kdd_execution", [])),
+                }
+                if fixed.get("query_policy", {}).get("effective") == "query_planner"
+                else {}
+            ),
         }
 
     def _tool_start(self, fixed, progress, *, reserve=0):
-        if fixed.get("execution_version") != "query-step-v1":
-            return None
         remaining = self._policy_budget(fixed, progress)["remaining"]["tool_calls"] - reserve
         if remaining <= 0:
             raise DomainError("analysis_tool_budget", "本轮来源请求预算已用尽，已保留实际回执", 422)
@@ -1789,6 +2506,8 @@ class AnalysisService:
 
     @staticmethod
     def _reading_context(progress):
+        from bioradar.research.investigations.kdd import analysis_results
+
         state = progress["query_policy"]
         return {
             "coverage_checks": state.get("checks", []),
@@ -1796,22 +2515,27 @@ class AnalysisService:
             "mechanism_evaluation": progress.get("mechanism_evaluation"),
             "quality_feedback": state.get("quality_feedback"),
             "graph_context": progress.get("graph_context", []),
+            **({"analysis_results": analysis_results(progress)} if progress.get("kdd_results") else {}),
         }
 
     def _reading_payload_tokens(self, fixed, payload, schema):
         from bioradar.adapters.reasoning_model import encode_request
+        from bioradar.research.investigations.execution_budget import estimate_input_tokens
 
         return (
-            len(
-                encode_request(
-                    self.settings,
-                    stage=payload["task"],
-                    system_prompt=SYSTEM_PROMPT,
-                    payload=payload,
-                    response_schema=schema.model_json_schema(),
-                )
+            estimate_input_tokens(
+                fixed,
+                payload["task"],
+                len(
+                    encode_request(
+                        self.settings,
+                        stage=payload["task"],
+                        system_prompt=SYSTEM_PROMPT,
+                        payload=payload,
+                        response_schema=schema.model_json_schema(),
+                    )
+                ),
             )
-            + 1024
             + 128
         )
 
@@ -1848,7 +2572,7 @@ class AnalysisService:
         external = fixed["query_policy"].get("effective") == "query_planner" or bool(
             state.get("quality_round")
         )
-        compact_mode = external and fixed.get("query_context_version") == "semantic-v2"
+        compact_mode = external
         if compact_mode:
             from bioradar.research.investigations.analysis import (
                 compact_query_context,
@@ -1860,16 +2584,74 @@ class AnalysisService:
             context = compact_query_context(context)
         key = "policy-read:" + fingerprint if external else "read_plan"
         saved = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == key), None)
+
+        def retain_previous(reason, failed=None):
+            state["refresh_stopped_reason"] = reason
+            state["refresh_not_semantically_reviewed"] = True
+            if failed is not None:
+                entry = {
+                    "call_key": failed.get("call_key", failed["stage"]),
+                    "call_id": failed["call_id"],
+                    "error_code": (failed.get("receipt") or {}).get("error_code"),
+                    "receipt_status": (failed.get("receipt") or {}).get("status"),
+                    "http_status": (failed.get("receipt") or {}).get("http_status"),
+                    "finish_reason": (failed.get("receipt") or {}).get("finish_reason"),
+                }
+                failures = state.setdefault("optional_read_failures", [])
+                if entry not in failures:
+                    failures.append(entry)
+            note = (
+                "可选语义重读未执行或未形成有效新解读，保留上一已校验解读；"
+                "补查回执和新增专业缺口未因此自动视为已覆盖。"
+            )
+            if note not in progress.setdefault("limitations", []):
+                progress["limitations"].append(note)
+            self._checkpoint(identifier, token, progress)
+            return False
+
+        if optional and previous is not None and _known_optional_read_failure(saved):
+            return retain_previous((saved.get("receipt") or {})["error_code"], saved)
+        if (
+            optional
+            and previous is not None
+            and saved is not None
+            and saved["status"] == "prepared"
+            and saved["model_parameters"]["max_output_tokens"]
+            < fixed["model_parameters"]["max_output_tokens"]
+        ):
+            try:
+                self._not_sent_call(
+                    identifier,
+                    token,
+                    fixed,
+                    progress,
+                    saved,
+                    "analysis_token_budget",
+                    "已准备的可选重读不足正常输出额度，保留原解读且未发送请求",
+                )
+            except DomainError as exc:
+                return retain_previous(exc.code, saved)
         payload = (
             freeze_payload("read_plan", fixed, progress["evidence"], query_context=context)
             if external
             else freeze_payload("read_plan", fixed, progress["evidence"])
         )
+        if compact_mode and saved is not None and isinstance(saved.get("payload"), dict):
+            # The semantic reading key deliberately excludes routing receipts/checks.
+            # Reuse that exact request when only those bookkeeping fields changed;
+            # current routing obligations are still validated against declared below.
+            routing_fields = {"coverage_checks", "query_history"}
+            prior_payload = saved["payload"]
+            if {k: v for k, v in payload.items() if k not in routing_fields} == {
+                k: v for k, v in prior_payload.items() if k not in routing_fields
+            }:
+                payload = copy.deepcopy(prior_payload)
         request_tokens = following_tokens = 0
-        if compact_mode:
+        if compact_mode or optional:
             request_tokens = self._reading_payload_tokens(fixed, payload, PolicyReading)
+        if compact_mode:
             following_payload = self._synthesis_payload(fixed, progress)
-            following_tokens = self._reading_payload_tokens(fixed, following_payload, ModelSynthesis)
+            following_tokens = self._reading_payload_tokens(fixed, following_payload, synthesis_schema(fixed))
         if (
             optional
             and saved is None
@@ -1878,13 +2660,11 @@ class AnalysisService:
                 progress,
                 1,
                 following=1,
-                request_tokens=request_tokens,
+                request_tokens=request_tokens - 128 + fixed["model_parameters"]["max_output_tokens"],
                 following_tokens=following_tokens,
             )
         ):
-            state["refresh_stopped_reason"] = "analysis_finishing_budget_reserved"
-            self._checkpoint(identifier, token, progress)
-            return False
+            return retain_previous("analysis_finishing_budget_reserved")
         try:
             raw, progress = self._call(
                 identifier,
@@ -1902,46 +2682,74 @@ class AnalysisService:
                 ),
             )
         except DomainError as exc:
-            if not optional or previous is None or not self._report_budget_stop(exc):
+            failed = next((c for c in progress["calls"] if c.get("call_key", c["stage"]) == key), None)
+            if (
+                not optional
+                or previous is None
+                or not (self._report_budget_stop(exc) or _known_optional_read_failure(failed))
+            ):
                 raise
-            state["refresh_stopped_reason"] = exc.code
-            self._checkpoint(identifier, token, progress)
-            return False
+            return retain_previous(exc.code, failed)
         if external:
-            from bioradar.research.investigations.analysis import parse_policy_reading
+            from bioradar.research.investigations.reading_execution import validated_policy_output
 
-            normalized, adjustments = parse_policy_reading(raw)
-            if adjustments:
-                progress.setdefault("model_output_adjustments", {})[key] = adjustments
-                self._checkpoint(identifier, token, progress)
-            raw = normalized
-        basic = copy.deepcopy(raw)
-        basic.pop("coverage_checks", None)
-        for plan in basic.get("next_queries", []):
-            plan.pop("coverage_check_ids", None)
-        validated = validate_reading(basic, progress["evidence"], fixed["search_scope"])
-        reading = PolicyReading.model_validate(raw) if external else validated
+            try:
+                reading = validated_policy_output(
+                    self,
+                    identifier,
+                    token,
+                    fixed,
+                    progress,
+                    raw,
+                    payload,
+                    key,
+                    declared.get("checks", []),
+                    optional=optional,
+                    following_tokens=following_tokens,
+                )
+            except DomainError as exc:
+                repair = progress.get("reading_repairs", {}).get(key, {})
+                failed = next(
+                    (c for c in progress["calls"] if c.get("call_key") == repair.get("repair_call_key")), None
+                )
+                known_stop = (
+                    self._report_budget_stop(exc)
+                    or exc.code == "analysis_finishing_budget_reserved"
+                    or _known_optional_read_failure(failed)
+                    or repair.get("status") == "invalid"
+                    and exc.code
+                    in {
+                        "analysis_reading_invalid",
+                        "analysis_reference_invalid",
+                        "analysis_passage_invalid",
+                        "analysis_output_invalid",
+                        "analysis_unbound_claim",
+                        "analysis_query_invalid",
+                    }
+                )
+                if optional and previous is not None and known_stop:
+                    return retain_previous(exc.code, failed)
+                raise
+        else:
+            reading = validate_reading(raw, progress["evidence"], fixed["search_scope"])
         state["reading_kind"] = "policy" if external else "baseline"
         state["reading"] = reading.model_dump(mode="json")
         state["reading_evidence_hash"] = fingerprint
-        current = {e["key"] for e in progress["evidence"]}
-        checks, seen_checks = [], set()
-        declared_ids = {item["id"] for item in declared.get("checks", [])}
-        for item in getattr(reading, "coverage_checks", []):
-            check = item.model_dump(mode="json")
-            if check["id"] not in declared_ids or check["id"] in seen_checks:
-                raise DomainError("analysis_policy_coverage_invalid", "覆盖判断引用未声明或重复的检查", 422)
-            seen_checks.add(check["id"])
-            if check["status"] == "passed" and (
-                not check["evidence_ids"] or not set(check["evidence_ids"]).issubset(current)
-            ):
-                check.update(status="unknown", reason="覆盖声明缺少本轮已读证据；未视为已通过。")
-            checks.append(check)
-        if checks:
-            merged = {item["id"]: item for item in state["checks"]}
-            for check in checks:
-                merged.setdefault(check["id"], {}).update(check)
-            state["checks"] = list(merged.values())
+        state.pop("refresh_stopped_reason", None)
+        state.pop("refresh_not_semantically_reviewed", None)
+        from bioradar.research.investigations.query_policy import normalize_policy_coverage
+
+        normalized, issues = normalize_policy_coverage(
+            reading.model_dump(mode="json"), declared.get("checks", []), progress["evidence"]
+        )
+        known_issues = state.setdefault("coverage_issues", [])
+        for issue in issues:
+            if issue not in known_issues:
+                known_issues.append(issue)
+        merged = {item["id"]: item for item in state["checks"]}
+        for check in normalized.get("coverage_checks", []):
+            merged[check["id"]].update(check)
+        state["checks"] = list(merged.values())
         self._checkpoint(identifier, token, progress)
         return True
 
@@ -1969,11 +2777,17 @@ class AnalysisService:
             if action["kind"] in {"entity_relations", "graph_neighbors", "graph_path"}
             else fixed["search_scope"]
         )
+        if action["kind"] == "document_read" or (
+            action["kind"] in {"entity_relations", "graph_neighbors", "graph_path"}
+            and isinstance(arguments.get("binding"), dict)
+        ):
+            allowed = sorted(
+                set(allowed)
+                | {item["source_id"] for item in fixed.get("dependency_sources", []) if item.get("history")}
+            )
         if not set(sources).issubset(allowed):
             raise DomainError("analysis_query_invalid", "研究动作越过本轮已冻结来源范围，请求未发送", 422)
-        instance = (
-            "fixture" if fixed["is_demo"] else getattr(self.reader, "source_instance", "datafabric-test")
-        )
+        instance = self._source_instance(fixed["is_demo"])
         if instance not in self.actor.source_allowlist or any(
             source not in self.settings.engine_source_id_allowlist.get(instance, []) for source in sources
         ):
@@ -1983,16 +2797,87 @@ class AnalysisService:
         for source in sources:
             self.engine.authorize_history_source(source)
 
-    def _execute_policy_action(self, identifier, token, fixed, progress, action, step):
-        from bioradar.research.investigations.query_policy import semantic_key
+    def _catalog_discovery_plan(self, fixed, progress, action):
+        """Rebuild a directory/page action from its actual committed source receipts."""
+        from bioradar.research.investigations.query_policy import (
+            catalog_discovery_candidates,
+            pagination_candidates,
+        )
 
+        observed = copy.deepcopy(progress)
+        state = observed["query_policy"]
+        pending = state.get("pending_action")
+        if pending is not None and pending.get("id") == action["id"]:
+            state["pending_action"] = None
+        observed["queries"] = [
+            query for query in observed["queries"] if query.get("action_id") != action["id"]
+        ]
+        candidates = (
+            pagination_candidates(fixed, observed, state.get("checks", []))
+            if "cursor" in action["arguments"]
+            else catalog_discovery_candidates(
+                fixed, observed, state.get("initial_plans", []), state.get("checks", [])
+            )
+        )
+        for candidate in candidates:
+            if candidate["id"] == action["id"] and candidate["arguments"] == action["arguments"]:
+                return copy.deepcopy(candidate["arguments"]["plan"])
+        raise DomainError(
+            "analysis_query_invalid", "目录或续页必须来自本轮真实回执并保持原查询范围，请求未发送", 422
+        )
+
+    def _execute_policy_action(self, identifier, token, fixed, progress, action, step):
+        from bioradar.research.investigations.query_policy import (
+            pagination_enabled,
+            search_query_count,
+            semantic_key,
+        )
+
+        kdd = fixed.get("query_policy", {}).get("effective") == "query_planner"
+        continuation = action["kind"] == "document_search" and bool(action["arguments"].get("cursor"))
+        limits = fixed.get("query_policy", {}).get("action_limits", {})
+        if not any(q.get("action_id") == action["id"] for q in progress.get("queries", [])):
+            limit = limits.get(action["kind"])
+            used = sum(
+                q.get("kind", "document_search") == action["kind"] for q in progress.get("queries", [])
+            )
+            if kdd and action["kind"] == "document_search":
+                used = search_query_count(fixed, progress)
+            if limit is not None and used >= limit and not (kdd and continuation):
+                raise DomainError("analysis_action_budget", "本类研究动作已达固定上限，未新增请求", 422)
+        if action["kind"] == "source_fetch":
+            from bioradar.research.investigations.fetch_execution import execute_source_fetch
+
+            return execute_source_fetch(self, identifier, token, fixed, progress, action, step)
+        if action["kind"] == "document_read":
+            from bioradar.research.investigations.reading_execution import execute_document_read
+
+            return execute_document_read(self, identifier, token, fixed, progress, action, step)
+        if action["kind"] in {"dataset_prepare", "analysis_run", "professional_assess"}:
+            from bioradar.research.investigations.kdd import execute_action
+
+            return execute_action(self, identifier, token, fixed, progress, action, step)
         arguments, kind = action["arguments"], action["kind"]
         provider = arguments.get("provider", "graph" if kind != "document_search" else "fabric")
         phase = arguments.get("phase", progress["query_policy"]["phase"])
         receipt = next((q for q in progress["queries"] if q.get("action_id") == action["id"]), None)
+        catalog_plan = None
+        if ("catalog_discovery" in arguments or "cursor" in arguments) and (
+            receipt is None or receipt["status"] == "prepared"
+        ):
+            if (
+                kind != "document_search"
+                or provider != "fabric"
+                or "catalog_discovery" in arguments
+                and arguments["catalog_discovery"] is not True
+            ):
+                raise DomainError("analysis_query_invalid", "目录与续页只接受明确的Fabric原件动作", 422)
+            catalog_plan = self._catalog_discovery_plan(fixed, progress, action)
         if receipt is None:
-            if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
-                raise DomainError("analysis_query_budget", "本轮研究动作预算已用尽", 422)
+            if (not kdd or action["kind"] == "document_search" and not continuation) and search_query_count(
+                fixed, progress
+            ) >= fixed["budget"]["max_queries"]:
+                raise DomainError("analysis_query_budget", "本轮新查询预算已用尽", 422)
             if kind == "document_search":
                 if provider not in {"fabric", "weknora"}:
                     raise DomainError("analysis_query_invalid", "查询候选须明确指定一个已知来源提供方", 422)
@@ -2008,8 +2893,9 @@ class AnalysisService:
                     if "gap_id" in plan_data
                     else InitialQuery
                 )
-                plan = plan_type.model_validate(plan_data)
-                if plan.source_id not in fixed["search_scope"]:
+                plan = catalog_plan if catalog_plan is not None else plan_type.model_validate(plan_data)
+                source_id = plan["source_id"] if isinstance(plan, dict) else plan.source_id
+                if source_id not in fixed["search_scope"]:
                     raise DomainError("analysis_query_invalid", "策略查询超出本轮授权来源", 422)
             elif kind in {"entity_relations", "graph_neighbors", "graph_path"}:
                 plan = copy.deepcopy(arguments)
@@ -2026,7 +2912,9 @@ class AnalysisService:
                 semantic_key=semantic_key(kind, arguments),
                 decision_step=step,
                 status="prepared",
-                scope="fixed_graph_background_not_research_evidence"
+                scope="fabric_bounded_original_catalog_not_keyword_match"
+                if arguments.get("catalog_discovery") is True
+                else "fixed_graph_background_not_research_evidence"
                 if provider == "fabric_graph"
                 else "weknora_candidates_bound_to_authorized_fabric_versions"
                 if provider == "weknora"
@@ -2034,6 +2922,8 @@ class AnalysisService:
                 relaxed_from=arguments.get("relaxed_from"),
                 relaxation_reason=arguments.get("relaxation_reason"),
             ).model_dump(mode="json")
+            if continuation:
+                receipt["usage"] = {"search_cursor": arguments["cursor"]}
             progress["queries"].append(receipt)
             self._checkpoint(identifier, token, progress)
         if receipt["status"] in {"sent", "unconfirmed"}:
@@ -2125,18 +3015,39 @@ class AnalysisService:
                             terms=receipt["plan"]["terms"],
                             cutoff=cutoff,
                             mode=mode,
-                            limit=3,
+                            limit=arguments.get("limit", reading_limits(fixed)["search_limit"]),
                             run_id=fixed.get("evidence_time", {}).get("run_id"),
+                            catalog_discovery=arguments.get("catalog_discovery") is True,
+                            cursor=arguments.get("cursor"),
+                            max_seq=arguments.get("max_seq"),
+                            pagination=pagination_enabled(fixed),
                         )
+                        if arguments.get("catalog_discovery") is True:
+                            receipt["usage"] = {
+                                "catalog_discovery": True,
+                                "coverage": copy.deepcopy(found["coverage"]),
+                            }
                         receipt.update(
                             status="read" if found["items"] else "empty",
                             records=copy.deepcopy(found["items"]),
                             returned=len(found["items"]),
-                            has_more=found.get("next_cursor") is not None,
+                            has_more=bool(found.get("next_cursor")),
                         )
+                        if pagination_enabled(fixed):
+                            receipt["pagination"] = {
+                                "has_more": bool(found.get("next_cursor")),
+                                "next_cursor": found.get("next_cursor"),
+                                "max_seq": found["coverage"]["max_seq"],
+                                "page_number": arguments.get("page_number", 1),
+                            }
                     elif provider == "weknora":
                         from bioradar.adapters.weknora import search_candidates
 
+                        kdd_arguments = {}
+                        if fixed.get("query_policy", {}).get("effective") == "query_planner":
+                            from bioradar.adapters.weknora_kdd import search_candidates
+
+                            kdd_arguments["direction"] = fixed["query_policy"]["direction"]
                         found = search_candidates(
                             self.settings,
                             " ".join(receipt["plan"]["terms"]),
@@ -2145,9 +3056,10 @@ class AnalysisService:
                             source_ids=fixed["search_scope"],
                             cutoff=cutoff,
                             is_demo=fixed["is_demo"],
-                            limit=3,
+                            limit=reading_limits(fixed)["search_limit"],
                             timeout_seconds=seconds,
                             max_tool_calls=tool_allowance,
+                            **kdd_arguments,
                         )
                         extra = found.get("tool_requests", 0)
                         receipt.update(
@@ -2184,7 +3096,7 @@ class AnalysisService:
                         )
                         if found.get("graph_context") is not None or found.get("graph_records"):
                             dependency = {
-                                "instance": "fixture" if fixed["is_demo"] else self.reader.source_instance,
+                                "instance": self._source_instance(fixed["is_demo"]),
                                 "source_id": arguments.get("source_id")
                                 or arguments.get("binding", {}).get("source_id"),
                                 "history": True,
@@ -2198,6 +3110,9 @@ class AnalysisService:
                                 progress["graph_context"]
                             )
                         for graph_record in found.get("graph_records", []):
+                            from bioradar.adapters.query_graph import remember_graph_package
+
+                            remember_graph_package(fixed, progress, graph_record)
                             if graph_record not in progress.setdefault("graph_records", []):
                                 progress["graph_records"].append(copy.deepcopy(graph_record))
                         actual_cost = found.get("actual_cost") or found.get("cost") or {}
@@ -2229,7 +3144,7 @@ class AnalysisService:
                     }
                 for original in receipt.get("records", []):
                     dependency = {
-                        "instance": "fixture" if fixed["is_demo"] else self.reader.source_instance,
+                        "instance": self._source_instance(fixed["is_demo"]),
                         "source_id": original["source_id"],
                         "history": True,
                     }
@@ -2243,40 +3158,81 @@ class AnalysisService:
             ref = self.reader.ref(original).model_dump(mode="json")
             if any(e["record_ref"] == ref for e in progress["evidence"]):
                 continue
-            if len(progress["evidence"]) >= MAX_EVIDENCE:
-                message = "查询命中超过本轮10版本读取预算，未将其冒充已读证据。"
+            if (
+                len({canonical_hash(e["record_ref"]) for e in progress["evidence"]})
+                >= reading_limits(fixed)["max_versions"]
+            ):
+                message = (
+                    f"查询命中超过本轮{reading_limits(fixed)['max_versions']}版本读取预算，保留为未读资料。"
+                )
                 if message not in progress["limitations"]:
                     progress["limitations"].append(message)
                 break
-            entry = self._adopt_original(
-                identifier,
-                token,
-                fixed,
-                progress,
-                original,
-                "policy:" + canonical_hash([action["id"], ref]),
-            )
+            try:
+                entry = self._adopt_original(
+                    identifier,
+                    token,
+                    fixed,
+                    progress,
+                    original,
+                    "policy:" + canonical_hash([action["id"], ref]),
+                )
+            except DomainError as exc:
+                if exc.code != "analysis_evidence_budget":
+                    raise
+                # The search succeeded; keep its returned versions as unread hits.
+                # A full excerpt budget must not discard the reading already saved.
+                receipt["usage"] = dict(receipt.get("usage") or {})
+                receipt["usage"]["adoption_stop_reason"] = exc.code
+                message = "本轮原文片段容量已满；补查命中保留为未读资料，未作为已读证据。"
+                if message not in progress["limitations"]:
+                    progress["limitations"].append(message)
+                self._checkpoint(identifier, token, progress, fixed=fixed)
+                break
             progress["evidence"].append(entry)
             receipt["new_versions"] += 1
             receipt["evidence_keys"].append(entry["key"])
             self._checkpoint(identifier, token, progress, fixed=fixed)
         return receipt
 
+    def _after_policy_mechanism(self, identifier, token, fixed, progress, reading):
+        if fixed.get("query_policy", {}).get("effective") == "query_planner":
+            progress.setdefault(
+                "mechanism_evaluation",
+                {
+                    "provider": "mech_evidence",
+                    "status": "not_requested",
+                    "error_code": "professional_capability_not_selected",
+                },
+            )
+            self._checkpoint(identifier, token, progress)
+            return progress
+        return self._mechanism(identifier, token, fixed, progress, reading)
+
     def _policy_research(self, identifier, token, fixed, progress):
+        from bioradar.research.investigations.analysis_models import ResearchQuestionPlan
         from bioradar.research.investigations.query_policy import (
             build_policy_context,
             decide,
+            pagination_candidates,
+            question_named_objects,
             question_plan_payload,
-            validate_frozen_policy,
             validate_initial_plans,
         )
 
         state = progress["query_policy"]
         external = fixed["query_policy"].get("effective") == "query_planner"
+        plan_schema = (
+            ResearchQuestionPlan
+            if fixed["query_policy"].get("effective") == "query_planner"
+            else QuestionPlan
+        )
         decisions = state.get("decisions", [])
         terminal = (
             decisions[-1]
-            if decisions and decisions[-1].get("decision") in {"complete", "insufficient"}
+            if decisions
+            and decisions[-1].get("decision") in {"complete", "insufficient"}
+            and decisions[-1].get("state_summary", {}).get("terminal", True)
             else None
         )
         if terminal is not None and state.get("pending_action") is None and state.get("reading"):
@@ -2288,7 +3244,7 @@ class AnalysisService:
             state.update(status=terminal["decision"], reason=terminal.get("reason"))
             self._checkpoint(identifier, token, progress)
             reading = self._saved_policy_reading(state)
-            progress = self._mechanism(identifier, token, fixed, progress, reading)
+            progress = self._after_policy_mechanism(identifier, token, fixed, progress, reading)
             return reading, progress
         if "initial_plans" not in state:
             plans = fixed.get("retrieval", {}).get("initial_queries", [])
@@ -2302,12 +3258,17 @@ class AnalysisService:
                     identifier,
                     token,
                     "question_plan",
-                    QuestionPlan,
+                    plan_schema,
                     fixed,
                     progress,
                     question_plan_payload(fixed),
                 )
                 plans = validate_initial_plans(raw, fixed)
+                state["named_objects"] = question_named_objects(fixed, raw.get("named_objects", []))
+                for text in plan_schema.model_validate(raw).limitations:
+                    limitation = "初始查找阶段：" + text
+                    if limitation not in progress["limitations"]:
+                        progress["limitations"].append(limitation)
             state["initial_plans"] = copy.deepcopy(plans)
             self._checkpoint(identifier, token, progress)
         while True:
@@ -2324,6 +3285,11 @@ class AnalysisService:
                     "error_code": receipt.get("error_code"),
                     "evidence_ids": list(receipt.get("evidence_keys", [])),
                     "cost": copy.deepcopy(receipt.get("cost")),
+                    **(
+                        {"new_artifact_refs": copy.deepcopy(receipt["artifact_refs"])}
+                        if receipt.get("artifact_refs")
+                        else {}
+                    ),
                 }
                 if receipt["status"] not in {"sent", "unconfirmed"}:
                     state["pending_action"] = None
@@ -2334,7 +3300,7 @@ class AnalysisService:
                     )
             reading = self._saved_policy_reading(state) if state.get("reading") else None
             if state.get("status") in {"complete", "insufficient"} and reading is not None:
-                progress = self._mechanism(identifier, token, fixed, progress, reading)
+                progress = self._after_policy_mechanism(identifier, token, fixed, progress, reading)
                 return reading, progress
             if not external and reading is not None and state["phase"] == "initial":
                 state["phase"] = "followup"
@@ -2345,21 +3311,15 @@ class AnalysisService:
                 raise DomainError(
                     "analysis_query_outcome_unconfirmed", "研究动作尚无确定回执，未继续规划", 409
                 )
-            if external and progress["evidence"]:
-                fingerprint = canonical_hash(
-                    [
-                        [[e["key"], e["selection_hash"], e["text_sha256"]] for e in progress["evidence"]],
-                        progress.get("mechanism_evaluation"),
-                        state.get("quality_feedback"),
-                        progress.get("graph_context"),
-                    ]
-                )
-                if fixed.get("query_context_version") == "semantic-v2":
-                    from bioradar.research.investigations.analysis import semantic_reading_state
+            from bioradar.research.investigations.kdd import ensure_artifacts, extend_context
 
-                    fingerprint = canonical_hash(
-                        semantic_reading_state(progress["evidence"], self._reading_context(progress))
-                    )
+            ensure_artifacts(self, identifier, token, fixed, progress)
+            if external and progress["evidence"]:
+                from bioradar.research.investigations.analysis import semantic_reading_state
+
+                fingerprint = canonical_hash(
+                    semantic_reading_state(progress["evidence"], self._reading_context(progress))
+                )
                 if state.get("reading_evidence_hash") != fingerprint:
                     if not self._policy_reading(
                         identifier, token, fixed, progress, optional=reading is not None
@@ -2368,11 +3328,15 @@ class AnalysisService:
                     reading = self._saved_policy_reading(state) if state.get("reading") else None
                 if reading is not None:
                     state["phase"] = "followup"
-                    if reading.mechanism_candidate and fixed.get("providers", {}).get(
-                        "mech_evidence", {}
-                    ).get("available"):
+                    if (
+                        fixed["query_policy"].get("effective") != "query_planner"
+                        and reading.mechanism_candidate
+                        and fixed.get("providers", {}).get("mech_evidence", {}).get("available")
+                    ):
                         if "mechanism_evaluation" not in progress:
-                            progress = self._mechanism(identifier, token, fixed, progress, reading)
+                            progress = self._after_policy_mechanism(
+                                identifier, token, fixed, progress, reading
+                            )
                             self._policy_reading(identifier, token, fixed, progress, optional=True)
                             reading = self._saved_policy_reading(state)
             phase = state["phase"]
@@ -2416,18 +3380,65 @@ class AnalysisService:
                 provider_status=progress.get("providers", fixed.get("providers", {})),
                 graph_candidates=graph_candidates,
             )
+            context = extend_context(
+                fixed, progress, context, reading.model_dump(mode="json") if reading else None
+            )
+            if fixed["query_policy"].get("effective") == "query_planner":
+                state["reading_manifest"] = copy.deepcopy(context.get("reading_manifest", []))
             state["checks"] = copy.deepcopy(context.get("checks", state.get("checks", [])))
             if state["budget"]["remaining"]["queries"] == 0 or state.get("refresh_stopped_reason"):
-                context["candidates"] = []
-            validate_frozen_policy(self.settings, fixed["query_policy"])
+                if external and not state.get("refresh_stopped_reason"):
+                    context["candidates"] = [
+                        item
+                        for item in context["candidates"]
+                        if item["kind"] != "document_search" or item["arguments"].get("cursor")
+                    ]
+                else:
+                    context["candidates"] = []
+                if (
+                    not external
+                    and state["budget"]["remaining"]["queries"] == 0
+                    and not progress.get("query_relaxation")
+                    and not progress.get("initial_relaxation")
+                    and any(
+                        q.get("provider", "fabric") == "fabric"
+                        and q["status"] == "empty"
+                        and len(q.get("plan", {}).get("terms", [])) > 1
+                        for q in progress["queries"]
+                    )
+                ):
+                    limitation = "本轮查询预算已用尽，未追加减词补查。"
+                    if limitation not in progress["limitations"]:
+                        progress["limitations"].append(limitation)
             self._guard(identifier, token, check_deadline=not bool(state.get("reading")))
             from bioradar.adapters.query_planner import decide_query
 
             choice = decide(
                 context,
                 policy=fixed["query_policy"]["effective"],
-                planner=lambda request: decide_query(self.settings, request),
+                planner=lambda request: decide_query(
+                    self.settings, request, expected_version=fixed["query_policy"]["version"]
+                ),
             )
+            if choice.get("state_summary", {}).get("execution_state") == "awaiting_host_candidates":
+                rebuilt = pagination_candidates(fixed, progress, context["checks"])
+                existing = {item["id"] for item in context["candidates"]}
+                context["candidates"].extend(item for item in rebuilt if item["id"] not in existing)
+                choice = decide(
+                    context,
+                    policy=fixed["query_policy"]["effective"],
+                    planner=lambda request: decide_query(
+                    self.settings, request, expected_version=fixed["query_policy"]["version"]
+                ),
+                )
+                if choice.get("state_summary", {}).get("execution_state") == "awaiting_host_candidates":
+                    state["continuation_wait"] = copy.deepcopy(choice["state_summary"])
+                    self._checkpoint(identifier, token, progress)
+                    raise DomainError(
+                        "analysis_continuation_unavailable",
+                        "续页回执已保留，尚无可执行的授权候选；研究未标完成",
+                        409,
+                    )
             action = choice.get("action")
             if choice["decision"] == "continue":
                 if action is None or not any(c == action for c in context.get("candidates", [])):
@@ -2452,6 +3463,22 @@ class AnalysisService:
                         "evidence_ids": list(actual[1].get("evidence_keys", []))
                         if actual is not None
                         else item.get("evidence_ids", item.get("new_evidence_ids", [])),
+                        **(
+                            {
+                                "new_artifact_refs": copy.deepcopy(
+                                    actual[1].get("artifact_refs", [])
+                                    if actual
+                                    else item.get("new_artifact_refs", [])
+                                ),
+                                "check_updates": copy.deepcopy(
+                                    actual[1].get("check_updates", [])
+                                    if actual
+                                    else item.get("check_updates", [])
+                                ),
+                            }
+                            if fixed.get("query_policy", {}).get("effective") == "query_planner"
+                            else {}
+                        ),
                     }
                 )
             choice = copy.deepcopy(choice)
@@ -2475,6 +3502,8 @@ class AnalysisService:
                 self._policy_reading(identifier, token, fixed, progress)
                 continue
             choice["step"] = len(state["decisions"])
+            if context.get("schema_version") == "query-planner.external.v2":
+                choice["policy_request"] = copy.deepcopy(context)
             choice.setdefault("state_summary", {})["observed_history"] = observed
             choice["receipt"] = None
             state["decisions"].append(choice)
@@ -2494,297 +3523,13 @@ class AnalysisService:
         if not state.get("reading"):
             self._policy_reading(identifier, token, fixed, progress)
         reading = self._saved_policy_reading(state)
-        progress = self._mechanism(identifier, token, fixed, progress, reading)
+        progress = self._after_policy_mechanism(identifier, token, fixed, progress, reading)
         return reading, progress
 
-    def _initial_retrieval(self, identifier, token, fixed, progress):
-        retrieval = fixed.get("retrieval", {})
-        if not retrieval.get("auto_retrieve") or progress.get("initial_retrieval_done"):
-            return progress
-        plans = [InitialQuery.model_validate(q) for q in retrieval.get("initial_queries", [])]
-        if not plans and progress["evidence"]:
-            return progress
-        if fixed["budget"]["max_queries"] == 0:
-            raise DomainError("analysis_query_budget", "本轮查询预算为零，无法为问题取得资料", 422)
-        if not fixed["search_scope"]:
-            raise DomainError("analysis_no_retrieval_scope", "没有可用的授权补查来源，问题已保留", 422)
-        if not plans:
-            raw, progress = self._call(
-                identifier,
-                token,
-                "question_plan",
-                QuestionPlan,
-                fixed,
-                progress,
-                {
-                    "task": "question_plan",
-                    "question": fixed["question"],
-                    "search_scope": fixed["search_scope"],
-                    "max_queries": min(2, fixed["budget"]["max_queries"]),
-                    "instruction": (
-                        "仅规划在允许来源内的最多两项字面查询，每项最多三个词。"
-                        "terms中的每个词是必须同时满足的字面条件（AND），不是任选词或语义扩展。"
-                        "先用辨识力强且问题中确实出现的研究对象词；对象词放第一项。"
-                        "首查通常只需一个药物、靶点、疾病或登记编号，不叠加机制、试验类型等修饰词。"
-                        "当前没有已读证据，不输出事实、命题或结论。"
-                    ),
-                },
-            )
-            try:
-                plan = QuestionPlan.model_validate(raw)
-            except ValueError:
-                raise DomainError(
-                    "analysis_question_plan_invalid", "初查规划格式无效，未补造查询", 422
-                ) from None
-            plans = plan.queries
-            if len(plans) > min(2, fixed["budget"]["max_queries"]):
-                raise DomainError("analysis_query_budget", "模型初查规划超过固定查询预算", 422)
-            progress["limitations"].extend("初始查找阶段：" + text for text in plan.limitations)
-        if any(p.source_id not in fixed["search_scope"] for p in plans):
-            raise DomainError("analysis_query_invalid", "初查规划越过本次授权来源", 422)
-        progress = self._retrieve(identifier, token, fixed, progress, plans, phase="initial")
-        progress = self._relax_query(identifier, token, fixed, progress, plans, phase="initial")
-        progress = self._weknora_retrieval(identifier, token, fixed, progress, plans, phase="initial")
-        progress["initial_retrieval_done"] = True
-        self._checkpoint(identifier, token, progress, fixed=fixed)
-        return progress
 
-    def _relax_query(self, identifier, token, fixed, progress, plans, *, phase):
-        relaxation = progress.get("query_relaxation") or progress.get("initial_relaxation")
-        if relaxation is not None and relaxation.get("phase", "initial") != phase:
-            return progress
-        if relaxation is None:
-            for index, plan in enumerate(plans):
-                previous = next(
-                    (
-                        q
-                        for q in progress["queries"]
-                        if q.get("provider", "fabric") == "fabric"
-                        and q.get("phase") == phase
-                        and q["index"] == index
-                    ),
-                    None,
-                )
-                terms = relaxed_query_terms(fixed["question"], plan.terms)
-                if previous is None or previous["status"] != "empty" or terms is None:
-                    continue
-                if any(
-                    q.get("provider", "fabric") == "fabric"
-                    and q["plan"]["source_id"] == plan.source_id
-                    and [t.strip().casefold() for t in q["plan"]["terms"]]
-                    == [t.strip().casefold() for t in terms]
-                    for q in progress["queries"]
-                ):
-                    continue
-                if len(progress["queries"]) >= fixed["budget"]["max_queries"]:
-                    message = "多词字面查询为空；本轮查询预算已满，未追加减词补查。"
-                    if message not in progress["limitations"]:
-                        progress["limitations"].append(message)
-                        self._checkpoint(identifier, token, progress)
-                    return progress
-                reason = (
-                    "原查询的字面条件须同时满足且结果为空；在同一授权来源仅减词补查一次，"
-                    "优先保留问题中出现的原对象词。原terms：" + json.dumps(plan.terms, ensure_ascii=False)
-                )
-                relaxed = plan.model_copy(update={"terms": terms, "reason": reason})
-                relaxation = {
-                    "phase": phase,
-                    "query_index": len(plans),
-                    "original_plan": plan.model_dump(mode="json"),
-                    "plan": relaxed.model_dump(mode="json"),
-                    "reason": reason,
-                }
-                progress["query_relaxation"] = relaxation
-                self._checkpoint(identifier, token, progress)
-                break
-        if relaxation is not None:
-            plan_type = InitialQuery if phase == "initial" else PlannedQuery
-            relaxed = plan_type.model_validate(relaxation["plan"])
-            return self._retrieve(identifier, token, fixed, progress, [*plans, relaxed], phase=phase)
-        return progress
 
-    def _queries(self, identifier, token, fixed, progress, reading):
-        progress = self._retrieve(identifier, token, fixed, progress, reading.next_queries, phase="followup")
-        return self._relax_query(identifier, token, fixed, progress, reading.next_queries, phase="followup")
 
-    def _retrieve(self, identifier, token, fixed, progress, plans, *, phase):
-        from bioradar.adapters.fabric_monitor import search_analysis_records
 
-        for index, plan in enumerate(plans):
-            self._guard(identifier, token)
-            receipt = next(
-                (
-                    q
-                    for q in progress["queries"]
-                    if q.get("provider", "fabric") == "fabric"
-                    and q.get("phase", "followup") == phase
-                    and q["index"] == index
-                ),
-                None,
-            )
-            if receipt is None:
-                if len(progress["queries"]) >= fixed.get("budget", {}).get("max_queries", 2):
-                    progress["limitations"].append("达到本轮查询预算，尚未执行的计划保留为缺口。")
-                    self._checkpoint(identifier, token, progress)
-                    break
-                progress["stage"] = "initial_retrieval" if phase == "initial" else "digging"
-                relaxation = progress.get("query_relaxation", progress.get("initial_relaxation", {}))
-                is_relaxed = (
-                    relaxation.get("phase", "initial") == phase and relaxation.get("query_index") == index
-                )
-                receipt = AnalysisQueryReceipt(
-                    index=index,
-                    phase=phase,
-                    plan=plan,
-                    status="prepared",
-                    relaxed_from=relaxation.get("original_plan") if is_relaxed else None,
-                    relaxation_reason=relaxation.get("reason") if is_relaxed else None,
-                ).model_dump(mode="json")
-                progress["queries"].append(receipt)
-                self._checkpoint(identifier, token, progress)
-            if "records" not in receipt and receipt["status"] == "prepared":
-                self._guard(identifier, token, check_deadline=True)
-                if self.reader is None:
-                    receipt.update(status="failed", error_code="history_not_connected")
-                    self._checkpoint(identifier, token, progress)
-                    continue
-                try:
-                    found = search_analysis_records(
-                        self.reader,
-                        source_id=plan.source_id,
-                        is_demo=fixed["is_demo"],
-                        terms=plan.terms,
-                        cutoff=datetime.fromisoformat(fixed["as_of"]),
-                        limit=3,
-                    )
-                except DomainError as exc:
-                    receipt.update(status="failed", error_code=exc.code)
-                    self._checkpoint(identifier, token, progress)
-                    continue
-                receipt.update(
-                    status="read" if found["items"] else "empty",
-                    returned=len(found["items"]),
-                    has_more=found.get("next_cursor") is not None,
-                    records=[copy.deepcopy(r) for r in found["items"]],
-                )
-                # The actual returned versions are fixed before any possibly ambiguous PG adoption.
-                dependency = {
-                    "instance": "fixture" if fixed["is_demo"] else self.reader.source_instance,
-                    "source_id": plan.source_id,
-                    "history": True,
-                }
-                if dependency not in fixed["dependency_sources"]:
-                    fixed["dependency_sources"].append(dependency)
-                self._checkpoint(identifier, token, progress, fixed=fixed)
-            for original in receipt.get("records", []):
-                ref = self.reader.ref(original)
-                if any(e["record_ref"] == ref.model_dump(mode="json") for e in progress["evidence"]):
-                    continue
-                if len(progress["evidence"]) >= MAX_EVIDENCE:
-                    progress["limitations"].append("查询返回超过本轮10版本证据预算，未将其冒充已读。")
-                    break
-                tag = "query:" + canonical_hash([phase, index, ref.model_dump(mode="json")])
-                entry = self._adopt_original(identifier, token, fixed, progress, original, tag)
-                receipt["new_versions"] += 1
-                receipt["evidence_keys"].append(entry["key"])
-                progress["evidence"].append(entry)
-                self._checkpoint(identifier, token, progress, fixed=fixed)
-        return progress
-
-    def _weknora_retrieval(self, identifier, token, fixed, progress, plans, *, phase):
-        from bioradar.adapters.weknora import provider_status, search_candidates
-
-        receipt = next((q for q in progress["queries"] if q.get("provider") == "weknora"), None)
-        if receipt is None:
-            if (
-                not plans
-                or not provider_status(self.settings).get("available")
-                or len(progress["queries"]) >= fixed.get("budget", {}).get("max_queries", 2)
-                or len(progress["evidence"]) >= MAX_EVIDENCE
-            ):
-                return progress
-            first = plans[0]
-            plan = InitialQuery(source_id=first.source_id, terms=first.terms, reason=first.reason)
-            receipt = AnalysisQueryReceipt(
-                index=0,
-                phase=phase,
-                provider="weknora",
-                plan=plan,
-                status="prepared",
-                scope="weknora_candidates_bound_to_authorized_fabric_versions",
-            ).model_dump(mode="json")
-            progress["queries"].append(receipt)
-            self._checkpoint(identifier, token, progress)
-        if receipt["status"] in {"sent", "unconfirmed"}:
-            receipt.update(status="unconfirmed", error_code="weknora_outcome_unconfirmed")
-            self._checkpoint(identifier, token, progress)
-            return progress
-        if (
-            receipt.get("error_code") == "analysis_time_budget"
-            and (receipt.get("usage") or {}).get("request_status") == "not_sent"
-        ):
-            raise DomainError("analysis_time_budget", "候选请求此前在发送前达到时间预算，未自动重发", 409)
-        if receipt["status"] == "prepared":
-            self._guard(identifier, token, check_deadline=True)
-            receipt["status"] = "sent"
-            self._checkpoint(identifier, token, progress)
-            seconds_left = analysis_budget(fixed, progress, datetime.now(UTC))["usage"]["remaining_seconds"]
-            if seconds_left < 0.1:
-                receipt.update(
-                    status="failed",
-                    error_code="analysis_time_budget",
-                    records=[],
-                    usage={
-                        "request_status": "not_sent",
-                        "embedding_rerank_tokens": None,
-                        "monetary_cost": None,
-                    },
-                )
-                self._checkpoint(identifier, token, progress)
-                raise DomainError("analysis_time_budget", "发送意图保存后时间预算已耗尽，候选请求未发送", 409)
-            found = search_candidates(
-                self.settings,
-                " ".join(receipt["plan"]["terms"]),
-                reader=self.reader,
-                selected_evidence=progress["evidence"],
-                source_ids=fixed["search_scope"],
-                cutoff=datetime.fromisoformat(fixed["as_of"]),
-                is_demo=fixed["is_demo"],
-                limit=3,
-                timeout_seconds=seconds_left,
-            )
-            status = found["status"]
-            receipt.update(
-                status="read" if status == "completed" else status,
-                returned=len(found.get("records", [])),
-                records=copy.deepcopy(found.get("records", [])),
-                candidates=copy.deepcopy(found.get("candidates", [])),
-                usage=found.get("usage"),
-                error_code=found.get("error_code"),
-            )
-            for original in receipt["records"]:
-                dependency = {
-                    "instance": "fixture" if fixed["is_demo"] else self.reader.source_instance,
-                    "source_id": original["source_id"],
-                    "history": True,
-                }
-                if dependency not in fixed["dependency_sources"]:
-                    fixed["dependency_sources"].append(dependency)
-            self._checkpoint(identifier, token, progress, fixed=fixed)
-        for original in receipt.get("records", []):
-            ref = self.reader.ref(original).model_dump(mode="json")
-            if any(e["record_ref"] == ref for e in progress["evidence"]):
-                continue
-            if len(progress["evidence"]) >= MAX_EVIDENCE:
-                break
-            item = self._adopt_original(
-                identifier, token, fixed, progress, original, "weknora:" + canonical_hash(ref)
-            )
-            progress["evidence"].append(item)
-            receipt["new_versions"] += 1
-            receipt["evidence_keys"].append(item["key"])
-            self._checkpoint(identifier, token, progress, fixed=fixed)
-        return progress
 
     def _saved(self, operation, key):
         with Session(self.engine.database) as session:
@@ -2798,7 +3543,7 @@ class AnalysisService:
             )
             return copy.deepcopy(row.response_body) if row and row.response_code is not None else None
 
-    def _adopt_original(self, identifier, token, fixed, progress, original, tag):
+    def _adopt_original(self, identifier, token, fixed, progress, original, tag, *, start=None):
         from bioradar.adapters.fabric_history import time_upper
 
         self._guard(identifier, token)
@@ -2819,19 +3564,34 @@ class AnalysisService:
             _, adopted = self.engine.adopt_snapshot(self.actor, snapshot, key)
         if adopted["id"] not in fixed["snapshot_ids"]:
             fixed["snapshot_ids"].append(adopted["id"])
-        remaining = MAX_CHARACTERS - sum(
+        current_versions = {
+            (e["record_ref"]["provider"], e["record_ref"]["object_id"], e["record_ref"]["adopted_version"])
+            for e in progress["evidence"]
+        }
+        from bioradar.adapters.query_graph import remember_graph_package
+
+        remember_graph_package(fixed, progress, original)
+        original_ref = self.reader.ref(original)
+        version_key = (original_ref.provider, original_ref.object_id, original_ref.adopted_version)
+        if (
+            version_key not in current_versions
+            and len(current_versions) >= reading_limits(fixed)["max_versions"]
+        ):
+            raise DomainError("analysis_evidence_budget", "本轮读取版本数已满，命中保留为未读资料", 422)
+        remaining = reading_limits(fixed)["max_characters"] - sum(
             len(e["text"]) + len(json.dumps(e.get("facts", {}), ensure_ascii=False))
             for e in progress["evidence"]
         )
-        selected = source_excerpt(original, remaining)
+        selected = source_excerpt(original, remaining, start=start)
         if not selected["text"]:
             raise DomainError("analysis_evidence_budget", "本轮片段预算用尽，新增版本未送入模型", 422)
         ref = self.reader.ref(original)
         result = AnalysisEvidence(
             key="q"
-            + canonical_hash([original["source_id"], original["source_record_id"], original["version_id"]])[
-                :12
-            ],
+            + canonical_hash(
+                [original["source_id"], original["source_record_id"], original["version_id"]]
+                + ([start] if start else [])
+            )[:12],
             material_entry_id=None,
             snapshot_id=adopted["id"],
             record_ref=ref,
@@ -2883,8 +3643,11 @@ class AnalysisService:
         return InvestigationService(self.engine).get(self.actor, saved["id"])
 
     def _shared_callback(self, identifier, token, fixed, progress):
-        def call(stage, instruction, payload, response_schema=None):
-            output, _ = self._call(
+        from bioradar.research.investigations.professional import call_professional_model
+
+        def call(stage, instruction, payload, response_schema=None, *, call_id=None):
+            output, _ = call_professional_model(
+                self,
                 identifier,
                 token,
                 stage,
@@ -2893,7 +3656,7 @@ class AnalysisService:
                 progress,
                 payload,
                 system_prompt=instruction,
-                call_key=stage,
+                call_key=call_id or stage,
             )
             return output
 
@@ -2903,6 +3666,7 @@ class AnalysisService:
         """Lock the methods actually loaded for this invocation, not an earlier status observation."""
         if version is None:
             return
+
         prefix = "biocheck_" if name == "biocheck" else "mech_"
         existing_calls = any(c["stage"].startswith(prefix) for c in progress["calls"])
         versions = progress.setdefault("provider_versions", {})
@@ -2920,83 +3684,15 @@ class AnalysisService:
         progress["providers"] = providers
         self._checkpoint(identifier, token, progress)
 
+    def _load_professional(self, identifier, token, fixed, progress, name):
+        from bioradar.research.investigations.professional import load_provider
+
+        return load_provider(self, identifier, token, fixed, progress, name)
+
     def _mechanism(self, identifier, token, fixed, progress, reading):
-        from bioradar.adapters.biocheck import build_packet
-        from bioradar.adapters.mech_evidence import evaluate_mechanism, load_mech_evidence
+        from bioradar.research.investigations.professional import mechanism
 
-        if "mechanism_evaluation" not in progress:
-            self._guard(identifier, token)
-            progress["stage"] = "mechanism_evaluation"
-            self._checkpoint(identifier, token, progress)
-            packet = build_packet(
-                fixed["question"],
-                progress["evidence"],
-                {
-                    "mechanism": reading.mechanism_candidate,
-                    "qualification": "machine_proposed_candidate_not_source_fact",
-                },
-            )
-            if (
-                reading.mechanism_candidate
-                and fixed.get("providers", {}).get("mech_evidence", {}).get("available")
-                and not self._optional_budget(fixed, progress, 3, following=1)
-            ):
-                assessment = {
-                    "provider": "mech_evidence",
-                    "status": "skipped_budget",
-                    "error_code": "analysis_model_budget",
-                }
-            else:
-                try:
-                    loaded = load_mech_evidence(self.settings)
-                    self._use_provider(identifier, token, fixed, progress, "mech_evidence", loaded[-1])
-                    assessment = evaluate_mechanism(
-                        self.settings,
-                        packet,
-                        self._shared_callback(identifier, token, fixed, progress),
-                        loaded=loaded,
-                    )
-                except DomainError as exc:
-                    if exc.code not in {"analysis_model_budget", "analysis_token_budget"}:
-                        raise
-                    assessment = {
-                        "provider": "mech_evidence",
-                        "status": "skipped_budget",
-                        "error_code": exc.code,
-                    }
-
-            progress["mechanism_evaluation"] = assessment
-            self._checkpoint(identifier, token, progress)
-        assessment = progress["mechanism_evaluation"]
-        if (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
-            and assessment.get("status") == "completed"
-            and "passage_bindings" not in assessment
-        ):
-            from bioradar.adapters.mech_evidence import mechanism_passage_bindings
-
-            local = next(
-                (
-                    c
-                    for c in progress["calls"]
-                    if c["stage"] == "mech_local_review" and c["status"] == "received"
-                ),
-                None,
-            )
-            if local is not None:
-                packet = build_packet(fixed["question"], progress["evidence"])
-                assessment.update(
-                    mechanism_passage_bindings(
-                        packet,
-                        local["payload"]["materials"],
-                        assessment=assessment,
-                        radar_evidence=progress["evidence"],
-                    )
-                )
-        fixed["mechanism_evaluation"] = progress["mechanism_evaluation"]
-        self._checkpoint(identifier, token, progress, fixed=fixed)
-        return progress
+        return mechanism(self, identifier, token, fixed, progress, reading)
 
     @staticmethod
     def _report_budget_stop(exc):
@@ -3056,6 +3752,11 @@ class AnalysisService:
                 "repair": False,
                 "reserve_support_audit": True,
                 "basis": "quality_feedback_generation_then_independent_audit",
+                **(
+                    {"retry_policy_pending": True}
+                    if fixed.get("query_policy", {}).get("effective") == "query_planner"
+                    else {}
+                ),
             },
         )
         round_["activated"] = True
@@ -3096,21 +3797,84 @@ class AnalysisService:
         context = None
         queries = [{k: v for k, v in q.items() if k != "records"} for q in progress["queries"]]
         if (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
+            fixed.get("query_policy", {}).get("effective") == "query_planner"
         ):
             from bioradar.research.investigations.analysis import compact_query_context
 
             context = compact_query_context(self._reading_context(progress))
             queries = context["query_history"]
-        return freeze_payload(
+        payload = freeze_payload(
             "synthesize", fixed, progress["evidence"], queries=queries, query_context=context
         )
+        assessment = final_assessment_context(fixed)
+        if assessment:
+            payload["final_research_assessment"] = assessment
+        return payload
 
     def _normalize_synthesis(self, identifier, token, fixed, progress, raw, stage):
+        schema = synthesis_schema(fixed)
+        if schema is not ModelSynthesis:
+            risk_scope = (fixed.get("origin") or {}).get("topic_risk_scope")
+            try:
+                validate_synthesis(
+                    raw,
+                    progress["evidence"],
+                    parent=None,
+                    schema=schema,
+                    topic_risk_scope=risk_scope,
+                    strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
+                )
+            except DomainError as exc:
+                round_ = progress.get("active_report_round", 0)
+                prefix = "report-round:" + str(round_) + ":" if round_ else ""
+                key = prefix + stage
+                initial = next(c for c in progress["calls"] if c.get("call_key", c["stage"]) == key)
+                saved = next(
+                    (c for c in progress["calls"] if c.get("call_key") == key + ":assessment-repair"),
+                    None,
+                )
+                # All reference errors share this existing one repair slot. A saved
+                # v1 request keeps its original payload and validator after an upgrade.
+                if exc.code not in {
+                    "analysis_output_invalid",
+                    "analysis_assessment_invalid",
+                    "analysis_reference_invalid",
+                    "analysis_passage_invalid",
+                }:
+                    raise
+                payload = final_reference_repair_payload(
+                    initial["payload"],
+                    raw,
+                    validation_error=exc.code,
+                    topic_risk_scope=risk_scope,
+                )
+                if saved is not None:
+                    payload = copy.deepcopy(saved["payload"])
+                repaired, _ = self._call(
+                    identifier,
+                    token,
+                    stage,
+                    schema,
+                    fixed,
+                    progress,
+                    payload,
+                    call_key=stage + ":assessment-repair",
+                )
+                validate_final_reference_repair(
+                    raw, repaired, initial["payload"], topic_risk_scope=risk_scope
+                )
+                validate_synthesis(
+                    repaired,
+                    progress["evidence"],
+                    parent=None,
+                    schema=schema,
+                    topic_risk_scope=risk_scope,
+                    strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
+                )
+                return repaired
+            return raw
         if not (
-            fixed.get("query_context_version") == "semantic-v2"
-            and fixed.get("query_policy", {}).get("effective") == "query_planner"
+            fixed.get("query_policy", {}).get("effective") == "query_planner"
         ):
             return raw
         from bioradar.research.investigations.analysis import normalize_policy_synthesis
@@ -3123,6 +3887,24 @@ class AnalysisService:
             self._checkpoint(identifier, token, progress)
         return normalized
 
+    @staticmethod
+    def _final_assessment_fields(parsed):
+        from bioradar.research.investigations.analysis_models import FinalResearchSynthesis
+
+        return (
+            {
+                name: getattr(parsed, name)
+                for name in (
+                    "warning_assessment",
+                    "competing_hypotheses",
+                    "current_judgment",
+                    "topic_risk_reassessment",
+                )
+            }
+            if isinstance(parsed, FinalResearchSynthesis)
+            else {}
+        )
+
     def _quality_synthesis(self, identifier, token, fixed, progress):
         payload = self._synthesis_payload(fixed, progress)
         payload["quality_evidence_selection"] = {
@@ -3133,13 +3915,20 @@ class AnalysisService:
             identifier,
             token,
             "synthesize",
-            ModelSynthesis,
+            synthesis_schema(fixed),
             fixed,
             progress,
             payload,
         )
         raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
-        parsed, verified = validate_synthesis(raw, progress["evidence"], parent=None)
+        parsed, verified = validate_synthesis(
+            raw,
+            progress["evidence"],
+            parent=None,
+            schema=synthesis_schema(fixed),
+            topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+            strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
+        )
         checked = AnalysisResult(
             claims=verified,
             explanations=parsed.explanations,
@@ -3151,6 +3940,7 @@ class AnalysisService:
                 claims=[],
                 overall_limitations=["补查后的结构化分析供最终成稿使用；正文须取得本轮独立核验及片段复核。"],
             ),
+            **self._final_assessment_fields(parsed),
             limitations=progress["limitations"],
         )
         return checked, raw
@@ -3181,11 +3971,8 @@ class AnalysisService:
         self._checkpoint(identifier, token, progress, fixed=fixed)
 
     def _final_report(self, identifier, token, fixed, progress, checked, raw):
-        from bioradar.adapters.biocheck import load_biocheck
 
-        if fixed.get("execution_version") != "query-step-v1":
-            return self._saved_final_report(identifier, token, fixed, progress, checked, raw)
-        loaded = load_biocheck(self.settings)
+        loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
         if not callable(getattr(loaded[0], "quality_feedback", None)):
             # An older professional module retains its saved bounded repair behavior.
             return self._saved_final_report(identifier, token, fixed, progress, checked, raw)
@@ -3268,6 +4055,7 @@ class AnalysisService:
                     fixed["question"],
                     current["evidence"],
                     self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True),
+                    input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                 )
                 if "quality_feedback" not in current:
                     report = checked.report or {}
@@ -3374,11 +4162,14 @@ class AnalysisService:
                 parent = rounds[current["parent_index"]]
                 preserved = AnalysisResult.model_validate(parent["result"])
                 self._activate_report_round(identifier, token, fixed, progress, current)
+                self._freeze_report_retries(identifier, token, progress, loaded)
                 packet = build_packet(
                     fixed["question"],
                     current["evidence"],
                     self._report_context(fixed, progress, preserved.model_dump(mode="json"), freeze=True),
+                    input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                 )
+                self._save_risk_report_packet(identifier, token, fixed, progress, packet)
                 try:
                     if "revision" not in current:
                         current["revision"] = revise_biocheck(
@@ -3395,6 +4186,15 @@ class AnalysisService:
                         )
                     revision = current["revision"]
                     if not revision.get("needs_verification") or revision.get("status") != "changed":
+                        if revision.get("status") == "failed":
+                            progress["report_revision_error"] = {
+                                "code": revision.get("error_code", "biocheck_revision_invalid"),
+                                "report_round": current["index"],
+                                "preserved_round": parent["index"],
+                                "qualification": (
+                                    "修订未形成有效回执；保留原核验文字和原核验结果，等待人工处理。"
+                                ),
+                            }
                         current.update(status=revision.get("status", "not_changed"), result=parent["result"])
                         workflow["phase"] = "complete"
                         continue
@@ -3406,11 +4206,21 @@ class AnalysisService:
                             self._shared_callback(identifier, token, fixed, progress),
                             repair=False,
                             loaded=loaded,
+                            max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
+                            verification_mode=progress["final_report_plan"].get("verification_mode", "whole"),
+                            verify_target="biocheck_recheck",
+                            **(
+                                {"previous_review": copy.deepcopy(preserved.report["verification"])}
+                                if (preserved.report.get("verification") or {}).get("verification_method")
+                                == "cited_claims"
+                                else {}
+                            ),
                         )
                         report.update(
                             revision=copy.deepcopy(revision),
                             professional_approval="not_reviewed",
                             structured_analysis_relation="source_draft",
+                            **self._risk_report_binding(fixed, progress),
                         )
                         candidate = preserved.model_copy(deep=True)
                         candidate.report = report
@@ -3437,6 +4247,7 @@ class AnalysisService:
                             self._shared_callback(identifier, token, fixed, progress),
                             targets=current["audit_plan"]["targets"],
                             loaded=loaded,
+                            input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
                         )
                         candidate.report["support_audit"] = audit
                     candidate.report["quality_feedback"] = quality_feedback_biocheck(
@@ -3480,11 +4291,57 @@ class AnalysisService:
         self._checkpoint(identifier, token, progress, fixed=fixed, result=checked.model_dump(mode="json"))
         return checked, progress
 
+    def _save_risk_report_packet(self, identifier, token, fixed, progress, packet):
+        """Keep the actual checked input once, outside the public report/export text."""
+        scope = (fixed.get("origin") or {}).get("topic_risk_scope")
+        if scope is None or synthesis_schema(fixed) is ModelSynthesis:
+            return
+        key = str(progress.get("active_report_round", 0))
+        packets = progress.setdefault("report_risk_packets", {})
+        previous = packets.get(key)
+        if previous is not None and canonical_hash(previous) != canonical_hash(packet):
+            raise DomainError("analysis_report_input_changed", "风险报告本轮固定材料已变化，未重用核验", 409)
+        if previous is None:
+            packets[key] = copy.deepcopy(packet)
+            self._checkpoint(identifier, token, progress)
+
+    @staticmethod
+    def _risk_report_binding(fixed, progress):
+        key = str(progress.get("active_report_round", 0))
+        packet = progress.get("report_risk_packets", {}).get(key)
+        scope = (fixed.get("origin") or {}).get("topic_risk_scope")
+        if packet is None or scope is None:
+            return {}
+        reassessment = packet.get("assessment", {}).get("radar_analysis", {}).get("topic_risk_reassessment")
+        return {
+            "topic_risk_binding": {
+                "scope": copy.deepcopy(scope),
+                "reassessment": copy.deepcopy(reassessment),
+                "report_round": int(key),
+                "packet_sha256": canonical_hash(packet),
+            }
+        }
+
+    def _freeze_report_retries(self, identifier, token, progress, loaded):
+        """Pin opt-in arguments before a professional operation is first prepared."""
+        from bioradar.adapters.biocheck import supports_bounded_retry, supports_paragraph_verification
+
+        plan = progress["final_report_plan"]
+        if not plan.pop("retry_policy_pending", False):
+            return
+        plan["max_plan_retries"] = int(supports_bounded_retry(loaded[0], "plan"))
+        plan["verification_mode"] = "paragraph" if supports_paragraph_verification(loaded[0]) else "whole"
+        plan["max_verify_retries"] = (
+            0
+            if plan["verification_mode"] == "paragraph"
+            else int(supports_bounded_retry(loaded[0], "verify"))
+        )
+        self._checkpoint(identifier, token, progress)
+
     def _saved_final_report(self, identifier, token, fixed, progress, checked, raw):
         from bioradar.adapters.biocheck import (
             audit_biocheck_support,
             build_packet,
-            load_biocheck,
             run_biocheck,
             support_audit_targets,
         )
@@ -3507,21 +4364,46 @@ class AnalysisService:
                 or other_calls + (5 if legacy else 6) <= fixed["model_parameters"]["max_calls"],
                 "reserve_support_audit": not legacy,
                 "basis": "existing_provider_stages" if legacy else "new_report_with_support_audit",
+                **(
+                    {"retry_policy_pending": True}
+                    if not legacy
+                    and fixed.get("query_policy", {}).get("effective") == "query_planner"
+                    else {}
+                ),
             }
-        self._checkpoint(identifier, token, progress, fixed=fixed)
+        saved_report = progress.get("final_report") or any(
+            item.get("result") for item in progress.get("report_rounds", [])
+        )
+        self._checkpoint(
+            identifier,
+            token,
+            progress,
+            fixed=fixed,
+            **({"result": checked.model_dump(mode="json")} if not saved_report else {}),
+        )
         report = progress.get("final_report")
         loaded = None
         if report is None:
             context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
-            packet = build_packet(fixed["question"], progress["evidence"], context)
-            loaded = load_biocheck(self.settings)
+            packet = build_packet(
+                fixed["question"],
+                progress["evidence"],
+                context,
+                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
+            )
+            self._save_risk_report_packet(identifier, token, fixed, progress, packet)
+            loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
             self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
+            self._freeze_report_retries(identifier, token, progress, loaded)
             report = run_biocheck(
                 self.settings,
                 packet,
                 self._shared_callback(identifier, token, fixed, progress),
                 loaded=loaded,
                 repair=progress["final_report_plan"]["repair"],
+                max_plan_retries=progress["final_report_plan"].get("max_plan_retries", 0),
+                max_verify_retries=progress["final_report_plan"].get("max_verify_retries", 0),
+                verification_mode=progress["final_report_plan"].get("verification_mode", "whole"),
             )
             progress["final_report"] = report
             self._checkpoint(identifier, token, progress)
@@ -3556,6 +4438,9 @@ class AnalysisService:
                 progress["evidence"],
                 parent=fixed.get("parent_result"),
                 limitations=progress["limitations"],
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
             )
             checked.review.checked_sections = [
                 "claims",
@@ -3573,6 +4458,7 @@ class AnalysisService:
             "text_sha256": hashlib.sha256(report["final_text"].encode()).hexdigest(),
             "structured_analysis_relation": "source_draft",
             "professional_approval": "not_reviewed",
+            **self._risk_report_binding(fixed, progress),
         }
         checked.report = report
         checked.mechanism_evaluation = progress.get("mechanism_evaluation")
@@ -3581,10 +4467,17 @@ class AnalysisService:
             progress["final_report"] = report
             self._checkpoint(identifier, token, progress, result=checked.model_dump(mode="json"))
             if loaded is None:
-                loaded = load_biocheck(self.settings)
+                loaded = self._load_professional(identifier, token, fixed, progress, "biocheck")
                 self._use_provider(identifier, token, fixed, progress, "biocheck", loaded[-1])
                 context = self._report_context(fixed, progress, checked.model_dump(mode="json"), freeze=True)
-                packet = build_packet(fixed["question"], progress["evidence"], context)
+                packet = copy.deepcopy(
+                    progress.get("report_risk_packets", {}).get(str(progress.get("active_report_round", 0)))
+                ) or build_packet(
+                    fixed["question"],
+                    progress["evidence"],
+                    context,
+                    input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
+                )
             review = report.get("verification") or {}
             if "support_audit_plan" not in progress:
                 try:
@@ -3601,6 +4494,7 @@ class AnalysisService:
                 self._shared_callback(identifier, token, fixed, progress),
                 targets=progress["support_audit_plan"]["targets"],
                 loaded=loaded,
+                input_version=fixed.get("query_policy", {}).get("biocheck_input_version"),
             )
             report = {**report, "support_audit": audit}
             checked.report = progress["final_report"] = report
@@ -3614,6 +4508,71 @@ class AnalysisService:
         self._checkpoint(identifier, token, progress)
         return checked, progress
 
+    def _retained_reading_draft(self, identifier, token, fixed, progress, failure):
+        """Deliver a prior, source-bound reading when final synthesis is known incomplete."""
+        from bioradar.adapters.reasoning_model import ModelCallError
+        from bioradar.research.investigations.analysis import validate_claims
+        from bioradar.research.investigations.reading_coverage import retained_reading_coverage
+        from bioradar.research.investigations.reading_execution import retained_policy_reading
+
+        known_invalid_response = (
+            isinstance(failure, ModelCallError)
+            and failure.receipt.status == "failed"
+            and failure.receipt.http_status == 200
+            and failure.code in {"model_output_invalid", "model_output_truncated", "model_protocol_error"}
+        )
+        if fixed.get("query_policy", {}).get("effective") != "query_planner" or not (
+            self._report_budget_stop(failure)
+            or known_invalid_response
+            or not isinstance(failure, ModelCallError)
+            and failure.code
+            in {
+                "analysis_output_invalid",
+                "analysis_assessment_invalid",
+                "analysis_reference_invalid",
+                "analysis_passage_invalid",
+                "analysis_unbound_claim",
+                "analysis_reference_repair_invalid",
+                "analysis_reference_repair_context_invalid",
+            }
+        ):
+            raise failure
+        retained = retained_policy_reading(fixed, progress)
+        if retained is None:
+            raise failure
+        reading, original = retained
+        note = (
+            "最终综合未完成，以下保留此前阅读草稿；只确认引用对应原先读过的固定材料，"
+            "未完成通用或专业核验，新增材料及后续缺口未因此视为已解决。"
+            "该草稿不能作为当前结论；原阅读输入及未纳入的新证据、计算和专业产物分别列出。"
+        )
+        if note not in progress["limitations"]:
+            progress["limitations"].append(note)
+        progress["synthesis_stop_reason"] = failure.code
+        progress["synthesis_reading_basis"] = {
+            "call_key": original.get("call_key", original["stage"]),
+            "call_id": original["call_id"],
+            "reading_evidence_hash": progress["query_policy"]["reading_evidence_hash"],
+            "status": "unfinished_reading_draft",
+            "qualification": note,
+            **retained_reading_coverage(progress, original),
+        }
+        result = AnalysisResult(
+            claims=validate_claims(reading.claims, progress["evidence"]),
+            explanations=reading.explanations,
+            gaps=reading.gaps,
+            conditional_answer=reading.conditional_answer,
+            update=program_update(fixed.get("parent_result") is not None),
+            review=GenericReview(status="needs_review", claims=[], overall_limitations=[note]),
+            limitations=progress["limitations"],
+            query_policy=self._policy_view(fixed, progress),
+        ).model_dump(mode="json")
+        # Reuse the existing final-delivery checkpoint so a restart cannot resume
+        # a stopped synthesis or replace this reading with an unverified draft.
+        progress["final_delivery_result"] = copy.deepcopy(result)
+        self._checkpoint(identifier, token, progress, fixed=fixed, result=result)
+        return result
+
     def _research_result(self, identifier, token, fixed, progress):
         workflow = progress.get("report_workflow")
         if workflow:
@@ -3626,43 +4585,28 @@ class AnalysisService:
             self._checkpoint(identifier, token, progress, fixed=fixed, result=result)
             return result, progress
         progress = self._prepare(identifier, token, fixed, progress)
-        if fixed.get("execution_version") == "query-step-v1":
-            reading, progress = self._policy_research(identifier, token, fixed, progress)
-        else:
-            # Persisted pre-step runs retain their original stage and receipt identities.
-            progress = self._initial_retrieval(identifier, token, fixed, progress)
-            if not progress["evidence"]:
-                raise DomainError(
-                    "analysis_no_material",
-                    "本轮初查未取得可解读的授权片段；实际空结果或失败回执已保留",
-                    422,
-                )
+        reading, progress = self._policy_research(identifier, token, fixed, progress)
+        try:
             raw, progress = self._call(
                 identifier,
                 token,
-                "read_plan",
-                ModelReading,
+                "synthesize",
+                synthesis_schema(fixed),
                 fixed,
                 progress,
-                freeze_payload("read_plan", fixed, progress["evidence"]),
+                self._synthesis_payload(fixed, progress),
             )
-            reading = validate_reading(raw, progress["evidence"], fixed["search_scope"])
-            progress = self._queries(identifier, token, fixed, progress, reading)
-            progress = self._weknora_retrieval(
-                identifier, token, fixed, progress, reading.next_queries, phase="followup"
+            raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
+            _, verified = validate_synthesis(
+                raw,
+                progress["evidence"],
+                parent=None,
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
             )
-            progress = self._mechanism(identifier, token, fixed, progress, reading)
-        raw, progress = self._call(
-            identifier,
-            token,
-            "synthesize",
-            ModelSynthesis,
-            fixed,
-            progress,
-            self._synthesis_payload(fixed, progress),
-        )
-        raw = self._normalize_synthesis(identifier, token, fixed, progress, raw, "synthesize")
-        _, verified = validate_synthesis(raw, progress["evidence"], parent=None)
+        except DomainError as exc:
+            return self._retained_reading_draft(identifier, token, fixed, progress, exc), progress
         query_receipts = [{k: v for k, v in q.items() if k != "records"} for q in progress["queries"]]
         shared_final_check = (
             bool(fixed.get("providers", {}).get("biocheck", {}).get("available"))
@@ -3670,7 +4614,14 @@ class AnalysisService:
             and (fixed.get("parent_result") is None or not self._optional_budget(fixed, progress, 1))
         )
         if shared_final_check:
-            parsed, verified = validate_synthesis(raw, progress["evidence"], parent=None)
+            parsed, verified = validate_synthesis(
+                raw,
+                progress["evidence"],
+                parent=None,
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
+            )
             checked = AnalysisResult(
                 claims=verified,
                 explanations=parsed.explanations,
@@ -3682,6 +4633,7 @@ class AnalysisService:
                     claims=[],
                     overall_limitations=["前期结构化分析未单独核验；最终正文的BioCheck结果另列report。"],
                 ),
+                **self._final_assessment_fields(parsed),
                 limitations=progress["limitations"],
             )
         else:
@@ -3707,6 +4659,9 @@ class AnalysisService:
                 progress["evidence"],
                 parent=None,
                 limitations=progress["limitations"],
+                schema=synthesis_schema(fixed),
+                topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
             )
         has_parent = fixed.get("parent_result") is not None
         checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
@@ -3725,25 +4680,35 @@ class AnalysisService:
                 result=progress["initial_draft"],
             )
             try:
+                revision_payload = freeze_payload(
+                    "revise",
+                    fixed,
+                    progress["evidence"],
+                    synthesis=raw,
+                    review=reviewed,
+                    queries=query_receipts,
+                    verified_claims=checked.claims,
+                )
+                if final_assessment_context(fixed):
+                    revision_payload["final_research_assessment"] = final_assessment_context(fixed)
                 revised, progress = self._call(
                     identifier,
                     token,
                     "revise",
-                    ModelSynthesis,
+                    synthesis_schema(fixed),
                     fixed,
                     progress,
-                    freeze_payload(
-                        "revise",
-                        fixed,
-                        progress["evidence"],
-                        synthesis=raw,
-                        review=reviewed,
-                        queries=query_receipts,
-                        verified_claims=checked.claims,
-                    ),
+                    revision_payload,
                 )
                 revised = self._normalize_synthesis(identifier, token, fixed, progress, revised, "revise")
-                _, revised_verified = validate_synthesis(revised, progress["evidence"], parent=None)
+                _, revised_verified = validate_synthesis(
+                    revised,
+                    progress["evidence"],
+                    parent=None,
+                    schema=synthesis_schema(fixed),
+                    topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                    strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
+                )
                 rechecked, progress = self._call(
                     identifier,
                     token,
@@ -3766,6 +4731,9 @@ class AnalysisService:
                     progress["evidence"],
                     parent=None,
                     limitations=progress["limitations"],
+                    schema=synthesis_schema(fixed),
+                    topic_risk_scope=(fixed.get("origin") or {}).get("topic_risk_scope"),
+                    strict_references=fixed.get("query_policy", {}).get("effective") == "query_planner",
                 )
                 raw = revised
                 checked.update = program_update(has_parent, review_passed=checked.review.status == "passed")
@@ -3831,10 +4799,18 @@ class AnalysisService:
             self._row(checked, self.actor, identifier)
         with Session(self.engine.database) as session, session.begin():
             row = self._row(session, self.actor, identifier, lock=True)
-            if row.input_hash != expected_hash or row.state != "queued":
+            if (
+                row.input_hash != expected_hash
+                or row.state != "queued"
+                or row.progress.get("manual_budget_pending")
+                or row.progress.get("budget_wait")
+                or row.progress.get("waiting_fetch")
+            ):
                 return identifier
             row.state, row.execution_token = "running", token
-            row.lease_until = datetime.now(UTC) + timedelta(seconds=execution_seconds(row.fixed_input) + 10)
+            row.lease_until = datetime.now(UTC) + timedelta(
+                seconds=execution_seconds(row.fixed_input, row.progress) + 10
+            )
             fixed, progress = copy.deepcopy(row.fixed_input), copy.deepcopy(row.progress)
             fixed["is_demo"] = row.is_demo
             progress.setdefault("expected_revision", row.based_on_revision)
@@ -3847,9 +4823,16 @@ class AnalysisService:
                 result = copy.deepcopy(progress["final_delivery_result"])
             else:
                 result, progress = self._research_result(identifier, token, fixed, progress)
-                if fixed.get("execution_version") == "query-step-v1":
-                    progress["final_delivery_result"] = copy.deepcopy(result)
-                    self._checkpoint(identifier, token, progress, fixed=fixed, result=result)
+                if (
+                    fixed.get("query_policy", {}).get("effective") == "query_planner"
+                    and synthesis_schema(fixed) is ModelSynthesis
+                ):
+                    reading_context = progress.get("query_policy", {}).get("reading") or {}
+                    for name in ("warning_assessment", "competing_hypotheses", "current_judgment"):
+                        if reading_context.get(name):
+                            result[name] = copy.deepcopy(reading_context[name])
+                progress["final_delivery_result"] = copy.deepcopy(result)
+                self._checkpoint(identifier, token, progress, fixed=fixed, result=result)
             for item in progress["evidence"]:
                 if item["material_entry_id"] is not None:
                     continue
@@ -3890,7 +4873,11 @@ class AnalysisService:
                     return identifier
                 report_status = (result.get("report") or {}).get("status")
                 audit_status = ((result.get("report") or {}).get("support_audit") or {}).get("status")
-                if audit_status in {"REVIEW", "NOT_RUN"}:
+                if (
+                    progress.get("report_revision_error")
+                    or progress.get("query_policy", {}).get("refresh_not_semantically_reviewed")
+                    or audit_status in {"REVIEW", "NOT_RUN"}
+                ):
                     row.state = "needs_review"
                 elif report_status in {"PASS", "REVIEW", "FAIL", "failed"}:
                     row.state = "completed" if report_status == "PASS" else "needs_review"
@@ -3915,7 +4902,9 @@ class AnalysisService:
                 progress["finished_at"] = datetime.now(UTC).isoformat()
                 row.progress = copy.deepcopy(progress)
                 row.completed_at, row.lease_until, row.execution_token = datetime.now(UTC), None, None
-                row.error_code = progress.get("comparison_error_code")
+                row.error_code = progress.get("comparison_error_code") or progress.get(
+                    "synthesis_stop_reason"
+                )
             return identifier
         except SQLAlchemyError:
             # The preceding commit may already exist. Keep its durable state and let
@@ -3925,12 +4914,35 @@ class AnalysisService:
             ) from None
         except Exception as exc:
             code = exc.code if isinstance(exc, DomainError) else "analysis_execution_failed"
+            if not isinstance(exc, DomainError):
+                progress["execution_diagnostic"] = {
+                    "exception_type": type(exc).__name__,
+                    "frames": [
+                        {
+                            "file": frame.f_code.co_filename.rsplit("/", 1)[-1],
+                            "function": frame.f_code.co_name,
+                            "line": line,
+                        }
+                        for frame, line in traceback.walk_tb(exc.__traceback__)
+                    ][-16:],
+                }
             self._sync_query_receipts(progress)
-            if fixed.get("execution_version") == "query-step-v1":
-                policy_state = progress.setdefault("query_policy", {})
-                if policy_state.get("status") not in {"complete", "insufficient"}:
-                    policy_state.update(status="blocked", reason=code)
+            policy_state = progress.setdefault("query_policy", {})
+            if code not in {WAIT_CODE, "analysis_fetch_pending"} and policy_state.get("status") not in {
+                "complete",
+                "insufficient",
+            }:
+                policy_state.update(status="blocked", reason=code)
             paused = code == "analysis_paused"
+            budget_wait = code == WAIT_CODE
+            fetch_wait = code == "analysis_fetch_pending"
+            if fetch_wait:
+                pending = progress.get("query_policy", {}).get("pending_action") or {}
+                progress["waiting_fetch"] = {
+                    "reason": code,
+                    "action_id": pending.get("id"),
+                    "next_poll_at": (datetime.now(UTC) + timedelta(seconds=5)).isoformat(),
+                }
             with Session(self.engine.database) as session, session.begin():
                 row = session.get(InvestigationAnalysisRecord, identifier, with_for_update=True)
                 if row and row.execution_token == token:
@@ -3944,7 +4956,7 @@ class AnalysisService:
                     )
                     row.state = (
                         "queued"
-                        if paused
+                        if paused or budget_wait or fetch_wait
                         else "needs_review"
                         if comparison_only
                         else "blocked"
@@ -3953,11 +4965,11 @@ class AnalysisService:
                     )
                     row.error_code = progress.get("comparison_error_code", code)
                     row.dispatch_pending = paused
-                    if not paused:
+                    if not paused and not budget_wait and not fetch_wait:
                         progress["finished_at"] = datetime.now(UTC).isoformat()
                         row.completed_at = datetime.now(UTC)
                     row.progress = copy.deepcopy(progress)
-                    if row.result is not None and fixed.get("execution_version") == "query-step-v1":
+                    if row.result is not None:
                         saved_result = copy.deepcopy(row.result)
                         saved_result["query_policy"] = self._policy_view(fixed, progress)
                         row.result = saved_result
@@ -4015,10 +5027,12 @@ def execute_analysis(identifier, input_hash):
                 row = session.get(InvestigationAnalysisRecord, identifier)
                 if row is None or row.workspace_id != settings.engine_workspace_id:
                     return identifier
-                seconds = execution_seconds(row.fixed_input)
+                seconds = execution_seconds(row.fixed_input, row.progress)
             read_budget = SimpleNamespace(
                 max_seconds=seconds + 10,
-                max_records=MAX_EVIDENCE + 3 * row.fixed_input.get("budget", {}).get("max_queries", 2),
+                max_records=reading_limits(row.fixed_input)["max_versions"]
+                + reading_limits(row.fixed_input)["search_limit"]
+                * row.fixed_input.get("budget", {}).get("max_queries", 2),
                 max_bytes=settings.engine_max_snapshot_bytes,
             )
             with history_reader(settings, read_budget) as reader:

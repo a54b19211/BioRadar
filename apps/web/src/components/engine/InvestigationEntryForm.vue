@@ -8,8 +8,11 @@ import {
   type SnapshotSummary,
   type NormalizedSnapshot,
 } from "../../api/engine";
+import type { ResearchAnalysisView } from "../../api/research";
+import { reviewTargets, reviewLabels, type ReviewTarget } from "../../api/humanReview";
 const props = defineProps<{
   investigation: InvestigationView;
+  reviewAnalysis?: ResearchAnalysisView | null;
   snapshots: SnapshotSummary[];
   busy: boolean;
   loading: boolean;
@@ -31,6 +34,47 @@ const assessment = ref<"provisional" | "unable_to_determine">(
   "unable_to_determine",
 );
 const note = ref("");
+const reviewTargetKey = ref("");
+const targetOptions = ref<{ value: string; label: string; target: ReviewTarget }[]>([]);
+const decision = ref<"needs_verification" | "dismissed" | "accepted_within_scope">("needs_verification");
+const reviewScope = ref("");
+const reviewError = ref("");
+const basisIds = ref<string[]>([]);
+const rateSource = ref(false);
+const rateInformation = ref(false);
+const ratingRecordId = ref("");
+const sourceGrade = ref("F");
+const informationGrade = ref("6");
+const publisherScope = ref("");
+const ratingBasis = ref("");
+const confirmationIds = ref<string[]>([]);
+const confirmationBasis = ref("");
+let targetGeneration = 0;
+watch(() => JSON.stringify([
+  props.reviewAnalysis?.id, props.reviewAnalysis?.input_hash, props.reviewAnalysis?.state,
+  props.reviewAnalysis?.result?.report?.text_sha256, props.reviewAnalysis?.result?.report?.final_text,
+  props.reviewAnalysis?.result?.claims, props.investigation.origin?.run_id,
+  props.investigation.origin?.result_hash, props.investigation.origin?.candidate_key,
+]), async () => {
+  const token = ++targetGeneration;
+  const oldTarget = targetOptions.value.find(item => item.value === reviewTargetKey.value)?.target;
+  const origin = props.investigation.origin;
+  const sameCandidate = oldTarget?.type === "candidate" && origin?.run_id === oldTarget.run_id && origin.result_hash === oldTarget.result_hash && origin.candidate_key === oldTarget.candidate_key;
+  if (reviewTargetKey.value && !sameCandidate) {
+    reviewTargetKey.value = "stale-target";
+    reviewError.value = "目标内容或固定版已变化，请重新选择审核对象；已写判断保留。";
+  }
+  const candidates: { value: string; label: string; target: ReviewTarget }[] = origin ? [{ value: "candidate", label: "本调查的原始固定候选", target: { type: "candidate", run_id: origin.run_id, result_hash: origin.result_hash, candidate_key: origin.candidate_key } }] : [];
+  try {
+    const options = await reviewTargets(props.reviewAnalysis);
+    if (token === targetGeneration) targetOptions.value = [...candidates, ...options.map((item,index) => ({ ...item, value: "analysis-" + index }))];
+  } catch {
+    if (token === targetGeneration) { targetOptions.value = candidates; reviewError.value = "无法核对命题哈希；请使用已保存的固定候选或稍后重新读取。"; }
+  }
+}, { immediate: true });
+const chosenTarget = computed(() => targetOptions.value.find(item => item.value === reviewTargetKey.value)?.target);
+const chosenMaterials = computed(() => materials.value.filter(entry => basisIds.value.includes(entry.id)));
+const chosenClaim = computed(() => chosenTarget.value?.type === "claim" ? props.reviewAnalysis?.result?.claims.find(claim => claim.id === (chosenTarget.value as { claim_id: string }).claim_id) : undefined);
 const stanceLabels = {
   support: "支持材料",
   oppose: "反面材料",
@@ -107,18 +151,35 @@ async function addMaterial() {
 }
 async function addJudgment() {
   if (!writable.value || !judgmentText.value.trim()) return;
-  const saved = await props.save({
-    expected_revision: props.investigation.revision,
-    kind: "judgment",
-    text: judgmentText.value.trim(),
-    conditions: conditions.value.trim(),
-    assessment: assessment.value,
-    basis_entry_ids: materials.value.map((entry) => entry.id),
-  });
-  if (saved && !disposed) {
-    judgmentText.value = "";
-    conditions.value = "";
+  reviewError.value = "";
+  const target = chosenTarget.value;
+  const fixedReview = reviewTargetKey.value !== "";
+  if (fixedReview && (!target || !reviewScope.value.trim())) { reviewError.value = "请选择固定审核对象并填写适用范围。"; return; }
+  const basis = fixedReview ? chosenMaterials.value : materials.value;
+  const review = target && fixedReview ? { decision: decision.value, scope: reviewScope.value.trim(), target } : undefined;
+  let axes: Record<string, unknown> | undefined;
+  if (fixedReview && (rateSource.value || rateInformation.value)) {
+    const primary = basis.find(entry => entry.id === ratingRecordId.value);
+    if (!primary || primary.payload.kind !== "material" || !ratingBasis.value.trim()) { reviewError.value = "显式评级须选择已采用的固定原件并说明评级依据。"; return; }
+    const references = [...new Map(basis.filter(entry => entry.payload.kind === "material").map(entry => { const r = entry.payload.kind === "material" ? entry.payload.support.record_ref : null; return [JSON.stringify(r), r]; })).values()].filter(Boolean);
+    const common = { record_ref: primary.payload.support.record_ref, assessment_basis_refs: references, assessment_basis: ratingBasis.value.trim() };
+    axes = { source_reliability: [], information_credibility: [] };
+    if (rateSource.value && !publisherScope.value.trim()) { reviewError.value = "请说明所选发布者评级的适用范围。"; return; }
+    if (rateSource.value) axes.source_reliability = [{ ...common, grade: sourceGrade.value, publisher_scope: publisherScope.value.trim() }];
+    if (rateInformation.value) {
+      if (!chosenClaim.value) { reviewError.value = "信息可信度须选择具体命题，不能给整份报告合成分数。"; return; }
+      axes.information_credibility = [{ ...common, grade: informationGrade.value, claim_id: chosenClaim.value.id, claim_text: chosenClaim.value.text,
+        independent_confirmation_refs: basis.filter(entry => confirmationIds.value.includes(entry.id) && entry.payload.kind === "material").map(entry => entry.payload.kind === "material" ? entry.payload.support.record_ref : null),
+        independent_confirmation_basis: confirmationBasis.value.trim() }];
+    }
   }
+  const request = {
+    expected_revision: props.investigation.revision, kind: "judgment" as const,
+    text: judgmentText.value.trim(), conditions: conditions.value.trim(), assessment: assessment.value,
+    basis_entry_ids: basis.map(entry => entry.id), ...(review ? { review } : {}), ...(axes ? { assessment_axes: axes } : {}),
+  };
+  const saved = await props.save(request as InvestigationEntryCreate);
+  if (saved && !disposed) { judgmentText.value = ""; conditions.value = ""; reviewScope.value = ""; }
 }
 async function addNote() {
   if (!writable.value || !note.value.trim()) return;
@@ -270,6 +331,31 @@ onUnmounted(() => {
       >
     </template>
     <template v-else-if="entryMode === 'judgment'">
+      <label for="review-target">审核对象</label><ElSelect id="review-target" v-model="reviewTargetKey" :disabled="!writable">
+        <ElOption value="" label="一般调查判断（不批准具体报告）" />
+        <ElOption v-for="item in targetOptions" :key="item.value" :value="item.value" :label="item.label" />
+      </ElSelect>
+      <template v-if="reviewTargetKey">
+        <label for="review-decision">人工决定</label><ElSelect id="review-decision" v-model="decision" :disabled="!writable"><ElOption v-for="(label,key) in reviewLabels" :key="key" :value="key" :label="label" /></ElSelect>
+        <label for="review-scope">这次核实适用的对象与范围</label><ElInput id="review-scope" v-model="reviewScope" :disabled="!writable" maxlength="2000" />
+        <fieldset :disabled="!writable"><legend>明确选择本次判断的固定依据（包括反面材料）</legend>
+          <label v-for="entry in materials" :key="entry.id"><input v-model="basisIds" type="checkbox" :value="entry.id">第 {{ entry.revision }} 版 · {{ entry.payload.text }}</label>
+        </fieldset>
+        <fieldset :disabled="!writable"><legend>可选：分别评定来源与具体信息，不改变证据等级或热度</legend>
+          <label><input v-model="rateSource" type="checkbox">评定所选来源可靠性</label>
+          <label><input v-model="rateInformation" type="checkbox" :disabled="!chosenClaim">评定所选具体命题可信度（须先选择命题）</label>
+          <template v-if="rateSource || rateInformation">
+            <label for="rating-record">评级对象所在的固定原件</label><ElSelect id="rating-record" v-model="ratingRecordId"><ElOption v-for="entry in chosenMaterials" :key="entry.id" :value="entry.id" :label="entry.payload.text" /></ElSelect>
+            <template v-if="rateSource"><label for="source-grade">来源可靠性（A–F）</label><ElSelect id="source-grade" v-model="sourceGrade"><ElOption v-for="grade in ['A','B','C','D','E','F']" :key="grade" :value="grade" :label="grade === 'F' ? 'F · 无依据评定' : grade" /></ElSelect><label for="publisher-scope">该来源评级的适用范围</label><ElInput id="publisher-scope" v-model="publisherScope" maxlength="2000" /></template>
+            <template v-if="rateInformation"><label for="information-grade">具体信息可信度（1–6）</label><ElSelect id="information-grade" v-model="informationGrade"><ElOption v-for="grade in ['1','2','3','4','5','6']" :key="grade" :value="grade" :label="grade === '6' ? '6 · 无依据评定' : grade" /></ElSelect>
+              <template v-if="informationGrade === '1'"><p>1 级须至少两份可核对的独立来源原件确认；转载不算独立确认。程序还会核对来源独立性。</p><label v-for="entry in chosenMaterials" :key="entry.id"><input v-model="confirmationIds" type="checkbox" :value="entry.id">独立确认依据：{{ entry.payload.text }}</label><label for="confirmation-basis">独立确认的判断依据</label><ElInput id="confirmation-basis" v-model="confirmationBasis" maxlength="4000" /></template>
+            </template>
+            <label for="rating-basis">评级依据（不能仅填机构名或传播量）</label><ElInput id="rating-basis" v-model="ratingBasis" type="textarea" maxlength="4000" />
+          </template>
+          <p class="muted">F／6 是未能评定，不是虚假或 50% 概率；评级人、时间、原件版本和追加修订由系统保存。</p>
+        </fieldset>
+      </template>
+      <p v-if="reviewError" role="alert">{{ reviewError }}</p>
       <label for="investigation-assessment">当前能否判断</label
       ><ElSelect
         id="investigation-assessment"
@@ -301,9 +387,7 @@ onUnmounted(() => {
         maxlength="4000"
       />
       <p class="muted">
-        本版将明确纳入当前
-        {{ materials.length }}
-        项材料（含支持与反面），保留之前的判断。无材料时仍只是一项人工记录。
+        {{ reviewTargetKey ? '本次只纳入明确勾选的固定依据' : '一般调查判断纳入当前所有材料（含支持与反面）' }}，保留之前的判断；范围内采纳不签发对外警报。
       </p>
       <ElButton
         type="primary"

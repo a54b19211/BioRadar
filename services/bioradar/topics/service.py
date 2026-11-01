@@ -19,7 +19,12 @@ from bioradar.research.investigations.models import (
     InvestigationEntryCreate,
 )
 from bioradar.research.investigations.service import InvestigationService
-from bioradar.research.mining.models import canonical_hash
+from bioradar.research.mining.intelligence_assessment import (
+    combine_assessment_axes,
+    default_assessment_axes,
+    project_reviewed_assessment_axes,
+)
+from bioradar.research.mining.models import AssessmentAxes, ProviderRef, canonical_hash
 from bioradar.research.mining.topic_series import (
     TOPIC_COMPUTE_VERSION,
     evaluate_series,
@@ -41,6 +46,12 @@ from bioradar.topics.models import (
     TopicUpdate,
     TopicView,
 )
+from bioradar.topics.risk import (
+    TopicRiskReviewRequest,
+    assess_risk_reassessment,
+    risk_scope_stamp,
+)
+from bioradar.topics.tracking import hypothesis_comparison, tracking_view, update_tracking
 
 EVALUATION_LIMIT = 50000
 SOURCE_GAPS = {"history_source_unavailable", "history_read_budget", "history_not_connected"} | set(
@@ -87,18 +98,46 @@ def observation_row(scope_id, item, value):
     )
 
 
+def analysis_budget_wait(analysis):
+    progress = analysis.get("progress") or {}
+    wait = progress.get("budget_wait") or {}
+    waiting = analysis.get("state") == "waiting_budget" or bool(progress.get("budget_pending")) or bool(wait)
+    return waiting, wait.get("next_budget_at") or progress.get("next_budget_at")
+
+
 class TopicService:
-    def __init__(self, engine, reader=None):
-        self.engine, self.reader = engine, reader
+    def __init__(self, engine, reader=None, *, fetch_hook=None):
+        self.engine, self.reader, self.fetch_hook = engine, reader, fetch_hook
         self.actor = DevelopmentAccess(engine.settings).actor()
         if reader is not None:
             self.engine.history_source_reader = reader.sources
+            if fetch_hook is None and getattr(engine.settings, "data_fabric_history_fetch_token", None):
+                from bioradar.research.investigations.fetch_execution import make_topic_fetch_hook
+
+                self.fetch_hook = make_topic_fetch_hook(
+                    engine.settings, reader, guard=self._guard_fetch_context
+                )
+
+    def _guard_fetch_context(self, context):
+        # A persisted topic does not retain a revoked source permission.
+        self.engine._history_source_ids = None
+        self.engine._history_permission_failure = None
+        view = self.get(self.actor, context["topic_id"])
+        if view.scope_revision != context["scope_revision"] or view.paused:
+            raise DomainError("topic_followup_paused", "专题已暂停或范围已更新", 409)
+        self.engine.authorize_history_source(context["source_id"])
+        if getattr(self, "_active_monitor", None):
+            with Session(self.engine.database) as session:
+                self._active_monitor._guard(self._active_monitor._state(session))
 
     def _authorize(self, actor, definition, is_demo, *, online=False):
         if actor != self.actor:
             raise DomainError("permission_denied", "研究授权上下文不匹配", 403)
         instance = definition["source_instance"]
-        if (instance == "fixture") != is_demo:
+        demo_instance = getattr(self.engine.settings, "data_fabric_demo_source_instance", None) or "fixture"
+        if (is_demo and instance != demo_instance) or (
+            not is_demo and instance in {"fixture", demo_instance}
+        ):
             raise DomainError("fixture_scope_mismatch", "教学与真实专题来源须分开", 422)
         allowed = self.engine.settings.engine_source_id_allowlist.get(instance, [])
         if instance not in actor.source_allowlist or not set(definition["source_ids"]) <= set(allowed):
@@ -180,6 +219,13 @@ class TopicService:
             sources=sources,
             observation_count=count,
             latest_evaluation_id=latest,
+            assessment_axes=(
+                self._evaluation_view(session.get(TopicEvaluationRecord, latest)).assessment_axes
+                if latest
+                else None
+            ),
+            tracking=tracking_view(progress.get("_tracking")) or None,
+            evidence_time=(progress.get("_history_replay") or {}).get("evidence_time"),
             data_gaps=[
                 "source_collection_freshness_unknown",
                 "adopted_records_not_complete_domain_denominator",
@@ -199,7 +245,14 @@ class TopicService:
             .distinct()
         )
         allowed = self.engine.settings.engine_source_id_allowlist.get(row.definition["source_instance"], [])
-        for source in sources:
+        risk = (row.progress.get("_tracking") or {}).get("risk") or {}
+        risk_sources = {
+            source
+            for assessment in (risk.get("assessment"), risk.get("prior_resolution"))
+            if isinstance(assessment, dict)
+            for source in assessment.get("basis_source_ids", [])
+        }
+        for source in set(sources) | risk_sources:
             if source not in allowed:
                 raise DomainError("source_not_authorized", "专题依据当前未获来源许可", 403)
             self.engine.authorize_history_source(source)
@@ -280,12 +333,30 @@ class TopicService:
             ],
         )
 
-    def create(self, actor, body: TopicCreate, key):
+    def create(self, actor, body: TopicCreate, key, *, automation=None):
         definition = body.definition.model_dump(mode="json")
         self._authorize(actor, definition, body.is_demo)
         with Session(self.engine.database) as session, session.begin():
 
             def mutate():
+                if automation is not None:
+                    from bioradar.research.monitor.models import MonitorState
+
+                    session.get(MonitorState, actor.workspace_id, with_for_update=True)
+                    active = session.scalar(
+                        select(func.count())
+                        .select_from(TopicScopeRecord)
+                        .where(
+                            TopicScopeRecord.workspace_id == actor.workspace_id,
+                            TopicScopeRecord.is_current.is_(True),
+                            TopicScopeRecord.progress["_tracking"]["automatic"].as_boolean().is_(True),
+                            TopicScopeRecord.progress["_tracking"]["lifecycle"].astext != "closed",
+                        )
+                    )
+                    if active >= self.engine.settings.topic_max_auto_active:
+                        raise DomainError(
+                            "automatic_topic_capacity", "自动专题上限已满，线索保留等待名额", 409
+                        )
                 now, identifier = datetime.now(UTC), str(uuid4())
                 row = TopicScopeRecord(
                     id=str(uuid4()),
@@ -297,7 +368,16 @@ class TopicService:
                     is_demo=body.is_demo,
                     paused=False,
                     definition=definition,
-                    progress={},
+                    progress={
+                        "_tracking": {
+                            "version": "source-evidence-heat-lifecycle-v1",
+                            "automatic": True,
+                            "origin": copy.deepcopy(automation),
+                            "lifecycle": "incipient",
+                        }
+                    }
+                    if automation is not None
+                    else {},
                     observation_revision=0,
                     next_source=0,
                     updated_at=now,
@@ -307,7 +387,12 @@ class TopicService:
                 session.flush()
                 return 201, self._view(session, row).model_dump(mode="json")
 
-            return self.engine._idempotent(session, actor, "topic.create", key, body, mutate)
+            request = (
+                {"request": body.model_dump(mode="json"), "automation": automation}
+                if automation is not None
+                else body
+            )
+            return self.engine._idempotent(session, actor, "topic.create", key, request, mutate)
 
     def update(self, actor, identifier, body: TopicUpdate, key):
         definition = body.definition.model_dump(mode="json")
@@ -333,12 +418,25 @@ class TopicService:
                     is_demo=old.is_demo,
                     paused=old.paused,
                     definition=definition,
-                    progress={},
+                    progress={"_tracking": copy.deepcopy(old.progress["_tracking"])}
+                    if old.progress.get("_tracking")
+                    else {},
                     observation_revision=0,
                     next_source=0,
                     updated_at=now,
                     next_evaluation_at=now,
                 )
+                if row.progress.get("_tracking"):
+                    tracking = copy.deepcopy(row.progress["_tracking"])
+                    risk = tracking.get("risk") or {}
+                    if risk.get("assessment") or risk.get("status") == "resolved":
+                        tracking["risk"] = {
+                            "status": "unresolved" if definition["domain"] == "public_health" else "unknown",
+                            "critical_gaps": ["topic_scope_changed_requires_reassessment"],
+                            "basis_refs": [],
+                            "prior_resolution": copy.deepcopy(risk.get("assessment")),
+                        }
+                        row.progress = {"_tracking": tracking}
                 session.add(row)
                 session.flush()
                 return 200, self._view(session, row).model_dump(mode="json")
@@ -354,8 +452,24 @@ class TopicService:
                 row = self._scope(session, actor, identifier, lock=True)
                 if row.control_revision != body.expected_revision:
                     raise DomainError("revision_conflict", "专题开关已更新，请刷新后操作", 409)
+                if body.lifecycle is not None:
+                    progress = copy.deepcopy(row.progress)
+                    tracking = copy.deepcopy(progress.get("_tracking") or {})
+                    tracking.update(
+                        lifecycle=body.lifecycle,
+                        _manual_closed=body.lifecycle == "closed",
+                        manual_control={
+                            "actor_id": actor.actor_id,
+                            "at": datetime.now(UTC).isoformat(),
+                            "reason": body.reason,
+                        },
+                    )
+                    progress["_tracking"] = tracking
+                    row.progress = progress
+                    if body.lifecycle == "warming":
+                        row.next_evaluation_at = datetime.now(UTC)
                 row.paused, row.control_revision, row.updated_at = (
-                    body.paused,
+                    True if body.lifecycle == "closed" else body.paused,
                     row.control_revision + 1,
                     datetime.now(UTC),
                 )
@@ -420,8 +534,7 @@ class TopicService:
             self.engine.authorize_history_source(source)
         return row, scope
 
-    @staticmethod
-    def _evaluation_view(row):
+    def _evaluation_view(self, row):
         result = {
             k: v
             for k, v in row.result.items()
@@ -434,10 +547,61 @@ class TopicService:
                 "closed_bucket_end",
             }
         }
+        if result.get("evidence_time"):
+            result["created_at"] = row.created_at
+        if row.followup.get("model_dispatch"):
+            result["tracking"] = copy.deepcopy(result.get("tracking") or {})
+            result["tracking"]["model_dispatch"] = copy.deepcopy(row.followup["model_dispatch"])
+        if row.followup.get("hypothesis_comparison"):
+            result["tracking"] = copy.deepcopy(result.get("tracking") or {})
+            result["tracking"]["hypothesis_comparison"] = copy.deepcopy(row.followup["hypothesis_comparison"])
+        if result.get("tracking") and row.followup.get("status") == "waiting_budget":
+            result["tracking"] = copy.deepcopy(result["tracking"])
+            result["tracking"]["model_update"].update(
+                status="waiting_budget", retry_at=row.followup.get("next_budget_at")
+            )
         result.update(
             investigation_id=row.followup.get("investigation_id"),
             automation_status=row.followup.get("status", "not_needed"),
         )
+        tracking = result.get("tracking") or {}
+        base_axes = result.get("assessment_axes") or combine_assessment_axes(
+            [
+                evidence.get("assessment_axes") or default_assessment_axes([evidence["record_ref"]])
+                for evidence in result.get("evidence", [])
+            ],
+            evidence_level=(tracking.get("evidence") or {}).get("level"),
+            heat=tracking.get("heat"),
+        )
+        entries = (
+            InvestigationService(self.engine).get(self.actor, result["investigation_id"]).entries
+            if result.get("investigation_id")
+            else []
+        )
+        axes = project_reviewed_assessment_axes(
+            base_axes, entries, cutoff=(result.get("evidence_time") or {}).get("cutoff")
+        )
+        result["assessment_axes"] = axes.model_dump(mode="json")
+        result["evidence"] = [copy.deepcopy(evidence) for evidence in result.get("evidence", [])]
+        for evidence in result["evidence"]:
+            reference = ProviderRef.model_validate(evidence["record_ref"])
+            previous = AssessmentAxes.model_validate(
+                evidence.get("assessment_axes") or default_assessment_axes([reference])
+            )
+            evidence["assessment_axes"] = AssessmentAxes(
+                source_reliability=tuple(
+                    item
+                    for item in axes.source_reliability
+                    if item.record_ref.version_key == reference.version_key
+                ),
+                information_credibility=tuple(
+                    item
+                    for item in axes.information_credibility
+                    if item.record_ref.version_key == reference.version_key
+                ),
+                evidence_level=previous.evidence_level,
+                heat=previous.heat,
+            ).model_dump(mode="json")
         return TopicEvaluation.model_validate(result)
 
     def evaluation(self, actor, identifier, evaluation_id):
@@ -505,8 +669,11 @@ class TopicService:
             if binding is None:
                 raise DomainError("not_found", "该版本不是本次冻结评价的依据", 404)
             demo = scope.is_demo
+            evidence_time = row.result.get("evidence_time")
         return self.reader.read_version(
-            {**binding, "is_demo": demo}, mode="current", cutoff=datetime.now(UTC)
+            {**binding, "is_demo": demo},
+            mode=evidence_time["mode"] if evidence_time else "current",
+            cutoff=datetime.fromisoformat(evidence_time["cutoff"]) if evidence_time else datetime.now(UTC),
         )
 
     def apply_page(self, scope_id, source, expected, page, *, now):
@@ -522,6 +689,28 @@ class TopicService:
             if engine_record is None:
                 continue
             projected.append((item, project_contribution(engine_record, item, definition, as_of=now)))
+        selected_refs = {
+            self.reader.ref(item).version_key
+            for item in page["items"]
+            if page["current_version_ids"][item["source_record_id"]] == item["version_id"]
+        }
+        source_progress = {
+            "after": page["next_after"] if not page["next_cursor"] else expected.get("after", 0),
+            "cursor": page["next_cursor"],
+            "last_page_after": page["next_after"],
+            "scan_max_seq": page["max_seq"] if page["next_cursor"] else None,
+            "seed_complete": expected.get("seed_complete", False) or page["next_cursor"] is None,
+            "last_success_at": now.isoformat(),
+            "error_code": None,
+            "upstream_health": page.get("_upstream_health"),
+        }
+        return self._apply_contributions(
+            scope_id, source, expected, projected, selected_refs, source_progress, now=now
+        )
+
+    def _apply_contributions(
+        self, scope_id, source, expected, projected, selected_refs, source_progress, *, now
+    ):
         with Session(self.engine.database) as session, session.begin():
             row = session.get(TopicScopeRecord, scope_id, with_for_update=True)
             if getattr(self, "_active_monitor", None) is not None:
@@ -562,7 +751,7 @@ class TopicService:
                     )
                     if replaced and replaced.contribution["raw_sha256"] != supersedes["raw_sha256"]:
                         raise DomainError("topic_reference_integrity", "修订引用与已采用原件不一致", 502)
-                head = page["current_version_ids"][native] == item["version_id"]
+                head = self.reader.ref(item).version_key in selected_refs
                 if existing is None and (contribution["matched"] or old is not None or supersedes):
                     existing = observation_row(row.id, item, contribution)
                     session.add(existing)
@@ -623,25 +812,236 @@ class TopicService:
                     )
                 )
                 changed = True
-            progress[source] = {
-                "after": page["next_after"] if not page["next_cursor"] else expected.get("after", 0),
-                "cursor": page["next_cursor"],
-                "last_page_after": page["next_after"],
-                "scan_max_seq": page["max_seq"] if page["next_cursor"] else None,
-                "seed_complete": expected.get("seed_complete", False) or page["next_cursor"] is None,
-                "last_success_at": now.isoformat(),
-                "error_code": None,
-                "upstream_health": page.get("_upstream_health"),
-            }
+            progress[source] = copy.deepcopy(source_progress)
             row.progress, row.observation_revision = (
                 progress,
                 revision if changed else row.observation_revision,
             )
-            row.last_checked_at, row.updated_at = now, now
-            row.next_source = (row.next_source + 1) % len(definition["source_ids"])
+            row.last_checked_at = now
+            row.updated_at = datetime.now(UTC) if source_progress.get("evidence_time") else now
+            row.next_source = (row.next_source + 1) % len(row.definition["source_ids"])
             return True
 
-    def evaluate(self, scope_id, *, now):
+    def advance_history_day(self, topic_id, *, mode, cutoff=None):
+        """Consume one monitor-owned frozen day; never advance the monitor clock."""
+        from bioradar.research.monitor.models import MonitorState
+
+        result = {
+            "status": "blocked",
+            "topic_id": topic_id,
+            "mode": mode,
+            "gaps": [],
+            "dispatch_policy": self.engine.settings.history_replay_dispatch_policy,
+        }
+        if mode != "public_history_reconstruction":
+            return {**result, "gaps": ["history_mode_not_supported"]}
+        with Session(self.engine.database) as session:
+            row = self._scope(session, self.actor, topic_id)
+            if row.paused:
+                return {**result, "gaps": ["topic_followup_paused"]}
+            scope_id, definition, demo = row.id, copy.deepcopy(row.definition), row.is_demo
+            before = copy.deepcopy(row.progress.get("_history_replay") or {})
+            authority = session.get(MonitorState, self.actor.workspace_id)
+            pending = copy.deepcopy(
+                (authority.source_progress.get("_history_replay") or {}).get("pending_day")
+                if authority
+                else None
+            )
+            if not pending:
+                return {**result, "status": "awaiting_collection", "gaps": ["history_day_not_frozen"]}
+            day = datetime.fromisoformat(pending["cutoff"].replace("Z", "+00:00"))
+            result["cutoff"] = day.isoformat()
+            if day.tzinfo is None or pending.get("mode") != mode:
+                return {**result, "gaps": ["history_day_context_mismatch"]}
+            if cutoff is not None:
+                requested = (
+                    datetime.fromisoformat(cutoff.replace("Z", "+00:00"))
+                    if isinstance(cutoff, str)
+                    else cutoff
+                )
+                if requested != day:
+                    return {**result, "gaps": ["history_day_context_mismatch"]}
+            collections = pending.get("collections") or {}
+            if any(source not in collections for source in definition["source_ids"]):
+                return {**result, "status": "awaiting_collection", "gaps": ["history_collection_not_frozen"]}
+            evidence_time = {"mode": mode, "cutoff": day.isoformat()}
+            receipt_id = canonical_hash(
+                [
+                    mode,
+                    day.isoformat(),
+                    pending["scope_hash"],
+                    [[source, collections[source]["receipt_id"]] for source in definition["source_ids"]],
+                ]
+            )
+            if before:
+                old_day = datetime.fromisoformat(before["evidence_time"]["cutoff"])
+                if before["scope_hash"] != pending["scope_hash"] or day < old_day:
+                    return {**result, "gaps": ["history_day_scope_or_order_mismatch"]}
+                if day == old_day and before["receipt_id"] != receipt_id:
+                    return {**result, "gaps": ["history_day_receipt_changed"]}
+                if day == old_day and before.get("status") == "completed":
+                    return copy.deepcopy(before["result"])
+                if day > old_day and before.get("status") != "completed":
+                    return {**result, "gaps": ["history_previous_topic_day_unfinished"]}
+            elif row.observation_revision:
+                return {**result, "gaps": ["history_topic_already_has_current_observations"]}
+            selected_before = {
+                (item.source_id, item.source_record_id): item.version_id
+                for item in session.scalars(
+                    select(TopicObservationRecord).where(
+                        TopicObservationRecord.scope_id == scope_id, *_selected(row.observation_revision)
+                    )
+                )
+            }
+
+        # Raw native collections are frozen by the monitor. They are not change pages.
+        prepared, gaps, has_new_versions = {}, [], False
+        for source in definition["source_ids"]:
+            self.engine.authorize_history_source(source)
+            wrapper = collections[source]
+            collection = wrapper["collection"]
+            raw_cutoff = collection["cutoff"]
+            actual_cutoff = (
+                datetime.fromisoformat(raw_cutoff.replace("Z", "+00:00"))
+                if isinstance(raw_cutoff, str)
+                else raw_cutoff
+            )
+            if collection["source_id"] != source or collection["is_demo"] is not demo or actual_cutoff != day:
+                return {**result, "gaps": ["history_collection_context_mismatch"]}
+            complete = collection.get("coverage", {}).get("complete") is True
+            ambiguous = {
+                ProviderRef.model_validate(ref).version_key for ref in wrapper.get("ambiguous_refs", [])
+            }
+            selected = {
+                ProviderRef.model_validate(ref).version_key for ref in wrapper["selected_refs"]
+            } - ambiguous
+            originals = {
+                self.reader.ref(item).version_key: item
+                for item in [*pending.get("previous_records", {}).get(source, []), *collection["items"]]
+            }
+            if not selected.issubset(originals):
+                return {
+                    **result,
+                    "status": "awaiting_collection",
+                    "gaps": ["history_selected_original_missing"],
+                }
+            error = None
+            if not complete:
+                gaps.append("history_collection_partial:" + source)
+                error = "history_collection_partial"
+            if ambiguous:
+                gaps.append("historical_version_order_ambiguous:" + source)
+                error = error or "historical_version_order_ambiguous"
+            projected = []
+            for item in [originals[ref] for ref in sorted(selected)] if complete else []:
+                record = project_record(self.reader, item, as_of=day, mode=mode, cutoff=day)
+                if record is None:
+                    continue
+                value = project_contribution(record, item, definition, as_of=day, evidence_time=evidence_time)
+                projected.append((item, value))
+                old_version = selected_before.get((source, item["source_record_id"]))
+                if (value["matched"] or old_version is not None) and old_version != item["version_id"]:
+                    has_new_versions = True
+            prepared[source] = (
+                projected,
+                selected,
+                {
+                    "after": None,
+                    "seed_complete": complete,
+                    "error_code": error,
+                    "history_receipt_id": wrapper["receipt_id"],
+                    "evidence_time": evidence_time,
+                    "last_success_at": datetime.now(UTC).isoformat() if complete else None,
+                },
+            )
+        with Session(self.engine.database) as session, session.begin():
+            row = self._scope(session, self.actor, topic_id, lock=True)
+            progress = copy.deepcopy(row.progress)
+            receipt = progress.get("_history_replay") or {}
+            if receipt.get("receipt_id") != receipt_id:
+                previous_analysis = receipt.get("analysis_id") or receipt.get("parent_analysis_id")
+                receipt = {
+                    "receipt_id": receipt_id,
+                    "scope_hash": pending["scope_hash"],
+                    "evidence_time": evidence_time,
+                    "status": "waiting",
+                    "gaps": gaps,
+                    "has_new_versions": has_new_versions,
+                    "parent_analysis_id": previous_analysis,
+                }
+                progress["_history_replay"] = receipt
+                row.progress = progress
+        for source, (projected, selected, source_progress) in prepared.items():
+            with Session(self.engine.database) as session:
+                expected = copy.deepcopy(session.get(TopicScopeRecord, scope_id).progress.get(source, {}))
+            if expected.get("history_receipt_id") != source_progress["history_receipt_id"]:
+                if not self._apply_contributions(
+                    scope_id, source, expected, projected, selected, source_progress, now=day
+                ):
+                    return {**result, "status": "waiting", "gaps": ["history_topic_state_changed"]}
+        with Session(self.engine.database) as session:
+            evaluation_id = (
+                session.get(TopicScopeRecord, scope_id).progress["_history_replay"].get("evaluation_id")
+            )
+        if evaluation_id is None:
+            evaluation_id = self.evaluate(scope_id, now=day, evidence_time=evidence_time)
+        if evaluation_id is None:
+            return {**result, "status": "waiting", "gaps": ["history_topic_state_changed"]}
+        with Session(self.engine.database) as session:
+            evaluation = session.get(TopicEvaluationRecord, evaluation_id)
+            state = copy.deepcopy(evaluation.followup)
+        deferred_no_evidence = (state.get("model_dispatch") or {}).get("reason") == "deferred_no_new_evidence"
+        if state.get("status") in {"deferred", "waiting_budget"} and not deferred_no_evidence:
+            monitor = getattr(self, "_active_monitor", None)
+            if monitor is None:
+                result.update(status="waiting", gaps=[*gaps, "history_monitor_lease_required"])
+            else:
+                self.followup(evaluation_id, monitor)
+                with Session(self.engine.database) as session:
+                    state = copy.deepcopy(session.get(TopicEvaluationRecord, evaluation_id).followup)
+        result.update(
+            evaluation_id=evaluation_id,
+            evaluation_status="completed",
+            assessment_status=state.get("status"),
+            gaps=result["gaps"] or gaps,
+        )
+        if deferred_no_evidence:
+            result["model_dispatch"] = copy.deepcopy(state["model_dispatch"])
+        analysis_id = state.get("analysis_id")
+        if analysis_id:
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            analysis = AnalysisService(self.engine, self.reader).get(
+                self.actor, state["investigation_id"], analysis_id
+            )
+            result.update(
+                analysis_id=analysis_id, analysis_state=analysis.state, assessment_status=analysis.state
+            )
+            result["status"] = (
+                "waiting"
+                if analysis.state in {"queued", "running", "waiting_budget"}
+                else "blocked"
+                if analysis.state in {"blocked", "failed"}
+                else "completed"
+            )
+            self.reconcile_risk(evaluation_id)
+        elif result["status"] != "waiting":
+            result["status"] = (
+                "waiting"
+                if state.get("status") in {"deferred", "waiting_budget"} and not deferred_no_evidence
+                else "completed"
+            )
+        with Session(self.engine.database) as session, session.begin():
+            row = self._scope(session, self.actor, topic_id, lock=True)
+            progress = copy.deepcopy(row.progress)
+            receipt = progress["_history_replay"]
+            receipt.update(status=result["status"], evaluation_id=evaluation_id, result=copy.deepcopy(result))
+            if analysis_id:
+                receipt["analysis_id"] = analysis_id
+            row.progress = progress
+        return result
+
+    def evaluate(self, scope_id, *, now, evidence_time=None):
         with Session(self.engine.database) as session:
             row = session.get(TopicScopeRecord, scope_id)
             if not row.is_current or row.paused:
@@ -689,7 +1089,8 @@ class TopicService:
             attention_key = canonical_hash(pending_attention_ids)
             # Source changes can freeze an updated report; a quiet topic only re-evaluates when due.
             if (
-                previous
+                evidence_time is None
+                and previous
                 and previous.result.get("compute_version") == TOPIC_COMPUTE_VERSION
                 and (
                     previous.observation_revision == revision
@@ -709,6 +1110,7 @@ class TopicService:
             due_slot = int(now.timestamp()) // (definition["cadence_hours"] * 3600)
             key = canonical_hash(
                 [scope_id, revision, due_slot, coverage_key, attention_key, TOPIC_COMPUTE_VERSION]
+                + ([evidence_time] if evidence_time is not None else [])
             )
             existing = session.scalar(
                 select(TopicEvaluationRecord).where(
@@ -865,6 +1267,9 @@ class TopicService:
             source_errors=errors,
             omitted_records=omitted,
         )
+        if evidence_time is not None:
+            computed["coverage"]["scope"] = "verified_historical_availability"
+            computed["coverage"]["source_watermarks"] = {}
         computed["coverage"].update(
             matched_records=int(full_counts[1] or 0),
             active_records=int(full_counts[2] or 0),
@@ -910,6 +1315,37 @@ class TopicService:
         computed["draft"] = computed["draft"].replace(old_summary, computed["summary"], 1)
         if sum(status_counts.values()) > 100:
             computed["data_gaps"].append("registered_state_preview_limited")
+        tracking = update_tracking(
+            values, definition, progress.get("_tracking"), as_of=now, source_errors=errors
+        )
+        computed["assessment_axes"] = combine_assessment_axes(
+            [
+                value.get("assessment_axes") or default_assessment_axes([value["record_ref"]])
+                for value in values
+            ],
+            evidence_level=tracking["evidence"]["level"],
+            heat=tracking["heat"],
+        ).model_dump(mode="json")
+        progress["_tracking"] = tracking
+        if tracking["model_update"]["needed"]:
+            claim_values = [v for v in values if (v.get("attention") or {}).get("checkable_claims")]
+            if claim_values:
+                computed["signals"].append(
+                    {
+                        "key": canonical_hash(["source_claim", tracking["_evidence_fingerprint"]]),
+                        "kind": "source_claim",
+                        "title": "有出处的待核说法发生变化",
+                        "reason": "；".join(tracking["assessment_reason"]),
+                        "support_units": len(claim_values),
+                        "qualification": "attributed_claim_not_confirmation_of_truth",
+                        "details": {"risk": tracking["risk"]},
+                        "evidence_keys": [
+                            canonical_hash([v["source_id"], v["source_record_id"], v["version_id"]])
+                            for v in claim_values
+                        ],
+                        "next_questions": ["哪些原始来源、反证或检验可以区分竞争解释？"],
+                    }
+                )
         closed_bucket_end = max(
             (b["end"] for b in computed["buckets"] if b["complete_time_bucket"]), default=None
         )
@@ -936,7 +1372,7 @@ class TopicService:
                     and signal["key"] not in baseline_keys
                 ):
                     continue
-            elif previous is None and signal["kind"] != "source_event":
+            elif previous is None and signal["kind"] not in {"source_event", "source_claim"}:
                 continue
             meaningful.append(signal)
         # The first complete stock is a baseline. Subsequent qualified changes become
@@ -960,12 +1396,32 @@ class TopicService:
                 >= now - timedelta(days=30)
             )
         ]
+        grounded_claim_keys = {
+            canonical_hash([v["source_id"], v["source_record_id"], v["version_id"]])
+            for v in values
+            if (v.get("attention") or {}).get("automatic_investigation_allowed")
+        }
+        # Exposure statistics stay visible. Generic words cannot borrow a native
+        # registration's unrelated metadata to become an automatic inquiry.
+        meaningful = [
+            s
+            for s in meaningful
+            if s["kind"] != "text_pattern" or grounded_claim_keys.intersection(s["evidence_keys"])
+        ]
         actionable = [
             s
             for s in meaningful
-            if s["kind"] in {"state_change", "evidence_revision", "source_event"} or seed and not errors
+            if s["kind"] in {"state_change", "evidence_revision", "source_event", "source_claim"}
+            or seed
+            and not errors
         ]
-        eligible = bool(actionable)
+        eligible = bool(actionable) and tracking["lifecycle"] not in {"dormant", "closed"}
+        if eligible and not tracking["model_update"]["needed"]:
+            tracking["model_update"] = {
+                "needed": True,
+                "status": "ready",
+                "reasons": ["new_fixed_source_signal_requires_review"],
+            }
         meaningful = actionable
         identifier = str(uuid4())
         result = {
@@ -980,9 +1436,11 @@ class TopicService:
             "compute_version": TOPIC_COMPUTE_VERSION,
             "observation_revision": revision,
             "as_of": now.isoformat(),
-            "created_at": now.isoformat(),
+            "created_at": (datetime.now(UTC) if evidence_time is not None else now).isoformat(),
+            **({"evidence_time": evidence_time} if evidence_time is not None else {}),
             **computed,
             "dependency_source_ids": dependency_sources,
+            "tracking": tracking_view(tracking),
         }
         followup = {
             "status": "deferred" if eligible else "not_needed",
@@ -991,6 +1449,26 @@ class TopicService:
             "query_intents": [],
             "investigation_id": None,
         }
+        deferred_no_evidence = False
+        if evidence_time is not None:
+            receipt = progress["_history_replay"]
+            followup["evidence_time"] = evidence_time
+            followup["historical_context"] = {
+                **evidence_time,
+                "history_series_id": canonical_hash([topic_id, scope_revision]),
+                "history_scope_hash": receipt["scope_hash"],
+            }
+            followup["parent_analysis_id"] = receipt.get("parent_analysis_id")
+            if not receipt["has_new_versions"]:
+                deferred_no_evidence = True
+                followup.update(
+                    status="deferred",
+                    model_dispatch={
+                        "status": "not_dispatched",
+                        "reason": "deferred_no_new_evidence",
+                        "policy": self.engine.settings.history_replay_dispatch_policy,
+                    },
+                )
         with Session(self.engine.database) as session, session.begin():
             row = session.get(TopicScopeRecord, scope_id, with_for_update=True)
             if (
@@ -1019,14 +1497,17 @@ class TopicService:
             )
             for item in attention:
                 is_metric = (item.contribution.get("observation") or {}).get("kind") == "metric"
-                if (seed and not errors) or not is_metric:
+                if not deferred_no_evidence and ((seed and not errors) or not is_metric):
                     stored = session.get(TopicObservationRecord, item.id)
                     stored.attention_pending = False
             progress["_notified_signals"] = sorted(
-                old_keys | ({s["key"] for s in meaningful} if eligible else set())
+                old_keys
+                | ({s["key"] for s in meaningful} if eligible and not deferred_no_evidence else set())
             )
+            if evidence_time is not None:
+                progress["_history_replay"]["evaluation_id"] = identifier
             row.progress, row.last_evaluated_at = progress, now
-            row.next_evaluation_at = now + timedelta(hours=definition["cadence_hours"])
+            row.next_evaluation_at = datetime.fromisoformat(tracking["next_due_at"])
         return identifier
 
     def _save_followup(self, identifier, followup):
@@ -1077,6 +1558,164 @@ class TopicService:
         )
         return InvestigationService(self.engine).get(self.actor, saved["id"])
 
+    def _adopt_risk_review(self, session, actor, scope, evaluation, analysis_id):
+        from bioradar.research.investigations.analysis_service import InvestigationAnalysisRecord
+
+        state = copy.deepcopy(evaluation.followup)
+        if (
+            evaluation.scope_id != scope.id
+            or state.get("analysis_id") != analysis_id
+            or not state.get("investigation_id")
+        ):
+            raise DomainError("topic_risk_analysis_mismatch", "仅可采用该专题评价实际关联的分析", 409)
+        stored = session.get(InvestigationAnalysisRecord, analysis_id, with_for_update=True)
+        if (
+            stored is None
+            or stored.workspace_id != actor.workspace_id
+            or stored.is_demo != scope.is_demo
+            or stored.investigation_id != state["investigation_id"]
+        ):
+            raise DomainError("not_found", "未找到可访问的专题分析", 404)
+        progress = copy.deepcopy(scope.progress)
+        tracking = copy.deepcopy(progress.get("_tracking") or {})
+        expected = risk_scope_stamp(
+            scope.topic_id, scope.scope_revision, scope.observation_revision, scope.definition, tracking
+        )
+        if (stored.result or {}).get("current_judgment") is not None:
+            comparison = hypothesis_comparison(
+                stored.result.get("competing_hypotheses") or [],
+                stored.result.get("claims") or [],
+                model_judgment=stored.result["current_judgment"],
+            )
+            comparison.update(
+                analysis_id=stored.id,
+                evidence_fingerprint=tracking.get("_evidence_fingerprint"),
+                current_basis_unchanged=(stored.fixed_input.get("origin") or {}).get("topic_risk_scope")
+                == expected,
+            )
+            tracking["hypothesis_comparison"] = comparison
+            progress["_tracking"] = tracking
+            scope.progress = progress
+            state["hypothesis_comparison"] = comparison
+            evaluation.followup = state
+        analysis = {
+            "id": stored.id,
+            "state": stored.state,
+            "fixed_input": stored.fixed_input,
+            "result": stored.result,
+            "progress": stored.progress,
+        }
+        signature = canonical_hash(
+            [
+                expected,
+                stored.state,
+                stored.result,
+                stored.progress.get("report_risk_packets"),
+                stored.progress.get("professional_operations"),
+                (stored.progress.get("query_policy") or {}).get("refresh_not_semantically_reviewed"),
+            ]
+        )
+        prior = state.get("risk_review") or {}
+        if prior.get("input_sha256") == signature:
+            if prior.get("status") == "pending":
+                prior["last_checked_at"] = datetime.now(UTC).isoformat()
+                state["risk_review"] = prior
+                evaluation.followup = state
+            return prior
+        receipt = assess_risk_reassessment(analysis, expected_scope=expected)
+        receipt.update(
+            input_sha256=signature,
+            evaluated_at=datetime.now(UTC).isoformat(),
+            last_checked_at=datetime.now(UTC).isoformat(),
+        )
+        state["risk_review"] = receipt
+        evaluation.followup = state
+        if receipt["status"] == "accepted":
+            finding = receipt["reassessment"]
+            risk = copy.deepcopy(tracking.get("risk") or {})
+            risk.update(
+                status="resolved" if finding["decision"] == "resolved_within_scope" else "unresolved",
+                critical_gaps=finding["remaining_critical_gaps"],
+                conditions=finding["conditions"],
+                reason=finding["reason"],
+                scope=copy.deepcopy(expected),
+                basis_refs=receipt["basis_refs"],
+                assessment=copy.deepcopy(receipt),
+            )
+            tracking["risk"] = risk
+            # A resolved scope may cool normally; an unresolved finding keeps the minimum cadence.
+            if risk["status"] == "unresolved":
+                tracking["cadence_hours"] = 1
+            else:
+                tracking["cadence_hours"] = scope.definition["cadence_hours"]
+            due = datetime.now(UTC) + timedelta(hours=tracking["cadence_hours"])
+            tracking["next_due_at"] = due.isoformat()
+            progress["_tracking"] = tracking
+            scope.progress, scope.next_evaluation_at = progress, due
+            scope.control_revision += 1
+            scope.updated_at = datetime.now(UTC)
+        return receipt
+
+    def review_risk(self, actor, identifier, body: TopicRiskReviewRequest, key):
+        """The caller names an existing result; it cannot supply a risk decision."""
+        from bioradar.research.investigations.analysis_service import AnalysisService
+
+        with Session(self.engine.database) as session:
+            evaluation, scope = self._evaluation_row(session, actor, identifier, body.evaluation_id)
+            self._authorize_content(session, actor, scope)
+            state = copy.deepcopy(evaluation.followup)
+            if state.get("analysis_id") != body.analysis_id or not state.get("investigation_id"):
+                raise DomainError("topic_risk_analysis_mismatch", "分析不属于本次专题评价", 409)
+        # This normal read checks every analysis source permission, including supplementary evidence.
+        AnalysisService(self.engine, self.reader).get(actor, state["investigation_id"], body.analysis_id)
+
+        def mutate():
+            scope = self._scope(session, actor, identifier, lock=True)
+            self._authorize_content(session, actor, scope)
+            if scope.control_revision != body.expected_revision:
+                raise DomainError("revision_conflict", "专题控制状态已改变，请重新读取", 409)
+            evaluation = session.get(TopicEvaluationRecord, body.evaluation_id, with_for_update=True)
+            receipt = self._adopt_risk_review(session, actor, scope, evaluation, body.analysis_id)
+            return 200, {
+                "topic": self._view(session, scope).model_dump(mode="json"),
+                "assessment": receipt,
+            }
+
+        with Session(self.engine.database) as session, session.begin():
+            return self.engine._idempotent(
+                session,
+                actor,
+                "topic.risk-review:" + identifier,
+                key,
+                body.model_dump(mode="json"),
+                mutate,
+            )
+
+    def reconcile_risk(self, evaluation_id):
+        """Read the existing analysis only; never append, start, or resend a model call."""
+        from bioradar.research.investigations.analysis_service import AnalysisService
+
+        with Session(self.engine.database) as session:
+            evaluation = session.get(TopicEvaluationRecord, evaluation_id)
+            scope = session.get(TopicScopeRecord, evaluation.scope_id)
+            if not scope.is_current or scope.paused:
+                return
+            self._authorize_content(session, self.actor, scope)
+            state = copy.deepcopy(evaluation.followup)
+            if not state.get("analysis_id") or not state.get("topic_risk_scope"):
+                return
+            topic_id = scope.topic_id
+        AnalysisService(self.engine, self.reader).get(
+            self.actor, state["investigation_id"], state["analysis_id"]
+        )
+        with Session(self.engine.database) as session, session.begin():
+            scope = self._scope(session, self.actor, topic_id, lock=True)
+            if scope.paused:
+                return
+            self._authorize_content(session, self.actor, scope)
+            evaluation = session.get(TopicEvaluationRecord, evaluation_id, with_for_update=True)
+            return self._adopt_risk_review(session, self.actor, scope, evaluation, state["analysis_id"])
+
     def followup(self, evaluation_id, monitor):
         self._active_monitor = monitor
         self._followup_guard(evaluation_id)
@@ -1086,6 +1725,32 @@ class TopicService:
             row, scope = self._evaluation_row(session, self.actor, scope.topic_id, evaluation_id)
             evaluation, state = self._evaluation_view(row), copy.deepcopy(row.followup)
             scope_id, demo = scope.id, scope.is_demo
+        evidence_time = evaluation.evidence_time
+        mode = evidence_time["mode"] if evidence_time else "current"
+        cutoff = datetime.fromisoformat(evidence_time["cutoff"]) if evidence_time else datetime.now(UTC)
+        if evidence_time and (state.get("model_dispatch") or {}).get("reason") == "deferred_no_new_evidence":
+            return
+        if state.get("analysis_id"):
+            # A model-budget wait is owned by the existing analysis resumer. Never
+            # reappend materials or create a second analysis to escape that wait.
+            from bioradar.research.investigations.analysis_service import AnalysisService
+
+            saved_analysis = AnalysisService(self.engine, self.reader).get(
+                self.actor, state["investigation_id"], state["analysis_id"]
+            )
+            analysis = saved_analysis.model_dump(mode="json")
+            waiting, next_budget_at = analysis_budget_wait(analysis)
+            state.update(status="waiting_budget" if waiting else "saved")
+            state["next_budget_at"] = next_budget_at
+            self._save_followup(evaluation_id, state)
+            return
+        retry = state.get("next_budget_at")
+        if (
+            state.get("status") == "waiting_budget"
+            and retry
+            and datetime.fromisoformat(retry) > datetime.now(UTC)
+        ):
+            return
         runtime = InvestigationService(self.engine)
         key = "topic-investigation:" + scope_id
         saved = self._saved("investigation.create", key)
@@ -1102,6 +1767,12 @@ class TopicService:
         lead_key = canonical_hash(["topic", scope_id])
         self._followup_guard(evaluation_id)
         if not monitor.reserve_investigation(lead_key, evaluation_id, "routine", origin="topic"):
+            state.update(
+                status="waiting_budget",
+                next_budget_at=(datetime.now(UTC) + timedelta(hours=1)).isoformat(),
+                error_code="topic_hourly_budget",
+            )
+            self._save_followup(evaluation_id, state)
             return
         if view is None:
             self._followup_guard(evaluation_id)
@@ -1126,7 +1797,7 @@ class TopicService:
             e
             for e in evaluation.evidence
             if any(e.key in s.evidence_keys for s in evaluation.signals if s.key in state["signal_keys"])
-        ][:4]
+        ]
         for item in evidence:
             tag = "evidence:" + item.key
             snapshot_key = "topic-snapshot:" + canonical_hash([evaluation_id, tag])
@@ -1134,11 +1805,13 @@ class TopicService:
             if adopted is None:
                 original = self.reader.read_version(
                     {**item.model_dump(mode="json"), "is_demo": demo},
-                    mode="current",
-                    cutoff=datetime.now(UTC),
+                    mode=mode,
+                    cutoff=cutoff,
                 )
-                projected = project_record(self.reader, original, as_of=evaluation.as_of)
-                snapshot = build_snapshot([projected], is_demo=demo, as_of=evaluation.as_of)
+                projected = project_record(
+                    self.reader, original, as_of=evaluation.as_of, mode=mode, cutoff=cutoff
+                )
+                snapshot = build_snapshot([projected], is_demo=demo, as_of=evaluation.as_of, mode=mode)
                 # The version ref and stable key, not a body copy, are the durable intent.
                 self._followup_guard(evaluation_id)
                 _, adopted = self.engine.adopt_snapshot(self.actor, snapshot, snapshot_key)
@@ -1163,23 +1836,55 @@ class TopicService:
             if intent is None:
                 intent = {
                     "key": "topic-analysis:" + evaluation.id,
-                    "body": AnalysisCreate(expected_revision=view.revision).model_dump(mode="json"),
+                    "body": AnalysisCreate(
+                        expected_revision=view.revision,
+                        parent_analysis_id=state.get("parent_analysis_id"),
+                        source_ids=evaluation.definition.source_ids if evidence_time else [],
+                    ).model_dump(mode="json"),
+                    **({"historical_context": state["historical_context"]} if evidence_time else {}),
                 }
                 state["analysis_intent"] = intent
+                if evaluation.definition.domain == "public_health":
+                    stamp = risk_scope_stamp(
+                        evaluation.topic_id,
+                        evaluation.scope_revision,
+                        evaluation.observation_revision,
+                        evaluation.definition.model_dump(mode="json"),
+                        evaluation.tracking,
+                    )
+                    if stamp:
+                        state["topic_risk_scope"] = stamp
+                        state["topic_risk_definition"] = evaluation.definition.model_dump(mode="json")
                 self._save_followup(evaluation_id, state)
             _, analysis = AnalysisService(self.engine, self.reader).start(
                 self.actor,
                 view.id,
                 AnalysisCreate.model_validate(intent["body"]),
                 intent["key"],
+                historical_context=intent.get("historical_context"),
                 origin={
                     "source": "topic",
                     "topic_id": evaluation.topic_id,
                     "evaluation_id": evaluation_id,
+                    **(
+                        {
+                            "topic_risk_scope": state["topic_risk_scope"],
+                            "topic_risk_definition": state["topic_risk_definition"],
+                        }
+                        if state.get("topic_risk_scope") and state.get("topic_risk_definition")
+                        else {}
+                    ),
                     "reservation_key": "monitor-dig:" + canonical_hash([lead_key, evaluation_id]),
+                    "tracking": {
+                        key: (evaluation.tracking or {}).get(key)
+                        for key in ("lifecycle", "risk", "assessment_reason")
+                    },
                 },
             )
-            state.update(status="saved", analysis_id=analysis["id"])
+            waiting, next_budget_at = analysis_budget_wait(analysis)
+            state.update(status="waiting_budget" if waiting else "saved", analysis_id=analysis["id"])
+            if waiting:
+                state["next_budget_at"] = next_budget_at
             self._save_followup(evaluation_id, state)
             return
         # Scope terms are declared by the researcher; otherwise derive an exact literal from a fixed original.
@@ -1190,7 +1895,7 @@ class TopicService:
         if plan is None and evidence:
             item = evidence[0]
             original = self.reader.read_version(
-                {**item.model_dump(mode="json"), "is_demo": demo}, mode="current", cutoff=datetime.now(UTC)
+                {**item.model_dump(mode="json"), "is_demo": demo}, mode=mode, cutoff=cutoff
             )
             plan = followup_term(original)
             if plan:
@@ -1203,13 +1908,17 @@ class TopicService:
             if intent is None:
                 self._followup_guard(evaluation_id)
                 source = evidence[0].source_id if evidence else evaluation.definition.source_ids[0]
-                found = search_records(self.reader, source_id=source, is_demo=demo, term=term)
+                found = search_records(
+                    self.reader, source_id=source, is_demo=demo, term=term, mode=mode, cutoff=cutoff
+                )
                 intent = {
                     "index": index,
                     "source_id": source,
                     "term": term,
                     "basis": plan,
-                    "scope": "fabric_current_adopted_versions_not_the_web",
+                    "scope": "fabric_historical_available_versions_not_the_web"
+                    if evidence_time
+                    else "fabric_current_adopted_versions_not_the_web",
                     "records": [
                         {
                             k: v[k]
@@ -1233,18 +1942,27 @@ class TopicService:
                 snapshot_key = "topic-snapshot:" + canonical_hash([evaluation_id, tag])
                 adopted = self._saved("snapshot.create", snapshot_key)
                 if adopted is None:
-                    original = self.reader.read_version(binding, mode="current", cutoff=datetime.now(UTC))
+                    original = self.reader.read_version(binding, mode=mode, cutoff=cutoff)
                     # Fixed source timestamps keep the same idempotent body after an
                     # uncertain commit; the current read/permission cutoff remains now.
-                    snapshot_as_of = max(
-                        evaluation.as_of,
-                        fact_time(original["received_at"]),
-                        fact_time(original["first_seen_at"]),
+                    snapshot_as_of = (
+                        evaluation.as_of
+                        if evidence_time
+                        else max(
+                            evaluation.as_of,
+                            fact_time(original["received_at"]),
+                            fact_time(original["first_seen_at"]),
+                        )
                     )
                     snapshot = build_snapshot(
-                        [project_record(self.reader, original, as_of=snapshot_as_of)],
+                        [
+                            project_record(
+                                self.reader, original, as_of=snapshot_as_of, mode=mode, cutoff=cutoff
+                            )
+                        ],
                         is_demo=demo,
                         as_of=snapshot_as_of,
+                        mode=mode,
                     )
                     self._followup_guard(evaluation_id)
                     _, adopted = self.engine.adopt_snapshot(self.actor, snapshot, snapshot_key)
@@ -1290,14 +2008,80 @@ class TopicService:
         state["status"] = "saved"
         self._save_followup(evaluation_id, state)
 
-    def tick(self, *, now=None):
+    def _fetch_source(self, scope_id, source, *, now):
+        """Use the host fetch receipt once per due topic cycle, outside model execution."""
+        if self.fetch_hook is None:
+            return
+        with Session(self.engine.database) as session:
+            row = session.get(TopicScopeRecord, scope_id)
+            saved = copy.deepcopy(row.progress.get("_fetch", {}).get(source))
+            due = row.next_evaluation_at is None or row.next_evaluation_at <= now
+            pending = bool(
+                saved
+                and (
+                    saved.get("receipt", {}).get("status") in {"sent", "unknown"}
+                    or (saved.get("receipt", {}).get("result") or {}).get("status") == "pending"
+                )
+            )
+            if not due and not pending:
+                return
+            slot = (row.next_evaluation_at or row.created_at).isoformat()
+            key = "topic-fetch:" + canonical_hash([scope_id, source, slot])
+            if pending:
+                key = saved["call_key"]
+            prior = saved.get("receipt") if saved and saved["call_key"] == key else None
+            definition = copy.deepcopy(row.definition)
+            context = {
+                "topic_id": row.topic_id,
+                "scope_revision": row.scope_revision,
+                "source_id": source,
+                "is_demo": row.is_demo,
+                "terms_all": definition.get("terms_all", []),
+                "terms_any": definition.get("terms_any", []),
+                "since": (row.last_checked_at or row.created_at).isoformat(),
+                "until": now.isoformat(),
+                "may_send": not row.is_demo and due,
+            }
+            if saved and saved["call_key"] == key:
+                context = saved["context"]
+
+        def checkpoint(receipt):
+            with Session(self.engine.database) as session, session.begin():
+                row = session.get(TopicScopeRecord, scope_id, with_for_update=True)
+                self._authorize(self.actor, row.definition, row.is_demo, online=True)
+                if not row.is_current or row.paused:
+                    raise DomainError("topic_followup_paused", "专题已暂停或范围更新", 409)
+                if getattr(self, "_active_monitor", None):
+                    self._active_monitor._guard(self._active_monitor._state(session))
+                progress = copy.deepcopy(row.progress)
+                progress.setdefault("_fetch", {})[source] = {
+                    "call_key": key,
+                    "context": context,
+                    "receipt": copy.deepcopy(receipt),
+                }
+                row.progress = progress
+
+        receipt = self.fetch_hook(context, call_key=key, prior_receipt=prior, checkpoint=checkpoint)
+        checkpoint(receipt)
+
+    def tick(self, *, now=None, only_demo=False):
         """One topic/source page per existing monitor loop; a failed topic does not starve others."""
         from bioradar.research.monitor.service import MonitorService
 
         now = now or datetime.now(UTC)
+        if now.tzinfo is None:
+            raise DomainError("simulation_clock_invalid", "专题时钟必须含时区", 422)
+        if only_demo and self.engine.settings.environment != "test":
+            raise DomainError("simulation_not_allowed", "加速专题检查仅限test教学范围", 403)
         monitor = MonitorService(self.engine, self.reader)
         if not self.engine.settings.monitor_enabled or not DevelopmentAccess(self.engine.settings).enabled:
             return {"state": "disabled"}
+        from bioradar.research.monitor.models import MonitorState
+
+        with Session(self.engine.database) as session:
+            authority = session.get(MonitorState, self.actor.workspace_id)
+            if authority and authority.source_progress.get("_history_replay"):
+                return {"state": "history_step_required"}
         if not monitor.claim():
             return {"state": "paused_or_busy"}
         scope_id, source, source_offset = None, None, 0
@@ -1310,6 +2094,8 @@ class TopicService:
                         TopicScopeRecord.workspace_id == self.actor.workspace_id,
                         TopicScopeRecord.is_current.is_(True),
                         TopicScopeRecord.paused.is_(False),
+                        TopicScopeRecord.progress["_history_replay"].astext.is_(None),
+                        *([TopicScopeRecord.is_demo.is_(True)] if only_demo else []),
                     )
                     .order_by(TopicScopeRecord.last_checked_at.asc().nullsfirst(), TopicScopeRecord.topic_id)
                     .limit(1)
@@ -1322,6 +2108,7 @@ class TopicService:
                 expected = copy.deepcopy(row.progress.get(source, {}))
             self._authorize(self.actor, definition, demo)
             self.engine.authorize_history_source(source)
+            self._fetch_source(scope_id, source, now=now)
             page = change_page(
                 self.reader,
                 source_id=source,
@@ -1346,11 +2133,33 @@ class TopicService:
             self.apply_page(scope_id, source, expected, page, now=now)
             self.evaluate(scope_id, now=now)
             with Session(self.engine.database) as session:
+                risk_pending = session.scalar(
+                    select(TopicEvaluationRecord.id)
+                    .where(
+                        TopicEvaluationRecord.scope_id == scope_id,
+                        TopicEvaluationRecord.followup["analysis_id"].astext.is_not(None),
+                        TopicEvaluationRecord.followup["topic_risk_scope"].is_not(None),
+                        or_(
+                            TopicEvaluationRecord.followup["risk_review"]["status"].astext.is_(None),
+                            TopicEvaluationRecord.followup["risk_review"]["status"].astext == "pending",
+                        ),
+                    )
+                    .order_by(
+                        TopicEvaluationRecord.followup["risk_review"]["last_checked_at"]
+                        .astext.asc()
+                        .nullsfirst(),
+                        TopicEvaluationRecord.created_at,
+                    )
+                    .limit(1)
+                )
+            if risk_pending:
+                self.reconcile_risk(risk_pending)
+            with Session(self.engine.database) as session:
                 pending = session.scalar(
                     select(TopicEvaluationRecord.id)
                     .where(
                         TopicEvaluationRecord.scope_id == scope_id,
-                        TopicEvaluationRecord.followup["status"].astext == "deferred",
+                        TopicEvaluationRecord.followup["status"].astext.in_(("deferred", "waiting_budget")),
                     )
                     .order_by(TopicEvaluationRecord.created_at)
                     .limit(1)

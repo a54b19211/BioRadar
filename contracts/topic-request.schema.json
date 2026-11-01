@@ -106,6 +106,8 @@
         "bucket": {
           "default": "month",
           "enum": [
+            "hour",
+            "day",
             "week",
             "month"
           ],

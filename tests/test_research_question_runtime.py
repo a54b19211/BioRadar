@@ -197,7 +197,8 @@ def test_final_shared_verification_replaces_generic_check_and_preserves_text(run
     accepted = start(runtime)
     make().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.state == "completed", result.error_code
+    assert result.state == "needs_review", result.error_code
+    assert result.result.report["support_audit"]["status"] == "REVIEW"
     assert [c["stage"] for c in result.calls] == [
         "read_plan",
         "synthesize",
@@ -243,7 +244,25 @@ def test_ask_http_idempotency_options_preserved_failure_and_markdown(runtime, da
         analysis = client.get(base, headers=headers).json()
         markdown = client.get(base + "/export?format=markdown", headers=headers)
         assert markdown.status_code == 200
-        assert markdown.text == analysis["result"]["report"]["final_text"]
+        import hashlib
+
+        from scripts.report_delivery_assertions import expected_delivery_markdown
+
+        exported = client.get(base + "/export", headers=headers)
+        assert exported.status_code == 200
+        delivered = exported.json()
+        assert delivered["analysis"]["result"] == analysis["result"]
+        delivery = delivered["delivery"]
+        bounds = delivery["body_range"]
+        assert bounds["unit"] == "unicode_code_points"
+        body = markdown.text[bounds["start"] : bounds["end"]]
+        original = analysis["result"]["report"]["final_text"]
+        assert body.encode() == original.encode()
+        digest = hashlib.sha256(body.encode()).hexdigest()
+        assert digest == analysis["result"]["report"]["text_sha256"] == delivery["body_text_sha256"]
+        assert markdown.text == expected_delivery_markdown(
+            analysis, delivery, delivery["scope_prefix"] + original
+        )
         bad = client.post(
             "/api/engine/investigations/ask",
             headers={**headers, "Idempotency-Key": "invalid-budget"},
@@ -378,18 +397,27 @@ def test_optional_mechanism_cannot_use_the_final_generation_slots(runtime, monke
             "verification": {"status": "PASS", "draft": text},
         }
 
+    def independent_audit(settings, packet, review, call, *, targets=None, loaded=None):
+        checked = call(
+            "biocheck_support_audit", "SYNTHETIC independent audit",
+            {"task": "shared_verify", "draft": review["draft"]},
+        )
+        return {"status": checked["status"], "checks": [], "verification_errors": []}
+
     monkeypatch.setattr(biocheck, "run_biocheck", generated)
+    monkeypatch.setattr(biocheck, "audit_biocheck_support", independent_audit)
     _, accepted = make().start(
         actor,
         view["id"],
-        AnalysisCreate(expected_revision=view["revision"], budget=AnalysisBudget(max_calls=5)),
-        "five-calls",
+        AnalysisCreate(expected_revision=view["revision"], budget=AnalysisBudget(max_calls=6)),
+        "six-calls-with-independent-audit",
     )
     make().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
     assert result.state == "completed", result.error_code
     assert result.result.mechanism_evaluation["status"] == "skipped_budget"
-    assert len(model.requests) == 5 and result.calls[-1]["stage"] == "biocheck_check"
+    assert len(model.requests) == 6 and result.calls[-1]["stage"] == "biocheck_support_audit"
+    assert result.result.report["support_audit"]["status"] == "PASS"
     assert result.result.report["status"] == "PASS"
 
 
@@ -415,7 +443,10 @@ def test_generation_is_not_sent_without_budget_for_its_verification(runtime, mon
     )
     make().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.error_code == "analysis_token_budget" and result.result is None
+    assert result.error_code == "analysis_token_budget" and result.state == "blocked"
+    assert result.note_entry_id is None
+    assert result.result is not None and result.result.report is None
+    assert result.result.review.status == "needs_review"
     assert [c["stage"] for c in result.calls] == ["read_plan", "synthesize", "biocheck_plan"]
     assert len(model.requests) == 3
 
@@ -459,7 +490,8 @@ def test_provider_observation_changes_do_not_interrupt_the_first_actual_use(runt
     accepted = start(runtime)
     make().execute(accepted["id"], accepted["input_hash"])
     result = make().get(actor, view["id"], accepted["id"])
-    assert result.state == "completed", result.error_code
+    assert result.state == "needs_review", result.error_code
+    assert result.result.report["support_audit"]["status"] == "REVIEW"
     assert result.result.report["provider_version"] == "first-used-v2"
     assert result.providers["biocheck"]["version"] == "first-used-v2"
     assert len(model.requests) == 5
@@ -655,7 +687,7 @@ def test_dynamic_generation_cap_and_received_write_resume_before_verification(ru
         write = copy.deepcopy(row.progress["calls"][-1])
         assert (
             write["stage"] == "biocheck_write"
-            and 128 <= write["model_parameters"]["max_output_tokens"] < 32768
+            and 128 <= write["model_parameters"]["max_output_tokens"] <= 32768
         )
         assert write["receipt"]["max_output_tokens"] == write["model_parameters"]["max_output_tokens"]
         row.lease_until = datetime.now(UTC) - timedelta(seconds=1)
@@ -1324,3 +1356,43 @@ def test_final_repair_resumes_after_saved_initial_check_without_reserving_finish
     with Session(database) as session:
         row = session.get(InvestigationAnalysisRecord, accepted["id"])
         assert row.progress["calls"][:5] == saved_calls
+
+
+def test_blocked_analysis_exports_receipts_without_manufacturing_a_report(runtime, database, monkeypatch):
+    from bioradar.research.history import service as history_module
+
+    make, _, view, _, model, settings, _ = runtime
+    accepted = start(runtime, budget=AnalysisBudget(max_tokens=128))
+    make().execute(accepted["id"], accepted["input_hash"])
+    assert model.requests == []
+    settings.data_fabric_url = "http://127.0.0.1"
+    settings.data_fabric_history_read_token = SecretStr("SYNTHETIC")
+
+    @contextmanager
+    def reader(*args, **kwargs):
+        yield make().reader
+
+    monkeypatch.setattr(history_module, "history_reader", reader)
+    app = create_app(settings)
+    headers = {"Authorization": "Bearer " + CREDENTIAL}
+    path = f"/api/engine/investigations/{view['id']}/analyses/{accepted['id']}"
+    with TestClient(app, base_url="http://127.0.0.1") as client:
+        app.state.database = database
+        try:
+            saved = client.get(path, headers=headers)
+            assert saved.status_code == 200
+            analysis = saved.json()
+            assert analysis["state"] == "blocked"
+            assert analysis["error_code"] == "analysis_token_budget"
+            assert analysis["result"] is None
+            exported = client.get(path + "/export?format=json", headers=headers)
+            assert exported.status_code == 200
+            assert exported.json()["analysis"] == analysis
+            assert exported.json()["delivery"] is None
+            markdown = client.get(path + "/export?format=markdown", headers=headers)
+            assert markdown.status_code == 409
+            assert markdown.json()["error"]["code"] == "analysis_report_unavailable"
+            assert client.get(path, headers=headers).json() == analysis
+            assert model.requests == []
+        finally:
+            app.state.database = None

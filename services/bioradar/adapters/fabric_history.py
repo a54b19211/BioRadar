@@ -101,6 +101,44 @@ def _no_duplicates(pairs):
     return result
 
 
+def _validate_financial_projection(original, observations):
+    """SEC flattens its units object; every projected row must match one native row."""
+    units = original.get("units")
+    if not isinstance(units, dict) or not isinstance(observations, list):
+        raise ValueError("invalid native financial observations")
+    expected = {}
+    for unit, rows in units.items():
+        if not isinstance(unit, str) or not isinstance(rows, list):
+            raise ValueError("invalid native unit")
+        escaped = unit.replace("~", "~0").replace("/", "~1")
+        for index, row in enumerate(rows):
+            if not isinstance(row, dict):
+                raise ValueError("invalid native row")
+            expected[f"/units/{escaped}/{index}"] = (unit, row)
+    seen = set()
+    for item in observations:
+        if not isinstance(item, dict):
+            raise ValueError("invalid financial projection")
+        path = item.get("source_row_pointer")
+        if not isinstance(path, str) or path not in expected or path in seen:
+            raise ValueError("missing or repeated financial row")
+        unit, row = expected[path]
+        if set(item) != set(row) | {"unit", "unit_locator", "field_locators", "source_row_pointer"}:
+            raise ValueError("financial projection changed native fields")
+        if item["unit"] != unit or item["unit_locator"] != {"json_pointer": "/units", "object_key": unit}:
+            raise ValueError("unbound financial unit")
+        locators = item["field_locators"]
+        if not isinstance(locators, dict) or set(locators) != set(row):
+            raise ValueError("missing financial field locator")
+        for key, value in row.items():
+            pointer = path + "/" + key.replace("~", "~0").replace("/", "~1")
+            if locators[key] != {"json_pointer": pointer} or not exact_json(item[key], value):
+                raise ValueError("unbound financial value")
+        seen.add(path)
+    if seen != set(expected):
+        raise ValueError("financial projection omitted native rows")
+
+
 def validate_record(record, source_id, is_demo, mode, cutoff):
     if (
         not isinstance(record, dict)
@@ -126,7 +164,16 @@ def validate_record(record, source_id, is_demo, mode, cutoff):
             raise ValueError("invalid facts")
         if record.get("raw_media_type") == "application/json":
             original = json.loads(raw, object_pairs_hook=_no_duplicates) if facts else {}
+            if source_id == "who_don" and ("count_statements" in facts or "count_extraction" in facts):
+                from bioradar.adapters.fabric_who import validate_counts
+
+                validate_counts(record, original)
             for key, value in facts.items():
+                if source_id == "who_don" and key in {"count_statements", "count_extraction"}:
+                    continue
+                if source_id == "sec_companyfacts" and key == "financial_observations":
+                    _validate_financial_projection(original, value)
+                    continue
                 locator = locators[key]
                 if not exact_json(json_pointer(original, locator["json_pointer"]), value):
                     raise ValueError("unbound fact")
@@ -160,6 +207,9 @@ def validate_record(record, source_id, is_demo, mode, cutoff):
                 raise ValueError("unverified or future historical proof")
     except (KeyError, TypeError, ValueError, IndexError, OverflowError, SyntaxError):
         raise history_error() from None
+    from bioradar.adapters.fabric_document import validate_document_evidence
+
+    validate_document_evidence(record)
     return record
 
 
@@ -173,10 +223,12 @@ class FabricHistoryReader:
         max_bytes=8_000_000,
         max_seconds=90,
         source_instance="datafabric-test",
+        demo_source_instance=None,
     ):
         self.client = client
         self.authorization_ref = authorization_ref
         self.source_instance = source_instance
+        self.demo_source_instance = demo_source_instance
         self.max_records = max_records
         self.max_bytes = max_bytes
         self.deadline = time.monotonic() + max_seconds
@@ -327,7 +379,10 @@ class FabricHistoryReader:
         value = self._get("/api/history/versions/" + binding["version_id"], params)
         record = value.get("record", value) if isinstance(value, dict) else value
         checked = validate_record(record, binding["source_id"], binding["is_demo"], mode, cutoff)
-        if checked["version_id"] != binding["version_id"]:
+        if (
+            checked["version_id"] != binding["version_id"]
+            or checked["source_record_id"] != binding["source_record_id"]
+        ):
             raise history_error()
         return checked
 
@@ -350,7 +405,10 @@ class FabricHistoryReader:
         selected = [r for r in collection["items"] if (r["record_kind"] == "outcome") is outcomes]
         if not selected:
             return None
-        instance = "fixture" if collection["is_demo"] else self.source_instance
+        instance = (
+            self.demo_source_instance or "fixture"
+            if collection["is_demo"] else self.source_instance
+        )
         records = []
         for record in selected:
             proof = record.get("availability_proof") or {}
@@ -358,6 +416,18 @@ class FabricHistoryReader:
             published = record.get("source_published_at")
             precision = published.get("precision", "unknown") if isinstance(published, dict) else "unknown"
             published_instant = time_upper(published) if precision == "instant" else None
+            temporal = {}
+            if proof:
+                temporal["availability_proof"] = proof
+                if all(proof.get(key) for key in ("verified_by", "verified_at", "uri", "sha256")):
+                    temporal["public_available_at"] = available
+            from bioradar.adapters.fabric_document import project_signal_context
+
+            signal = project_signal_context(self, record, known_records=selected)
+            if signal is not None:
+                temporal["signal_context"] = signal
+                if signal.origin_group:
+                    temporal["source_family"] = signal.origin_group
             records.append(
                 EngineRecord(
                     record_ref=self.ref(record),
@@ -370,6 +440,8 @@ class FabricHistoryReader:
                     published_at=published_instant,
                     published_time_raw=published.get("value") if isinstance(published, dict) else None,
                     time_precision=precision,
+                    # This retains the declared source-publication axis, not a
+                    # historical public-availability proof or a server observation time.
                     publication_time_verified=published is not None,
                     normalized_text=record["clean_text"] or None,
                     text_status="inline_authorized" if record["clean_text"] else "unavailable",
@@ -380,6 +452,7 @@ class FabricHistoryReader:
                         reason="normalized quotation; exact original available by source version"
                     ),
                     missing_fields=("unresolved_study_and_source_independence",),
+                    **temporal,
                 )
             )
         return NormalizedSnapshot(

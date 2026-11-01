@@ -1,13 +1,16 @@
 """Persistent topic observations. Reads do not start computation."""
 
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import JSONResponse
+from pydantic import AwareDatetime
 
 from bioradar.api.errors import DomainError
 from bioradar.research.engine.auth import DevelopmentAccess
 from bioradar.research.engine.routes import EngineRoute, IdempotencyKey
+from bioradar.research.engine.schemas import RuntimeModel
 from bioradar.research.engine.service import EngineService
 from bioradar.research.history.service import history_reader
 from bioradar.topics.models import (
@@ -16,11 +19,17 @@ from bioradar.topics.models import (
     TopicEvaluation,
     TopicEvaluationList,
     TopicList,
+    TopicRiskReviewView,
     TopicTemplates,
     TopicUpdate,
     TopicView,
 )
+from bioradar.topics.risk import TopicRiskReviewRequest
 from bioradar.topics.service import TopicService
+
+
+class TopicSimulationTick(RuntimeModel):
+    as_of: AwareDatetime
 
 
 def create_topic_router(settings):
@@ -31,6 +40,25 @@ def create_topic_router(settings):
         if request.app.state.database is None:
             raise DomainError("engine_database_unavailable", "研究数据库尚未配置", 503)
         return TopicService(EngineService(request.app.state.database, settings))
+
+    @router.post("/simulation/tick")
+    def simulation_tick(
+        body: TopicSimulationTick,
+        request: Request,
+        actor=Depends(access.require_actor),
+    ):
+        if settings.environment != "test":
+            raise DomainError("simulation_tick_unavailable", "模拟时钟仅在隔离测试环境使用", 404)
+        runtime = service(request)
+        with history_reader(settings) as reader:
+            result = TopicService(runtime.engine, reader).tick(now=body.as_of, only_demo=True)
+        return {
+            "clock_mode": "accelerated_demo_clock",
+            "evaluation_as_of": body.as_of.isoformat(),
+            "executed_at": datetime.now(UTC).isoformat(),
+            "qualification": "仅推进模拟专题的同一调度规则；原文和实际采集、模型调用时间不改写。",
+            "result": result,
+        }
 
     @router.get("/templates", response_model=TopicTemplates)
     def templates(request: Request, actor=Depends(access.require_actor)):
@@ -79,6 +107,21 @@ def create_topic_router(settings):
         actor=Depends(access.require_actor),
     ):
         code, result = service(request).control(actor, identifier, body, idempotency_key)
+        return JSONResponse(status_code=code, content=result)
+
+    @router.post("/{identifier}/risk-reassessments", response_model=TopicRiskReviewView)
+    def risk_reassessment(
+        identifier: str,
+        body: TopicRiskReviewRequest,
+        request: Request,
+        idempotency_key: IdempotencyKey,
+        actor=Depends(access.require_actor),
+    ):
+        runtime = service(request)
+        with history_reader(settings) as reader:
+            runtime.reader = reader
+            runtime.engine.history_source_reader = reader.sources
+            code, result = runtime.review_risk(actor, identifier, body, idempotency_key)
         return JSONResponse(status_code=code, content=result)
 
     @router.get("/{identifier}/evaluations", response_model=TopicEvaluationList)

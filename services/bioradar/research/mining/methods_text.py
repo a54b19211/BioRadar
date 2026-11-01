@@ -22,9 +22,10 @@ from bioradar.research.mining.common import candidate, result, unsupported
 from bioradar.research.mining.prepare import (
     PreparedRecord,
     PreparedSnapshot,
-    publication_interval,
+    analysis_interval,
     section_visible,
 )
+from bioradar.research.mining.signals import ZH_STOP, anchored_phrases
 from bioradar.research.mining.temporal import batch_bursts, exposure_metrics
 
 STOP = frozenset(
@@ -90,12 +91,7 @@ def phrase_spans(text: str, stoplist: frozenset[str]) -> dict[str, str]:
                 if re.search(r"[\u3400-\u9fff|:]", raw):
                     continue
                 phrases.setdefault(" ".join(normalized), raw)
-        for run in HAN.finditer(segment.group()):
-            for size in range(2, 7):
-                for start in range(max(0, len(run.group()) - size + 1)):
-                    value = run.group()[start : start + size]
-                    if value not in stoplist:
-                        phrases.setdefault(value, value)
+        phrases.update(anchored_phrases(segment.group(), stoplist))
     return phrases
 
 
@@ -146,7 +142,7 @@ def _bins(items: list[PreparedRecord], supporting: set[tuple], prepared: Prepare
     count = int((policy.current_end - policy.baseline_start).total_seconds() // (7 * 86400)) + 1
     relevant, exposure = [set() for _ in range(count)], [set() for _ in range(count)]
     for item in items:
-        interval = publication_interval(item.record)
+        interval = analysis_interval(item.record, prepared.policy)
         if not interval or item.window not in {"current", "baseline"}:
             continue
         low, high = interval
@@ -230,7 +226,7 @@ def lexical_emergence(prepared: PreparedSnapshot):
         if tokens and tokens[-1] in {"id", "ids", "identifier", "identifiers", "url", "http", "https"}:
             quality_excluded["structural_identifier_suffix"] += 1
             continue
-        if len(_units(all_items)) >= 3 and units == len(_units(all_items)):
+        if len(_units(all_items)) >= 3 and units == len(_units(all_items)) and not anchored_phrases(phrase):
             quality_excluded["ubiquitous_background_in_adopted_scope"] += 1
             continue
         mode = "stock_exploration"
@@ -414,8 +410,7 @@ def lexical_emergence(prepared: PreparedSnapshot):
 
 def _analyzer(text: str) -> list[str]:
     words = [x.group().lower() for x in WORD.finditer(text) if x.group().lower() not in STOP]
-    for run in HAN.finditer(text):
-        words.extend(run.group()[i : i + 2] for i in range(max(0, len(run.group()) - 1)))
+    words.extend(anchored_phrases(text, STOP | ZH_STOP))
     return words
 
 
@@ -436,7 +431,7 @@ def text_topics(prepared: PreparedSnapshot):
         members = sorted(
             unique[key],
             key=lambda row: (
-                (publication_interval(row[0].record) or (row[0].record.observed_at,))[0],
+                (analysis_interval(row[0].record, prepared.policy) or (row[0].record.observed_at,))[0],
                 row[0].record.record_ref.version_key,
             ),
         )

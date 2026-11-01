@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import KddRunSummary from "./KddRunSummary.vue";
+import { kddLabel, object, text } from "../../api/kdd";
+import { queryPolicyArtifactAnchor } from "../../api/queryPolicy";
 import type {
   PolicyQueryReceipt,
+  QueryPolicyArtifactRef,
   QueryPolicyDecision,
   QueryPolicyTrace,
 } from "../../api/queryPolicy";
@@ -14,6 +18,38 @@ const decisions = computed(() => props.policy?.decisions ?? []);
 const checks = computed(() => props.policy?.checks ?? []);
 const unsearched = computed(() => checks.value.filter((check) => check.status !== "passed"));
 const latest = computed(() => decisions.value.at(-1));
+const kdd = computed(() => props.policy?.schema_version === "query-planner.external.v2");
+const artifacts = computed(() => props.policy?.artifacts ?? []);
+const artifactNames: Record<string, string> = {
+  source_documents: "固定来源资料", analysis_dataset: "加工后的分析数据",
+  pattern_result: "实际模式计算", professional_assessment: "专业评价结果",
+};
+const computedPatterns = computed(() => artifacts.value.filter(row =>
+  row.kind === "pattern_result" && object(props.policy?.artifact_results?.[row.id])));
+const latestComputation = computed(() => artifacts.value.filter(row =>
+  ["analysis_dataset", "pattern_result"].includes(row.kind)
+  && object(props.policy?.artifact_results?.[row.id])).at(-1));
+const latestDataset = computed(() => artifacts.value.filter(row =>
+  row.kind === "analysis_dataset" && row.source_artifact_id === latestComputation.value?.source_artifact_id
+  && row.source_version === latestComputation.value?.source_version).at(-1));
+const computationResult = computed(() => {
+  const latest = latestComputation.value;
+  if (!latest) return null;
+  const payload = props.policy?.artifact_results?.[latest.id];
+  return latest.kind === "pattern_result" ? payload : { data_preparation: payload };
+});
+const computationPolicy = computed(() => latestDataset.value?.policy);
+const professionalArtifacts = computed(() => artifacts.value.filter(row => row.kind === "professional_assessment"));
+function artifactText(ref: QueryPolicyArtifactRef) {
+  const artifact = artifacts.value.find(row => row.id === ref.id && row.version === ref.version);
+  return (artifact ? artifactNames[artifact.kind] ?? artifact.kind : "未解析的产物")
+    + " " + ref.id + "（固定版本 " + ref.version.slice(0, 12) + "）";
+}
+function artifactStatus(id: string) {
+  const row = artifacts.value.find(value => value.id === id);
+  const payload = object(props.policy?.artifact_results?.[id]);
+  return status(text(payload?.status) || row?.status || "unknown");
+}
 const dimensions = computed(() => [...new Set([
   ...Object.keys(props.policy?.budget?.limits ?? {}),
   ...Object.keys(props.policy?.budget?.usage ?? {}).filter((key) => !["preparation_tool_calls", "known_tool_calls", "unknown_tool_calls", "reserved_tool_calls", "budgeted_tool_calls"].includes(key)),
@@ -36,11 +72,12 @@ const statusNames: Record<string, string> = {
   running: "正在执行", complete: "本轮检索已结束", insufficient: "本轮检索覆盖不足",
   blocked: "等待核对执行结果", prepared: "已准备，尚未发送",
   sent: "已发送，等待回执", unconfirmed: "执行结果未确认", unknown: "执行结果未知",
-  read: "已读取", empty: "未命中", completed: "已完成", failed: "执行失败",
+  read: "已取得回执", empty: "未命中", completed: "已完成", failed: "执行失败",
   unavailable: "来源暂不可用", not_sent: "未发送",
+  not_requested: "本轮未请求", skipped_budget: "预算不足，未执行",
 };
 const dimensionNames: Record<string, string> = {
-  tool_calls: "查询动作", tokens: "token", relation_access: "关系读取",
+  tool_calls: "实际工具动作", known_tool_calls: "已确认工具动作", tokens: "token", model_calls: "模型调用", relation_access: "关系读取", queries: "执行动作",
 };
 const reasonNames: Record<string, string> = {
   selected_by_heuristic: "启发式选择本次动作",
@@ -82,6 +119,13 @@ function actionText(decision: QueryPolicyDecision) {
   const action = decision.action;
   if (!action) return "本次未选择执行动作";
   const args = action.arguments;
+  if (["dataset_prepare", "analysis_run", "professional_assess"].includes(action.kind)) {
+    const names: Record<string, string> = {
+      dataset_prepare: "加工固定资料", analysis_run: "运行适用计算", professional_assess: "执行专业评价",
+    };
+    const scope = object(args.scope);
+    return [names[action.kind], kddLabel(text(scope?.direction)), text(args.capability_id)].filter(Boolean).join(" · ");
+  }
   const query = args.terms?.join(" + ") || args.query;
   return [args.provider, args.source_id, query || action.kind].filter(Boolean).join(" · ");
 }
@@ -100,7 +144,10 @@ function actionText(decision: QueryPolicyDecision) {
       <p v-if="policy.requested !== policy.effective" class="notice">
         请求策略：{{ name(policy.requested) }}；本版实际策略：{{ name(policy.effective) }}。
       </p>
-      <p class="muted">策略用于安排查询和检查检索覆盖；专业判断与报告核验见本版研究结果。</p>
+      <p v-if="kdd" class="muted">本轮按真实回执安排资料加工、适用计算、补证和专业评价。执行检查完成不表示模式有科研价值、机制成立或全稿通过。</p>
+      <p v-else class="muted">策略用于安排查询和检查检索覆盖；专业判断与报告核验见本版研究结果。</p>
+      <p v-if="kdd" class="muted">本地数据加工和计算各计一次工具动作、零模型调用；专业服务请求与模型用量分别按真实回执记录，产物回放不重复计费。</p>
+      <p v-if="kdd && policy.direction" class="muted">本轮固定方向：{{ kddLabel(policy.direction) }}；{{ policy.direction_basis === "explicit" ? "请求中明确选择" : "按问题规则识别" }}。</p>
       <p v-if="policy.status !== 'running' || latest?.decision !== 'continue'">
         <strong>停止或等待原因：</strong>{{ reason(policy.reason || latest?.reason) }}
       </p>
@@ -122,13 +169,28 @@ function actionText(decision: QueryPolicyDecision) {
         <ul class="policy-checks">
           <li v-for="check in checks" :key="check.id">
             <strong>{{ check.question || check.id }}</strong>：
-            {{ check.status === "passed" ? "有已采用资料支撑覆盖" : check.status === "failed" ? "覆盖检查未满足" : "仍待查证" }}
+            {{ check.status === "passed" ? (check.artifact_refs?.length ? "已有固定产物支持本项执行检查" : "有已采用资料支撑覆盖") : check.status === "failed" ? "覆盖检查未满足" : "仍待查证" }}
             <span v-if="check.reason"> · {{ check.reason }}</span>
             <small v-if="check.evidence_ids?.length">采用资料：{{ check.evidence_ids.join("、") }}</small>
+            <small v-if="check.artifact_refs?.length">采用产物：{{ check.artifact_refs.map(artifactText).join("；") }}</small>
           </li>
         </ul>
       </template>
       <p v-else class="muted">本版尚未保存覆盖检查项。</p>
+      <template v-if="kdd">
+        <KddRunSummary v-if="computationResult" :result="computationResult" :policy="computationPolicy" />
+        <p v-else class="notice">本轮尚未保存可展示的加工或计算结果；不能将能力可用当作已经执行。</p>
+        <article v-for="artifact in professionalArtifacts" :id="queryPolicyArtifactAnchor(artifact)" :key="artifact.id" class="professional-artifact">
+          <p class="muted"><strong>专业评价：</strong>{{ artifact.provider || "提供方未记录" }} · {{ artifactStatus(artifact.id) }}；
+            {{ artifact.id }}，固定版本 {{ artifact.version }}。评价执行状态与科学结论分别保存，取得产物不表示已纳入当前草稿。
+          </p>
+          <details v-if="policy.artifact_results?.[artifact.id] != null" class="no-print">
+            <summary>阅读这份固定专业产物记录</summary>
+            <pre class="source-text">{{ JSON.stringify(policy.artifact_results[artifact.id], null, 2) }}</pre>
+          </details>
+        </article>
+        <p v-if="computedPatterns.length > 1" class="muted">本轮保留 {{ computedPatterns.length }} 个固定计算版本，上方显示最近保存的加工或计算结果；旧产物和动作仍在轨迹中。</p>
+      </template>
       <details :open="policy.status === 'blocked'" class="no-print">
         <summary>逐步动作、真实回执与下一决策（{{ decisions.length }} 次决策）</summary>
         <ol class="policy-decisions">
@@ -144,10 +206,14 @@ function actionText(decision: QueryPolicyDecision) {
                 <template v-if="decision.receipt.error_code"> · {{ decision.receipt.error_code }}</template>
                 <template v-if="decision.receipt.query_index != null"> · 查询记录 {{ decision.receipt.query_index + 1 }}</template>
               </p>
+              <p v-if="decision.receipt.new_artifact_refs?.length" class="muted">
+                本动作实际产物：{{ decision.receipt.new_artifact_refs.map(artifactText).join("；") }}
+              </p>
               <p v-if="actualQuery(decision)" class="muted">
                 关联查询 {{ actualQuery(decision)?.action_id || decision.action?.id }}：
                 {{ status(actualQuery(decision)!.status) }}，返回 {{ number(actualQuery(decision)?.returned) }} 条，
-                新增版本 {{ number(actualQuery(decision)?.new_versions) }} 条。
+                <template v-if="!['dataset_prepare', 'analysis_run', 'professional_assess'].includes(decision.action?.kind ?? '')">新增版本 {{ number(actualQuery(decision)?.new_versions) }} 条。</template>
+                <template v-else>产物按固定身份与版本保留。</template>
               </p>
               <p v-if="decision.receipt.cost && Object.keys(decision.receipt.cost).length" class="muted">
                 实际用量：
@@ -165,7 +231,7 @@ function actionText(decision: QueryPolicyDecision) {
             <p v-if="decision.state_summary?.observed_history?.length" class="muted">
               本次决策已观察到：
               <span v-for="(observed, observedIndex) in decision.state_summary.observed_history" :key="observedIndex">
-                {{ observed.action_id }}（{{ status(observed.status) }}）；
+                {{ observed.action_id }}（{{ status(observed.status) }}<template v-if="observed.new_artifact_refs?.length">，{{ observed.new_artifact_refs.map(artifactText).join("；") }}</template>）；
               </span>
             </p>
             <p v-else-if="index === 0" class="muted">首个决策，尚无本轮动作回执。</p>

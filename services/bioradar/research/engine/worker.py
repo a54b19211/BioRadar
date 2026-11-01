@@ -26,9 +26,16 @@ def execute_run(identifier: str, attempt: int, token: str, input_hash: str) -> s
 
             result = evaluate_decision(fixed_input.input, fixed_input.policy, fixed_input.snapshots)
         else:
+            from bioradar.research.mining.models import KddPolicy
             from bioradar.research.mining.runner import run_mining
 
-            result = run_mining(*fixed_input)
+            snapshot, policy = fixed_input
+            if isinstance(policy, KddPolicy):
+                from bioradar.research.mining.kdd import run_kdd
+
+                result = run_kdd(snapshot, policy)
+            else:
+                result = run_mining(snapshot, policy)
         engine.finish_run(identifier, attempt, token, input_hash, result)
         return identifier
     except Exception as exc:

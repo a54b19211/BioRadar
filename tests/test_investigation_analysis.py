@@ -144,6 +144,9 @@ class Model:
                     "decisive_evidence_keys": [first["evidence_key"]],
                 },
             }
+            schema = wire.get("response_format", {}).get("json_schema", {}).get("schema", {})
+            if {"warning_assessment", "competing_hypotheses"}.issubset(schema.get("properties", {})):
+                result.update(warning_assessment=None, competing_hypotheses=[])
         elif payload["task"] == "compare":
             result = {
                 "stance": "maintained",
@@ -201,6 +204,7 @@ def runtime(database, snapshot):
         monitor_enabled=True,
         monitor_is_demo=True,
         analysis_manual_per_hour=2,
+        analysis_min_call_seconds=1,
     )
     source, model = Source(), Model()
     source.records = [
@@ -401,11 +405,30 @@ def test_manual_external_material_automatically_queues_child_and_own_material_do
     assert InvestigationService(make().engine).get(actor, view["id"]).judgment_count == 0
 
 
+def occupy_material_update_pool(runtime):
+    make, actor, *_ = runtime
+    _, inquiry = InvestigationService(make().engine).create(
+        actor,
+        InvestigationCreate(
+            title="SYNTHETIC pool holder", question="SYNTHETIC awaiting material", is_demo=True
+        ),
+        "material-pool-holder",
+    )
+    return make().start(
+        actor,
+        inquiry["id"],
+        AnalysisCreate(expected_revision=1, auto_retrieve=True),
+        "material-pool-reservation",
+        defer_on_budget=True,
+    )[1]["id"]
+
+
 def test_manual_budget_and_delayed_material_update_are_durable(runtime, database):
     make, actor, view, _, model, settings, adopted = runtime
     settings.analysis_manual_per_hour = 1
     accepted = start(runtime)
     make().execute(accepted["id"], accepted["input_hash"])
+    holder_id = occupy_material_update_pool(runtime)
     current = InvestigationService(make().engine).get(actor, view["id"])
     snap = make().engine.get_snapshot(actor, adopted["id"]).snapshot
     InvestigationService(make().engine).append(
@@ -426,13 +449,16 @@ def test_manual_budget_and_delayed_material_update_are_durable(runtime, database
     with Session(database) as session, session.begin():
         rows = list(
             session.scalars(
-                select(InvestigationAnalysisRecord).order_by(InvestigationAnalysisRecord.created_at)
+                select(InvestigationAnalysisRecord)
+                .where(InvestigationAnalysisRecord.investigation_id == view["id"])
+                .order_by(InvestigationAnalysisRecord.created_at)
             )
         )
         assert len(rows) == 2 and rows[1].progress["manual_budget_pending"] is True
-        state = copy.deepcopy(rows[0].progress)
+        holder = session.get(InvestigationAnalysisRecord, holder_id)
+        state = copy.deepcopy(holder.progress)
         state["budget_reserved_at"] = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
-        rows[0].progress = state
+        holder.progress = state
         child = rows[1].id
     make().recover()
     with Session(database) as session:
@@ -736,6 +762,7 @@ def test_waiting_manual_update_does_not_take_new_slot_while_paused_or_closed(run
     settings.analysis_manual_per_hour = 1
     accepted = start(runtime)
     make().execute(accepted["id"], accepted["input_hash"])
+    holder_id = occupy_material_update_pool(runtime)
     current = InvestigationService(make().engine).get(actor, view["id"])
     snapshot = make().engine.get_snapshot(actor, adopted["id"]).snapshot
     InvestigationService(make().engine).append(
@@ -754,7 +781,7 @@ def test_waiting_manual_update_does_not_take_new_slot_while_paused_or_closed(run
         "pending-update",
     )
     with Session(database) as session, session.begin():
-        old = session.get(InvestigationAnalysisRecord, accepted["id"])
+        old = session.get(InvestigationAnalysisRecord, holder_id)
         data = copy.deepcopy(old.progress)
         data["budget_reserved_at"] = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
         old.progress = data
@@ -770,7 +797,10 @@ def test_waiting_manual_update_does_not_take_new_slot_while_paused_or_closed(run
     make().recover()
     with Session(database) as session:
         pending = session.scalar(
-            select(InvestigationAnalysisRecord).where(InvestigationAnalysisRecord.id != accepted["id"])
+            select(InvestigationAnalysisRecord).where(
+                InvestigationAnalysisRecord.investigation_id == view["id"],
+                InvestigationAnalysisRecord.id != accepted["id"],
+            )
         )
         assert pending.progress["manual_budget_pending"] is True
         pending_id = pending.id

@@ -1,12 +1,13 @@
 """Bounded machine analysis is a research draft, never a human judgment."""
 
 from datetime import datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import Field
+from pydantic import AwareDatetime, Field
 
 from bioradar.research.engine.schemas import RuntimeModel
-from bioradar.research.mining.models import ProviderRef
+from bioradar.research.mining.models import AssessmentAxes, ProviderRef
+from bioradar.topics.risk import TopicRiskReassessment
 
 ANALYSIS_VERSION = "bioradar-investigation-analysis-v0.5"
 PROMPT_VERSION = "bioradar-investigation-reading-v0.5"
@@ -34,6 +35,35 @@ class QuestionPlan(RuntimeModel):
     limitations: list[Text] = Field(default_factory=list, max_length=8)
 
 
+class QuestionSpan(RuntimeModel):
+    start: int = Field(ge=0, description="研究问题原始文本的Unicode起点，不是字节位置。")
+    end: int = Field(ge=1, description="研究问题原始文本的Unicode排他终点，由宿主核对精确名称。")
+
+
+class NamedQuestionComponent(RuntimeModel):
+    id: LocalId
+    name: str = Field(min_length=1, max_length=200)
+    question_span: QuestionSpan
+
+
+class NamedQuestionObject(RuntimeModel):
+    id: LocalId
+    name: str = Field(min_length=1, max_length=200)
+    question_span: QuestionSpan
+    components: list[NamedQuestionComponent] = Field(
+        default_factory=list, max_length=4, exclude_if=lambda value: not value
+    )
+
+
+class ResearchQuestionPlan(QuestionPlan):
+    named_objects: list[NamedQuestionObject] = Field(default_factory=list, max_length=16)
+
+
+class HistoricalAnalysisScope(RuntimeModel):
+    mode: Literal["public_history_reconstruction", "operational_replay"]
+    cutoff: AwareDatetime
+
+
 class QuestionAsk(RuntimeModel):
     question: str = Field(min_length=1, max_length=4000)
     title: str | None = Field(default=None, min_length=1, max_length=200)
@@ -41,7 +71,15 @@ class QuestionAsk(RuntimeModel):
     source_ids: list[str] = Field(default_factory=list, max_length=8)
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
+    historical_scope: HistoricalAnalysisScope | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     query_policy: Literal["baseline", "query_planner"] | None = None
+    kdd_direction: Literal["research", "pipeline", "business", "public_health"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+
 
 
 class AnalysisCreate(RuntimeModel):
@@ -51,7 +89,13 @@ class AnalysisCreate(RuntimeModel):
     source_ids: list[str] = Field(default_factory=list, max_length=8)
     initial_queries: list[InitialQuery] = Field(default_factory=list, max_length=6)
     budget: AnalysisBudget | None = None
+    historical_scope: HistoricalAnalysisScope | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     query_policy: Literal["baseline", "query_planner"] | None = None
+    kdd_direction: Literal["research", "pipeline", "business", "public_health"] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     retry_of_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     parent_analysis_id: str | None = Field(default=None, min_length=1, max_length=36)
     material_entry_ids: list[str] = Field(default_factory=list, max_length=10)
@@ -111,8 +155,33 @@ class ConditionalAnswer(RuntimeModel):
 class CoverageCheck(RuntimeModel):
     id: LocalId
     status: Literal["passed", "failed", "unknown"] = "unknown"
-    evidence_ids: list[LocalId] = Field(default_factory=list, max_length=10)
+    evidence_ids: list[LocalId] = Field(default_factory=list, max_length=32)
     reason: str = Field(default="", max_length=2000)
+
+
+class WarningAssessment(RuntimeModel):
+    decision: Literal["verify_now", "alert", "watch"]
+    supporting_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    opposing_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    critical_unknowns: list[Text] = Field(default_factory=list, max_length=8)
+    next_actions: list[Text] = Field(default_factory=list, max_length=6)
+    reason: Text
+
+
+class CompetingHypothesis(RuntimeModel):
+    id: LocalId
+    explanation: Text
+    supporting_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    opposing_claim_ids: list[LocalId] = Field(default_factory=list, max_length=6)
+    discriminating_evidence_needed: Text
+    untested_conditions: list[Text] = Field(default_factory=list, max_length=8)
+
+
+class HypothesisJudgment(RuntimeModel):
+    least_refuted_hypothesis_id: LocalId
+    reason: Text
+    next_discriminating_evidence: Text
+    qualification: Literal["这是模型判断，未证实"] = "这是模型判断，未证实"
 
 
 class ModelReading(RuntimeModel):
@@ -125,8 +194,13 @@ class ModelReading(RuntimeModel):
 
 
 class PolicyReading(ModelReading):
+    current_judgment: HypothesisJudgment | None = Field(default=None, exclude_if=lambda value: value is None)
     coverage_checks: list[CoverageCheck] = Field(default_factory=list, max_length=64)
     next_queries: list[PolicyPlannedQuery] = Field(max_length=2)
+    warning_assessment: WarningAssessment | None = Field(default=None, exclude_if=lambda value: value is None)
+    competing_hypotheses: list[CompetingHypothesis] | None = Field(
+        default=None, max_length=4, exclude_if=lambda value: value is None
+    )
 
 
 class ClaimUpdate(RuntimeModel):
@@ -149,6 +223,21 @@ class ModelSynthesis(RuntimeModel):
     gaps: list[EvidenceGap] = Field(max_length=4)
     conditional_answer: ConditionalAnswer
     update: AnalysisUpdate
+
+
+class FinalResearchSynthesis(ModelSynthesis):
+    """Future-only synthesis: all assessment references share this output's claims."""
+
+    warning_assessment: WarningAssessment | None = Field(
+        description="本轮问题的总体行动建议；可同时列出定向核实动作。不适用时显式null，不是真实性概率。"
+    )
+    competing_hypotheses: list[CompetingHypothesis] = Field(
+        max_length=4, description="只引用本次claims已有id；无合理竞争解释时显式空列表，不猜旧编号映射。"
+    )
+    topic_risk_reassessment: TopicRiskReassessment | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    current_judgment: HypothesisJudgment | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 class ClaimReview(RuntimeModel):
@@ -218,6 +307,7 @@ class AnalysisEvidence(RuntimeModel):
         "snapshot_normalized"
     )
     history_binding: dict | None = None
+    source_context: dict | None = Field(default=None, exclude_if=lambda value: value is None)
     facts: dict = Field(default_factory=dict)
     field_locators: dict = Field(default_factory=dict)
     snapshot_id: str
@@ -228,6 +318,7 @@ class AnalysisEvidence(RuntimeModel):
     start: int
     end: int
     text_sha256: str
+    source_length: int | None = Field(default=None, ge=0, exclude_if=lambda value: value is None)
     passages: list[AnalysisPassage] = Field(default_factory=list)
     selection_hash: str | None = None
     publication_time: str | None = None
@@ -251,6 +342,7 @@ class VerifiedClaim(ModelClaim):
 
 
 class AnalysisResult(RuntimeModel):
+    assessment_axes: AssessmentAxes | None = Field(default=None, exclude_if=lambda value: value is None)
     version: Literal[
         "bioradar-investigation-analysis-v0.1",
         "bioradar-investigation-analysis-v0.2",
@@ -275,27 +367,55 @@ class AnalysisResult(RuntimeModel):
     report: dict | None = None
     mechanism_evaluation: dict | None = None
     query_policy: dict | None = None
+    warning_assessment: WarningAssessment | None = Field(default=None, exclude_if=lambda value: value is None)
+    competing_hypotheses: list[CompetingHypothesis] | None = Field(
+        default=None, max_length=4, exclude_if=lambda value: value is None
+    )
+    assessment_binding: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    topic_risk_reassessment: TopicRiskReassessment | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    current_judgment: HypothesisJudgment | None = Field(default=None, exclude_if=lambda value: value is None)
     limitations: list[str]
+
+
+class QueryPagination(RuntimeModel):
+    has_more: bool
+    next_cursor: str | None = None
+    max_seq: int = Field(ge=0)
+    page_number: int = Field(ge=1)
+
+
+class ReturnedSourceVersion(RuntimeModel):
+    source_id: Text
+    source_record_id: Text
+    version_id: Text
 
 
 class AnalysisQueryReceipt(RuntimeModel):
     index: int
     phase: Literal["initial", "followup"] = "followup"
-    provider: Literal["fabric", "weknora", "graph", "fabric_graph"] = "fabric"
+    provider: Literal["fabric", "weknora", "graph", "fabric_graph", "radar", "professional"] = "fabric"
     kind: str = "document_search"
     action_id: str | None = None
     semantic_key: str | None = None
     decision_step: int | None = None
     cost: dict | None = None
     graph_context: dict | list | None = None
+    artifact_refs: list[dict] = Field(default_factory=list, exclude_if=lambda value: not value)
+    check_updates: list[dict] = Field(default_factory=list, exclude_if=lambda value: not value)
     plan: PolicyPlannedQuery | PlannedQuery | InitialQuery | dict
     relaxed_from: PolicyPlannedQuery | PlannedQuery | InitialQuery | None = None
     relaxation_reason: Text | None = None
     status: Literal["prepared", "sent", "read", "empty", "failed", "unavailable", "unconfirmed"]
     scope: str = "fabric_current_adopted_versions_not_the_web"
     returned: int = 0
+    returned_versions: list[ReturnedSourceVersion] | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     new_versions: int = 0
     has_more: bool = False
+    pagination: QueryPagination | None = Field(default=None, exclude_if=lambda value: value is None)
     error_code: str | None = None
     evidence_keys: list[str] = Field(default_factory=list)
     candidates: list[dict] = Field(default_factory=list)
@@ -320,6 +440,8 @@ class AnalysisSummary(RuntimeModel):
 
 
 class AnalysisView(AnalysisSummary):
+    evidence_time: dict | None = Field(default=None, exclude_if=lambda value: value is None)
+    human_review_context: dict[str, Any] | None = Field(default=None, exclude_if=lambda value: value is None)
     is_demo: bool
     input_hash: str
     prompt_version: str

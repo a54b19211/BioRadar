@@ -107,6 +107,22 @@
       "title": "Time Mode",
       "type": "string"
     },
+    "availability_basis": {
+      "anyOf": [
+        {
+          "enum": [
+            "operational_replay",
+            "public_history_reconstruction"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Availability Basis"
+    },
     "discovery_mode": {
       "default": "stock_and_incremental",
       "enum": [

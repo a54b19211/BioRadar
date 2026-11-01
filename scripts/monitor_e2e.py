@@ -15,7 +15,8 @@ from pathlib import Path
 from uuid import uuid4
 
 from history_e2e import Exercise
-from query_policy_assertions import assert_query_policy
+
+from tests.query_policy_assertions import assert_query_policy
 
 
 class MonitorExercise(Exercise):
