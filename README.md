@@ -30,6 +30,7 @@ BioRadar 把资料变化变成可追溯的调查：主动发现线索，接受�
 ```sh
 make bootstrap
 make init
+export PATH="$PWD/.tools/bootstrap/bin:$PATH"
 ```
 
 编辑新克隆的 `ops/.env`：设独立 `COMPOSE_PROJECT_NAME`，选未占用的 `POSTGRES_PORT`、`REDIS_PORT`、`API_PORT`、`WEB_PORT`，再运行 `make dev`。默认端口 15436/16379/18100/15176 在 zktest 已用于原服务，应先修改。`make status` 查看本实例，`make stop` 停本实例并保留数据卷。
@@ -66,7 +67,7 @@ uv run --frozen python -m bioradar.ops.monitor
 
 检查每一步实际取回的原文版本、路由动作、汪的机制评价、潘的生成与核验，以及最终 PASS/FAIL/REVIEW/NOT_RUN。下载保存版本，再追问“哪些结论只来自摘要，补齐原文后是否需要修订？”；新结果应保留与旧分析的关系。自动发现和专题更新复用同一执行器。
 
-可用 [research_e2e.py](scripts/research_e2e.py) 完成相同的首问、追问、回读和导出检查。下面的来源名须在实例白名单中存在；脚本会产生实际模型费用。
+可用 [research_e2e.py](scripts/research_e2e.py) 完成相同的首问、追问、回读和导出检查。脚本与 API 使用同一私有环境，要求 `BIORADAR_ENVIRONMENT=test`，并使用已创建和迁移的 `bioradar_research_*`、`bioradar_query_*` 或 `bioradar_kdd_*` 独立数据库；基础 Compose 的 development 库不满足这个脚本的条件。下面的来源名须在实例白名单中存在；脚本会产生实际模型费用。
 
 ```sh
 uv run --frozen python scripts/research_e2e.py   --radar-url http://127.0.0.1:18110 --policy query_planner   --question 'BCMA×CD3双特异性抗体管线有哪些证据和主要风险？'   --followup '哪些关键结论只有摘要支持，应该补查什么？'   --source pubmed --source clinicaltrials --output artifacts/my-research.json
