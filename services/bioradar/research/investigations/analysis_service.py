@@ -3315,14 +3315,6 @@ class AnalysisService:
 
             ensure_artifacts(self, identifier, token, fixed, progress)
             if external and progress["evidence"]:
-                fingerprint = canonical_hash(
-                    [
-                        [[e["key"], e["selection_hash"], e["text_sha256"]] for e in progress["evidence"]],
-                        progress.get("mechanism_evaluation"),
-                        state.get("quality_feedback"),
-                        progress.get("graph_context"),
-                    ]
-                )
                 from bioradar.research.investigations.analysis import semantic_reading_state
 
                 fingerprint = canonical_hash(
