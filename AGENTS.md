@@ -1,6 +1,6 @@
 # BioRadar 开发约定
 
-先读 README.md。代码在 zktest 的 /home/zk_test/zk_projects/BioRadar，主线 main。现有说明集中在 docs/开发说明.md、开发分工.md、接口说明.md、资产盘点.md。
+先读 README.md。代码在 zktest 的 /home/zk_test/zk_projects/BioRadar，主线 main。项目说明、维护分工、接口入口和实际验证结果统一在 README.md。
 
 ## 先把工作做完整
 
@@ -61,4 +61,4 @@
 
 代码交付执行 make test CARD=BOOT、make contract-check、make lint、make web-check。涉及数据库/队列运行时复用实际PostgreSQL/RQ检查；测试所需数据库不可用时明确报告，不以跳过算通过。实际端到端用真实问题验证提问、取证、模型与共享方法调用、研报、追问和导出，验证后关闭临时进程。
 
-工程检查和研究效果记录集中维护。常用Markdown只保留README及上述四份说明，更新现有文档，不积累多套“最终版”。页面和文档写学生能照着做的任务、输入、交付及验收。
+工程检查和研究效果记录集中维护。常用Markdown只保留README与AGENTS，更新现有文档，不积累多套“最终版”。页面和文档写学生能照着做的任务、输入、交付及验收。
