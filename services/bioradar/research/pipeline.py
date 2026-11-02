@@ -477,9 +477,10 @@ class Run:
             )
             page.update(cursor=cursor, pages=page["pages"] + 1, new=new, found=page["found"] + len(docs))
         if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
-            shorter = terms[:-1]
-            if all(shorter != q["terms"] for q in self.p["queries"]):
-                self.p["queries"].append({"terms": shorter, "checks": candidate["target_checks"]})
+            # Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss.
+            for shorter in (terms[:-1], terms[1:]):
+                if all(shorter != q["terms"] for q in self.p["queries"]):
+                    self.p["queries"].append({"terms": shorter, "checks": candidate["target_checks"]})
         return len(docs), new
 
     def read(self, candidate):

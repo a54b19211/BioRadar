@@ -189,3 +189,29 @@ def test_scope_limits_search_and_reads_to_visible_records(monkeypatch):
         read = [e.record_id for e in s.scalars(select(db.Evidence))]
     assert read == ["B31"]  # B41 became visible after the cutoff; N1 is outside the set
     assert all(call[3] == ("B31", "B41") for call in fabric.calls if call[0] == "search")
+
+
+def test_an_empty_and_search_also_retries_without_its_first_term(monkeypatch):
+    base = fake_model([])
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "plan":
+            value.queries = [schemas.PlanQuery(terms=["细胞治疗", "HR"], checks=[1])]
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(
+        services,
+        "biocheck",
+        lambda s, op, body: {"draft": "无。", "llm_calls": []}
+        if op == "generate"
+        else {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []},
+    )
+    row = analyses.create(question="HR现在是多少？", direction="pipeline", is_demo=True, enqueue=False)
+    fabric = FakeFabric(RECORDS)
+    Run(row, settings(), fabric=fabric).run()
+    assert ("HR",) in [call[2] for call in fabric.calls if call[0] == "search"]
+    with db.session() as s:
+        assert {e.record_id for e in s.scalars(select(db.Evidence))} == {"B31", "B41"}
