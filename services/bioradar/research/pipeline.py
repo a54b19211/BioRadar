@@ -548,8 +548,12 @@ class Run:
                 check = checks[i]
                 if ref not in check["evidence"]:
                     check["evidence"].append(ref)
+                # Only a supporting or refuting fact answers a check; a limitation keeps it open.
                 stances = {f["stance"] for f in self.p["facts"] if i in f["checks"]}
-                check["status"] = "conflict" if {"supports", "refutes"} <= stances else "answered"
+                if {"supports", "refutes"} <= stances:
+                    check["status"] = "conflict"
+                elif stances & {"supports", "refutes"}:
+                    check["status"] = "answered"
         for terms in reading.new_terms[:2]:
             terms = clean_terms(terms)
             if (
