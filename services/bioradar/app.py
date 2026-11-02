@@ -22,7 +22,7 @@ def not_found(_, exc):
     return JSONResponse({"error_code": "not_found", "message": str(exc)}, status_code=404)
 
 
-@app.exception_handler(ValueError)
+@app.exception_handler(analyses.InvalidInput)
 def bad_input(_, exc):
     return JSONResponse({"error_code": "invalid_input", "message": str(exc)}, status_code=422)
 

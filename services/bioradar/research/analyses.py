@@ -21,6 +21,10 @@ class NotFound(Exception):
     pass
 
 
+class InvalidInput(ValueError):
+    pass
+
+
 def queue():
     return Queue(settings().queue_name, connection=Redis.from_url(settings().redis_url))
 
@@ -46,11 +50,11 @@ def create(
 ) -> db.Analysis:
     s = settings()
     if direction not in DIRECTIONS:
-        raise ValueError("direction")
+        raise InvalidInput("direction")
     if method not in {"planner", "baseline"}:
-        raise ValueError("method")
+        raise InvalidInput("method")
     if cutoff and datetime.fromisoformat(cutoff).tzinfo is None:
-        raise ValueError("cutoff_needs_timezone")
+        raise InvalidInput("cutoff_needs_timezone")
     value = {
         "question": question.strip(),
         "direction": direction,
