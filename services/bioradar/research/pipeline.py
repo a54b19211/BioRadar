@@ -736,6 +736,7 @@ class Run:
             for r in self.p["relations"]
             if r["kind"] in {"corrects", "retracts"} and r["to"] in refs and r["from"] in refs
         ]
+        searched = {i for a in self.p["actions"] if a["status"] == "completed" for i in a["target_checks"]}
         failed = [
             f"{a['kind']} {a['source']} {a.get('error')}"
             for a in self.p["actions"]
@@ -747,8 +748,13 @@ class Run:
             "analysis_results": results,
             "source_updates": updates,
             "research_scope": {
-                "checked": [c["text"] for c in self.p["checks"] if c["status"] != "open"],
-                "not_checked": [c["text"] for c in self.p["checks"] if c["status"] == "open"],
+                "checked": [
+                    c["text"]
+                    + ("（已找到依据）" if c["status"] != "open" else "（已检索，未找到肯定或否定依据）")
+                    for c in self.p["checks"]
+                    if c["id"] in searched
+                ],
+                "not_checked": [c["text"] for c in self.p["checks"] if c["id"] not in searched],
                 "failed": failed,
                 "history_cutoff": self.input.get("cutoff"),
             },
@@ -773,7 +779,13 @@ class Run:
         try:
             report["draft"] = self.service("generate", dict(body))["draft"]
             review = self.service("verify", dict(body, draft=report["draft"]))
-            fixable = [c for c in review["claims"] if c["verdict"] == "contradicted" or c.get("scope_span")]
+            fixable = [
+                c
+                for c in review["claims"]
+                if c["verdict"] == "contradicted"
+                or c.get("scope_span")
+                or (c["verdict"] == "insufficient" and c["citations"] and c["labels"])
+            ]
             if review["status"] != "PASS" and fixable and self.calls_left() > 2:
                 revised = self.service("revise", dict(body, draft=report["draft"], review=review))
                 if revised.get("changed"):
