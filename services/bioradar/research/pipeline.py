@@ -270,6 +270,21 @@ class Run:
         )
         for seed in self.input.get("seed_records", []):
             self.add_hit(seed["source"], seed["record_id"], seed.get("title", ""), required, critical=True)
+        # A fixed material set: its records visible at the cutoff are reading candidates, and
+        # searches stay inside it.
+        if self.scope:
+            for source in self.input["sources"]:
+                docs, _ = self.fabric.search(
+                    source, (), is_demo=self.input["is_demo"], cutoff=self.cutoff,
+                    record_ids=self.scope, limit=len(self.scope),
+                )
+                for doc in docs:
+                    self.docs[(doc["source"], doc["record_id"])] = doc
+                    self.add_hit(doc["source"], doc["record_id"], doc["title"], required, critical=True)
+
+    @property
+    def scope(self):
+        return self.input.get("scope_record_ids") or []
 
     # ---- investigate ---------------------------------------------------------------------------
 
@@ -429,7 +444,7 @@ class Run:
             hits = weknora.search(self.s, " ".join(terms))
             docs = []
             for hit_source, record_id, _ in hits:
-                if hit_source in self.input["sources"]:
+                if hit_source in self.input["sources"] and (not self.scope or record_id in self.scope):
                     found, _ = self.fabric.search(
                         hit_source,
                         (),
@@ -450,6 +465,7 @@ class Run:
                 is_demo=self.input["is_demo"],
                 cutoff=self.cutoff,
                 cursor=page.get("cursor") if kind == "next_page" else None,
+                record_ids=self.scope,
             )
         new = 0
         for doc in docs:

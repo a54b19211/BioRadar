@@ -45,6 +45,7 @@ def create(
     parent_id=None,
     trigger="manual",
     seed_records=(),
+    scope_record_ids=(),
     topic_id=None,
     enqueue=True,
 ) -> db.Analysis:
@@ -63,6 +64,7 @@ def create(
         "sources": list(sources or (s.demo_sources if is_demo else s.sources)),
         "cutoff": cutoff,
         "seed_records": list(seed_records),
+        "scope_record_ids": list(dict.fromkeys(scope_record_ids)),
         "budget": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
     }
     with db.session() as session:

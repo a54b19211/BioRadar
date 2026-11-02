@@ -162,3 +162,30 @@ def test_same_question_returns_existing_analysis():
         investigation_id=first.investigation_id,
     )
     assert again.id == first.id
+
+
+def test_scope_limits_search_and_reads_to_visible_records(monkeypatch):
+    """A fixed material set whose terms match nothing still gets read; later and outside records do not."""
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(
+        services,
+        "biocheck",
+        lambda s, op, body: {"draft": "无。", "llm_calls": []}
+        if op == "generate"
+        else {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []},
+    )
+    row = analyses.create(
+        question="当前对异常聚集能作什么判断？",
+        direction="public_health",
+        is_demo=True,
+        cutoff="2026-09-29T12:00:00+08:00",
+        scope_record_ids=["B31", "B41"],
+        enqueue=False,
+    )
+    fabric = FakeFabric(RECORDS)
+    Run(row, settings(), fabric=fabric).run()
+    with db.session() as s:
+        read = [e.record_id for e in s.scalars(select(db.Evidence))]
+    assert read == ["B31"]  # B41 became visible after the cutoff; N1 is outside the set
+    assert all(call[3] == ("B31", "B41") for call in fabric.calls if call[0] == "search")

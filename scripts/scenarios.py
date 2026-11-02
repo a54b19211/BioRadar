@@ -240,6 +240,7 @@ def run_d(args):
                 is_demo=False,
                 sources=case["source_ids"],
                 cutoff=case["historical_scope"]["cutoff"],
+                scope_record_ids=case["scope_record_ids"],
             )
 
 

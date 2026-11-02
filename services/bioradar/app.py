@@ -97,6 +97,7 @@ class Ask(BaseModel):
     is_demo: bool = False
     sources: list[str] | None = None
     cutoff: datetime | None = Field(default=None, description="历史回放的截止时间，必须带时区")
+    scope_record_ids: list[str] = Field(default=[], description="只在这些记录里检索和阅读（固定材料集）")
 
 
 @app.post("/api/analyses", dependencies=api)
@@ -108,6 +109,7 @@ def ask(body: Ask):
         is_demo=body.is_demo,
         sources=body.sources,
         cutoff=body.cutoff.isoformat() if body.cutoff else None,
+        scope_record_ids=body.scope_record_ids,
     )
     return analyses.view(row)
 
@@ -126,6 +128,7 @@ def followup(analysis_id: str, body: Followup):
         is_demo=parent.input["is_demo"],
         sources=parent.input["sources"],
         cutoff=parent.input.get("cutoff"),
+        scope_record_ids=parent.input.get("scope_record_ids", ()),
         investigation_id=parent.investigation_id,
         parent_id=parent.id,
         trigger="followup",

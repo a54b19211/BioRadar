@@ -27,7 +27,8 @@ def search(settings: Settings, query: str, *, top_k: int = 10, client: httpx.Cli
     response = http.post(
         settings.weknora_url.rstrip("/") + "/api/v1/knowledge-search",
         headers={"X-API-Key": settings.weknora_token},
-        json={"query": query, "knowledge_base_id": settings.weknora_knowledge_base_id, "top_k": top_k},
+        # v0.9 fields; hybrid search (keyword-only search fails on ParadeDB in v0.9.0).
+        json={"query": query, "knowledge_base_id": settings.weknora_knowledge_base_id, "match_count": top_k},
     )
     response.raise_for_status()
     data = response.json().get("data") or []
