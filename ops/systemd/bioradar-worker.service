@@ -1,13 +1,14 @@
 [Unit]
-Description=BioRadar RQ worker
+Description=BioRadar analysis worker
 After=network.target
 StartLimitIntervalSec=0
 
 [Service]
 WorkingDirectory=%h/zk_projects/BioRadar
-EnvironmentFile=%h/.config/bioradar/runtime.env
+EnvironmentFile=%h/.config/bioradar/radar.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=%h/zk_projects/BioRadar/.venv/bin/python -m bioradar.ops.worker
+Environment=PYTHONPATH=%h/zk_projects/BioRadar/services
+ExecStart=%h/zk_projects/BioRadar/.venv/bin/python -m bioradar.ops worker
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=120

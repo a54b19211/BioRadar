@@ -1,16 +1,16 @@
 [Unit]
-Description=MechEvidence professional methods
+Description=MechEvidence mechanism evaluation
 After=network.target
 StartLimitIntervalSec=0
 
 [Service]
-WorkingDirectory=%h
+WorkingDirectory=%h/zk_projects/MechEvidence
 EnvironmentFile=%h/.config/bioradar/mechevidence.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/usr/bin/env ${BIORADAR_COMPONENT_PYTHON} -B -m mechevidence.service --host 127.0.0.1 --port 18561
+ExecStart=%h/zk_projects/MechEvidence/.venv/bin/uvicorn mechevidence.service:app --host 127.0.0.1 --port 18563
 Restart=on-failure
 RestartSec=5
-TimeoutStopSec=30
+TimeoutStopSec=120
 KillMode=control-group
 UMask=0077
 

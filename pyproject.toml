@@ -21,7 +21,7 @@ where = ["services"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["services", "tests"]
+pythonpath = ["services", "tests", "scripts"]
 
 [tool.ruff]
 target-version = "py312"

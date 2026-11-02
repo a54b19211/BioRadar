@@ -625,8 +625,13 @@ class Run:
             return
         cited = {f["ref"] for f in self.p["facts"]}
         materials = [
-            {"id": r.ref, "title": r.title, "text": r.text, **MECH_KIND[r.material_kind],
-             "text_level": MECH_LEVEL.get(r.meta.get("text_level"), "excerpt")}
+            {
+                "id": r.ref,
+                "title": r.title,
+                "text": r.text,
+                **MECH_KIND[r.material_kind],
+                "text_level": MECH_LEVEL.get(r.meta.get("text_level"), "excerpt"),
+            }
             for r in self.evidence_rows()
             if r.ref in cited and r.material_kind in MECH_KIND
         ]

@@ -3,8 +3,7 @@ WORKDIR /app/apps/web
 COPY apps/web/package.json apps/web/package-lock.json ./
 RUN npm ci
 COPY apps/web ./
-COPY contracts /app/contracts
-RUN npm run generate && npm run check && npm run build
+RUN npm run check && npm run build
 FROM nginx:stable-alpine
 COPY ops/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html

@@ -8,26 +8,10 @@ x-backend: &backend
     args:
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}
+  env_file: .env
   environment:
-    BIORADAR_ENVIRONMENT: development
     BIORADAR_DATABASE_URL: postgresql+psycopg://bioradar:${POSTGRES_PASSWORD:?Run make init}@postgres:5432/bioradar
     BIORADAR_REDIS_URL: redis://redis:6379/0
-    BIORADAR_QUEUE_PREFIX: bioradar:dev
-    BIORADAR_DATA_FABRIC_URL: ${DATA_FABRIC_HISTORY_URL:-}
-    BIORADAR_DATA_FABRIC_RESEARCH_URL: ${DATA_FABRIC_RESEARCH_URL:-}
-    BIORADAR_MONITOR_ENABLED: ${MONITOR_ENABLED:-true}
-    BIORADAR_MONITOR_POLL_SECONDS: ${MONITOR_POLL_SECONDS:-30}
-    BIORADAR_MONITOR_CONTEXT_RECORDS: ${MONITOR_CONTEXT_RECORDS:-2000}
-    BIORADAR_MONITOR_HOURLY_INVESTIGATIONS: ${MONITOR_HOURLY_INVESTIGATIONS:-6}
-    BIORADAR_MONITOR_COOLDOWN_MINUTES: ${MONITOR_COOLDOWN_MINUTES:-60}
-    BIORADAR_DATA_FABRIC_HISTORY_READ_TOKEN: ${DATA_FABRIC_HISTORY_READ_TOKEN:-}
-    BIORADAR_ENGINE_DEV_CREDENTIAL: ${ENGINE_DEV_CREDENTIAL:?Run make init}
-    BIORADAR_ENGINE_SOURCE_ALLOWLIST: ${ENGINE_SOURCE_ALLOWLIST:?Run make init}
-    BIORADAR_ENGINE_SOURCE_ID_ALLOWLIST: ${ENGINE_SOURCE_ID_ALLOWLIST:?Run make init}
-    BIORADAR_ENGINE_ALLOWED_ORIGINS: '["http://127.0.0.1:${WEB_PORT:-15176}","http://localhost:${WEB_PORT:-15176}","http://127.0.0.1:${API_PORT:-18100}","http://localhost:${API_PORT:-18100}"]'
-    OMP_NUM_THREADS: '1'
-    OPENBLAS_NUM_THREADS: '1'
-    MKL_NUM_THREADS: '1'
   init: true
 
 services:
@@ -68,19 +52,20 @@ services:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health/live', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8100/health', timeout=3)"]
       interval: 5s
       timeout: 4s
       retries: 10
   worker:
     <<: *backend
-    command: ["python", "-m", "bioradar.ops.worker"]
+    command: ["python", "-m", "bioradar.ops", "worker"]
+    restart: unless-stopped
     depends_on:
       migrate: {condition: service_completed_successfully}
       redis: {condition: service_healthy}
   monitor:
     <<: *backend
-    command: ["python", "-m", "bioradar.ops.monitor"]
+    command: ["python", "-m", "bioradar.ops", "monitor"]
     restart: unless-stopped
     depends_on:
       migrate: {condition: service_completed_successfully}
@@ -96,11 +81,6 @@ services:
     ports: ["127.0.0.1:${WEB_PORT:-15176}:80"]
     depends_on:
       api: {condition: service_healthy}
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
 
 volumes:
   postgres_data:
