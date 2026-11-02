@@ -19,6 +19,7 @@ from bioradar.research import compute, prompts, schemas
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 MAX_PAGES = 3
 MAX_QUERIES = 12
+MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
 FABRIC_PAGE = 100  # Fabric page cap; a larger fixed material set is filtered here, not in the query
 FETCHABLE = {"clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don"}
 EXCERPT_CHARACTERS = 4000
@@ -268,6 +269,7 @@ class Run:
             relations=[],
             pages={},
             refs={},
+            retries=0,
         )
         for seed in self.input.get("seed_records", []):
             self.add_hit(seed["source"], seed["record_id"], seed.get("title", ""), required, critical=True)
@@ -487,7 +489,8 @@ class Run:
         if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
             # Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss.
             for shorter in (terms[:-1], terms[1:]):
-                if all(shorter != q["terms"] for q in self.p["queries"]):
+                if self.p["retries"] < MAX_RETRIES and all(shorter != q["terms"] for q in self.p["queries"]):
+                    self.p["retries"] += 1
                     self.p["queries"].append({"terms": shorter, "checks": candidate["target_checks"]})
         return len(docs), new
 

@@ -224,3 +224,23 @@ def test_a_large_scope_is_filtered_locally(monkeypatch):
     assert all(call[3] == () for call in fabric.calls if call[0] == "search")
     with db.session() as s:
         assert [e.record_id for e in s.scalars(select(db.Evidence))] == ["B31"]  # B41 is outside the set
+
+
+def test_retries_of_empty_searches_are_capped(monkeypatch):
+    from bioradar.research.pipeline import MAX_RETRIES
+
+    base = fake_model([])
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "plan":
+            value.queries = [schemas.PlanQuery(terms=[f"无{i}", f"空{i}"], checks=[1]) for i in range(8)]
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(question="什么也搜不到的问题", direction="pipeline", is_demo=True, enqueue=False)
+    fabric = FakeFabric(RECORDS)
+    Run(row, settings(), fabric=fabric).run()
+    assert len([c for c in fabric.calls if c[0] == "search"]) == 8 + MAX_RETRIES
