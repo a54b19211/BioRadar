@@ -26,3 +26,9 @@ def test_evaluate_arithmetic():
 def test_evaluate_rejects_anything_else(expression):
     with pytest.raises(ValueError):
         compute.evaluate(expression, [Decimal(2)])
+
+
+def test_code_like_terms_get_letter_roots():
+    from bioradar.research.pipeline import code_roots
+
+    assert code_roots(["XQ-17", "DEMO-XQ301", "肝毒性", "COVID-19"]) == [["XQ"], ["COVID"]]

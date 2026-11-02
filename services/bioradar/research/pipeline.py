@@ -76,6 +76,22 @@ def clean_terms(terms):
     return result[:3]
 
 
+CODE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*\d[A-Za-z0-9_.-]*$")
+
+
+def code_roots(terms):
+    """Drug and trial codes refer to each other by a shared letter root: XQ-17, DEMO-XQ301 -> XQ.
+
+    Fabric matches terms literally, so a code-like term also gets its letter roots as single-term queries."""
+    roots = []
+    for term in terms:
+        if CODE.match(term):
+            for part in re.findall(r"[A-Za-z]{2,}", term):
+                if part.upper() not in {"DEMO", "TEST", "NCT", "ID"} and [part] not in roots:
+                    roots.append([part])
+    return roots
+
+
 def squash(text):
     return re.sub(r"\s+", "", text or "")
 
@@ -234,6 +250,9 @@ class Run:
             if terms and all(terms != x["terms"] for x in queries):
                 ids = [f"Q{n}" for n in q.checks if 1 <= n <= len(checks)]
                 queries.append({"terms": terms, "checks": ids or required})
+        for root in code_roots([t for q in queries for t in q["terms"]]):
+            if all(root != q["terms"] for q in queries):
+                queries.append({"terms": root, "checks": required})
         if not queries:
             raise Failed("plan_without_queries")
         self.p.update(
