@@ -276,8 +276,12 @@ class Run:
         if self.scope and len(self.scope) <= FABRIC_PAGE:
             for source in self.input["sources"]:
                 docs, _ = self.fabric.search(
-                    source, (), is_demo=self.input["is_demo"], cutoff=self.cutoff,
-                    record_ids=self.scope, limit=len(self.scope),
+                    source,
+                    (),
+                    is_demo=self.input["is_demo"],
+                    cutoff=self.cutoff,
+                    record_ids=self.scope,
+                    limit=len(self.scope),
                 )
                 for doc in docs:
                     self.docs[(doc["source"], doc["record_id"])] = doc

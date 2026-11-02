@@ -164,17 +164,17 @@ def test_same_question_returns_existing_analysis():
     assert again.id == first.id
 
 
+def empty_report(s, operation, body):
+    if operation == "generate":
+        return {"draft": "无。", "llm_calls": []}
+    return {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []}
+
+
 def test_scope_limits_search_and_reads_to_visible_records(monkeypatch):
     """A fixed material set whose terms match nothing still gets read; later and outside records do not."""
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
-    monkeypatch.setattr(
-        services,
-        "biocheck",
-        lambda s, op, body: {"draft": "无。", "llm_calls": []}
-        if op == "generate"
-        else {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []},
-    )
+    monkeypatch.setattr(services, "biocheck", empty_report)
     row = analyses.create(
         question="当前对异常聚集能作什么判断？",
         direction="public_health",
@@ -202,13 +202,7 @@ def test_an_empty_and_search_also_retries_without_its_first_term(monkeypatch):
 
     monkeypatch.setattr(llm, "chat_json", chat_json)
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
-    monkeypatch.setattr(
-        services,
-        "biocheck",
-        lambda s, op, body: {"draft": "无。", "llm_calls": []}
-        if op == "generate"
-        else {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []},
-    )
+    monkeypatch.setattr(services, "biocheck", empty_report)
     row = analyses.create(question="HR现在是多少？", direction="pipeline", is_demo=True, enqueue=False)
     fabric = FakeFabric(RECORDS)
     Run(row, settings(), fabric=fabric).run()
@@ -220,13 +214,7 @@ def test_an_empty_and_search_also_retries_without_its_first_term(monkeypatch):
 def test_a_large_scope_is_filtered_locally(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
-    monkeypatch.setattr(
-        services,
-        "biocheck",
-        lambda s, op, body: {"draft": "无。", "llm_calls": []}
-        if op == "generate"
-        else {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []},
-    )
+    monkeypatch.setattr(services, "biocheck", empty_report)
     scope = ["B31"] + [f"X{i}" for i in range(200)]
     row = analyses.create(
         question="PFS现在是多少？", direction="pipeline", is_demo=True, scope_record_ids=scope, enqueue=False
