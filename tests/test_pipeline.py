@@ -215,3 +215,24 @@ def test_an_empty_and_search_also_retries_without_its_first_term(monkeypatch):
     assert ("HR",) in [call[2] for call in fabric.calls if call[0] == "search"]
     with db.session() as s:
         assert {e.record_id for e in s.scalars(select(db.Evidence))} == {"B31", "B41"}
+
+
+def test_a_large_scope_is_filtered_locally(monkeypatch):
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(
+        services,
+        "biocheck",
+        lambda s, op, body: {"draft": "无。", "llm_calls": []}
+        if op == "generate"
+        else {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []},
+    )
+    scope = ["B31"] + [f"X{i}" for i in range(200)]
+    row = analyses.create(
+        question="PFS现在是多少？", direction="pipeline", is_demo=True, scope_record_ids=scope, enqueue=False
+    )
+    fabric = FakeFabric(RECORDS)
+    Run(row, settings(), fabric=fabric).run()
+    assert all(call[3] == () for call in fabric.calls if call[0] == "search")
+    with db.session() as s:
+        assert [e.record_id for e in s.scalars(select(db.Evidence))] == ["B31"]  # B41 is outside the set

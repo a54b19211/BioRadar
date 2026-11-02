@@ -19,6 +19,7 @@ from bioradar.research import compute, prompts, schemas
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 MAX_PAGES = 3
 MAX_QUERIES = 12
+FABRIC_PAGE = 100  # Fabric page cap; a larger fixed material set is filtered here, not in the query
 FETCHABLE = {"clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don"}
 EXCERPT_CHARACTERS = 4000
 
@@ -270,9 +271,9 @@ class Run:
         )
         for seed in self.input.get("seed_records", []):
             self.add_hit(seed["source"], seed["record_id"], seed.get("title", ""), required, critical=True)
-        # A fixed material set: its records visible at the cutoff are reading candidates, and
-        # searches stay inside it.
-        if self.scope:
+        # A fixed material set: searches stay inside it, and a small set's records visible at the
+        # cutoff are reading candidates.
+        if self.scope and len(self.scope) <= FABRIC_PAGE:
             for source in self.input["sources"]:
                 docs, _ = self.fabric.search(
                     source, (), is_demo=self.input["is_demo"], cutoff=self.cutoff,
@@ -444,7 +445,7 @@ class Run:
             hits = weknora.search(self.s, " ".join(terms))
             docs = []
             for hit_source, record_id, _ in hits:
-                if hit_source in self.input["sources"] and (not self.scope or record_id in self.scope):
+                if hit_source in self.input["sources"]:
                     found, _ = self.fabric.search(
                         hit_source,
                         (),
@@ -465,8 +466,11 @@ class Run:
                 is_demo=self.input["is_demo"],
                 cutoff=self.cutoff,
                 cursor=page.get("cursor") if kind == "next_page" else None,
-                record_ids=self.scope,
+                record_ids=self.scope if len(self.scope) <= FABRIC_PAGE else (),
             )
+        if self.scope:
+            inside = set(self.scope)
+            docs = [d for d in docs if d["record_id"] in inside]
         new = 0
         for doc in docs:
             self.docs[(doc["source"], doc["record_id"])] = doc
