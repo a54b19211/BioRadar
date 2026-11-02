@@ -84,7 +84,8 @@ const notes = computed(() => props.a.result?.notes ?? props.a.progress.notes ?? 
     <h3>备注</h3>
     <ul>
       <li v-for="(n, i) in notes" :key="i">
-        <b>{{ n.code }}</b>（{{ label("stage", n.stage) }}）{{ n.detail }}
+        <b>{{ n.code }}</b
+        >（{{ label("stage", n.stage) }}）{{ n.detail }}
       </li>
     </ul>
   </template>

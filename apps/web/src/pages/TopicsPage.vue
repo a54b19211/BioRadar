@@ -25,7 +25,9 @@ watch(
   </div>
   <el-table :data="topics">
     <el-table-column label="专题" min-width="300">
-      <template #default="{ row }"><RouterLink :to="`/topics/${row.id}`">{{ row.title }}</RouterLink></template>
+      <template #default="{ row }"
+        ><RouterLink :to="`/topics/${row.id}`">{{ row.title }}</RouterLink></template
+      >
     </el-table-column>
     <el-table-column label="方向" width="80">
       <template #default="{ row }">{{ label("direction", row.direction) }}</template>

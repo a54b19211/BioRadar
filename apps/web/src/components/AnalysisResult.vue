@@ -12,11 +12,19 @@ const assessment = computed(() => props.a.result?.assessment);
 const checks = computed(() => props.a.result?.checks ?? props.a.progress.checks ?? []);
 const computations = computed(() => props.a.result?.computations ?? []);
 const mechanism = computed(() => props.a.result?.mechanism);
-const titles = { overall: "总体评价", gaps: "缺口", conflicts: "冲突" } as const;
+const titles = {
+  overall: "总体评价",
+  gaps: "缺口",
+  conflicts: "冲突",
+} as const;
 const mechanismParts = computed(() =>
   (Object.keys(titles) as (keyof typeof titles)[])
     .filter((k) => mechanism.value?.[k] != null)
-    .map((k) => ({ key: k, title: titles[k], text: pretty(mechanism.value?.[k]) })),
+    .map((k) => ({
+      key: k,
+      title: titles[k],
+      text: pretty(mechanism.value?.[k]),
+    })),
 );
 </script>
 
@@ -71,11 +79,15 @@ const mechanismParts = computed(() =>
       </el-table-column>
       <el-table-column label="算式" prop="expression" width="150" />
       <el-table-column label="总体 / 期间" min-width="160">
-        <template #default="{ row }">{{ [row.population, row.period, row.denominator].filter(Boolean).join(" / ") || "-" }}</template>
+        <template #default="{ row }">{{
+          [row.population, row.period, row.denominator].filter(Boolean).join(" / ") || "-"
+        }}</template>
       </el-table-column>
       <el-table-column label="数值来源" min-width="220">
         <template #default="{ row }">
-          <div v-for="(o, i) in row.operands" :key="i">x{{ i + 1 }} = {{ o.value }}（{{ o.fact }}，<CiteLink :id="o.ref" />）</div>
+          <div v-for="(o, i) in row.operands" :key="i">
+            x{{ i + 1 }} = {{ o.value }}（{{ o.fact }}，<CiteLink :id="o.ref" />）
+          </div>
         </template>
       </el-table-column>
     </el-table>

@@ -21,7 +21,12 @@ const running = computed(() => a.value?.state === "queued" || a.value?.state ===
 const usage = computed(() => {
   if (!a.value) return null;
   // result.usage exists only after the run; until then count the calls recorded so far
-  return a.value.result?.usage ?? { llm_calls: a.value.calls.length, tokens: a.value.calls.reduce((n, c) => n + c.tokens, 0) };
+  return (
+    a.value.result?.usage ?? {
+      llm_calls: a.value.calls.length,
+      tokens: a.value.calls.reduce((n, c) => n + c.tokens, 0),
+    }
+  );
 });
 // the draft with each "[E3]" turned into a clickable link: odd entries are references
 const draftParts = computed(() => (a.value?.result?.draft ?? "").split(/\[(E\d+)\]/));
@@ -108,7 +113,13 @@ async function download() {
       <span v-if="running" class="muted">正在运行，页面每 4 秒自动刷新</span>
     </div>
 
-    <el-alert v-if="a.state === 'failed'" type="error" :closable="false" style="margin-top: 16px" :title="`分析失败：${a.error_code ?? '未知原因'}`">
+    <el-alert
+      v-if="a.state === 'failed'"
+      type="error"
+      :closable="false"
+      style="margin-top: 16px"
+      :title="`分析失败：${a.error_code ?? '未知原因'}`"
+    >
       <pre v-if="a.result?.trace" class="text">{{ a.result.trace }}</pre>
     </el-alert>
 
@@ -121,7 +132,9 @@ async function download() {
         </template>
       </p>
     </el-card>
-    <p v-else class="muted">{{ running ? "报告尚未生成。" : "没有生成报告，原因见下方备注。" }}</p>
+    <p v-else class="muted">
+      {{ running ? "报告尚未生成。" : "没有生成报告，原因见下方备注。" }}
+    </p>
 
     <AnalysisResult :a="a" />
     <AnalysisProcess :a="a" />
@@ -130,10 +143,23 @@ async function download() {
   <EvidenceDrawer v-if="id" :analysis-id="id" :ref-id="citing" @close="citing = null" />
 
   <el-dialog v-model="asking" title="追问" width="520px">
-    <el-input v-model="followText" type="textarea" :rows="4" maxlength="2000" show-word-limit placeholder="基于这一轮的结论继续提问（至少 4 个字）" />
+    <el-input
+      v-model="followText"
+      type="textarea"
+      :rows="4"
+      maxlength="2000"
+      show-word-limit
+      placeholder="基于这一轮的结论继续提问（至少 4 个字）"
+    />
     <template #footer>
       <el-button @click="asking = false">取消</el-button>
-      <el-button type="primary" :loading="busy" :disabled="followText.trim().length < 4" @click="submitFollowup">提交</el-button>
+      <el-button
+        type="primary"
+        :loading="busy"
+        :disabled="followText.trim().length < 4"
+        @click="submitFollowup"
+        >提交</el-button
+      >
     </template>
   </el-dialog>
 </template>

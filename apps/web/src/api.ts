@@ -320,7 +320,8 @@ export async function exportAnalysis(id: string): Promise<string> {
 
 export const listTopics = (isDemo: boolean) => request<Topic[]>("GET", `/api/topics?${demo(isDemo)}`);
 export const getTopic = (id: string) => request<TopicFull>("GET", `/api/topics/${id}`);
-export const tick = (isDemo: boolean) => request<TickSummary>("POST", "/api/monitor/tick", { is_demo: isDemo });
+export const tick = (isDemo: boolean) =>
+  request<TickSummary>("POST", "/api/monitor/tick", { is_demo: isDemo });
 export const listObservations = (isDemo: boolean) =>
   request<Observation[]>("GET", `/api/monitor/observations?${demo(isDemo)}`);
 export const getUsage = () => request<UsageRow[]>("GET", "/api/usage");

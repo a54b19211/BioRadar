@@ -814,6 +814,9 @@ class Run:
         return {
             "report_status": report.get("status", "NOT_RUN"),
             "draft": report.get("draft", ""),
+            "review": {
+                k: report.get(k) for k in ("claims", "coverage", "read_requests", "reason", "revised")
+            },
             "assessment": self.p.get("assessment"),
             "checks": self.p.get("checks", []),
             "computations": self.p.get("computations", []),

@@ -7,5 +7,5 @@ const cite = inject<(ref: string) => void>("cite", () => {});
 </script>
 
 <template>
-  <el-link type="primary" :underline="false" @click="cite(id)">[{{ id }}]</el-link>
+  <el-link type="primary" underline="never" @click="cite(id)">[{{ id }}]</el-link>
 </template>

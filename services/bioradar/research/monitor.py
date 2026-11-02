@@ -284,6 +284,7 @@ def topic_view(topic: db.Topic, *, events=False) -> dict:
         "first_seen_at": topic.first_seen_at.isoformat(),
         "last_activity_at": topic.last_activity_at.isoformat(),
         "last_analysis_id": topic.last_analysis_id,
+        "summary": topic.summary,
     }
     if events:
         with db.session() as session:

@@ -1,7 +1,15 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
-import { ask, getOptions, listAnalyses, type Analysis, type Direction, type Method, type Options } from "../api";
+import {
+  ask,
+  getOptions,
+  listAnalyses,
+  type Analysis,
+  type Direction,
+  type Method,
+  type Options,
+} from "../api";
 import { fmt, label } from "../labels";
 import StatusTag from "../components/StatusTag.vue";
 
@@ -34,7 +42,11 @@ async function submit() {
   busy.value = true;
   try {
     const cutoff = form.cutoff ? form.cutoff.replace(" ", "T") + "+08:00" : null;
-    const created = await ask({ ...form, question: form.question.trim(), cutoff });
+    const created = await ask({
+      ...form,
+      question: form.question.trim(),
+      cutoff,
+    });
     router.push(`/analyses/${created.id}`);
   } finally {
     busy.value = false;
@@ -45,7 +57,12 @@ async function submit() {
 <template>
   <h2>提问与调查</h2>
   <div class="row" v-if="options" style="margin-bottom: 12px">
-    <el-tag v-for="(name, key) in services" :key="key" :type="options.configured[key] ? 'success' : 'info'" size="small">
+    <el-tag
+      v-for="(name, key) in services"
+      :key="key"
+      :type="options.configured[key] ? 'success' : 'info'"
+      size="small"
+    >
       {{ name }}{{ options.configured[key] ? "已配置" : "未配置" }}
     </el-tag>
   </div>
@@ -58,7 +75,12 @@ async function submit() {
       <div class="row" style="align-items: flex-start; gap: 24px">
         <el-form-item label="研究方向">
           <el-select v-model="form.direction" style="width: 140px">
-            <el-option v-for="d in ['pipeline', 'science', 'business', 'public_health']" :key="d" :value="d" :label="label('direction', d)" />
+            <el-option
+              v-for="d in ['pipeline', 'science', 'business', 'public_health']"
+              :key="d"
+              :value="d"
+              :label="label('direction', d)"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="调查方法">
@@ -70,17 +92,31 @@ async function submit() {
           <el-switch v-model="form.is_demo" />
         </el-form-item>
         <el-form-item label="历史回放截止时间（北京时间，可不填）">
-          <el-date-picker v-model="form.cutoff" type="datetime" value-format="YYYY-MM-DD HH:mm:ss" placeholder="不限" />
+          <el-date-picker
+            v-model="form.cutoff"
+            type="datetime"
+            value-format="YYYY-MM-DD HH:mm:ss"
+            placeholder="不限"
+          />
         </el-form-item>
       </div>
-      <el-button type="primary" native-type="submit" :loading="busy" :disabled="form.question.trim().length < 4">
+      <el-button
+        type="primary"
+        native-type="submit"
+        :loading="busy"
+        :disabled="form.question.trim().length < 4"
+      >
         开始调查
       </el-button>
     </el-form>
   </el-card>
 
   <h3>最近的分析</h3>
-  <el-table :data="recent" class="clickable" @row-click="(row: Analysis) => router.push(`/analyses/${row.id}`)">
+  <el-table
+    :data="recent"
+    class="clickable"
+    @row-click="(row: Analysis) => router.push(`/analyses/${row.id}`)"
+  >
     <el-table-column label="问题" prop="question" min-width="320" show-overflow-tooltip />
     <el-table-column label="方法" width="100">
       <template #default="{ row }">{{ label("method", row.method) }}</template>
@@ -92,7 +128,9 @@ async function submit() {
       <template #default="{ row }">{{ label("stage", row.stage) }}</template>
     </el-table-column>
     <el-table-column label="核验" width="100">
-      <template #default="{ row }"><StatusTag v-if="row.result?.report_status" :value="row.result.report_status" /></template>
+      <template #default="{ row }"
+        ><StatusTag v-if="row.result?.report_status" :value="row.result.report_status"
+      /></template>
     </el-table-column>
     <el-table-column label="创建时间" width="170">
       <template #default="{ row }">{{ fmt(row.created_at) }}</template>

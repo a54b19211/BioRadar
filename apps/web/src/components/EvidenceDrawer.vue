@@ -27,7 +27,9 @@ watch(
       <h3 style="margin-top: 0">{{ item.title }}</h3>
       <p class="muted">版本 {{ item.version_id }}</p>
       <p v-if="item.url">
-        <a v-if="/^https?:\/\//.test(item.url)" :href="item.url" target="_blank" rel="noopener">{{ item.url }}</a>
+        <a v-if="/^https?:\/\//.test(item.url)" :href="item.url" target="_blank" rel="noopener">{{
+          item.url
+        }}</a>
         <span v-else>{{ item.url }}</span>
       </p>
       <p class="text">{{ item.text }}</p>

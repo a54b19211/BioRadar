@@ -21,13 +21,13 @@ watch(
 function describe(e: TopicEvent): string {
   switch (e.kind) {
     case "created":
-      return `创建专题：${e.title}`;
+      return `首条记录 ${e.record}：${e.title}`;
     case "observed":
       return `观察到记录 ${e.record}，警示${label("alert", e.alert)}${e.closure ? "，宣布结案" : ""}`;
     case "state":
       return `${label("topicState", e.before)} → ${label("topicState", e.after)}（${label("reason", e.reason)}）`;
     default:
-      return `触发自动分析（${label("reason", e.reason)}）`;
+      return `原因：${label("reason", e.reason)}`;
   }
 }
 </script>
@@ -43,14 +43,20 @@ function describe(e: TopicEvent): string {
       <el-tag size="small" effect="plain">{{ label("direction", topic.direction) }}</el-tag>
       <el-tag v-if="topic.is_demo" size="small" effect="plain" type="warning">模拟资料</el-tag>
       <el-tag v-if="topic.closed" size="small" effect="plain">已结案</el-tag>
-      <span class="muted">热度 {{ topic.heat }}，唤醒 {{ topic.awakenings }} 次，最近活动 {{ fmt(topic.last_activity_at) }}</span>
-      <RouterLink v-if="topic.last_analysis_id" :to="`/analyses/${topic.last_analysis_id}`">最近分析</RouterLink>
+      <span class="muted"
+        >热度 {{ topic.heat }}，唤醒 {{ topic.awakenings }} 次，最近活动
+        {{ fmt(topic.last_activity_at) }}</span
+      >
+      <RouterLink v-if="topic.last_analysis_id" :to="`/analyses/${topic.last_analysis_id}`"
+        >最近分析</RouterLink
+      >
     </div>
 
     <h3>事件</h3>
     <el-timeline>
       <el-timeline-item v-for="(e, i) in topic.events" :key="i" :timestamp="fmt(e.at)">
-        <b>{{ label("eventKind", e.kind) }}</b>　{{ describe(e) }}
+        <b>{{ label("eventKind", e.kind) }}</b
+        >　{{ describe(e) }}
         <RouterLink v-if="e.analysis_id" :to="`/analyses/${e.analysis_id}`">查看分析</RouterLink>
       </el-timeline-item>
     </el-timeline>
