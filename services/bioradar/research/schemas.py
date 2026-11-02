@@ -23,10 +23,10 @@ class PlanMechanism(BaseModel):
 
 
 class Plan(BaseModel):
-    checks: list[PlanCheck] = Field(max_length=8)
-    queries: list[PlanQuery] = Field(max_length=8)
+    checks: list[PlanCheck]
+    queries: list[PlanQuery]
     judgments: list[str] = Field(
-        default_factory=list, max_length=4, description="最后要给出明确判断的问题，如病原性质、是否人传人"
+        default_factory=list, description="最后要给出明确判断的问题，如病原性质、是否人传人"
     )
     needs_calculation: bool = Field(default=False, description="回答需要程序计算比例、增减或利用率时为true")
     mechanism: PlanMechanism | None = None
@@ -43,10 +43,8 @@ class ReadFact(BaseModel):
 
 class Reading(BaseModel):
     relevant: bool
-    facts: list[ReadFact] = Field(default_factory=list, max_length=8)
-    new_terms: list[list[str]] = Field(
-        default_factory=list, max_length=2, description="值得追查的新检索词组，每组1到3个词"
-    )
+    facts: list[ReadFact] = Field(default_factory=list)
+    new_terms: list[list[str]] = Field(default_factory=list, description="值得追查的新检索词组，每组1到3个词")
 
 
 class Operand(BaseModel):
@@ -65,7 +63,7 @@ class Calculation(BaseModel):
 
 
 class Calculations(BaseModel):
-    calculations: list[Calculation] = Field(default_factory=list, max_length=6)
+    calculations: list[Calculation] = Field(default_factory=list)
 
 
 class Judgment(BaseModel):
@@ -81,7 +79,7 @@ class Judgment(BaseModel):
 
 class Assessment(BaseModel):
     alert: Literal["none", "normal", "important", "urgent"]
-    judgments: list[Judgment] = Field(default_factory=list, max_length=4)
+    judgments: list[Judgment] = Field(default_factory=list)
 
 
 class TriageItem(BaseModel):

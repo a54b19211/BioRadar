@@ -175,7 +175,7 @@ class Run:
         parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
         self.log([call])
         if call["error"]:
-            self.note(call["error"], stage)
+            self.note(call["error"], f"{stage} {call.get('detail', '')}")
         return parsed
 
     def save(self, stage=None):
@@ -223,13 +223,13 @@ class Run:
                 "status": "open",
                 "evidence": [],
             }
-            for i, c in enumerate(plan.checks, 1)
+            for i, c in enumerate(plan.checks[:8], 1)
         ]
         if not any(c["required"] for c in checks):
             checks[0]["required"] = True
         required = [c["id"] for c in checks if c["required"]]
         queries = []
-        for q in plan.queries:
+        for q in plan.queries[:10]:
             terms = clean_terms(q.terms)
             if terms and all(terms != x["terms"] for x in queries):
                 ids = [f"Q{n}" for n in q.checks if 1 <= n <= len(checks)]
@@ -239,7 +239,7 @@ class Run:
         self.p.update(
             checks=checks,
             queries=queries,
-            judgments=plan.judgments,
+            judgments=plan.judgments[:4],
             needs_calculation=plan.needs_calculation or self.input["direction"] == "business",
             mechanism=plan.mechanism.model_dump() if plan.mechanism else None,
             actions=[],
@@ -441,6 +441,10 @@ class Run:
                 key, {"pages": 0, "found": 0, "checks": candidate["target_checks"]}
             )
             page.update(cursor=cursor, pages=page["pages"] + 1, new=new, found=page["found"] + len(docs))
+        if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
+            shorter = terms[:-1]
+            if all(shorter != q["terms"] for q in self.p["queries"]):
+                self.p["queries"].append({"terms": shorter, "checks": candidate["target_checks"]})
         return len(docs), new
 
     def read(self, candidate):
@@ -523,7 +527,7 @@ class Run:
             return 0.0, ref
         before = {c["id"] for c in self.p["checks"] if c["status"] != "open"}
         flat = squash(text)
-        for fact in reading.facts:
+        for fact in reading.facts[:10]:
             if not fact.quote or squash(fact.quote) not in flat:
                 self.note("quote_not_found", f"{ref}: {fact.quote[:60]}")
                 continue
@@ -546,7 +550,7 @@ class Run:
                     check["evidence"].append(ref)
                 stances = {f["stance"] for f in self.p["facts"] if i in f["checks"]}
                 check["status"] = "conflict" if {"supports", "refutes"} <= stances else "answered"
-        for terms in reading.new_terms:
+        for terms in reading.new_terms[:2]:
             terms = clean_terms(terms)
             if (
                 terms
@@ -578,7 +582,7 @@ class Run:
             schemas.Calculations,
         )
         facts = {f["id"]: f for f in numeric}
-        for calc in result.calculations if result else []:
+        for calc in (result.calculations if result else [])[:6]:
             if not calc.operands or any(
                 o.fact not in facts or not compute.appears(o.value, facts[o.fact]["quote"])
                 for o in calc.operands

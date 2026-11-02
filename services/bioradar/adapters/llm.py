@@ -101,7 +101,7 @@ def chat_json(
         try:
             parsed = model_cls.model_validate(json.loads(content))
         except (json.JSONDecodeError, ValidationError) as exc:
-            call["error"] = "output_invalid"
+            call["error"], call["detail"] = "output_invalid", str(exc)[:300]
             messages += [
                 {"role": "assistant", "content": content},
                 {
