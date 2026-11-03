@@ -20,6 +20,11 @@ from bioradar.config import Settings
 from bioradar.research import compute, prompts, schemas
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
+DEMO_SETTING = (
+    "
+（情景说明：这是演练用的模拟情景，材料里的地点、机构、人物和数字都是为演练编写的。请在这个情景内部、"
+    "按材料本身的证据判断；不要因为材料是虚构的就认定没有事件，或因此降低可信度、后果和核实优先级。）"
+)
 MAX_PAGES = 3
 MAX_QUERIES = 12
 PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
@@ -265,11 +270,20 @@ class Run:
             self.save(STAGES[STAGES.index(self.stage) + 1])
         return self.result()
 
+    @property
+    def asked(self):
+        """The question as the models and services see it. Scenario material says it is invented; without
+        this the models judged "fictional, so no real event, low priority" (PHX). Same for every method;
+        real data gets the question unchanged."""
+        if self.input["is_demo"]:
+            return self.input["question"] + DEMO_SETTING
+        return self.input["question"]
+
     # ---- plan ----------------------------------------------------------------------------------
 
     def plan(self):
         payload = {
-            "question": self.input["question"],
+            "question": self.asked,
             "direction": self.input["direction"],
             "history_cutoff": self.input.get("cutoff"),
         }
@@ -629,7 +643,7 @@ class Run:
             reads = sum(1 for a in self.p["actions"] if a["kind"] == "read" and a["status"] == "completed")
             candidates = self.candidates()
             request = {
-                "question": self.input["question"],
+                "question": self.asked,
                 # only query-planner's Check contract; objects and the rest stay in the radar
                 "checks": [{k: c[k] for k in PLANNER_CHECK} for c in self.p["checks"]],
                 "candidates": candidates,
@@ -816,7 +830,7 @@ class Run:
             "read",
             prompts.READ,
             {
-                "question": self.input["question"],
+                "question": self.asked,
                 "material": material,
                 "objects": self.p.get("objects", []),
                 "hypotheses": [
@@ -876,13 +890,14 @@ class Run:
             check = checks.get(i)
             if not check or not check["evidence"] or check["status"] != "open":
                 continue
-            # every object the check names needs a supporting or refuting fact of its own
-            covered = {
-                f.get("object")
-                for f in self.p["facts"]
-                if i in f["checks"] and f["stance"] in {"supports", "refutes"}
-            }
-            if all(o in covered for o in check.get("objects", [])):
+            # a check is answered by what records say, not by what one does not mention: facts that only
+            # limit ("未提及更正") never close it (PHX-W4 stopped after two routine weekly reports).
+            # Every object the check names needs a supporting or refuting fact of its own.
+            decisive = [
+                f for f in self.p["facts"] if i in f["checks"] and f["stance"] in {"supports", "refutes"}
+            ]
+            covered = {f.get("object") for f in decisive}
+            if decisive and all(o in covered for o in check.get("objects", [])):
                 check["status"] = "answered"
         for terms in reading.new_terms[:2]:
             terms = clean_terms(terms)
@@ -907,7 +922,7 @@ class Run:
             "calculate",
             prompts.CALCULATE,
             {
-                "question": self.input["question"],
+                "question": self.asked,
                 "corrections": self.p["relations"],
                 "facts": [
                     {"id": f["id"], "ref": f["ref"], "text": f["text"], "quote": f["quote"]} for f in numeric
@@ -989,7 +1004,7 @@ class Run:
             response = services.mechevidence(
                 self.s,
                 {
-                    "question": self.input["question"],
+                    "question": self.asked,
                     "mechanism": target["statement"],
                     "scope": {k: target.get(k, "") for k in ("species", "system", "disease")},
                     "max_llm_calls": max(1, min(10, self.calls_left() - 4)),
@@ -1098,7 +1113,7 @@ class Run:
             if a["status"] == "failed"
         ]
         body = {
-            "question": self.input["question"],
+            "question": self.asked,
             "evidence": evidence,
             "analysis_results": results,
             "source_updates": updates,
@@ -1203,7 +1218,7 @@ class Run:
             "assess",
             prompts.ASSESS,
             {
-                "question": self.input["question"],
+                "question": self.asked,
                 "judgments": self.p.get("judgments", []),
                 "report": report["draft"],
                 "report_status": report["status"],

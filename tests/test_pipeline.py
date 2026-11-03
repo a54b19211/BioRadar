@@ -273,6 +273,53 @@ def test_a_check_with_supporting_facts_stays_open_until_the_reader_says_it_is_wh
     assert result["checks"][0]["status"] == "open" and result["checks"][0]["evidence"] == ["E1", "E2"]
 
 
+def test_facts_that_only_say_what_a_record_does_not_mention_do_not_answer_a_check(monkeypatch):
+    """PHX-W4: two routine weekly reports said "未提及更正" / "未提及独立来源"; the reader called every
+    required check answered and the planner stopped after two reads with 40 event records unread."""
+    base = fake_model([])
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "read":
+            for fact in value.facts:
+                fact.stance = "limits"
+            value.answered = ["Q1"]
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    assert result["checks"][0]["status"] == "open" and result["checks"][0]["evidence"]
+
+
+def test_scenario_material_is_judged_inside_the_scenario_and_real_questions_stay_as_asked(monkeypatch):
+    """PHX: the materials say they are invented; the models concluded "fictional, so nothing to verify"."""
+    from bioradar.research.pipeline import DEMO_SETTING
+
+    for is_demo in (True, False):
+        sent, bodies = [], []
+        monkeypatch.setattr(llm, "chat_json", fake_model(sent))
+        monkeypatch.setattr(services, "decide", lambda s, body: bodies.append(body) or first_policy(body))
+        monkeypatch.setattr(
+            services, "biocheck", lambda s, op, body: bodies.append(body) or empty_report(s, op, body)
+        )
+        records = [dict(r, is_demo=is_demo) for r in RECORDS]
+        row = analyses.create(
+            question="XQ-17 的PFS？",
+            direction="pipeline",
+            is_demo=is_demo,
+            sources=["external_archive"],
+            enqueue=False,
+        )
+        Run(row, settings(), fabric=FakeFabric(records)).run()
+        questions = [payload["question"] for _, payload, _ in sent if "question" in payload]
+        questions += [body["question"] for body in bodies if "question" in body]
+        assert questions and all(q == "XQ-17 的PFS？" + (DEMO_SETTING if is_demo else "") for q in questions)
+        assert row.input["question"] == "XQ-17 的PFS？"
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
