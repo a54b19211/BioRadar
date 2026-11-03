@@ -489,7 +489,10 @@ def series_basis(session, topic_id) -> str:
     )
     scope = f"（{d['scope']}）" if d.get("scope") else ""
     found = "、".join(sorted({c["kind"] for c in d["changes"]}))
-    return f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。这只是待核实的线索，请回原文核对数值、口径和期间。"
+    return (
+        f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
+        "这只是待核实的线索，请回原文核对数值、口径和期间。"
+    )
 
 
 def owe(topic, reason, at):
