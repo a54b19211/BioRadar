@@ -26,6 +26,7 @@ def test_periods_and_numbers_are_read_strictly():
     assert series.quoted(4.1, "比例为4.1%") and not series.quoted(4, "比例为4.1%")
     assert series.quoted(3, "8个哨点为3.0%") and series.quoted(1444, "已有1,444篇")
     assert not series.quoted(1, "2026Q1有12条")  # the 1 of Q1 is not a value
+    assert series.quoted(-3, "净变化-3条") and not series.quoted(3, "净变化-3条")
 
 
 def row(id_, period, value, status, available, superseded=None):
@@ -299,12 +300,21 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
         events = list(s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "series")))
         rows = list(s.scalars(select(db.Measurement).order_by(db.Measurement.id)))
     assert [t.title for t in topics] == ["澜津·流感样病例比例（5个哨点）"]
-    assert topics[0].pending_reason == "series_change" and topics[0].direction == "public_health"
+    # the three weekly records now belong to the topic, which also makes it rise
+    assert "series_change" in topics[0].pending_reason.split("+") and topics[0].direction == "public_health"
     assert [[c["kind"] for c in e.detail["changes"]] for e in events] == [["step", "new_high", "streak_up"]]
     assert len(rows) == 5 and {r.scope for r in rows} == {
         "5个哨点",
         "8个哨点",
     }  # all kept, none compared across
+    # the analysis it starts reads the three weekly reports and is told what the program computed
+    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
+    [analysis_id] = monitor.start_analyses(monitor.settings(), is_demo=True, cutoff=None)
+    with db.session() as s:
+        analysis = s.get(db.Analysis, analysis_id)
+    assert sorted(r["record_id"] for r in analysis.input["seed_records"]) == ["H1", "H2", "H3"]
+    question = analysis.input["question"]
+    assert "4.1%" in question and "5.2%" in question and "streak_up" in question
 
 
 def test_known_series_shown_to_a_replay_are_only_those_visible_then():
