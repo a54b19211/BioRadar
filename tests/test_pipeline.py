@@ -231,7 +231,8 @@ def test_a_large_scope_is_filtered_locally(monkeypatch):
     )
     fabric = FakeFabric(RECORDS)
     Run(row, settings(), fabric=fabric).run()
-    assert all(call[3] == () for call in fabric.calls if call[0] == "search")
+    # term searches are filtered here; only browsing the set passes its ids
+    assert all(call[3] == () for call in fabric.calls if call[0] == "search" and call[2])
     with db.session() as s:
         assert [e.record_id for e in s.scalars(select(db.Evidence))] == ["B31"]  # B41 is outside the set
 
@@ -790,7 +791,9 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
 
 def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on_a_term():
     """Codex r40 decision: within the task's own material set, list what is visible at the cutoff."""
-    early = [record(f"S{i:03d}", f"记录{i}", "门诊登记", available="2026-09-20T08:00:00+08:00") for i in range(110)]
+    early = [
+        record(f"S{i:03d}", f"记录{i}", "门诊登记", available="2026-09-20T08:00:00+08:00") for i in range(110)
+    ]
     late = [record(f"L{i}", f"后来{i}", "后来的", available="2026-10-20T08:00:00+08:00") for i in range(5)]
     scope = [r["source_record_id"] for r in early + late]
     row = analyses.create(
@@ -803,16 +806,28 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
     )
     fabric = FakeFabric(early + late)
     run = Run(row, settings(), fabric=fabric)
-    run.p.update(queries=[], hits=[], actions=[], pages={}, objects=[], notes=[],
-                 checks=[{"id": "Q1", "text": "事件", "required": True, "status": "open", "evidence": []}])
+    run.p.update(
+        queries=[],
+        hits=[],
+        actions=[],
+        pages={},
+        objects=[],
+        notes=[],
+        checks=[{"id": "Q1", "text": "事件", "required": True, "status": "open", "evidence": []}],
+    )
     browse = [c for c in run.candidates() if c["args"].get("browse")]
     assert len(browse) == 1 and browse[0]["kind"] == "search" and browse[0]["args"]["terms"] == []
     run.act(browse[0])
     assert run.p["actions"][-1]["found"] == 110 and len(run.p["hits"]) == 110  # nothing after the cutoff
     assert not [c for c in run.candidates() if c["args"].get("browse")]  # once per source
     assert run.p["notes"][-1]["code"] == "scope_browsed"
-    small = analyses.create(question="小材料集？", direction="public_health", is_demo=True,
-                            scope_record_ids=scope[:3], enqueue=False)
+    small = analyses.create(
+        question="小材料集？",
+        direction="public_health",
+        is_demo=True,
+        scope_record_ids=scope[:3],
+        enqueue=False,
+    )
     run = Run(small, settings(), fabric=fabric)
     run.p.update(queries=[], hits=[], actions=[], pages={}, objects=[], notes=[], checks=[])
     assert not [c for c in run.candidates() if c["args"].get("browse")]  # small sets are listed at plan
