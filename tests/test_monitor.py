@@ -188,9 +188,8 @@ def test_live_monitoring_skips_sources_kept_for_search_only(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
     s = settings()
     monkeypatch.setattr(s, "monitor_sources", ["who_don"])
-    fabric = FakeFabric([record("H0", "历史", "x", source="who_don"), record("L0", "旧文档", "x", source="legacy_documents")])
+    who, legacy = {"source": "who_don"}, {"source": "legacy_documents"}
+    fabric = FakeFabric([record("H0", "历史", "x", **who), record("L0", "旧文档", "x", **legacy)])
     monitor.tick(is_demo=False, fabric=fabric)  # both feeds start at their current end
-    fabric.docs += FakeFabric(
-        [record("H1", "两家医院确认7例", "x", source="who_don"), record("L1", "旧文档补录", "x", source="legacy_documents")]
-    ).docs
+    fabric.docs += FakeFabric([record("H1", "确认7例", "x", **who), record("L1", "补录", "x", **legacy)]).docs
     assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1
