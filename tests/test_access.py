@@ -154,6 +154,8 @@ def topic_analysis():
             },
             "mechanism": {"status": "completed", "overall": "撤权原文支持该机制"},
             "review": {
+                # the kept drafts carry the same words (Codex r28)
+                "versions": [{"step": "generate", "draft": "第二句撤权原文[E2]。", "status": "REVIEW"}],
                 "claims": [
                     {
                         "index": 1,

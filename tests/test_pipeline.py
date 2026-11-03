@@ -401,6 +401,24 @@ def test_every_draft_and_its_check_are_kept_so_a_wrong_citation_can_be_traced(mo
     assert versions[0]["draft"] == "HR为0.62[E2]。" and result["draft"] == "HR为0.62[E1]。"
 
 
+def test_a_draft_whose_check_failed_is_kept_unchecked_with_the_failure(monkeypatch):
+    """Codex r28: a version was kept only after verify returned, so a failed check lost that draft."""
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+
+    def biocheck(s, op, body):
+        if op == "generate":
+            return {"draft": "HR为0.62[E1]。", "llm_calls": []}
+        raise services.ServiceError("biocheck", "http_502", "down")
+
+    monkeypatch.setattr(services, "biocheck", biocheck)
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    assert result["review"]["versions"] == [
+        {"step": "generate", "draft": "HR为0.62[E1]。", "status": "unchecked", "error": "http_502"}
+    ]
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

@@ -1184,18 +1184,18 @@ class Run:
         report = {"status": "NOT_RUN", "draft": "", "revised": False, "versions": []}
         self.p["report"] = report
 
-        def keep(step, review):
-            """Every draft with its check, so a wrong citation can be traced to the step that made it."""
-            report["versions"].append(
-                {
-                    "step": step,
-                    "draft": report["draft"],
-                    "status": review["status"],
-                    "claims": [
-                        {k: c.get(k) for k in ("index", "start", "end", "verdict", "citations", "labels")}
-                        for c in review["claims"]
-                    ],
-                }
+        def keep(step):
+            """Every draft as soon as it exists, checked afterwards by checked(); if the check fails, the
+            draft stays with status "unchecked" and the failure code, so a wrong citation can be traced."""
+            report["versions"].append({"step": step, "draft": report["draft"], "status": "unchecked"})
+
+        def checked(review):
+            report["versions"][-1].update(
+                status=review["status"],
+                claims=[
+                    {k: c.get(k) for k in ("index", "start", "end", "verdict", "citations", "labels")}
+                    for c in review["claims"]
+                ],
             )
 
         if not body["evidence"]:
@@ -1203,8 +1203,9 @@ class Run:
             return
         try:
             report["draft"] = self.service("generate", dict(body))["draft"]
+            keep("generate")
             review = self.service("verify", dict(body, draft=report["draft"]))
-            keep("generate", review)
+            checked(review)
             for n in range(REVISIONS):
                 fixable = [
                     c
@@ -1220,11 +1221,14 @@ class Run:
                 if not revised.get("changed"):
                     break
                 report.update(draft=revised["draft"], revised=True, changed=revised["changed"])
+                keep(f"revise_{n + 1}")
                 review = self.service("verify", dict(body, draft=report["draft"]))
-                keep(f"revise_{n + 1}", review)
+                checked(review)
         except ServiceError as exc:
             self.log(exc.calls, "biocheck")
             report["reason"] = f"biocheck_{exc.code}"
+            if report["versions"] and report["versions"][-1]["status"] == "unchecked":
+                report["versions"][-1]["error"] = exc.code
             self.note(report["reason"])
             return
         report.update(
