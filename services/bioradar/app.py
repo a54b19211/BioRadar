@@ -3,6 +3,7 @@
 import copy
 import hashlib
 import hmac
+import re
 import secrets
 import time
 from datetime import datetime, timedelta
@@ -265,6 +266,23 @@ def blank(value):
     return "" if isinstance(value, str) else value
 
 
+# What the program itself writes: identifiers, sources, codes and times. Under an earlier round's revoked
+# report every other string is withheld, in whatever field it sits (Codex r45).
+PROGRAM = KEEP | {"source", "record_id", "version_id", "origin", "code", "stage", "browse", "decision"}
+PROGRAM_STRING = re.compile(r"[A-Z]{1,3}\d{1,4}|\d{4}-\d{2}-\d{2}([T ][0-9:.+\-Z]*)?")  # E3, Q1, F12; a time
+
+
+def withhold(value):
+    """Model-written text removed everywhere, the structure, numbers, states and program numbers kept."""
+    if isinstance(value, dict):
+        return {k: (v if k in PROGRAM and isinstance(v, str) else withhold(v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [withhold(v) for v in value]
+    if isinstance(value, str):
+        return value if PROGRAM_STRING.fullmatch(value) else ""
+    return value
+
+
 def hidden_refs(rows, readable) -> dict:
     """{ref: reason} for the materials whose source cannot be read now."""
     reasons = {r["ref"]: withheld(r["source"], readable) for r in rows}
@@ -341,6 +359,44 @@ def redact(value: dict) -> dict:
                     o["quote"] = ""
     for r in value.get("reviews") or []:  # a reviewer's note may quote the sentence it is about
         r["note"] = ""
+    if inherited:
+        # The round's own model text grew out of the earlier report too, so all of it goes, not field by
+        # field (Codex r45: a fact's text named the earlier project while its quote came from a record still
+        # readable). What stays as decided above: quotes whose own record is readable, the terms and check
+        # texts found safe, the plan basis left, the stop reason and the user's question.
+        facts = progress.get("facts") or []
+        quotes = [f.get("quote", "") if f.get("ref") not in hidden else "" for f in facts]
+        queries = [q.get("terms", []) for q in progress.get("queries") or []]
+        actions = [a.get("args", {}).get("terms") for a in progress.get("actions") or []]
+        checks = {
+            key: [(c.get("text", ""), c.get("exploratory", [])) for c in where]
+            for key, where in (("progress", progress.get("checks") or []), ("result", result.get("checks") or []))
+        }
+        operands = [
+            [o.get("quote", "") if o.get("ref") not in hidden else "" for o in c.get("operands") or []]
+            for c in result.get("computations") or []
+        ]
+        basis, stops = result.get("plan_basis"), (progress.get("stop"), result.get("stop"))
+        progress, result = withhold(progress), withhold(result)
+        for f, quote in zip(progress.get("facts") or [], quotes):
+            f["quote"] = quote
+        for q, terms in zip(progress.get("queries") or [], queries):
+            q["terms"] = terms
+        for a, terms in zip(progress.get("actions") or [], actions):
+            if terms is not None:
+                a["args"]["terms"] = terms
+        for key, where in (("progress", progress.get("checks") or []), ("result", result.get("checks") or [])):
+            for c, (text, exploratory) in zip(where, checks[key]):
+                c.update(text=text, exploratory=exploratory)
+        for c, quoted in zip(result.get("computations") or [], operands):
+            for o, quote in zip(c.get("operands") or [], quoted):
+                o["quote"] = quote
+        if progress:
+            progress["stop"] = stops[0]
+            value["progress"] = progress
+        if result:
+            result.update(plan_basis=basis, stop=stops[1], withheld=notice({**hidden, **inherited}))
+            value["result"] = result
     return value
 
 

@@ -404,6 +404,15 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
                 "draft": "依上一轮：撤权原文城的病例在增加。",
                 "report_status": "PASS",
                 "plan_basis": {"撤权原文城": "prior_report"},
+                # Codex r45: every model text of the round, wherever it sits
+                "computations": [
+                    {"description": "撤权原文城的人数", "operands": [{"ref": "E1", "quote": "本记录列有40人。"}], "value": 40}
+                ],
+                "review": {
+                    "versions": [{"step": "generate", "draft": "撤权原文城四十人。", "status": "unchecked"}],
+                    "claims": [{"index": 0, "verdict": "supported", "citations": ["E1"], "text": "撤权原文城"}],
+                },
+                "stop": {"decision": "insufficient", "reason": "step_limit"},
             },
         )
         # the plan wrote a check with a name from the earlier report (Codex r40)
@@ -415,7 +424,20 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
                     "status": "open",
                     "exploratory": ["撤权原文城"],
                 }
-            ]
+            ],
+            # the reader saw that check: the fact's text names the earlier project, its quote comes from a
+            # record still readable (Codex r45 inherited-fact-projection)
+            "facts": [
+                {
+                    "id": "F1",
+                    "ref": "E1",
+                    "text": "撤权原文城对应的公开记录列有40人。",
+                    "quote": "本记录列有40人。",
+                    "object": "撤权原文城",
+                    "checks": ["Q1"],
+                    "stance": "supports",
+                }
+            ],
         }
     fabric_sources["value"] = ["open_src"]
     api_module._readable.update(at=None, sources=None)
@@ -425,4 +447,13 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
         detail["progress"]["checks"][0]["text"] == "" and detail["progress"]["checks"][0]["exploratory"] == []
     )
     assert "撤权原文城" not in detail["result"]["plan_basis"]  # the plan's names are its keys
+    import json
+
+    assert "撤权原文城" not in json.dumps(detail, ensure_ascii=False)
+    fact = detail["progress"]["facts"][0]
+    assert fact["quote"] == "本记录列有40人。" and fact["ref"] == "E1" and fact["checks"] == ["Q1"]
+    assert fact["stance"] == "supports" and detail["result"]["computations"][0]["value"] == 40
+    assert detail["result"]["computations"][0]["operands"][0]["quote"] == "本记录列有40人。"
+    assert detail["result"]["stop"] == {"decision": "insufficient", "reason": "step_limit"}
+    assert detail["question"] == "再后续呢？" and detail["progress"]["checks"][0]["id"] == "Q1"
     assert "撤权原文" not in admin.get(f"/api/analyses/{again['id']}/export").text
