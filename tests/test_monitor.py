@@ -171,10 +171,12 @@ def test_a_round_that_dies_after_creating_the_analysis_does_not_create_another(m
     monkeypatch.setattr(s, "auto_analysis", True)
     fabric = FakeFabric([record("K1", "两家医院确认7例", "x", available=DAY.format(3))])
     try:
-        monitor.tick(is_demo=True, fabric=fabric)  # analysis and cleared debt committed, then the process dies
+        # the analysis and the cleared debt are committed, then the process dies before dispatch
+        monitor.tick(is_demo=True, fabric=fabric)
     except RuntimeError:
         pass
     monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
     assert monitor.tick(is_demo=True, fabric=fabric)["analyses"] == []
     with db.session() as session:
-        assert session.scalar(select(func.count()).select_from(db.Analysis)) == 1  # analyses.recover() queues it
+        # one queued row, which analyses.recover() dispatches later
+        assert session.scalar(select(func.count()).select_from(db.Analysis)) == 1

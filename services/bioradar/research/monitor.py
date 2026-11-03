@@ -307,7 +307,9 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
                 trigger="topic",
                 topic_id=topic.id,
                 parent_id=topic.last_analysis_id,
-                seed_records=[{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records],
+                seed_records=[
+                    {"source": r.source, "record_id": r.record_id, "title": r.title} for r in records
+                ],
                 session=session,
             )
             topic.last_analysis_id = row.id
