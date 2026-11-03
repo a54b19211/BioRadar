@@ -724,7 +724,7 @@ def test_question_objects_found_in_the_reviewed_graph_bring_their_source_records
             "object": "XQ-17",
             "graph_records": ["G1"],
             "candidates": [{"id": "n1", "name": "XQ-17", "identity": "unresolved"}],
-            "refs": [{"source": "external_archive", "record_id": "N1", "version_id": "v" * 64}],
+            "refs": [{"source": "external_archive", "record_id": "N1", "version_id": "v" * 64, "basis": "node"}],
         }
     ]
     assert any(h["record_id"] == "N1" and h["title"] == "图谱：XQ-17" for h in run.p["hits"])
