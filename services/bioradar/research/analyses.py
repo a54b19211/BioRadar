@@ -173,7 +173,8 @@ def execute(analysis_id: str):
         row = session.get(db.Analysis, analysis_id)
         row.state, row.error_code, row.lease_until, row.completed_at = state, error, None, db.now()
         if result is not None:
-            row.result = result
+            marks = (row.result or {}).get("source_updates")  # corrections that arrived during the run
+            row.result = {**result, "source_updates": marks} if marks else result
 
 
 def recover(limit=4) -> int:

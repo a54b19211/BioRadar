@@ -50,7 +50,12 @@ def document(record: dict) -> dict:
         "text_level": evidence.get("text_level"),
         "verified": evidence.get("statement_status") != "unverified_report" and kind not in UNVERIFIED_KINDS,
         "relations": [
-            {"kind": r["relation_type"], "target_record_id": r["target_source_record_id"]}
+            {
+                "kind": r["relation_type"],
+                "target_source": r.get("target_source_id") or record["source_id"],
+                "target_record_id": r["target_source_record_id"],
+                "target_version_id": r.get("target_version_id"),
+            }
             for r in evidence.get("document_relations", [])
         ],
         "origin_group": independence.get("origin_group_id")

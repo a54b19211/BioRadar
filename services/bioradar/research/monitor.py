@@ -202,6 +202,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
         decisions = triage(s, batch, topics)
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
+            flag_corrections(session, batch, is_demo=is_demo)  # same transaction as the observations
             for doc, item in zip(batch, decisions):
                 at = parse_time(doc["available_at"])
                 alert = item.alert if item else "none"
@@ -377,36 +378,36 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
     return created
 
 
-def flag_corrections(docs, *, is_demo: bool) -> int:
-    """A new correction or retraction marks every completed analysis that cited the old record
-    (matched on source + record_id + demo/real), and owes its topic a new analysis. Analyses without
-    a topic carry the mark on the page ("需复核") and are redone through the follow-up button."""
-    hits = [
-        (d["source"], r["target_record_id"], r["kind"], d["record_id"])
-        for d in docs
-        for r in d["relations"]
-        if r["kind"] in {"corrects", "retracts"}
-    ]
+def flag_corrections(session, docs, *, is_demo: bool) -> int:
+    """A new correction or retraction marks every analysis that cited the old record (matched on the
+    relation's target source + record, and version when Fabric names one; demo and real kept apart),
+    and owes its topic a new analysis. Runs in the triage transaction, so the mark is never lost
+    between "record seen" and "analyses marked". Analyses still running keep the mark when they
+    finish (analyses.execute merges it). Analyses without a topic carry it on the page ("需复核")."""
     flagged = 0
-    with db.session() as session:
-        for source, target, kind, by in hits:
-            rows = session.execute(
+    for doc in docs:
+        for r in doc["relations"]:
+            if r["kind"] not in {"corrects", "retracts"}:
+                continue
+            query = (
                 select(db.Evidence.ref, db.Analysis, db.Investigation.topic_id)
                 .join(db.Analysis, db.Analysis.id == db.Evidence.analysis_id)
                 .join(db.Investigation, db.Investigation.id == db.Analysis.investigation_id)
                 .where(
-                    db.Evidence.source == source,
-                    db.Evidence.record_id == target,
+                    db.Evidence.source == r.get("target_source", doc["source"]),
+                    db.Evidence.record_id == r["target_record_id"],
                     db.Investigation.is_demo == is_demo,
-                    db.Analysis.state == "completed",
+                    db.Analysis.state != "failed",
                 )
-            ).all()
-            for ref, analysis, topic_id in rows:
+            )
+            if r.get("target_version_id"):
+                query = query.where(db.Evidence.version_id == r["target_version_id"])
+            for ref, analysis, topic_id in session.execute(query).all():
                 entry = {
                     "ref": ref,
-                    "record_id": target,
-                    "kind": "correction" if kind == "corrects" else "retraction",
-                    "by_record": by,
+                    "record_id": r["target_record_id"],
+                    "kind": "correction" if r["kind"] == "corrects" else "retraction",
+                    "by_record": doc["record_id"],
                 }
                 result = dict(analysis.result or {})
                 updates = list(result.get("source_updates") or [])
@@ -417,7 +418,6 @@ def flag_corrections(docs, *, is_demo: bool) -> int:
                 if topic_id:
                     owe(session.get(db.Topic, topic_id), "source_corrected", db.now())
     return flagged
-
 
 def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | None = None, fabric=None):
     """One monitoring round. `clock` moves topic states during blank periods with no new records.
@@ -436,7 +436,6 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     if not whole:
         # stopped mid-round: keep the cursors, the next round re-reads and skips what was triaged
         paused, ends, backlog = True, {}, True
-    flag_corrections(docs, is_demo=is_demo)
     fresh = {d["source"] for d in docs if not d.get("retry")}  # a retried old record is not new
     with db.session() as session:  # a round that died before this line reads the same records again
         for source, at in ends.items():

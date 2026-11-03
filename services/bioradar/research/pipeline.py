@@ -243,7 +243,8 @@ class Run:
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
-        objects = list(dict.fromkeys(o.name.strip() for o in plan.objects[:8] if o.name.strip()))
+        named = [o.name.strip() for o in plan.objects[:8]]  # check indexes refer to this list
+        objects = list(dict.fromkeys(n for n in named if n))
         checks = [
             {
                 "id": f"Q{i}",
@@ -253,7 +254,9 @@ class Run:
                 "status": "open",
                 "evidence": [],
                 # names of the objects this check is about (R8a: answered only when each is covered)
-                "objects": [objects[n - 1] for n in c.objects if 1 <= n <= len(objects)],
+                "objects": list(
+                    dict.fromkeys(named[n - 1] for n in c.objects if 1 <= n <= len(named) and named[n - 1])
+                ),
             }
             for i, c in enumerate(plan.checks[:8], 1)
         ]
@@ -391,7 +394,10 @@ class Run:
             return any(o in (title or "") for o in objects)
 
         unread = [h for h in self.p["hits"] if not h["read"]]
-        unread.sort(key=lambda h: not h["critical"])
+        if self.input["method"] == "planner":
+            unread.sort(key=lambda h: (not h["critical"], not named(h["title"])))
+        else:  # the baseline keeps its fixed order
+            unread.sort(key=lambda h: not h["critical"])
         for hit in unread[:40]:
             result.append(
                 {
@@ -588,7 +594,8 @@ class Run:
                 }
             )
             if relation["kind"] in {"corrects", "retracts"}:
-                self.add_hit(source, relation["target_record_id"], "", hit["checks"], critical=True)
+                target = relation.get("target_source") or source
+                self.add_hit(target, relation["target_record_id"], "", hit["checks"], critical=True)
         checks = {c["id"]: c for c in self.p["checks"]}
         material = {
             "ref": ref,
