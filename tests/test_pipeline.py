@@ -475,7 +475,10 @@ def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
                 priority="medium",
                 grounds=["E2"],
             )
-            for q, c in [("验收", "验收台数增加到18台"), ("收入", "仅部分转化：岚舟均增长；衡简验收、收入、回款均同比下降")]
+            for q, c in [
+                ("验收", "验收台数增加到18台"),
+                ("收入", "仅部分转化：岚舟均增长；衡简验收、收入、回款均同比下降"),
+            ]
         ],
     )
     drafts = []
@@ -490,7 +493,9 @@ def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
     monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
     monkeypatch.setattr(services, "biocheck", biocheck)
     run.assess()
-    assert drafts == ["验收台数增加到18台[E2]。\n仅部分转化：岚舟均增长[E2]。衡简验收、收入、回款均同比下降[E2]。"]
+    assert drafts == [
+        "验收台数增加到18台[E2]。\n仅部分转化：岚舟均增长[E2]。衡简验收、收入、回款均同比下降[E2]。"
+    ]
     judgments = run.p["assessment"]["judgments"]
     assert [(j["check"], j["confidence"]) for j in judgments] == [
         ("supported", "probable"),
