@@ -193,3 +193,29 @@ def test_live_monitoring_skips_sources_kept_for_search_only(monkeypatch):
     monitor.tick(is_demo=False, fabric=fabric)  # both feeds start at their current end
     fabric.docs += FakeFabric([record("H1", "确认7例", "x", **who), record("L1", "补录", "x", **legacy)]).docs
     assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1
+
+
+def test_a_failed_triage_of_an_excluded_source_is_not_retried(monkeypatch):
+    from bioradar import db
+    from bioradar.config import settings
+
+    s = settings()
+    monkeypatch.setattr(s, "monitor_sources", ["who_don"])
+    with db.session() as session:
+        session.add(
+            db.Observation(
+                workspace_id="default",
+                source="legacy_documents",
+                record_id="L9",
+                version_id="v-L9",
+                is_demo=False,
+                title="旧文档",
+                available_at=datetime.fromisoformat(DAY.format(1)),
+                alert="none",
+                closure=False,
+                reason="triage_failed",
+            )
+        )
+    fabric = FakeFabric([record("L9", "旧文档", "x", source="legacy_documents", version="v-L9")])
+    docs, _ = monitor.new_documents(fabric, s, is_demo=False, cutoff=None)
+    assert docs == []

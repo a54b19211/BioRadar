@@ -54,7 +54,7 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
         # Records whose triage call failed are triaged again (live mode: the change cursor moved on).
         failed = {}
         for r in rows:
-            if r.reason == "triage_failed":
+            if r.reason == "triage_failed" and r.source in sources:  # same source set as this round
                 failed.setdefault(r.source, []).append(r.record_id)
         for source, ids in failed.items():
             items, _ = fabric.search(
