@@ -493,6 +493,8 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
         },
         notes=[],
     )
+    run.add_query(["背景新词"], ["Q1"], value=0, origin="read:E8")  # background never retires a search
+    assert "背景新词" not in [q["terms"][0] for q in run.p["queries"]]
     run.add_query(["新城"], ["Q1"], value=3, origin="object:E9")
     terms = [q["terms"][0] for q in run.p["queries"]]
     assert "新城" in terms and "词0" not in terms and "词3" in terms  # still paging, so it stays

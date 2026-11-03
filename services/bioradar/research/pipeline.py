@@ -27,6 +27,7 @@ DEMO_SETTING = (
 MAX_PAGES = 3
 MAX_QUERIES = 12
 MAX_FOUND = 12  # objects found in read records, beyond those the question names
+MAX_RETIRED = 6  # searches used up and replaced by new evidence's searches, per analysis
 PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
 REVISIONS = 2  # revise -> re-verify rounds; each only touches the sentences the last check flagged
 MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
@@ -1048,7 +1049,11 @@ class Run:
             for i, q in enumerate(self.p["queries"])
             if tuple(q["terms"]) not in ran and q.get("value", 1) < value
         ]
-        if done:
+        # only evidence (a found object, terms from a decisive record) may take a used-up search's place,
+        # and only up to MAX_RETIRED times: PHX attempt 3 kept rotating background terms in, both methods
+        # spent 19-25 of 30 steps searching and read 5-11 records
+        retired = sum(1 for n in self.p.get("notes", []) if n["code"] == "query_retired")
+        if done and value >= 2 and retired < MAX_RETIRED:
             i, code = done[0], "query_retired"
         elif waiting:
             i, code = min(waiting)[1], "query_replaced"
