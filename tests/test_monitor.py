@@ -232,3 +232,25 @@ def test_a_flood_is_triaged_a_bounded_amount_per_round_without_loss(monkeypatch)
     assert [r["records"] for r in rounds] == [100, 100, 50, 0]
     assert [r["backlog"] for r in rounds] == [True, True, False, False]
     assert len(sent) == 25  # 250 records in batches of 10, each sent once
+
+
+def test_a_flooding_source_does_not_starve_a_quiet_one(monkeypatch):
+    from bioradar.config import settings
+
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    s = settings()
+    monkeypatch.setattr(s, "monitor_max_records", 20)
+    monkeypatch.setattr(s, "monitor_sources", ["legacy_documents", "who_don"])
+    who, legacy = {"source": "who_don"}, {"source": "legacy_documents"}
+    fabric = FakeFabric([record("Q0", "历史", "x", **who), record("Z0", "历史", "x", **legacy)])
+    monitor.tick(is_demo=False, fabric=fabric)  # both feeds start at their current end
+    flood = [record(f"Z{i:03d}", "噪声", "x", **legacy) for i in range(1, 60)]
+    fabric.docs += FakeFabric(flood + [record("Q1", "两家医院确认7例", "x", **who)]).docs
+    first = monitor.tick(is_demo=False, fabric=fabric)
+    assert first["records"] == 20 and first["backlog"]
+    from sqlalchemy import select
+
+    from bioradar import db
+
+    with db.session() as session:
+        assert "Q1" in set(session.scalars(select(db.Observation.record_id)))

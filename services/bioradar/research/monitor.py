@@ -54,15 +54,18 @@ def unseen(session, items):
 
 def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None):
     """Live: the change feed after the saved cursor, at most monitor_max_records per round; the rest
-    stays in the feed (backlog) and the cursor only moves past what this round takes.
+    stays in the feed (backlog) and the cursor only moves past what this round takes. Every source
+    gets an equal share first, so one flooding source cannot starve WHO; leftover room goes to sources
+    that still have more.
     Replay: everything visible at the cutoff that was not observed yet.
     Returns (docs, cursor ends, backlog)."""
     sources = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
     live = cutoff is None
-    room = s.monitor_max_records if live else None
-    docs, ends = [], {}
+    room = s.monitor_max_records
+    docs, ends, more = [], {}, set()
     with db.session() as session:
-        # Records whose triage call failed are triaged again (live mode: the change cursor moved on).
+        # Records whose triage call failed are triaged again (live mode: the change cursor moved on),
+        # using at most a quarter of the round.
         failed = {}
         for source, record_id in session.execute(
             select(db.Observation.source, db.Observation.record_id)
@@ -71,7 +74,7 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                 db.Observation.reason == "triage_failed",
                 db.Observation.source.in_(sources),  # same source set as this round
             )
-            .limit(s.monitor_max_records)
+            .limit(max(1, room // 4))
         ):
             failed.setdefault(source, []).append(record_id)
         for source, ids in failed.items():
@@ -79,26 +82,8 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                 source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids)
             )
             docs += unseen(session, items)
-        for source in sources:
-            if live:
-                cursor = session.get(db.Cursor, (source, is_demo))
-                if cursor is None:
-                    # A real feed starts at its current end (legacy_documents alone holds 600k records);
-                    # history is for replays. Demo feeds are scenario data and start at 0.
-                    start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
-                    cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
-                    session.add(cursor)
-                at = cursor.after_seq
-                while len(docs) < room:
-                    items, after = fabric.changes(
-                        source, is_demo=is_demo, after=at, limit=min(100, room - len(docs))
-                    )
-                    docs += unseen(session, items)
-                    if after == at:
-                        break
-                    at = after
-                ends[source] = at  # saved by tick() only after these records were triaged
-            else:
+        if not live:
+            for source in sources:
                 page = None
                 while True:
                     items, page = fabric.search(
@@ -107,9 +92,41 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                     docs += unseen(session, items)
                     if not page:
                         break
+        else:
+            for source in sources:
+                cursor = session.get(db.Cursor, (source, is_demo))
+                if cursor is None:
+                    # A real feed starts at its current end (legacy_documents alone holds 600k records);
+                    # history is for replays. Demo feeds are scenario data and start at 0.
+                    start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
+                    cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
+                    session.add(cursor)
+                ends[source] = cursor.after_seq
+
+            def take(source, limit):
+                """Read up to `limit` new records of one feed; ends[source] moves past what was read."""
+                got = 0
+                while got < limit:
+                    at = ends[source]
+                    items, after = fabric.changes(source, is_demo=is_demo, after=at, limit=min(100, limit - got))
+                    fresh = unseen(session, items)
+                    docs.extend(fresh)
+                    got += len(fresh)
+                    if after == at:
+                        more.discard(source)
+                        return
+                    ends[source] = after
+                more.add(source)
+
+            share = max(10, room // max(1, len(sources)))
+            for source in sources:
+                take(source, min(share, max(0, room - len(docs))))
+            for source in [x for x in sources if x in more]:
+                if len(docs) >= room:
+                    break
+                take(source, room - len(docs))
     unique = {d["version_id"]: d for d in docs}
-    backlog = live and len(docs) >= room
-    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, backlog
+    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, bool(more)
 
 
 def triage(s: Settings, docs, topics):
