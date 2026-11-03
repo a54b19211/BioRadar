@@ -19,6 +19,7 @@ from bioradar.config import Settings, settings
 from bioradar.research import analyses, prompts, schemas
 
 log = logging.getLogger("bioradar")
+_turn = 0  # rotates which monitored source is read first in a live round
 ALERTS = ["none", "normal", "important", "urgent"]
 WEIGHT = {"none": 0, "normal": 1, "important": 2, "urgent": 3}
 BATCH = 10
@@ -54,9 +55,10 @@ def unseen(session, items):
 
 def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None):
     """Live: the change feed after the saved cursor, at most monitor_max_records per round; the rest
-    stays in the feed (backlog) and the cursor only moves past what this round takes. Every source
-    gets an equal share first, so one flooding source cannot starve WHO; leftover room goes to sources
-    that still have more.
+    stays in the feed (backlog) and the cursor only moves past what this round takes. After failed
+    retries, the remaining room is split evenly across sources, starting from a different source each
+    round, so one flooding source cannot starve WHO; leftover room goes to sources that still have more.
+    Every scanned record counts against the room, seen or not, so a lagging cursor cannot scan forever.
     Replay: everything visible at the cutoff that was not observed yet.
     Returns (docs, cursor ends, backlog)."""
     sources = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
@@ -103,30 +105,37 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                     session.add(cursor)
                 ends[source] = cursor.after_seq
 
+            scanned = len(docs)
+
             def take(source, limit):
-                """Read up to `limit` new records of one feed; ends[source] moves past what was read."""
+                """Scan up to `limit` records of one feed; ends[source] moves past what was scanned."""
+                nonlocal scanned
                 got = 0
                 while got < limit:
                     at = ends[source]
                     items, after = fabric.changes(
                         source, is_demo=is_demo, after=at, limit=min(100, limit - got)
                     )
-                    fresh = unseen(session, items)
-                    docs.extend(fresh)
-                    got += len(fresh)
+                    docs.extend(unseen(session, items))
+                    got += len(items)
+                    scanned += len(items)
                     if after == at:
                         more.discard(source)
                         return
                     ends[source] = after
                 more.add(source)
 
-            share = max(10, room // max(1, len(sources)))
-            for source in sources:
-                take(source, min(share, max(0, room - len(docs))))
-            for source in [x for x in sources if x in more]:
-                if len(docs) >= room:
+            global _turn
+            _turn += 1
+            k = _turn % max(1, len(sources))
+            order = sources[k:] + sources[:k]  # a different source goes first each round
+            share = max(1, (room - scanned) // max(1, len(order)))
+            for source in order:
+                take(source, min(share, max(0, room - scanned)))
+            for source in [x for x in order if x in more]:
+                if scanned >= room:
                     break
-                take(source, room - len(docs))
+                take(source, room - scanned)
     unique = {d["version_id"]: d for d in docs}
     return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, bool(more)
 
