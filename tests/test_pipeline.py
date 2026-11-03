@@ -460,6 +460,44 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
     assert [n["code"] for n in run.p["notes"]].count("query_replaced") == 2
 
 
+def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
+    """Codex C05: 2 devices over 3 institutions came out as 66.6667%, with a caveat that did not make it valid."""
+    from bioradar.research import pipeline
+
+    def calculate(settings_, stage, system, payload, model_cls, **options):
+        ids = [f["id"] for f in payload["facts"]]
+        calcs = [
+            schemas.Calculation(
+                label="设备覆盖比例",
+                operands=[schemas.Operand(fact=ids[0], value=2, unit="套"), schemas.Operand(fact=ids[1], value=3, unit="家")],
+                expression="x1 / x2 * 100",
+                unit="%",
+            ),
+            schemas.Calculation(
+                label="阳性比例",
+                operands=[schemas.Operand(fact=ids[2], value=5, unit="人"), schemas.Operand(fact=ids[3], value=20, unit="人")],
+                expression="x1 / x2 * 100",
+                unit="%",
+            ),
+        ]
+        return schemas.Calculations(calculations=calcs), {"stage": stage, "error": None}
+
+    monkeypatch.setattr(llm, "chat_json", calculate)
+    row = analyses.create(question="覆盖情况如何？", direction="business", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    quotes = ["采购2套设备", "合作3家机构", "阳性5人", "检测20人"]
+    run.p.update(
+        needs_calculation=True,
+        relations=[],
+        notes=[],
+        facts=[{"id": f"F{i + 1}", "ref": "E1", "text": q, "quote": q} for i, q in enumerate(quotes)],
+    )
+    monkeypatch.setattr(pipeline.Run, "log", lambda self, calls, service="radar": None)
+    run.compute()
+    assert [c["label"] for c in run.p["computations"]] == ["阳性比例"]
+    assert any(n["code"] == "calculation_mixed_units" for n in run.p["notes"])
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

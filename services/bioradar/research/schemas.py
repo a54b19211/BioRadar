@@ -82,6 +82,7 @@ class Reading(BaseModel):
 class Operand(BaseModel):
     fact: str = Field(description="数值来自哪条事实，如F3")
     value: float = Field(description="该事实原文里的数值")
+    unit: str = Field(default="", description="这个数的单位，按原文，如 套、家、人、万元")
 
 
 class Calculation(BaseModel):

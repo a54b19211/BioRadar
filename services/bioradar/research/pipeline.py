@@ -1003,6 +1003,12 @@ class Run:
             ):
                 self.note("calculation_operand_not_in_source", calc.label)
                 continue
+            share = calc.unit.strip() in {"%", "百分比"} or any(w in calc.label for w in ("比例", "占比"))
+            units = {o.unit.strip() for o in calc.operands if o.unit.strip()}
+            if share and len(units) > 1:
+                # a percentage of different things (2 devices / 3 institutions) is not a proportion (C05)
+                self.note("calculation_mixed_units", f"{calc.label}: {'、'.join(sorted(units))}")
+                continue
             try:
                 value = compute.evaluate(calc.expression, [Decimal(str(o.value)) for o in calc.operands])
             except ValueError as exc:
