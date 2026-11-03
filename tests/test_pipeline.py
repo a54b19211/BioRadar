@@ -657,10 +657,21 @@ def test_a_queued_follow_up_checks_its_earlier_report_again_when_it_runs():
     with db.session() as s:
         row = s.get(db.Analysis, parent.id)
         row.result = {"draft": "上一轮稿件[E1]。"}
-        s.add(db.Evidence(analysis_id=parent.id, ref="E1", source="gone", record_id="r", version_id="v",
-                          title="t", text="x", meta={}))
-    child = analyses.create(question="追问？", direction="pipeline", is_demo=True, parent_id=parent.id,
-                            enqueue=False)
+        s.add(
+            db.Evidence(
+                analysis_id=parent.id,
+                ref="E1",
+                source="gone",
+                record_id="r",
+                version_id="v",
+                title="t",
+                text="x",
+                meta={},
+            )
+        )
+    child = analyses.create(
+        question="追问？", direction="pipeline", is_demo=True, parent_id=parent.id, enqueue=False
+    )
     assert child.input["previous_report"]["draft"] == "上一轮稿件[E1]。"
 
     class Listed(FakeFabric):

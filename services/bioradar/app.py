@@ -285,7 +285,9 @@ def redact(value: dict) -> dict:
     readable = readable_sources()
     hidden = hidden_refs(value["evidence"], readable)
     # what the earlier rounds cited binds this one too: its text grew out of their reports
-    inherited = hidden_by_analysis([value["id"]], own=False).get(value["id"], {}) if value.get("parent_id") else {}
+    inherited = (
+        hidden_by_analysis([value["id"]], own=False).get(value["id"], {}) if value.get("parent_id") else {}
+    )
     if not hidden and not inherited:
         return value
     value = copy.deepcopy(value)
@@ -343,11 +345,15 @@ def hidden_by_analysis(ids, *, own=True) -> dict:
     with db.session() as s:
         chains = {a: ([a] if own else []) + analyses.lineage(s, a) for a in ids}
         wanted = {x for chain in chains.values() for x in chain}
-        rows = s.execute(
-            select(db.Evidence.analysis_id, db.Evidence.ref, db.Evidence.source).where(
-                db.Evidence.analysis_id.in_(list(wanted))
-            )
-        ).all() if wanted else []
+        rows = (
+            s.execute(
+                select(db.Evidence.analysis_id, db.Evidence.ref, db.Evidence.source).where(
+                    db.Evidence.analysis_id.in_(list(wanted))
+                )
+            ).all()
+            if wanted
+            else []
+        )
     readable = readable_sources()
     by_analysis = {}
     for analysis_id, ref, source in rows:

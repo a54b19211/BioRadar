@@ -398,7 +398,10 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
     # a follow-up written while the parent was readable is withheld once the parent's source is revoked
     with db.session() as s:
         row = s.get(db.Analysis, again["id"])
-        row.state, row.result = "completed", {"draft": "依上一轮：撤权原文城的病例在增加。", "report_status": "PASS"}
+        row.state, row.result = (
+            "completed",
+            {"draft": "依上一轮：撤权原文城的病例在增加。", "report_status": "PASS"},
+        )
     fabric_sources["value"] = ["open_src"]
     api_module._readable.update(at=None, sources=None)
     detail = admin.get(f"/api/analyses/{again['id']}").json()
