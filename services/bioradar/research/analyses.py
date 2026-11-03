@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
-from bioradar.research.pipeline import Failed, Run, lineage, lineage_sources  # noqa: F401
+from bioradar.research.pipeline import Failed, Run, UnknownLineage, lineage, lineage_sources  # noqa: F401
 
 LEASE = timedelta(minutes=90)
 DIRECTIONS = {"pipeline", "science", "business", "public_health"}

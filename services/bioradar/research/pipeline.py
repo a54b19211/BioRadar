@@ -138,8 +138,17 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
         hit = re.search(r"\s*".join(map(re.escape, squash(quote))), text) if squash(quote) else None
         if hit:
             found.append((hit.start(), hit.end()))
-    for context in (400, 150, 0):
-        spans = sorted([max(0, a - context), min(len(text), b + context)] for a, b in found)
+    def line(a, b):
+        end = text.find("\n", b)
+        return [text.rfind("\n", 0, a) + 1, len(text) if end < 0 else end]
+
+    # first the whole line each quote is on: a registry field's title-only quote ("Total Energy
+    # Expenditure") is useless without the values on the same line (Codex r40); then shrinking context
+    for context in ("line", 400, 150, 0):
+        if context == "line":
+            spans = sorted(line(a, b) for a, b in found)
+        else:
+            spans = sorted([max(0, a - context), min(len(text), b + context)] for a, b in found)
         merged = []
         for span in spans:
             if merged and span[0] <= merged[-1][1]:
@@ -157,19 +166,36 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     return "\n…\n".join(parts) or text[:limit]
 
 
-def lineage(session, analysis_id: str, depth=20) -> list[str]:
-    """The analysis's earlier rounds, nearest first (a follow-up's parent, its parent, ...)."""
+LINEAGE_DEPTH = 500  # rounds followed back; a longer, looping or broken chain counts as unknown
+
+
+class UnknownLineage(Exception):
+    """The chain of earlier rounds could not be followed to its start."""
+
+
+def lineage(session, analysis_id: str, depth=LINEAGE_DEPTH) -> list[str]:
+    """The analysis's earlier rounds, nearest first (a follow-up's parent, its parent, ...). Raises
+    UnknownLineage when the chain loops, breaks off at a missing row or is longer than `depth`: an
+    unfinished walk must never pass for "no earlier sources" (Codex r40: round 21 lost its root's limits)."""
     found, current = [], session.get(db.Analysis, analysis_id)
-    while current is not None and current.parent_id and len(found) < depth:
+    while current is not None and current.parent_id:
+        if current.parent_id in found or current.parent_id == analysis_id or len(found) >= depth:
+            raise UnknownLineage(analysis_id)
         found.append(current.parent_id)
         current = session.get(db.Analysis, current.parent_id)
+        if current is None:
+            raise UnknownLineage(analysis_id)
     return found
 
 
-def lineage_sources(analysis_id: str) -> set[str]:
-    """Sources cited by the analysis's earlier rounds: what its previous report was written from."""
+def lineage_sources(analysis_id: str) -> set[str] | None:
+    """Sources cited by the analysis's earlier rounds (what its previous report was written from), or None
+    when the chain cannot be followed."""
     with db.session() as session:
-        ids = lineage(session, analysis_id)
+        try:
+            ids = lineage(session, analysis_id)
+        except UnknownLineage:
+            return None
         if not ids:
             return set()
         return set(session.scalars(select(db.Evidence.source).where(db.Evidence.analysis_id.in_(ids))))
@@ -298,23 +324,22 @@ class Run:
 
     def previous_report(self):
         """The earlier round's report, only while every source it was written from (through all earlier
-        rounds) can still be read; checked when the run uses it, not when the follow-up was created
-        (Codex r38: a revoked parent's draft reached the plan model and leaked into the follow-up)."""
+        rounds) can still be read. Checked at each use (plan, then report), since a source can be revoked
+        while the run goes on (Codex r38, r40); not checked once and remembered."""
         if not self.input.get("previous_report"):
             return None
-        if not hasattr(self, "_previous"):
-            self._previous = self.input["previous_report"]
-            sources = lineage_sources(self.id)
-            readable = set()
-            if sources:
-                try:
-                    readable = {r["source_id"] for r in self.fabric.sources()["sources"]}
-                except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError, AttributeError):
-                    readable = None
-            if sources and (readable is None or not sources <= readable):
-                self._previous = None
-                self.note("previous_report_withheld", "上一轮引用的来源现在不可读或授权状态无法确认")
-        return self._previous
+        sources = lineage_sources(self.id)
+        readable = set()
+        if sources:
+            try:
+                readable = {r["source_id"] for r in self.fabric.sources()["sources"]}
+            except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError, AttributeError):
+                readable = None
+        if sources is None or (sources and (readable is None or not sources <= readable)):
+            if all(n["code"] != "previous_report_withheld" for n in self.p.get("notes", [])):
+                self.note("previous_report_withheld", "上一轮引用的来源现在不可读、授权状态或上游链无法确认")
+            return None
+        return self.input["previous_report"]
 
     @property
     def asked(self):
@@ -333,8 +358,9 @@ class Run:
             "direction": self.input["direction"],
             "history_cutoff": self.input.get("cutoff"),
         }
-        if self.previous_report():
-            payload["previous_report"] = self.previous_report()["draft"][:3000]
+        previous = self.previous_report()
+        if previous:
+            payload["previous_report"] = previous["draft"][:3000]
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
@@ -1323,8 +1349,9 @@ class Run:
                 "history_cutoff": self.input.get("cutoff"),
             },
         }
-        if self.previous_report():
-            body["previous_report"] = self.previous_report()
+        previous = self.previous_report()
+        if previous:
+            body["previous_report"] = previous
         if self.p.get("hypotheses"):
             # The hypotheses and the facts tagged to them go to BioCheck, which writes and checks the
             # 「情报假设」 section; assess only grades what survived that check.

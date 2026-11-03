@@ -313,6 +313,12 @@ def redact(value: dict) -> dict:
     for q in progress.get("queries") or []:
         if not safe(q["terms"], q.get("origin", "")):
             q["terms"] = []
+    # the plan's checks were written with the earlier round's report in view (Codex r40)
+    if inherited:
+        for c in (progress.get("checks") or []) + ((value.get("result") or {}).get("checks") or []):
+            if not safe([c.get("text", "")], ""):
+                c["text"] = ""
+            c["exploratory"] = [n for n in c.get("exploratory", []) if safe([n], "")]
     for a in progress.get("actions") or []:
         terms = a.get("args", {}).get("terms")
         if terms and not safe(terms, a.get("origin", "")):
@@ -342,8 +348,14 @@ def hidden_by_analysis(ids, *, own=True) -> dict:
     ids = list(ids)
     if not ids:
         return {}
+    broken = set()
     with db.session() as s:
-        chains = {a: ([a] if own else []) + analyses.lineage(s, a) for a in ids}
+        chains = {}
+        for a in ids:
+            try:
+                chains[a] = ([a] if own else []) + analyses.lineage(s, a)
+            except analyses.UnknownLineage:  # a chain not followed to its start is not known to be readable
+                chains[a], _ = ([a] if own else []), broken.add(a)
         wanted = {x for chain in chains.values() for x in chain}
         rows = (
             s.execute(
@@ -360,7 +372,7 @@ def hidden_by_analysis(ids, *, own=True) -> dict:
         by_analysis.setdefault(analysis_id, []).append({"ref": ref, "source": source})
     found = {}
     for a, chain in chains.items():
-        hidden = {}
+        hidden = {"上游轮次": "上游链无法追溯完整，授权状态无法确认"} if a in broken else {}
         for x in chain:
             for ref, reason in hidden_refs(by_analysis.get(x, []), readable).items():
                 hidden[ref if x == a else f"上一轮{x[:8]}:{ref}"] = reason
