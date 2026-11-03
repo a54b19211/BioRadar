@@ -856,6 +856,41 @@ def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted
     ).excerpt("普通材料" * 2000, ["普通材料"])
 
 
+def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(monkeypatch):
+    """Codex r41: after the plan turned the earlier report into checks, revoking it only dropped the
+    previous_report field; the checks still reached the writer through research_scope."""
+    from bioradar.research.pipeline import Failed
+
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    parent = analyses.create(question="上一轮？", direction="pipeline", is_demo=True, enqueue=False)
+    with db.session() as s:
+        s.get(db.Analysis, parent.id).result = {"draft": "上一轮稿件[E1]。"}
+        s.add(db.Evidence(analysis_id=parent.id, ref="E1", source="gone", record_id="r", version_id="v",
+                          title="t", text="x", meta={}))
+    child = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, parent_id=parent.id,
+                            enqueue=False)
+
+    class Listed(FakeFabric):
+        listed = ["gone", "external_archive"]
+
+        def sources(self):
+            return {"sources": [{"source_id": x} for x in self.listed]}
+
+    fabric = Listed(RECORDS)
+    run = Run(child, settings(), fabric=fabric)
+    run.plan()
+    run.save("investigate")
+    assert run.p["used_previous"]
+    fabric.listed = ["external_archive"]  # revoked after the plan
+    import pytest
+
+    with pytest.raises(Failed) as stopped:
+        run.run()
+    assert stopped.value.code == "upstream_access_withdrawn"
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

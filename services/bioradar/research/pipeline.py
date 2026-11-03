@@ -377,6 +377,11 @@ class Run:
             "assess": self.assess,
         }
         while self.stage != "done":
+            # once the plan used the earlier report, every later stage carries what came from it (checks,
+            # search terms, the report's research scope); if that report's sources can no longer be read,
+            # the run stops with the reason instead of passing those on (Codex r41)
+            if self.stage != "plan" and self.p.get("used_previous") and self.previous_report() is None:
+                raise Failed("upstream_access_withdrawn")
             steps[self.stage]()
             self.save(STAGES[STAGES.index(self.stage) + 1])
         return self.result()
@@ -420,6 +425,7 @@ class Run:
         previous = self.previous_report()
         if previous:
             payload["previous_report"] = previous["draft"][:3000]
+            self.p["used_previous"] = True
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
