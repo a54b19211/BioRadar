@@ -334,7 +334,7 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
     def biocheck(s, operation, body):
         sent.append((operation, body))
         if operation == "generate":
-            return {"draft": "待验证的假设：XQ-17 准备申报，依据为更正后的HR[E2]。", "llm_calls": []}
+            return {"draft": "H1 待验证的假设：XQ-17 准备申报，依据为更正后的HR[E2]。", "llm_calls": []}
         return {"status": "REVIEW", "claims": [], "coverage": {"verdict": "incomplete"}, "llm_calls": []}
 
     monkeypatch.setattr(llm, "chat_json", chat_json)
@@ -370,7 +370,21 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
 
 
 def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
-    """Nothing is confirmed after the report; probable needs a verified supporting fact."""
+    """Nothing is confirmed after the report; probable needs a supported sentence in the
+    hypothesis's own paragraph; hypotheses the report does not write up are not graded."""
+    sentences = [
+        ("公司于1980年成立[E5]。\n", "supported", ["E5"]),
+        ("## 情报假设\n", "no_claim", []),
+        ("H1 待验证的假设：工厂为 XQ-17 备货，厂房已开工[E1]。\n", "supported", ["E1"]),
+        ("H2 待验证的假设：扩招为备货，招聘启事提到无菌灌装[E2]。\n", "insufficient", ["E2"]),
+        ("H3 待验证的假设：年内投产，规划写明投产[E1]。", "supported", ["E1"]),
+        ("另一记录显示已停建[E3]。\n", "supported", ["E3"]),
+        ("H4 待验证的假设：只是合同生产，目前没有材料。", "no_claim", []),
+    ]
+    draft, claims = "", []
+    for text, verdict, citations in sentences:
+        claims.append({"start": len(draft), "verdict": verdict, "citations": citations})
+        draft += text
     row = analyses.create(
         question="工厂是否为 XQ-17 备货？", direction="business", is_demo=True, enqueue=False
     )
@@ -378,25 +392,19 @@ def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
     run.p.update(
         checks=[],
         judgments=[],
-        hypotheses=[{"id": h, "statement": h} for h in ("H1", "H2", "H3", "H4")],
+        hypotheses=[{"id": h, "statement": h} for h in ("H1", "H2", "H3", "H4", "H5")],
         facts=[
             {"ref": "E1", "hypothesis": "H1", "stance": "supports"},
-            {"ref": "E2", "hypothesis": "H2", "stance": "supports"},  # cited, but not verified
+            {"ref": "E5", "hypothesis": "H2", "stance": "supports"},  # verified, but not about H2
+            {"ref": "E2", "hypothesis": "H2", "stance": "supports"},  # about H2, not verified
             {"ref": "E1", "hypothesis": "H3", "stance": "supports"},
             {"ref": "E3", "hypothesis": "H3", "stance": "refutes"},
         ],
-        report={
-            "status": "PASS",
-            "draft": "新工厂可能用于 XQ-17 备货[E1][E2][E3]。",
-            "claims": [
-                {"verdict": "supported", "citations": ["E1", "E3"]},
-                {"verdict": "insufficient", "citations": ["E2"]},
-            ],
-        },
+        report={"status": "PASS", "draft": draft, "claims": claims},
     )
     graded = schemas.Assessment(
         alert="important",
-        hypotheses=[schemas.HypothesisLevel(id=h, level="confirmed") for h in ("H1", "H2", "H3")]
+        hypotheses=[schemas.HypothesisLevel(id=h, level="confirmed") for h in ("H1", "H2", "H3", "H5")]
         + [schemas.HypothesisLevel(id="H4", level="refuted")],
     )
     monkeypatch.setattr(run, "ask", lambda *a, **k: graded)

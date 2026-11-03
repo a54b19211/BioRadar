@@ -143,6 +143,28 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     return "\n…\n".join(parts) or text[:limit]
 
 
+def hypothesis_citations(draft, claims, ids):
+    """{hypothesis id: citations of the supported sentences in its paragraph} for the hypotheses the
+    draft writes up. A paragraph runs from the id (first one inside 「情报假设」 when that section
+    exists) to the next hypothesis id or the end; ids the draft never names are left out."""
+    section = max(draft.find("情报假设"), 0)
+    starts = {}
+    for h in ids:
+        found = re.compile(re.escape(h) + r"(?!\d)").search(draft, section)
+        if found:
+            starts[h] = found.start()
+    bounds = sorted(starts.values()) + [len(draft)]
+    cited = {}
+    for h, start in starts.items():
+        end = bounds[bounds.index(start) + 1]
+        cited[h] = set()
+        for c in claims:
+            at = c["start"] if "start" in c else draft.find(c.get("text", ""))
+            if c["verdict"] == "supported" and start <= at < end:
+                cited[h].update(c["citations"])
+    return cited
+
+
 class Run:
     def __init__(self, analysis: db.Analysis, settings: Settings, fabric: Fabric | None = None):
         self.id = analysis.id
@@ -1006,21 +1028,21 @@ class Run:
         cited = set(re.findall(r"\[(E\d+)\]", report["draft"]))
         for judgment in result.judgments:
             judgment.grounds = [g for g in judgment.grounds if g in cited]
-        known = {h["id"] for h in self.p.get("hypotheses", [])}
-        result.hypotheses = [h for h in result.hypotheses if h.id in known]
-        # A grade cannot go past the verified report. BioCheck writes hypotheses as 待验证 and never
-        # as confirmed, so assess cannot confirm either; probable needs a tagged supporting fact whose
-        # citing sentence BioCheck found supported in a PASS report and no such refutation; refuted
-        # needs a verified refutation. Anything else is at most possible.
-        verified = {
-            e for c in report.get("claims", []) if c["verdict"] == "supported" for e in c["citations"]
-        }
+        # A grade cannot go past the verified report. Only hypotheses the report writes up are graded.
+        # BioCheck writes them as 待验证 and never as confirmed, so assess cannot confirm either;
+        # probable needs a tagged supporting fact cited by a supported sentence in that hypothesis's
+        # own paragraph of a PASS report and no such refutation; refuted needs such a refutation.
+        # Anything else is at most possible.
+        verified = hypothesis_citations(
+            report["draft"], report.get("claims", []), [h["id"] for h in self.p.get("hypotheses", [])]
+        )
+        result.hypotheses = [h for h in result.hypotheses if h.id in verified]
         order = ["insufficient", "possible", "probable", "confirmed"]
         for h in result.hypotheses:
             stances = {
                 f["stance"]
                 for f in self.p.get("facts", [])
-                if f.get("hypothesis") == h.id and f["ref"] in verified
+                if f.get("hypothesis") == h.id and f["ref"] in verified[h.id]
             }
             if h.level == "refuted":
                 cap = "refuted" if "refutes" in stances else "possible"
