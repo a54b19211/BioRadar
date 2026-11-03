@@ -167,7 +167,7 @@ def topic_analysis():
                         "text": "第二句撤权原文[E2]。",
                         "quotes": [{"ref": "E2", "quote": "撤权原文", "found": True}],
                     },
-                ]
+                ],
             },
             "computations": [{"id": "C1", "operands": [{"fact": "F2", "ref": "E2", "quote": "撤权原文"}]}],
         }
