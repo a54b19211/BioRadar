@@ -924,7 +924,9 @@ class Run:
         decisive = any(f["stance"] in {"supports", "refutes"} for f in new_facts)
         # a newly found object is followed up by name (later updates of that event); then the reader's terms,
         # worth more when this record said something decisive than when it was only background
-        new_names = [o["name"] for o in self.p.get("found_objects", []) if o["name"] not in found_before_names]
+        new_names = [
+            o["name"] for o in self.p.get("found_objects", []) if o["name"] not in found_before_names
+        ]
         self.found = max(self.found, 1.0 if new_names else 0.6 if decisive else 0.0)
         for name in new_names:
             self.add_query([name], hit["checks"] or open_ids, value=3, origin=f"object:{ref}")

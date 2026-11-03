@@ -440,7 +440,9 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
     other = ReadFact(text="乙城医院收治2例", quote="乙城医院收治2例", stance="supports", object="禾屿县")
     assert run.object_of(other, "E3") == ""
     # background keeps its name but takes no place among the names followed up
-    background = ReadFact(text="甲城门诊量平稳", quote="甲城门诊本周登记10人", stance="context", object="甲城")
+    background = ReadFact(
+        text="甲城门诊量平稳", quote="甲城门诊本周登记10人", stance="context", object="甲城"
+    )
     assert run.object_of(background, "E4") == "甲城"
     assert [o["name"] for o in run.p["found_objects"]] == ["禾屿县"]
 
@@ -456,7 +458,9 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
     run.p.update(
         queries=list(plan),
         actions=[{"kind": "search", "args": {"terms": ["泛词0"]}}],
-        pages={"s|泛词0": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}},  # still paging
+        pages={
+            "s|泛词0": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}
+        },  # still paging
         notes=[],
     )
     run.add_query(["芦川发热门诊"], ["Q1"], value=0, origin="read:E1")
@@ -474,7 +478,9 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
 
 def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in():
     """Codex r31: once all 12 searches had run, a new term from new evidence could never get in."""
-    row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False)
+    row = analyses.create(
+        question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False
+    )
     run = Run(row, settings(), fabric=FakeFabric([]))
     queries = [{"terms": [f"词{i}"], "checks": ["Q1"]} for i in range(12)]
     run.p.update(
@@ -546,13 +552,19 @@ def test_a_percentage_whose_units_cannot_be_read_from_the_quotes_is_not_computed
         calcs = [
             schemas.Calculation(
                 label="覆盖比例",
-                operands=[schemas.Operand(fact=ids[0], value=2, unit=a), schemas.Operand(fact=ids[1], value=3, unit=b)],
+                operands=[
+                    schemas.Operand(fact=ids[0], value=2, unit=a),
+                    schemas.Operand(fact=ids[1], value=3, unit=b),
+                ],
                 expression="x1 / x2 * 100",
                 unit="%",
             ),
             schemas.Calculation(
                 label="每套金额",
-                operands=[schemas.Operand(fact=ids[2], value=120, unit=c), schemas.Operand(fact=ids[0], value=2, unit="套")],
+                operands=[
+                    schemas.Operand(fact=ids[2], value=120, unit=c),
+                    schemas.Operand(fact=ids[0], value=2, unit="套"),
+                ],
                 expression="x1 / x2",
                 unit="万元/套",
             ),
@@ -561,9 +573,14 @@ def test_a_percentage_whose_units_cannot_be_read_from_the_quotes_is_not_computed
 
     monkeypatch.setattr(llm, "chat_json", calculate)
     monkeypatch.setattr(pipeline.Run, "log", lambda self, calls, service="radar": None)
-    for units, code in ((("", "", "万元"), "calculation_unit_unverified"), (("人", "人", "万元"), "calculation_unit_unverified")):
+    for units, code in (
+        (("", "", "万元"), "calculation_unit_unverified"),
+        (("人", "人", "万元"), "calculation_unit_unverified"),
+    ):
         claimed["units"] = units
-        row = analyses.create(question=f"覆盖情况如何？{units}", direction="business", is_demo=True, enqueue=False)
+        row = analyses.create(
+            question=f"覆盖情况如何？{units}", direction="business", is_demo=True, enqueue=False
+        )
         run = Run(row, settings(), fabric=FakeFabric([]))
         quotes = ["采购2套设备", "合作3家机构", "合同总额120万元"]
         run.p.update(
