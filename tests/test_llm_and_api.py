@@ -351,7 +351,8 @@ def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resum
     from bioradar.research.pipeline import Run
 
     replies = iter([httpx.Response(200, json={"items": []}), httpx.Response(503, json={})])
-    client = httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(lambda r: next(replies)))
+    transport = httpx.MockTransport(lambda request: next(replies))
+    client = httpx.Client(base_url="http://fabric.invalid", transport=transport)
     fabric = Fabric(settings(), client=client)
     row = analyses.create(question="计数？", direction="pipeline", is_demo=True, enqueue=False)
     run = Run(row, settings(), fabric=fabric)

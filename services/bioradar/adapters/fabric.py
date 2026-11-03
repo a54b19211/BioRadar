@@ -217,7 +217,8 @@ class Fabric:
         self.requests = {}
 
     def _get(self, path, params, token=None):
-        count = self.requests.setdefault(path.removeprefix("/api/history/").split("/")[0], {"n": 0, "errors": 0})
+        endpoint = path.removeprefix("/api/history/").split("/")[0]
+        count = self.requests.setdefault(endpoint, {"n": 0, "errors": 0})
         count["n"] += 1
         try:
             response = self.client.get(
