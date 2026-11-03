@@ -714,7 +714,7 @@ def test_candidates_carry_what_they_are_expected_to_add():
               for c in run.candidates()}
     assert impact[("search", ("澜津市",))] == 1.0
     assert abs(impact[("search", ("病例",))] - 0.18) < 1e-9  # three usable records wait
-    assert impact[("search", ("背景词",))] == 0.2
+    assert abs(impact[("search", ("背景词",))] - 0.06) < 1e-9  # background terms, and records wait
     assert impact[("read", "e1")] == 1.0 and impact[("read", "bg")] == 0.5
     assert all("_value" not in c and "_copy" not in c for c in run.candidates())
 
