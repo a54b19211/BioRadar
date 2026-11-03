@@ -400,7 +400,11 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
         row = s.get(db.Analysis, again["id"])
         row.state, row.result = (
             "completed",
-            {"draft": "依上一轮：撤权原文城的病例在增加。", "report_status": "PASS"},
+            {
+                "draft": "依上一轮：撤权原文城的病例在增加。",
+                "report_status": "PASS",
+                "plan_basis": {"撤权原文城": "prior_report"},
+            },
         )
         # the plan wrote a check with a name from the earlier report (Codex r40)
         row.progress = {
@@ -420,4 +424,5 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
     assert (
         detail["progress"]["checks"][0]["text"] == "" and detail["progress"]["checks"][0]["exploratory"] == []
     )
+    assert "撤权原文城" not in detail["result"]["plan_basis"]  # the plan's names are its keys
     assert "撤权原文" not in admin.get(f"/api/analyses/{again['id']}/export").text
