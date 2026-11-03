@@ -493,6 +493,11 @@ class Run:
 
     def candidates(self):
         live = self.cutoff is None and not self.input["is_demo"]
+        # fresh collection needs Fabric's admin token; without it there is no fetch step, said once
+        if live and not self.s.fabric_admin_token:
+            live = False
+            if all(n["code"] != "fetch_not_configured" for n in self.p.get("notes", [])):
+                self.note("fetch_not_configured", "BIORADAR_FABRIC_ADMIN_TOKEN 未配置，不向 Fabric 发起新采集")
         done = {
             (
                 a["kind"],

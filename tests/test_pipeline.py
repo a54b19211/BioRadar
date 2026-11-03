@@ -344,6 +344,30 @@ def test_a_next_page_in_current_mode_is_read_at_the_time_of_its_first_page(monke
     assert first[2] is not None and second[2] == first[2]
 
 
+def test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so(monkeypatch):
+    """T-19: an empty admin token went out as "Bearer " and failed as LocalProtocolError."""
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", fake_model(sent))
+    kinds = []
+
+    def decide(s, body):
+        kinds.extend(c["kind"] for c in body["candidates"])
+        return first_policy(body)
+
+    monkeypatch.setattr(services, "decide", decide)
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    for token, fetch in (("", False), ("admin-token", True)):
+        kinds.clear()
+        s = settings().model_copy(update={"fabric_admin_token": token})
+        row = analyses.create(
+            question=f"XQ-17 的PFS？{token}", direction="pipeline", sources=["clinicaltrials"], enqueue=False
+        )
+        result = Run(row, s, fabric=FakeFabric([])).run()
+        assert ("fetch" in kinds) is fetch
+        notes = [n["code"] for n in result["notes"]]
+        assert notes.count("fetch_not_configured") == (0 if fetch else 1)
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
