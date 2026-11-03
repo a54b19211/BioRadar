@@ -28,6 +28,7 @@ MAX_PAGES = 3
 MAX_QUERIES = 12
 MAX_FOUND = 12  # objects found in read records, beyond those the question names
 MAX_RETIRED = 6  # searches used up and replaced by new evidence's searches, per analysis
+SUPPLY = 3  # usable unread records that make a plain new search worth less than reading them
 PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
 REVISIONS = 2  # revise -> re-verify rounds; each only touches the sentences the last check flagged
 MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
@@ -571,6 +572,7 @@ class Run:
                             # an object a read record named with a decisive fact (query-planner ranks it
                             # with the question's named objects)
                             "follows_up": q.get("origin", "").startswith("object:"),
+                            "_value": q.get("value", 1),
                         }
                     )
                 elif (
@@ -673,8 +675,30 @@ class Run:
                     # query-planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
                     # object the question asks about
                     "scope_match": round(0.4 + 0.3 * coverage(hit) + (0.3 if named(hit["title"]) else 0), 3),
+                    "_copy": bool(sketch(hit).get("duplicate_of")),
                 }
             )
+        return self.weigh(result)
+
+    def weigh(self, result):
+        """What each candidate is expected to add, as query-planner's impact: a search is worth more the
+        more its terms come from evidence (a found object 1.0, a decisive record's terms 0.8, the plan's
+        0.6, a background record's 0.2), and a plain new search less while records already found wait
+        to be read; a read whose text has none of the search terms and names nothing asked about is
+        background so far (0.5), an exact copy of one read 0.2. Supply of candidates is not evidence:
+        PHX attempt 3 kept searching (19-25 of 30 steps) while event records waited unread."""
+        reads = [c for c in result if c["kind"] == "read"]
+        usable = sum(1 for c in reads if not c["_copy"] and (c["critical"] or c["scope_match"] > 0.4))
+        for c in result:
+            value = c.pop("_value", None)
+            copy = c.pop("_copy", False)
+            if c["kind"] == "search" and value is not None:
+                impact = {3: 1.0, 2: 0.8, 1: 0.6}.get(value, 0.2)
+                if value <= 1 and usable >= SUPPLY:
+                    impact *= 0.3
+                c["impact"] = impact
+            elif c["kind"] == "read" and not c["critical"]:
+                c["impact"] = 0.2 if copy else 0.5 if c["scope_match"] <= 0.4 else 1.0
         return result
 
     def history(self):
