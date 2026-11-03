@@ -28,14 +28,20 @@ def test_the_dev_credential_creates_the_first_admin_and_roles_limit_what_each_pe
     for name, role in (("wang", "viewer"), ("li", "analyst")):
         made = admin.post("/api/users", json={"name": name, "role": role, "credential": f"{name}-secret-1"})
         assert made.status_code == 200
-    assert admin.post("/api/users", json={"name": "li", "role": "viewer", "credential": "x" * 8}).status_code == 409
+    assert (
+        admin.post("/api/users", json={"name": "li", "role": "viewer", "credential": "x" * 8}).status_code
+        == 409
+    )
 
     viewer, analyst = signed_in("wang", "wang-secret-1"), signed_in("li", "li-secret-1")
     assert viewer.get("/api/options").status_code == 200
     assert viewer.post("/api/reviews", json={"action": "set_alert"}).status_code == 403
     assert viewer.post("/api/monitor/tick", json={}).status_code == 403
     assert analyst.get("/api/users").status_code == 403
-    assert TestClient(app).post("/api/session", json={"name": "li", "credential": "wrong-one"}).status_code == 401
+    assert (
+        TestClient(app).post("/api/session", json={"name": "li", "credential": "wrong-one"}).status_code
+        == 401
+    )
 
     # a role change takes effect on the next request, without signing in again
     assert admin.patch("/api/users/wang", json={"role": "analyst"}).status_code == 200
@@ -43,7 +49,10 @@ def test_the_dev_credential_creates_the_first_admin_and_roles_limit_what_each_pe
     # the last admin cannot be demoted; once the admin replaces the credential the dev one stops working
     assert admin.patch("/api/users/admin", json={"role": "viewer"}).status_code == 409
     assert admin.patch("/api/users/admin", json={"credential": "a-new-admin-secret"}).status_code == 200
-    assert TestClient(app).post("/api/session", json={"credential": settings().dev_credential}).status_code == 401
+    assert (
+        TestClient(app).post("/api/session", json={"credential": settings().dev_credential}).status_code
+        == 401
+    )
     signed_in("admin", "a-new-admin-secret")
 
 
@@ -51,9 +60,18 @@ def test_a_tampered_or_foreign_token_is_not_a_session():
     admin = admin_client()
     token = admin.cookies.get(api_module.COOKIE)
     user_id, expires, signature = token.split(".")
-    for bad in (f"{user_id}.{int(expires) + 999}.{signature}", f"{user_id}.{expires}.", "x", settings().dev_credential):
-        assert TestClient(app).get("/api/options", headers={"Authorization": f"Bearer {bad}"}).status_code == 401
-    assert TestClient(app).get("/api/options", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    for bad in (
+        f"{user_id}.{int(expires) + 999}.{signature}",
+        f"{user_id}.{expires}.",
+        "x",
+        settings().dev_credential,
+    ):
+        assert (
+            TestClient(app).get("/api/options", headers={"Authorization": f"Bearer {bad}"}).status_code == 401
+        )
+    assert (
+        TestClient(app).get("/api/options", headers={"Authorization": f"Bearer {token}"}).status_code == 200
+    )
 
 
 def topic_analysis():
@@ -80,16 +98,38 @@ def topic_analysis():
             "draft": "第一句[E1]。第二句[E2]。",
             "review": {
                 "claims": [
-                    {"index": 1, "text": "第一句[E1]。", "quotes": [{"ref": "E1", "quote": "开放原文", "found": True}]},
-                    {"index": 2, "text": "第二句[E2]。", "quotes": [{"ref": "E2", "quote": "撤权原文", "found": True}]},
+                    {
+                        "index": 1,
+                        "text": "第一句[E1]。",
+                        "quotes": [{"ref": "E1", "quote": "开放原文", "found": True}],
+                    },
+                    {
+                        "index": 2,
+                        "text": "第二句[E2]。",
+                        "quotes": [{"ref": "E2", "quote": "撤权原文", "found": True}],
+                    },
                 ]
             },
             "computations": [{"id": "C1", "operands": [{"fact": "F2", "ref": "E2", "quote": "撤权原文"}]}],
         }
         a.progress = {
             "facts": [
-                {"id": "F1", "ref": "E1", "text": "开放事实", "quote": "开放原文", "checks": [], "stance": "supports"},
-                {"id": "F2", "ref": "E2", "text": "撤权事实", "quote": "撤权原文", "checks": [], "stance": "supports"},
+                {
+                    "id": "F1",
+                    "ref": "E1",
+                    "text": "开放事实",
+                    "quote": "开放原文",
+                    "checks": [],
+                    "stance": "supports",
+                },
+                {
+                    "id": "F2",
+                    "ref": "E2",
+                    "text": "撤权事实",
+                    "quote": "撤权原文",
+                    "checks": [],
+                    "stance": "supports",
+                },
             ]
         }
         for ref, source in (("E1", "open_src"), ("E2", "gone_src")):
@@ -114,20 +154,33 @@ def test_rejecting_a_sentence_or_flagging_a_material_owes_the_topic_a_review_ana
     analyst = signed_in("li", "li-secret-1")
     analysis_id, topic_id = topic_analysis()
 
-    confirm = analyst.post("/api/reviews", json={"action": "confirm", "analysis_id": analysis_id, "sentence": 1})
+    confirm = analyst.post(
+        "/api/reviews", json={"action": "confirm", "analysis_id": analysis_id, "sentence": 1}
+    )
     assert confirm.status_code == 200 and confirm.json()["by"] == "li"
     with db.session() as s:
         assert s.get(db.Topic, topic_id).pending_reason is None  # confirming owes nothing
 
-    assert analyst.post(
-        "/api/reviews", json={"action": "reject", "analysis_id": analysis_id, "sentence": 9}
-    ).status_code == 422
-    assert analyst.post(
-        "/api/reviews", json={"action": "flag_source", "analysis_id": analysis_id, "evidence_ref": "E7"}
-    ).status_code == 422
+    assert (
+        analyst.post(
+            "/api/reviews", json={"action": "reject", "analysis_id": analysis_id, "sentence": 9}
+        ).status_code
+        == 422
+    )
+    assert (
+        analyst.post(
+            "/api/reviews", json={"action": "flag_source", "analysis_id": analysis_id, "evidence_ref": "E7"}
+        ).status_code
+        == 422
+    )
     rejected = {"action": "reject", "analysis_id": analysis_id, "sentence": 2, "note": "HR 写反了"}
     assert analyst.post("/api/reviews", json=rejected).status_code == 200
-    flagged = {"action": "flag_source", "analysis_id": analysis_id, "evidence_ref": "E1", "note": "转载不是原件"}
+    flagged = {
+        "action": "flag_source",
+        "analysis_id": analysis_id,
+        "evidence_ref": "E1",
+        "note": "转载不是原件",
+    }
     assert analyst.post("/api/reviews", json=flagged).status_code == 200
     alert = {"action": "set_alert", "topic_id": topic_id, "alert": "urgent"}
     assert analyst.post("/api/reviews", json=alert).status_code == 200

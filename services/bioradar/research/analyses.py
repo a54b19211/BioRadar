@@ -301,8 +301,17 @@ def review_view(r: db.Review, name: str) -> dict:
     }
 
 
-def review(user: db.User, *, action, analysis_id=None, sentence=None, evidence_ref=None, topic_id=None,
-           alert=None, note="") -> dict:
+def review(
+    user: db.User,
+    *,
+    action,
+    analysis_id=None,
+    sentence=None,
+    evidence_ref=None,
+    topic_id=None,
+    alert=None,
+    note="",
+) -> dict:
     """Record a person's decision. confirm / reject name a BioCheck sentence of a completed analysis,
     flag_source one of its materials, set_alert a topic's alert. reject and flag_source owe the analysis's
     topic a new analysis (analyst_review); an analysis without a topic only keeps the record."""

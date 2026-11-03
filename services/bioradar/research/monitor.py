@@ -611,7 +611,9 @@ def review_basis(session, topic_id, since) -> str:
     )
     lines = []
     for r in rows:
-        what = f"报告第 {r.sentence} 句被驳回" if r.action == "reject" else f"材料 {r.evidence_ref} 被标记有误"
+        what = (
+            f"报告第 {r.sentence} 句被驳回" if r.action == "reject" else f"材料 {r.evidence_ref} 被标记有误"
+        )
         lines.append(f"{what}（上一轮分析 {r.analysis_id[:8]}）" + (f"：{r.note}" if r.note else ""))
     return ("\n分析员复核意见，请逐条回应：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
 

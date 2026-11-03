@@ -205,7 +205,6 @@ class Cursor(Base):
     last_new_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
-
 class User(Base):
     """Who may sign in: viewer reads; analyst asks and reviews; admin also manages users."""
 
@@ -231,6 +230,7 @@ class Review(Base):
     alert: Mapped[str | None] = mapped_column(String(20))
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
 
 @lru_cache
 def engine():
