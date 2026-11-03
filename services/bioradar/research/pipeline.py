@@ -345,10 +345,10 @@ class Run:
             terms = clean_terms(q.terms)
             if terms and all(terms != x["terms"] for x in queries):
                 ids = [f"Q{n}" for n in q.checks if 1 <= n <= len(checks)]
-                queries.append({"terms": terms, "checks": ids or required})
+                queries.append({"terms": terms, "checks": ids or required, "origin": "plan"})
         for root in code_roots([t for q in queries for t in q["terms"]]):
             if all(root != q["terms"] for q in queries):
-                queries.append({"terms": root, "checks": required})
+                queries.append({"terms": root, "checks": required, "origin": "plan"})
         if not queries:
             raise Failed("plan_without_queries")
         terms = [t for q in queries for t in q["terms"]]
@@ -691,6 +691,11 @@ class Run:
             "gain": 0.0,
             "status": "completed",
         }
+        if candidate["kind"] in {"search", "fetch", "next_page"}:
+            terms = candidate["args"].get("terms")
+            action["origin"] = next(
+                (q.get("origin", "") for q in self.p["queries"] if q["terms"] == terms), ""
+            )
         try:
             if candidate["kind"] == "read":
                 self.found = 0.0
@@ -776,7 +781,10 @@ class Run:
             for shorter in (terms[:-1], terms[1:]):
                 if self.p["retries"] < MAX_RETRIES and all(shorter != q["terms"] for q in self.p["queries"]):
                     self.p["retries"] += 1
-                    self.p["queries"].append({"terms": shorter, "checks": candidate["target_checks"]})
+                    origin = next((q.get("origin", "") for q in self.p["queries"] if q["terms"] == terms), "")
+                    self.p["queries"].append(
+                        {"terms": shorter, "checks": candidate["target_checks"], "origin": origin}
+                    )
         return len(docs), new
 
     def read(self, candidate):

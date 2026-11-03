@@ -297,12 +297,21 @@ def redact(value: dict) -> dict:
     # search terms taken from those records (names found in them, the reader's new terms) and the search
     # actions that used them; notes may quote any of it, so their details go too (codes stay)
     origins = {f"read:{ref}" for ref in hidden} | {f"object:{ref}" for ref in hidden}
-    derived = {tuple(q["terms"]) for q in progress.get("queries") or [] if q.get("origin") in origins}
+    question = "".join(str(value.get("question", "")).split())
+
+    def safe(terms, origin):
+        """Terms that may stay: from the plan or a still readable record; without a known origin (older
+        runs, retired queries) only words of the user's own question."""
+        if origin:
+            return origin not in origins
+        return all("".join(t.split()) in question for t in terms)
+
     for q in progress.get("queries") or []:
-        if tuple(q["terms"]) in derived:
+        if not safe(q["terms"], q.get("origin", "")):
             q["terms"] = []
     for a in progress.get("actions") or []:
-        if tuple(a.get("args", {}).get("terms", ())) in derived:
+        terms = a.get("args", {}).get("terms")
+        if terms and not safe(terms, a.get("origin", "")):
             a["args"] = dict(a["args"], terms=[])
     for n in (progress.get("notes") or []) + ((value.get("result") or {}).get("notes") or []):
         n["detail"] = ""
