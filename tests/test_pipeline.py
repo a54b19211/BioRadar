@@ -498,3 +498,15 @@ def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
     ]
     assert "撤下" in judgments[1]["conclusion"]
     assert any(n["code"] == "judgment_contradicted" and "下降" in n["detail"] for n in run.p["notes"])
+
+
+def test_no_budget_left_means_the_assessment_stays_unverified(monkeypatch):
+    row = analyses.create(question="衡简 H1 经营如何？", direction="business", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    run.calls_used = run.input["budget"]["max_llm_calls"]
+    sent = []
+    monkeypatch.setattr(services, "biocheck", lambda s, operation, body: sent.append(body))
+    judgment = {"conclusion": "收入增长", "grounds": ["E2"], "confidence": "probable"}
+    run.check_assessment({"judgments": [judgment], "hypotheses": []})
+    assert sent == [] and judgment["check"] == "unverified"
+    assert run.p["notes"][-1]["code"] == "assessment_biocheck_no_budget"

@@ -1098,6 +1098,8 @@ class Run:
             at += len(line) + 1
         verdicts = [[] for _ in items]
         try:
+            if self.calls_left() <= 0:
+                raise ServiceError("biocheck", "no_budget")
             review = self.service("verify", dict(self.report_input(), draft="\n".join(lines)))
             for c in review["claims"]:
                 n = bisect.bisect_right(starts, c["start"]) - 1
