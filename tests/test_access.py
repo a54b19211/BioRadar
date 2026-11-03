@@ -406,4 +406,5 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
     api_module._readable.update(at=None, sources=None)
     detail = admin.get(f"/api/analyses/{again['id']}").json()
     assert detail["result"]["draft"] == "" and "上一轮" in detail["result"]["withheld"]
+    assert detail["progress"]["checks"][0]["text"] == "" and detail["progress"]["checks"][0]["exploratory"] == []
     assert "撤权原文" not in admin.get(f"/api/analyses/{again['id']}/export").text

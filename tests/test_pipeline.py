@@ -733,6 +733,49 @@ def test_candidates_carry_what_they_are_expected_to_add():
     assert all("_value" not in c and "_copy" not in c for c in run.candidates())
 
 
+def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_is_unknown():
+    """Codex r40: revoked between plan and report, the cached answer still sent the report to the writer;
+    round 21 of a chain lost its root's limits; a loop must not hang."""
+    from bioradar.research.pipeline import lineage, lineage_sources
+
+    class Listed(FakeFabric):
+        def __init__(self, listed):
+            super().__init__([])
+            self.listed = listed
+
+        def sources(self):
+            return {"sources": [{"source_id": x} for x in self.listed]}
+
+    root = analyses.create(question="根？", direction="pipeline", is_demo=True, enqueue=False)
+    with db.session() as s:
+        s.get(db.Analysis, root.id).result = {"draft": "根稿[E1]。"}
+        s.add(db.Evidence(analysis_id=root.id, ref="E1", source="gone", record_id="r", version_id="v",
+                          title="t", text="x", meta={}))
+    child = analyses.create(question="追问？", direction="pipeline", is_demo=True, parent_id=root.id,
+                            enqueue=False)
+    fabric = Listed(["gone"])
+    run = Run(child, settings(), fabric=fabric)
+    assert run.previous_report() is not None
+    fabric.listed = []  # revoked during the run
+    assert run.previous_report() is None
+    # 25 rounds: only the root cites anything; the walk reaches it
+    last = child
+    for i in range(23):
+        last = analyses.create(question=f"第{i}轮？", direction="pipeline", is_demo=True, parent_id=last.id,
+                               enqueue=False)
+    assert lineage_sources(last.id) == {"gone"}
+    with db.session() as s:  # a loop is not followed forever and is not taken as "nothing upstream"
+        s.get(db.Analysis, root.id).parent_id = last.id
+    assert lineage_sources(last.id) is None
+    with db.session() as s:
+        import pytest
+
+        from bioradar.research.pipeline import UnknownLineage
+
+        with pytest.raises(UnknownLineage):
+            lineage(s, last.id)
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
