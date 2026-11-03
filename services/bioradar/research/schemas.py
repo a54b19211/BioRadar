@@ -123,8 +123,12 @@ class Measure(BaseModel):
     metric: str = Field(description="指标名；series 里已有同义指标时沿用原名")
     value: float
     unit: str = Field(default="", description="单位；series 里已有同义指标时沿用原单位")
-    period: str = Field(default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空")
-    status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = "other"
+    period: str = Field(
+        default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空"
+    )
+    status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = (
+        "other"
+    )
     quote: str = Field(description="含这个数值的连续原文，逐字复制，不超过120字")
 
 

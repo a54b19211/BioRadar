@@ -34,7 +34,9 @@ def upgrade():
     )
     op.create_index("ix_measurements_object", "measurements", ["object"])
     op.create_index("ix_measurements_topic_id", "measurements", ["topic_id"])
-    op.create_index("ix_measurements_series", "measurements", ["workspace_id", "is_demo", "object", "metric", "unit"])
+    op.create_index(
+        "ix_measurements_series", "measurements", ["workspace_id", "is_demo", "object", "metric", "unit"]
+    )
 
 
 def downgrade():

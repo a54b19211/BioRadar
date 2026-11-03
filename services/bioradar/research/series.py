@@ -11,7 +11,13 @@ from datetime import UTC, datetime
 
 # planned -> under construction -> operational; reported -> confirmed
 RANK = {"planned": 0, "under_construction": 1, "operational": 2, "reported": 0, "confirmed": 1}
-FAMILY = {"planned": "build", "under_construction": "build", "operational": "build", "reported": "case", "confirmed": "case"}
+FAMILY = {
+    "planned": "build",
+    "under_construction": "build",
+    "operational": "build",
+    "reported": "case",
+    "confirmed": "case",
+}
 STREAK = 2  # consecutive steps in one direction (three points) make a trend
 # kinds that owe the object's topic an analysis; a single step is only recorded
 NOTABLE = {"status_advance", "new_high", "new_low", "streak_up", "streak_down"}
@@ -66,7 +72,9 @@ def points(rows):
         if r.get("superseded_by"):
             continue
         seen.setdefault((r["period_end"], r["value"], r["status"]), r)
-    return sorted(seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"]))
+    return sorted(
+        seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"])
+    )
 
 
 def changes(rows, new_id):
@@ -82,7 +90,15 @@ def changes(rows, new_id):
         late = i != at
         same_family = FAMILY.get(cur["status"]) and FAMILY.get(cur["status"]) == FAMILY.get(prev["status"])
         if cur["value"] == prev["value"] and same_family and RANK[cur["status"]] > RANK[prev["status"]]:
-            out.append({"kind": "status_advance", "from": prev["status"], "to": cur["status"], "rows": [prev["id"], cur["id"]], "late": late})
+            out.append(
+                {
+                    "kind": "status_advance",
+                    "from": prev["status"],
+                    "to": cur["status"],
+                    "rows": [prev["id"], cur["id"]],
+                    "late": late,
+                }
+            )
         elif cur["value"] != prev["value"]:
             delta = cur["value"] - prev["value"]
             step = {"kind": "step", "delta": delta, "rows": [prev["id"], cur["id"]], "late": late}
@@ -91,9 +107,25 @@ def changes(rows, new_id):
             out.append(step)
         before = [r["value"] for r in series[:i]]
         if len(before) >= 2 and cur["value"] > max(before):
-            out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]], "late": late})
+            out.append(
+                {
+                    "kind": "new_high",
+                    "value": cur["value"],
+                    "previous_max": max(before),
+                    "rows": [cur["id"]],
+                    "late": late,
+                }
+            )
         if len(before) >= 2 and cur["value"] < min(before):
-            out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]], "late": late})
+            out.append(
+                {
+                    "kind": "new_low",
+                    "value": cur["value"],
+                    "previous_min": min(before),
+                    "rows": [cur["id"]],
+                    "late": late,
+                }
+            )
         tail = series[max(0, i - STREAK) : i + 1]
         if len(tail) == STREAK + 1:
             steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]

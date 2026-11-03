@@ -343,7 +343,12 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
         quote = re.sub(r"\s+", "", m.quote)
         bounds = series.period_bounds(m.period, at)
         if not quote or quote not in text or bounds is None:
-            log.info("measure dropped (%s): %s %s", "period" if quote in text else "quote", doc["record_id"], m.metric)
+            log.info(
+                "measure dropped (%s): %s %s",
+                "period" if quote in text else "quote",
+                doc["record_id"],
+                m.metric,
+            )
             continue
         key = dict(object=m.object.strip()[:200], metric=m.metric.strip()[:200], unit=m.unit.strip()[:50])
         same = dict(key, workspace_id=s.workspace_id, is_demo=is_demo)
@@ -369,19 +374,37 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
         session.flush()
         for source, record_id in corrected:
             for old in session.scalars(
-                select(db.Measurement).filter_by(source=source, record_id=record_id, period=row.period, **same)
+                select(db.Measurement).filter_by(
+                    source=source, record_id=record_id, period=row.period, **same
+                )
             ):
                 old.superseded_by = row.id
         rows = [
-            {"id": r.id, "value": r.value, "status": r.status, "period_end": r.period_end,
-             "available_at": r.available_at, "superseded_by": r.superseded_by}
+            {
+                "id": r.id,
+                "value": r.value,
+                "status": r.status,
+                "period_end": r.period_end,
+                "available_at": r.available_at,
+                "superseded_by": r.superseded_by,
+            }
             for r in session.scalars(
                 select(db.Measurement).filter_by(**same).where(db.Measurement.available_at <= at)
             )
         ]
         found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
         if topic is not None and found:
-            event(session, topic, at, "series", record=doc["record_id"], **key, value=m.value, period=row.period, changes=found)
+            event(
+                session,
+                topic,
+                at,
+                "series",
+                record=doc["record_id"],
+                **key,
+                value=m.value,
+                period=row.period,
+                changes=found,
+            )
         notable = notable or any(c["kind"] in series.NOTABLE for c in found)
     return notable
 
