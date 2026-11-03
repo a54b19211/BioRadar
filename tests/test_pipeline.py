@@ -662,6 +662,37 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
         assert [c["args"]["record_id"] for c in again.candidates() if c["kind"] == "read"] == expected, method
 
 
+def test_same_opening_with_the_opposite_ending_is_not_a_copy():
+    """Codex r18: a length plus 120-character key called two texts with the same opening and opposite
+    conclusions copies, so the second went behind unrelated background. Only identical full texts count."""
+    opening = "XQ-17 上市申请进展：" + "审评资料补充说明。" * 20
+    row = analyses.create(question="XQ-17 是否获批？", direction="pipeline", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    run.docs = {
+        ("s", "r0"): {"title": "", "text": opening + "现已获批", "published_at": None},
+        ("s", "tail"): {"title": "", "text": opening + "现已撤回", "published_at": None},
+        ("s", "same"): {"title": "", "text": opening + "现已获批", "published_at": None},
+        ("s", "bg"): {"title": "", "text": "行业背景综述", "published_at": None},
+    }
+    run.p.update(
+        queries=[{"terms": ["XQ-17"], "checks": ["Q1"]}],
+        actions=[],
+        pages={},
+        objects=[],
+        hits=[
+            {"source": "s", "record_id": rid, "title": "", "checks": ["Q1"], "critical": False, "read": rid == "r0"}
+            for rid in ("r0", "same", "bg", "tail")
+        ],
+    )
+    expected = ["tail", "bg", "same"]
+    assert [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"] == expected
+    import json
+
+    again = Run(row, settings(), fabric=FakeFabric([]))
+    again.p = json.loads(json.dumps(run.p))
+    assert [c["args"]["record_id"] for c in again.candidates() if c["kind"] == "read"] == expected
+
+
 def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unread(monkeypatch):
     """C01-W2: Fabric said C01-04 reposts C01-03, but only corrections reached BioCheck, so the draft
     wrote that the materials did not say whether the repost was independent."""

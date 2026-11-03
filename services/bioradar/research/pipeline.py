@@ -543,19 +543,31 @@ class Run:
         # plan's search terms found in the record's text, a cheap ordering feature, not relevance or truth.
         terms = list(dict.fromkeys(squash(t) for q in self.p["queries"] for t in q["terms"]))
 
+        def body(hit):
+            doc = self.docs.get((hit["source"], hit["record_id"]))
+            return None if doc is None else squash((doc["title"] or "") + (doc["text"] or ""))
+
+        # full texts of what was read, only for documents in memory; after a restart those not reloaded
+        # are unknown, and a copy already recorded stays recorded
+        read_bodies = {}
+        for h in self.p["hits"]:
+            if h["read"] and (b := body(h)):
+                read_bodies.setdefault(b, f"{h['source']}:{h['record_id']}")
+
         def sketch(hit):
             """The few ordering features of a hit, kept in progress so a resumed run orders the same way
-            without the texts: which search terms its text contains, its length and opening (to spot an
-            exact copy of a text already read), its own time."""
+            without the texts: which search terms its text contains, its own time, and which read record
+            its full text is identical to (recorded only when both texts were compared)."""
             doc = self.docs.get((hit["source"], hit["record_id"]))
             if doc is not None:
-                body = squash((doc["title"] or "") + (doc["text"] or ""))
-                known = hit.get("sketch", {}).get("matched", [])
+                old, b = hit.get("sketch", {}), body(hit)
                 hit["sketch"] = {
-                    "matched": sorted(set(known) | {t for t in terms if t in body}),
-                    "copy": f"{len(body)}:{body[:120]}",
+                    "matched": sorted(set(old.get("matched", [])) | {t for t in terms if t in b}),
                     "when": doc.get("published_at") or doc.get("available_at"),
                 }
+                copy = old.get("duplicate_of") or (None if hit["read"] else read_bodies.get(b))
+                if copy:
+                    hit["sketch"]["duplicate_of"] = copy
             return hit.get("sketch") or {}
 
         def coverage(hit):
@@ -569,17 +581,13 @@ class Run:
             except (TypeError, ValueError):
                 return 0.0
 
-        def text(hit):
-            return sketch(hit).get("copy", "")
-
-        read_texts = {text(h) for h in self.p["hits"] if h["read"]} - {""}
         unread = [h for h in self.p["hits"] if not h["read"]]
         if self.input["method"] == "planner":
             # corrections and seeds first; exact copies of a text already read go behind, never dropped
             unread.sort(
                 key=lambda h: (
                     not h["critical"],
-                    text(h) in read_texts,
+                    bool(sketch(h).get("duplicate_of")),
                     not named(h["title"]),
                     -coverage(h),
                     newest(h),
