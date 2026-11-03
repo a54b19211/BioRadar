@@ -159,8 +159,18 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
 
     windows = [list(s) for s in spans]
     widened = set()
+
+    def widen(i, a, b):  # never narrower than what window i already has
+        return windows[:i] + [[min(a, windows[i][0]), max(b, windows[i][1])]] + windows[i + 1 :]
+
+    # a quote with no number in it (a table or field title) gets the numbers after it first
+    for i, (a, b) in enumerate(spans):
+        if not re.search(r"\d", text[a:b]):
+            trial = widen(i, a, min(line(a, b)[1], b + 900))
+            if size(trial) <= limit:
+                windows = trial
     for i in sorted(range(len(spans)), key=lambda i: line(*spans[i])[1] - line(*spans[i])[0]):
-        trial = windows[:i] + [line(*spans[i])] + windows[i + 1 :]
+        trial = widen(i, *line(*spans[i]))
         if size(trial) <= limit:
             windows, _ = trial, widened.add(i)
     # values follow their titles in records and tables, so the first try reaches further forward
@@ -168,7 +178,7 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
         for i, (a, b) in enumerate(spans):
             if i in widened:
                 continue
-            trial = windows[:i] + [[max(0, a - before), min(len(text), b + after)]] + windows[i + 1 :]
+            trial = widen(i, max(0, a - before), min(len(text), b + after))
             if size(trial) <= limit:
                 windows, _ = trial, widened.add(i)
     parts = [text[a:b] for a, b in merged(windows)]
