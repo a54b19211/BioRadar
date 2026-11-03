@@ -1060,7 +1060,9 @@ class Run:
                             "ref": f["ref"],
                             "text": f["text"],
                             # BioCheck's contract: a fact with no direction for this hypothesis is context
-                            "stance": hypothesis_stance(f) if hypothesis_stance(f) in {"supports", "refutes"} else "context",
+                            "stance": hypothesis_stance(f)
+                            if hypothesis_stance(f) in {"supports", "refutes"}
+                            else "context",
                         }
                         for f in self.p["facts"]
                         if f.get("hypothesis") == h["id"] and f["ref"] in cited

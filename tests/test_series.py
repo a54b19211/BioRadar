@@ -349,18 +349,33 @@ def test_a_second_notice_correcting_the_same_value_does_not_bring_the_old_value_
     quarters = [
         ("R4", "2026-10-01", "乙公司Q4投运5条灌装线", ("2026Q4", 5, "operational", "投运5条灌装线")),
         ("R5", "2026-10-05", "乙公司更正：Q4投运4条灌装线", ("2026Q4", 4, "operational", "投运4条灌装线")),
-        ("R6", "2026-10-08", "乙公司另一通知：Q4投运3条灌装线", ("2026Q4", 3, "operational", "投运3条灌装线")),
+        (
+            "R6",
+            "2026-10-08",
+            "乙公司另一通知：Q4投运3条灌装线",
+            ("2026Q4", 3, "operational", "投运3条灌装线"),
+        ),
     ]
     by_title = {title: ([lines(*m)], "normal") for _, _, title, m in quarters}
     monkeypatch.setattr(llm, "chat_json", fake_triage(by_title, payloads, topic_title="乙公司扩产"))
-    records = [(rid, day, title, [("corrects", "R4")] if rid != "R4" else ()) for rid, day, title, _ in quarters]
+    records = [
+        (rid, day, title, [("corrects", "R4")] if rid != "R4" else ()) for rid, day, title, _ in quarters
+    ]
     for _ in feed(records):
         pass
     with db.session() as s:
         rows = list(s.scalars(select(db.Measurement).order_by(db.Measurement.id)))
     as_rows = [
-        {"id": r.id, "value": r.value, "status": r.status, "period": r.period, "period_start": r.period_start,
-         "period_end": r.period_end, "available_at": r.available_at, "superseded_by": r.superseded_by}
+        {
+            "id": r.id,
+            "value": r.value,
+            "status": r.status,
+            "period": r.period,
+            "period_start": r.period_start,
+            "period_end": r.period_end,
+            "available_at": r.available_at,
+            "superseded_by": r.superseded_by,
+        }
         for r in rows
     ]
     day6 = [r for r in as_rows if series._utc(r["available_at"]) <= datetime(2026, 10, 6, tzinfo=UTC)]

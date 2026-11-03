@@ -662,15 +662,25 @@ def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unre
     sent = []
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
-    monkeypatch.setattr(services, "biocheck", lambda s, op, body: sent.append((op, body)) or empty_report(s, op, body))
+    monkeypatch.setattr(
+        services, "biocheck", lambda s, op, body: sent.append((op, body)) or empty_report(s, op, body)
+    )
     records = RECORDS + [
-        record("B51", "转载：XQ-17 随机试验", "转载：随机试验纳入240例，PFS的HR为0.62。", relations=[("reposts", "B31")]),
+        record(
+            "B51",
+            "转载：XQ-17 随机试验",
+            "转载：随机试验纳入240例，PFS的HR为0.62。",
+            relations=[("reposts", "B31")],
+        ),
         record("B61", "转载另一篇PFS", "另一篇PFS转载，原文未附。", relations=[("reposts", "B99")]),
     ]
     row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
     Run(row, settings(), fabric=FakeFabric(records)).run()
     with db.session() as s:
-        ref = {e.record_id: e.ref for e in s.scalars(select(db.Evidence).where(db.Evidence.analysis_id == row.id))}
+        ref = {
+            e.record_id: e.ref
+            for e in s.scalars(select(db.Evidence).where(db.Evidence.analysis_id == row.id))
+        }
     generate = next(body for op, body in sent if op == "generate")
     assert sorted(generate["source_relations"], key=lambda r: r["target_record"]) == [
         {"kind": "repost", "source": ref["B51"], "target": ref["B31"], "target_record": "B31", "read": True},
