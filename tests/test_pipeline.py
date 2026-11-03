@@ -271,3 +271,34 @@ def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
 
     text = "甲" * 5000 + "PFS的HR\n为 0.69" + "乙" * 5000
     assert "0.69" in excerpt(text, ["PFS的HR为0.69"], limit=2000)
+
+
+def test_a_check_about_two_objects_is_not_answered_by_facts_about_one(monkeypatch):
+    """R8a: three companies asked, one read — the check stays open; the planner gets only its contract."""
+    base = fake_model([])
+    requests = []
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "plan":
+            value.objects = [schemas.PlanObject(name="XQ-17", kind="drug"), schemas.PlanObject(name="YB-2")]
+            value.checks[0].objects = [1, 2]
+        if stage == "read":
+            value.answered = ["Q1"]  # the reader claims it is whole
+            for fact in value.facts:
+                fact.object = "XQ-17"  # but every fact is about one object
+        return value, call
+
+    def decide(s, body):
+        requests.append(body)
+        return first_policy(body)
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", decide)
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(question="XQ-17 和 YB-2 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    assert result["checks"][0]["status"] == "open"
+    from bioradar.research.pipeline import PLANNER_CHECK
+
+    assert all(set(c) == set(PLANNER_CHECK) for body in requests for c in body["checks"])

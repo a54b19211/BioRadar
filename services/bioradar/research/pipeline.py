@@ -20,6 +20,7 @@ from bioradar.research import compute, prompts, schemas
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 MAX_PAGES = 3
 MAX_QUERIES = 12
+PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
 REVISIONS = 2  # revise -> re-verify rounds; each only touches the sentences the last check flagged
 MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
 FABRIC_PAGE = 100  # Fabric page cap; a larger fixed material set is filtered here, not in the query
@@ -242,6 +243,7 @@ class Run:
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
+        objects = list(dict.fromkeys(o.name.strip() for o in plan.objects[:8] if o.name.strip()))
         checks = [
             {
                 "id": f"Q{i}",
@@ -250,6 +252,8 @@ class Run:
                 "importance": 1.0 if c.required else 0.5,
                 "status": "open",
                 "evidence": [],
+                # names of the objects this check is about (R8a: answered only when each is covered)
+                "objects": [objects[n - 1] for n in c.objects if 1 <= n <= len(objects)],
             }
             for i, c in enumerate(plan.checks[:8], 1)
         ]
@@ -268,6 +272,7 @@ class Run:
         if not queries:
             raise Failed("plan_without_queries")
         self.p.update(
+            objects=objects,
             checks=checks,
             queries=queries,
             judgments=plan.judgments[:4],
@@ -380,6 +385,11 @@ class Run:
                         "target_checks": page["checks"],
                     }
                 )
+        objects = self.p.get("objects", [])
+
+        def named(title):
+            return any(o in (title or "") for o in objects)
+
         unread = [h for h in self.p["hits"] if not h["read"]]
         unread.sort(key=lambda h: not h["critical"])
         for hit in unread[:40]:
@@ -392,7 +402,10 @@ class Run:
                     "critical": hit["critical"],
                     # A record that several different searches find is more likely on topic.
                     # Only the planner uses this; the baseline keeps its fixed order.
-                    "scope_match": min(1.0, 0.4 + 0.3 * hit.get("found_by", 1)),
+                    # and one whose title names an object the question asks about
+                    "scope_match": min(
+                        1.0, 0.4 + 0.3 * hit.get("found_by", 1) + (0.3 if named(hit["title"]) else 0)
+                    ),
                 }
             )
         return result
@@ -417,7 +430,8 @@ class Run:
             candidates = self.candidates()
             request = {
                 "question": self.input["question"],
-                "checks": self.p["checks"],
+                # only query-planner's Check contract; objects and the rest stay in the radar
+                "checks": [{k: c[k] for k in PLANNER_CHECK} for c in self.p["checks"]],
                 "candidates": candidates,
                 "history": self.history(),
                 "budget": {
@@ -592,11 +606,13 @@ class Run:
             {
                 "question": self.input["question"],
                 "material": material,
+                "objects": self.p.get("objects", []),
                 "checks": [
                     {
                         "id": c["id"],
                         "text": c["text"],
                         "status": c["status"],
+                        "objects": c.get("objects", []),
                         "known": [
                             f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]
                         ][-12:],
@@ -623,6 +639,7 @@ class Run:
                     "quote": fact.quote,
                     "checks": ids,
                     "stance": fact.stance,
+                    "object": fact.object if fact.object in self.p.get("objects", []) else "",
                 }
             )
             if fact.stance == "context":
@@ -636,8 +653,15 @@ class Run:
                     check["status"] = "conflict"
         # One record often answers part of a check (one company of three); the model says when it is whole.
         for i in reading.answered:
-            if i in checks and checks[i]["evidence"] and checks[i]["status"] == "open":
-                checks[i]["status"] = "answered"
+            check = checks.get(i)
+            if not check or not check["evidence"] or check["status"] != "open":
+                continue
+            # every object the check names needs a supporting or refuting fact of its own
+            covered = {
+                f.get("object") for f in self.p["facts"] if i in f["checks"] and f["stance"] in {"supports", "refutes"}
+            }
+            if all(o in covered for o in check.get("objects", [])):
+                check["status"] = "answered"
         for terms in reading.new_terms[:2]:
             terms = clean_terms(terms)
             if (
