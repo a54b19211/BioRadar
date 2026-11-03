@@ -305,9 +305,17 @@ class Run:
             if planned_check.objects and not c["objects"]:
                 c["required"], c["importance"] = False, 0.5
         if not any(c["required"] for c in checks):
-            anchor = next(
-                (c for c, pc in zip(checks, plan.checks) if not pc.objects or c["objects"]), checks[0]
-            )
+            anchor = next((c for c, pc in zip(checks, plan.checks) if not pc.objects or c["objects"]), None)
+            if anchor is None:  # every check is about names the question never gave: ask the question itself
+                anchor = {
+                    "id": f"Q{len(checks) + 1}",
+                    "text": self.input["question"][:300],
+                    "importance": 1.0,
+                    "status": "open",
+                    "evidence": [],
+                    "objects": [],
+                }
+                checks.append(anchor)
             anchor["required"] = True
         required = [c["id"] for c in checks if c["required"]]
         queries = []

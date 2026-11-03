@@ -3,14 +3,20 @@
 A measurement is one value of one metric of one object for one period, quoted from one fixed record version.
 Every triaged record can leave measurements, so values that mean nothing alone (one more filling line, an
 ILI ratio of 4.1%) accumulate per object and metric across quarters and years. The program, not the model,
-compares them: only within the same unit, repeated mentions of the same period/value/status count once,
-a correction replaces the row it corrects, and only rows visible at the clock are used."""
+compares them:
+- only within one series: object, metric, unit, kind (stock/flow/...), scope and period grain (a year is never
+  compared with a quarter);
+- values only between points of the same status (a planned 10 lines is not 'down 70%' to 3 operating); a
+  status advance is the same value reaching a later stage;
+- repeated mentions of the same period/value/status count once; two different values for the same period and
+  status are a conflict and are left out of trends until one is corrected;
+- a correction replaces what it corrects from when the correction itself was visible, and only rows visible
+  at the clock are used, so a replay never sees a later value."""
 
 import re
 from datetime import UTC, datetime, timedelta
 
-VERSION = "series-v1"  # written into each series event, so a later rule change is visible in old events
-
+VERSION = "series-v2"  # written into each series event, so a later rule change is visible in old events
 # planned -> under construction -> operational; reported -> confirmed
 RANK = {"planned": 0, "under_construction": 1, "operational": 2, "reported": 0, "confirmed": 1}
 FAMILY = {
@@ -21,12 +27,30 @@ FAMILY = {
     "confirmed": "case",
 }
 STREAK = 2  # consecutive steps in one direction (three points) make a trend
-# kinds that owe the object's topic an analysis; a single step is only recorded
-NOTABLE = {"status_advance", "new_high", "new_low", "streak_up", "streak_down"}
+# kinds that owe an analysis; a single step is only recorded
+NOTABLE = {"status_advance", "new_high", "new_low", "streak_up", "streak_down", "conflict"}
 
 
 def _day(text):
     return datetime.fromisoformat(text).replace(tzinfo=UTC)
+
+
+def grain(period: str) -> str:
+    """Y, H, Q, M, D, R (an explicit range) or A (as of the record)."""
+    p = (period or "").strip().upper().replace(" ", "")
+    if not p:
+        return "A"
+    if "/" in p:
+        return "R"
+    if re.fullmatch(r"\d{4}Q[1-4]", p):
+        return "Q"
+    if re.fullmatch(r"\d{4}H[12]", p):
+        return "H"
+    if re.fullmatch(r"\d{4}", p):
+        return "Y"
+    if re.fullmatch(r"\d{4}-\d{2}", p):
+        return "M"
+    return "D"
 
 
 def period_bounds(period: str, fallback: datetime):
@@ -61,13 +85,19 @@ def _month_end(year, month):
     return datetime.fromtimestamp(nxt.timestamp() - 86400, UTC)
 
 
+def quoted(value: float, quote: str) -> bool:
+    """The value is written in the quote as a whole number, not inside 12 or 2026."""
+    number = f"{value:g}"
+    return bool(re.search(rf"(?<![\d.]){re.escape(number)}(?![\d]|\.\d)", quote))
+
+
 def _utc(value):
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value  # SQLite returns naive values
 
 
 def points(rows):
-    """Visible, unsuperseded rows of one series -> one point per (period, value, status), ordered by period
-    end; the earliest-available row stands for repeated mentions."""
+    """Visible, unsuperseded rows of one series -> one point per (period, value, status), in period order;
+    the earliest-available row stands for repeated mentions."""
     rows = [
         dict(
             r,
@@ -82,58 +112,77 @@ def points(rows):
     for r in sorted(rows, key=lambda r: r["available_at"]):
         if r.get("superseded_by") in visible:
             continue  # a correction replaces the row only from when the correction itself was visible
-        seen.setdefault((r["period_end"], r["value"], r["status"]), r)
-    return sorted(
-        seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"])
-    )
+        seen.setdefault((r["period_start"], r["period_end"], r["value"], r["status"]), r)
+    return sorted(seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"]))
 
 
 def adjacent(points_):
-    """A trend needs consecutive periods: a missing quarter (or an as-of stock) breaks it."""
+    """A trend needs consecutive periods: no gap, no overlap, no as-of stock."""
     return all(
-        a["period"] and b["period"] and b["period_start"] - a["period_end"] <= timedelta(days=1)
+        a["period"] and b["period"] and timedelta(0) < b["period_start"] - a["period_end"] <= timedelta(days=1)
         for a, b in zip(points_, points_[1:])
     )
 
 
+def _same_period(p, q):
+    return (p["period_start"], p["period_end"], p["status"]) == (q["period_start"], q["period_end"], q["status"])
+
+
+def _conflicted(series, p):
+    return any(_same_period(p, q) and q["value"] != p["value"] for q in series)
+
+
 def evaluate(series, i):
     """What point i of an ordered series shows against the points before it."""
-    if i == 0:
-        return []
-    cur, prev = series[i], series[i - 1]
+    cur, known = series[i], series[: i + 1]
+    if _conflicted(known, cur):
+        return [{"kind": "conflict", "rows": [q["id"] for q in known if _same_period(q, cur)]}]
     out = []
-    same_family = FAMILY.get(cur["status"]) and FAMILY.get(cur["status"]) == FAMILY.get(prev["status"])
-    if cur["value"] == prev["value"] and same_family and RANK[cur["status"]] > RANK[prev["status"]]:
+    family, earlier = FAMILY.get(cur["status"]), series[:i]
+    lower = [
+        p
+        for p in earlier
+        if family
+        and FAMILY.get(p["status"]) == family
+        and RANK[p["status"]] < RANK[cur["status"]]
+        and not _conflicted(known, p)
+    ]
+    if lower and not any(p["status"] == cur["status"] for p in earlier):
+        # the first point at a later stage: reported with both values, never as a rise or fall
+        prev = lower[-1]
         out.append(
             {
                 "kind": "status_advance",
                 "from": prev["status"],
                 "to": cur["status"],
+                "from_value": prev["value"],
+                "to_value": cur["value"],
                 "rows": [prev["id"], cur["id"]],
             }
         )
-    elif cur["value"] != prev["value"]:
+    # values are compared only between points of the same status, leaving out conflicting periods
+    same = [p for p in known if p["status"] == cur["status"] and not _conflicted(known, p)]
+    if len(same) < 2:
+        return out
+    prev = same[-2]
+    if cur["value"] != prev["value"]:
         delta = cur["value"] - prev["value"]
         step = {"kind": "step", "delta": delta, "rows": [prev["id"], cur["id"]]}
         if prev["value"]:
             step["ratio"] = round(delta / abs(prev["value"]), 4)
         out.append(step)
-    before = [r["value"] for r in series[:i]]
+    before = [p["value"] for p in same[:-1]]
     if len(before) >= 2 and cur["value"] > max(before):
-        out.append(
-            {"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]}
-        )
+        out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]})
     if len(before) >= 2 and cur["value"] < min(before):
-        out.append(
-            {"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]}
-        )
-    tail = series[max(0, i - STREAK) : i + 1]
+        out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]})
+    tail = same[-(STREAK + 1) :]
     if len(tail) == STREAK + 1 and adjacent(tail):
         steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
         if all(d > 0 for d in steps):
-            out.append({"kind": "streak_up", "rows": [r["id"] for r in tail]})
+            out.append({"kind": "streak_up", "rows": [p["id"] for p in tail]})
         elif all(d < 0 for d in steps):
-            out.append({"kind": "streak_down", "rows": [r["id"] for r in tail]})
+            out.append({"kind": "streak_down", "rows": [p["id"] for p in tail]})
     return out
 
 
@@ -142,7 +191,7 @@ def _summary(found):
 
 
 def changes(rows, new_id):
-    """What the row `new_id` changes in its series (rows: the whole visible series including it).
+    """What the row `new_id` changes in its series (rows: the visible series including it, one grain).
     A value that arrives late or corrects an earlier one can change what every later point showed, so
     each later point is evaluated again and a `revised` entry says what it showed before and now.
     Each change names the rows it compares, so the topic event carries its provenance."""
@@ -158,19 +207,14 @@ def changes(rows, new_id):
         if _summary(now) != was.get(series[j]["id"], []):
             before = sorted({k for k, _ in was.get(series[j]["id"], [])})
             out.append(
-                {
-                    "kind": "revised",
-                    "rows": [series[j]["id"]],
-                    "was": before,
-                    "now": sorted({c["kind"] for c in now}),
-                }
+                {"kind": "revised", "rows": [series[j]["id"]], "was": before, "now": sorted({c["kind"] for c in now})}
             )
     return out
 
 
 def notable(found):
-    """Whether these changes owe the topic an analysis: a new state, extreme or trend, or a revision
-    that makes or unmakes one."""
+    """Whether these changes owe an analysis: a new state, extreme, trend or conflict, or a revision that
+    makes or unmakes one."""
     return any(
         c["kind"] in NOTABLE or (c["kind"] == "revised" and NOTABLE & (set(c["was"]) | set(c["now"])))
         for c in found

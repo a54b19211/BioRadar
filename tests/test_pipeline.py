@@ -573,3 +573,26 @@ def test_a_replay_does_not_search_the_bridge_index(monkeypatch):
             queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[]
         )
         assert any(c["source"] == "weknora" for c in run.candidates()) is expected
+
+
+def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_itself(monkeypatch):
+    base = fake_model([])
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "plan":
+            value.objects = [schemas.PlanObject(name="武汉")]
+            value.checks = [schemas.PlanCheck(text="武汉卫健委是否确认华南海鲜市场聚集", required=True, objects=[1])]
+            value.queries = [schemas.PlanQuery(terms=["华南海鲜"], checks=[1])]
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    question = "当前有哪些异常聚集值得核实？"
+    row = analyses.create(question=question, direction="public_health", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    assert [(c["text"], c["required"]) for c in result["checks"]] == [
+        ("武汉卫健委是否确认华南海鲜市场聚集", False),
+        (question, True),
+    ]

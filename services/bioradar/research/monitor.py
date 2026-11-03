@@ -162,11 +162,16 @@ KEY = (
 )
 
 
-def known_series(session, s: Settings, is_demo: bool, limit=40):
-    """The most recently measured object/metric/unit keys, shown to triage so names stay the same."""
+def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40):
+    """The most recently measured series keys visible at `clock`, shown to triage so names stay the same
+    (a replay is not shown names that only appeared later)."""
     rows = session.execute(
         select(*KEY)
-        .where(db.Measurement.workspace_id == s.workspace_id, db.Measurement.is_demo == is_demo)
+        .where(
+            db.Measurement.workspace_id == s.workspace_id,
+            db.Measurement.is_demo == is_demo,
+            db.Measurement.available_at <= clock,
+        )
         .group_by(*KEY)
         .order_by(func.max(db.Measurement.available_at).desc())
         .limit(limit)
@@ -240,7 +245,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
             )
         with db.session() as session:
             watch = watches(session, [t.id for t in topics])
-            known = known_series(session, s, is_demo)
+            known = known_series(session, s, is_demo, max(parse_time(d["available_at"]) for d in batch))
         decisions = triage(s, batch, topics, watch, known)
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
@@ -290,15 +295,16 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         topic_id=topic.id if topic else None,
                         alert=alert,
                         closure=bool(item and item.closure),
-                        reason=item.reason if item else "triage_failed",
+                        reason=(item.reason + (" [观测超过3个，只记前3个]" if len(item.measures) > 3 else ""))
+                        if item
+                        else "triage_failed",
                     )
                 )
-                changed = measure(session, s, doc, item.measures[:3] if item else [], topic, at, is_demo)
+                for owed in measure(session, s, doc, item, topic, at, is_demo, topics):
+                    wake[owed.id] = "series_change"
+                    owe(owed, "series_change", at)
                 if topic is None:
                     continue
-                if changed:
-                    wake[topic.id] = "series_change"
-                    owe(topic, "series_change", at)
                 if topic.state in {"cooling", "dormant"} and not (item and item.closure):
                     topic.awakenings += 1
                     topic.closed = False
@@ -337,23 +343,24 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
     return wake, True
 
 
-def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
+def measure(session, s: Settings, doc, item, topic, at, is_demo, topics) -> list:
     """Store the quoted measures of one record and compare each with its series as visible at `at`.
-    A correction of an earlier record replaces that record's value for the same object/metric/period.
-    Writes a `series` topic event per change; returns whether any is notable (owes an analysis)."""
+    A correction of an earlier record (of the named version, when Fabric names one) replaces that record's
+    value for the same series and period. A notable change in a series that no topic follows yet opens one
+    for the series, so values that mean nothing alone still lead to an investigation once they add up.
+    Writes a `series` topic event per change; returns the topics owed an analysis."""
     text = re.sub(r"\s+", "", (doc["title"] or "") + (doc["text"] or ""))
     corrected = [
-        (r.get("target_source", doc["source"]), r["target_record_id"])
+        (r.get("target_source", doc["source"]), r["target_record_id"], r.get("target_version_id"))
         for r in doc["relations"]
         if r["kind"] == "corrects"
     ]
-    notable = False
-    for m in measures:
+    owed = []
+    for m in item.measures[:3] if item else []:
         quote = re.sub(r"\s+", "", m.quote)
         bounds = series.period_bounds(m.period, at)
-        number = f"{m.value:g}"  # the value itself must be written in the quote, not just some real text
-        if not quote or quote not in text or number not in quote or bounds is None:
-            log.info("measure dropped: %s %s %s", doc["record_id"], m.metric, number)
+        if not quote or quote not in text or not series.quoted(m.value, quote) or bounds is None:
+            log.info("measure dropped: %s %s %g", doc["record_id"], m.metric, m.value)
             continue
         key = dict(
             object=m.object.strip()[:200],
@@ -370,6 +377,9 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
         row = db.Measurement(
             **same,
             value=m.value,
+            # a rate's parts are kept only when the quote states them too
+            numerator=m.numerator if m.numerator is not None and series.quoted(m.numerator, quote) else None,
+            denominator=m.denominator if m.denominator is not None and series.quoted(m.denominator, quote) else None,
             period=m.period.strip()[:40],
             period_start=bounds[0],
             period_end=bounds[1],
@@ -383,13 +393,13 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
         )
         session.add(row)
         session.flush()
-        for source, record_id in corrected:
-            for old in session.scalars(
-                select(db.Measurement).filter_by(
-                    source=source, record_id=record_id, period=row.period, **same
-                )
-            ):
+        for source, record_id, version_id in corrected:
+            query = select(db.Measurement).filter_by(source=source, record_id=record_id, period=row.period, **same)
+            if version_id:
+                query = query.filter_by(version_id=version_id)
+            for old in session.scalars(query):
                 old.superseded_by = row.id
+        grain = series.grain(row.period)
         rows = [
             {
                 "id": r.id,
@@ -404,12 +414,32 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
             for r in session.scalars(
                 select(db.Measurement).filter_by(**same).where(db.Measurement.available_at <= at)
             )
+            if series.grain(r.period) == grain  # a year is not compared with a quarter
         ]
         found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
-        if topic is not None and found:
+        holder = topic
+        if holder is None and series.notable(found):
+            title = f"{key['object']}·{key['metric']}" + (f"（{key['scope']}）" if key["scope"] else "")
+            holder = next((t for t in topics if t.title == title[:200]), None)
+            if holder is None:
+                holder = db.Topic(
+                    workspace_id=s.workspace_id,
+                    title=title[:200],
+                    direction=item.direction,
+                    is_demo=is_demo,
+                    first_seen_at=at,
+                    last_activity_at=at,
+                    alert="normal",
+                )
+                session.add(holder)
+                session.flush()
+                topics.append(holder)
+                event(session, holder, at, "created", record=doc["record_id"], title=title, from_series=True)
+            row.topic_id = holder.id
+        if holder is not None and found:
             event(
                 session,
-                topic,
+                holder,
                 at,
                 "series",
                 record=doc["record_id"],
@@ -419,8 +449,9 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
                 changes=found,
                 algo=series.VERSION,
             )
-        notable = notable or series.notable(found)
-    return notable
+        if holder is not None and series.notable(found) and holder not in owed:
+            owed.append(holder)
+    return owed
 
 
 def owe(topic, reason, at):

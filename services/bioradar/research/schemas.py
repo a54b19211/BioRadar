@@ -127,6 +127,8 @@ class Measure(BaseModel):
         default="other", description="stock 某时点的存量/flow 当期新增/cumulative 累计/rate 比例"
     )
     scope: str = Field(default="", description="统计口径或覆盖范围，如“5个哨点”“全公司”")
+    numerator: float | None = Field(default=None, description="比例的分子，原文写出时才填")
+    denominator: float | None = Field(default=None, description="比例的分母，原文写出时才填")
     period: str = Field(
         default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空"
     )

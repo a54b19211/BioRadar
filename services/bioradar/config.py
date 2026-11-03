@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     weknora_url: str = ""
     weknora_token: str = ""
     weknora_knowledge_base_id: str = ""
+    weknora_source_instance: str = ""  # only hits this Fabric published (the bridge's source_instance)
 
     # Professional services. Empty URL means the step is skipped and reported as not run.
     planner_url: str = ""

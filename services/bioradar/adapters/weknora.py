@@ -79,12 +79,13 @@ def search(
             status = getattr(getattr(exc, "response", None), "status_code", None)
             scopes[scope] = {"error": f"http_{status}" if status else type(exc).__name__}
             continue
-        execution = data.get("execution") or {}
-        scopes[scope] = {
-            k: execution.get(k) for k in ("keyword", "vector", "embedding", "rerank", "degraded")
-        }
+        # channels, usage, model descriptors and degraded reasons; the publication list is left out (size)
+        scopes[scope] = {k: v for k, v in (data.get("execution") or {}).items() if k != "filtered_publications"}
         for hit in data.get("results") or []:
             key = identity(hit)
+            instance = (hit.get("identity") or {}).get("source_instance")
+            if settings.weknora_source_instance and instance != settings.weknora_source_instance:
+                continue  # published by another Fabric: the same record id may be a different record
             if key and key not in seen:
                 seen.add(key)
                 version = (hit.get("identity") or {}).get("version_id")

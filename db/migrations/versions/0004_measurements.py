@@ -21,6 +21,8 @@ def upgrade():
         sa.Column("kind", sa.String(20), nullable=False, server_default="other"),
         sa.Column("scope", sa.String(200), nullable=False, server_default=""),
         sa.Column("value", sa.Float, nullable=False),
+        sa.Column("numerator", sa.Float),
+        sa.Column("denominator", sa.Float),
         sa.Column("period", sa.String(40), nullable=False, server_default=""),
         sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
         sa.Column("period_end", sa.DateTime(timezone=True), nullable=False),

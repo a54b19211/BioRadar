@@ -166,6 +166,8 @@ class Measurement(Base):
     kind: Mapped[str] = mapped_column(String(20), default="other")
     scope: Mapped[str] = mapped_column(String(200), default="")  # coverage / population, e.g. 5个哨点
     value: Mapped[float] = mapped_column(Float)
+    numerator: Mapped[float | None] = mapped_column(Float)  # a rate's parts, when the quote states them
+    denominator: Mapped[float | None] = mapped_column(Float)
     period: Mapped[str] = mapped_column(String(40), default="")  # as written; "" = as of the record
     period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
