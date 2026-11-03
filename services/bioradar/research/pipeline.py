@@ -923,7 +923,9 @@ class Run:
         new_facts = self.p["facts"][facts_before:]
         decisive = any(f["stance"] in {"supports", "refutes"} for f in new_facts)
         new_object = any(
-            f["object"] and f["object"] not in found_before_names and f["object"] not in self.p.get("objects", [])
+            f["object"]
+            and f["object"] not in found_before_names
+            and f["object"] not in self.p.get("objects", [])
             for f in new_facts
         )
         self.found = max(self.found, 1.0 if new_object else 0.6 if decisive else 0.0)
