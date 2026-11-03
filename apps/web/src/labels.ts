@@ -60,7 +60,10 @@ const maps = {
     analysis: "自动分析",
     watch: "待验证信号",
     series: "指标序列变化",
+    alert: "人工调整警示",
   },
+  role: { viewer: "只读", analyst: "分析员", admin: "管理员" },
+  reviewAction: { confirm: "确认", reject: "驳回", flag_source: "标记材料有误", set_alert: "调整警示" },
   trigger: { manual: "手动提问", followup: "追问", topic: "专题触发" },
   reason: {
     records_or_alert: "材料累计或警示升级",
@@ -75,6 +78,7 @@ const maps = {
     watch_hit: "命中待验证信号",
     series_change: "指标序列变化",
     source_corrected: "来源被更正",
+    analyst_review: "分析员复核",
   },
 };
 

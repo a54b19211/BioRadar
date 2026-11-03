@@ -23,6 +23,9 @@ watch(
 <template>
   <el-drawer :model-value="!!refId" :title="`[${refId}] 原始材料`" size="45%" @close="$emit('close')">
     <el-skeleton v-if="!item" :rows="6" animated />
+    <el-alert v-else-if="item.withheld" type="warning" :closable="false" show-icon :title="item.withheld">
+      {{ item.source }} {{ item.record_id }}，版本 {{ item.version_id.slice(0, 12) }}；原文不再显示。
+    </el-alert>
     <template v-else>
       <h3 style="margin-top: 0">{{ item.title }}</h3>
       <p class="muted">版本 {{ item.version_id }}</p>

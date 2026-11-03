@@ -54,7 +54,9 @@ const notes = computed(() => props.a.result?.notes ?? props.a.progress.notes ?? 
     <el-table-column label="编号" width="80">
       <template #default="{ row }"><CiteLink :id="row.ref" /></template>
     </el-table-column>
-    <el-table-column label="标题" prop="title" min-width="260" />
+    <el-table-column label="标题" min-width="260">
+      <template #default="{ row }">{{ row.withheld ?? row.title }}</template>
+    </el-table-column>
     <el-table-column label="来源" prop="source" width="120" />
     <el-table-column label="记录" prop="record_id" min-width="140" />
     <el-table-column label="版本" width="130">
