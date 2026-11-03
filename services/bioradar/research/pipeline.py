@@ -271,15 +271,16 @@ class Run:
             raise Failed("plan_failed")
         planned = [o.name.strip() for o in plan.objects[:8]]
         # T-22: where each planned name comes from, decided here and not reported by the model: the
-        # question, material the plan was shown (a previous report), or nowhere (exploratory). Exploratory
-        # names may steer searching but never narrow what counts as relevant, so they are not objects.
+        # question, the previous report (a draft, not an original record), or nowhere (exploratory). Only
+        # names from the question become objects; the others may steer searching but never narrow what
+        # counts as relevant. plan_basis keeps the whole plan for audit.
         shown = squash(self.input["question"]), squash(payload.get("previous_report", ""))
 
         def basis(name):
             name = squash(name)
-            return "question" if name in shown[0] else "material" if name in shown[1] else "exploratory"
+            return "question" if name in shown[0] else "prior_report" if name in shown[1] else "exploratory"
 
-        named = [n if n and basis(n) != "exploratory" else "" for n in planned]  # check indexes
+        named = [n if n and basis(n) == "question" else "" for n in planned]  # check indexes
         objects = list(dict.fromkeys(n for n in named if n))
         checks = [
             {
@@ -312,7 +313,7 @@ class Run:
             raise Failed("plan_without_queries")
         terms = [t for q in queries for t in q["terms"]]
         plan_basis = {n: basis(n) for n in dict.fromkeys([n for n in planned if n] + terms)}
-        exploratory = [n for n, b in plan_basis.items() if b == "exploratory"]
+        exploratory = [n for n, b in plan_basis.items() if b != "question"]
         for c in checks:
             # shown to the reader as search directions that do not limit the question's scope
             c["exploratory"] = [n for n in exploratory if squash(n) in squash(c["text"])]
@@ -1186,7 +1187,7 @@ class Run:
             },
             "assessment": self.p.get("assessment"),
             "checks": self.p.get("checks", []),
-            "plan_basis": self.p.get("plan_basis", {}),  # name -> question / material / exploratory
+            "plan_basis": self.p.get("plan_basis", {}),  # name -> question / prior_report / exploratory
             "computations": self.p.get("computations", []),
             "mechanism": self.p.get("mechanism_result"),
             "stop": self.p.get("stop"),

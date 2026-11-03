@@ -530,7 +530,7 @@ def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
                 schemas.PlanCheck(text="材料是否提及华南海鲜市场暴露史", required=True, objects=[1]),
                 schemas.PlanCheck(text="XQ-17 的PFS", required=True, objects=[2]),
             ]
-            value.queries = [schemas.PlanQuery(terms=["华南海鲜"], checks=[1]), schemas.PlanQuery(terms=["PFS"])]
+            value.queries = [schemas.PlanQuery(terms=["华南海鲜"], checks=[1]), schemas.PlanQuery(terms=["PFS"], checks=[2])]
         if stage == "read":
             reads.append(payload)
         return value, call
