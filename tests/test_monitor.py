@@ -340,3 +340,73 @@ def test_a_correction_marks_the_analyses_that_cited_the_old_record(monkeypatch):
     monitor.tick(is_demo=True, fabric=FakeFabric([correction]))  # seen again: not marked twice
     with db.session() as session:
         assert len(session.get(db.Analysis, "manual").result["source_updates"]) == 1
+
+
+def priced_triage(sent, tokens=10):
+    """triage_by_title whose every call costs `tokens`."""
+    base = triage_by_title(sent)
+
+    def chat_json(*args, **kwargs):
+        value, call = base(*args, **kwargs)
+        return value, dict(call, usage={"total_tokens": tokens})
+
+    return chat_json
+
+
+def test_the_daily_ceiling_is_checked_before_every_batch_and_every_new_analysis(monkeypatch):
+    from sqlalchemy import func, select
+
+    from bioradar import db
+    from bioradar.config import settings
+    from bioradar.research import analyses
+
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", priced_triage(sent))
+    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: None)
+    s = settings()
+    for k, v in {"daily_auto_tokens": 100, "monitor_sources": ["who_don"], "auto_analysis": True}.items():
+        monkeypatch.setattr(s, k, v)
+    fabric = FakeFabric([record("B0", "历史", "x", source="who_don")])
+    monitor.tick(is_demo=False, fabric=fabric)
+    with db.session() as session:
+        session.add(db.LlmCall(stage="triage", service="radar", total_tokens=99))
+    new = [record(f"B{i:02d}", "两家医院确认7例", "x", source="who_don") for i in range(1, 31)]
+    fabric.docs += FakeFabric(new).docs
+    first = monitor.tick(is_demo=False, fabric=fabric)
+    assert len(sent) == 1 and first["paused"] and first["analyses"] == []  # one batch crossed the line
+    monkeypatch.setattr(s, "daily_auto_tokens", 10**9)
+    rest = monitor.tick(is_demo=False, fabric=fabric)
+    assert rest["records"] == 20  # the cursor did not move past them; the first 10 are not redone
+    with db.session() as session:
+        assert session.scalar(select(func.count()).select_from(db.Observation)) == 30
+
+
+def test_a_retried_old_record_does_not_count_as_new(monkeypatch):
+    from bioradar import db
+    from bioradar.config import settings
+
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    s = settings()
+    monkeypatch.setattr(s, "monitor_sources", ["who_don"])
+    fabric = FakeFabric([record("R0", "历史", "x", source="who_don")])
+    monitor.tick(is_demo=False, fabric=fabric)
+    with db.session() as session:
+        session.add(db.Observation(workspace_id="w", source="who_don", record_id="R0", version_id=fabric.docs[0]["version_id"],
+                                   is_demo=False, title="历史", available_at=datetime.fromisoformat(DAY.format(1)),
+                                   alert="none", closure=False, reason="triage_failed"))
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1  # the retry
+    with db.session() as session:
+        assert session.get(db.Cursor, ("who_don", False)).last_new_at is None
+
+
+def test_a_queued_live_topic_analysis_waits_once_the_daily_budget_is_used(monkeypatch):
+    from bioradar import db
+    from bioradar.config import settings
+    from bioradar.research import analyses
+
+    monkeypatch.setattr(settings(), "daily_auto_tokens", 100)
+    row = analyses.create(question="专题新进展", direction="public_health", trigger="topic", enqueue=False)
+    with db.session() as session:
+        session.add(db.LlmCall(stage="triage", service="radar", total_tokens=100))
+    analyses.execute(row.id)
+    assert analyses.get(row.id).state == "queued"

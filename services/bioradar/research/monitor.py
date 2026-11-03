@@ -83,7 +83,7 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
             items, _ = fabric.search(
                 source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids)
             )
-            docs += unseen(session, items)
+            docs += [dict(d, retry=True) for d in unseen(session, items)]
         if not live:
             for source in sources:
                 page = None
@@ -180,10 +180,15 @@ def event(session, topic, at, kind, **detail):
     session.add(db.TopicEvent(topic_id=topic.id, at=at, kind=kind, detail=detail))
 
 
-def observe(s: Settings, docs, *, is_demo: bool):
-    """Triage new documents and attach them to topics. Returns topics that need an analysis."""
+def observe(s: Settings, docs, *, is_demo: bool, budget=False):
+    """Triage new documents and attach them to topics. Returns (topics that need an analysis,
+    whether every document was triaged). With `budget`, stops before a batch once today's
+    automatic tokens reach the ceiling."""
     wake = {}
     for start in range(0, len(docs), BATCH):
+        if budget and analyses.over_auto_budget():
+            log.info("triage stopped: daily_auto_tokens reached after %d of %d records", start, len(docs))
+            return wake, False
         batch = docs[start : start + BATCH]
         with db.session() as session:
             topics = list(
@@ -273,7 +278,7 @@ def observe(s: Settings, docs, *, is_demo: bool):
                     alert=alert,
                     closure=bool(item and item.closure),
                 )
-    return wake
+    return wake, True
 
 
 def owe(topic, reason, at):
@@ -310,7 +315,7 @@ def advance(s: Settings, clock: datetime, *, is_demo: bool):
     return rising
 
 
-def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
+def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budget=False):
     """One automatic analysis per topic that is owed one (started rising, awoke or raised its alert),
     most urgent first. Live monitoring is capped per hour; what the cap holds back stays owed."""
     created = []
@@ -331,6 +336,9 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
         topic_id, reason = owed_topic.id, owed_topic.pending_reason
         if live and recent + len(created) >= s.auto_analyses_per_hour:
             log.info("auto analysis held (hourly cap): %d topics still owed", len(owed) - len(created))
+            break
+        if budget and analyses.over_auto_budget():
+            log.info("auto analysis held (daily_auto_tokens): %d topics still owed", len(owed) - len(created))
             break
         # The new analysis and the cleared debt commit together; a round that dies before dispatch
         # leaves a queued row that analyses.recover() picks up, never a second analysis.
@@ -411,38 +419,25 @@ def flag_corrections(docs, *, is_demo: bool) -> int:
     return flagged
 
 
-def auto_tokens_today() -> int:
-    """Tokens spent today (UTC) on automatic work: live triage plus topic-triggered analyses."""
-    start = db.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    with db.session() as session:
-        triage_tokens = session.scalar(
-            select(func.coalesce(func.sum(db.LlmCall.total_tokens), 0)).where(
-                db.LlmCall.stage == "triage", db.LlmCall.created_at >= start
-            )
-        )
-        topic_tokens = session.scalar(
-            select(func.coalesce(func.sum(db.LlmCall.total_tokens), 0))
-            .join(db.Analysis, db.Analysis.id == db.LlmCall.analysis_id)
-            .where(db.Analysis.trigger == "topic", db.LlmCall.created_at >= start)
-        )
-    return int(triage_tokens) + int(topic_tokens)
-
-
 def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | None = None, fabric=None):
     """One monitoring round. `clock` moves topic states during blank periods with no new records.
     Live real monitoring pauses new triage and automatic analyses once today's automatic tokens reach
     daily_auto_tokens; the backlog stays in the feed and owed analyses stay owed."""
     s = settings()
     fabric = fabric or Fabric(s)
-    paused = cutoff is None and not is_demo and auto_tokens_today() >= s.daily_auto_tokens
+    budget = cutoff is None and not is_demo  # live real monitoring only
+    paused = budget and analyses.over_auto_budget()
     if paused:
         log.info("monitor paused: daily_auto_tokens reached")
         docs, ends, backlog = [], {}, True
     else:
         docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
-    reasons = observe(s, docs, is_demo=is_demo) if docs else {}
+    reasons, whole = observe(s, docs, is_demo=is_demo, budget=budget) if docs else ({}, True)
+    if not whole:
+        # stopped mid-round: keep the cursors, the next round re-reads and skips what was triaged
+        paused, ends, backlog = True, {}, True
     flag_corrections(docs, is_demo=is_demo)
-    fresh = {d["source"] for d in docs}
+    fresh = {d["source"] for d in docs if not d.get("retry")}  # a retried old record is not new
     with db.session() as session:  # a round that died before this line reads the same records again
         for source, at in ends.items():
             cursor = session.get(db.Cursor, (source, is_demo))
@@ -452,7 +447,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
     reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
-    created = start_analyses(s, is_demo=is_demo, cutoff=cutoff) if s.auto_analysis and not paused else []
+    created = start_analyses(s, is_demo=is_demo, cutoff=cutoff, budget=budget) if s.auto_analysis and not paused else []
     return {
         "records": len(docs),
         "backlog": backlog,  # more new records are waiting in the feed than one round takes

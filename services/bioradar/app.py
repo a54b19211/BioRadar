@@ -322,7 +322,7 @@ def source_status():
             source_row(fabric, source, cursors.get(source), now, s.quiet_hours)
             for source in (s.monitor_sources or s.sources)
         ],
-        "auto_tokens_today": monitor.auto_tokens_today(),
+        "auto_tokens_today": analyses.auto_tokens_today(),
         "daily_auto_tokens": s.daily_auto_tokens,
     }
 

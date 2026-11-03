@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from redis import Redis
 from rq import Queue
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
@@ -128,6 +128,27 @@ def dispatch(analysis_id: str):
     )
 
 
+def auto_tokens_today() -> int:
+    """Tokens spent today (UTC) on automatic work: live triage plus topic-triggered analyses."""
+    start = db.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    with db.session() as session:
+        triage_tokens = session.scalar(
+            select(func.coalesce(func.sum(db.LlmCall.total_tokens), 0)).where(
+                db.LlmCall.stage == "triage", db.LlmCall.created_at >= start
+            )
+        )
+        topic_tokens = session.scalar(
+            select(func.coalesce(func.sum(db.LlmCall.total_tokens), 0))
+            .join(db.Analysis, db.Analysis.id == db.LlmCall.analysis_id)
+            .where(db.Analysis.trigger == "topic", db.LlmCall.created_at >= start)
+        )
+    return int(triage_tokens) + int(topic_tokens)
+
+
+def over_auto_budget() -> bool:
+    return auto_tokens_today() >= settings().daily_auto_tokens
+
+
 def execute(analysis_id: str):
     """RQ job. A lease keeps two workers from running the same analysis."""
     with db.session() as session:
@@ -136,6 +157,10 @@ def execute(analysis_id: str):
             return
         if row.lease_until and row.lease_until > db.now():
             return
+        # A queued live topic analysis waits for tomorrow once today's automatic budget is used up.
+        if row.trigger == "topic" and not row.input.get("cutoff") and not row.input.get("is_demo"):
+            if over_auto_budget():
+                return
         row.state, row.lease_until = "running", db.now() + LEASE
     try:
         result = Run(row, settings()).run()
