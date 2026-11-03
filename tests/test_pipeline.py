@@ -379,7 +379,7 @@ def test_every_draft_and_its_check_are_kept_so_a_wrong_citation_can_be_traced(mo
             return {"draft": "HR为0.62[E2]。", "llm_calls": []}
         if op == "revise":
             return {"draft": "HR为0.62[E1]。", "changed": [1], "llm_calls": []}
-        status = next(checks)
+        status = next(checks, "PASS")  # later verify calls check the judgments
         claim = {"index": 1, "start": 0, "end": 11, "citations": [body["draft"][-4:-2]], "labels": [],
                  "verdict": "supported" if status == "PASS" else "contradicted"}
         return {"status": status, "claims": [claim], "coverage": {"verdict": "complete"}, "llm_calls": []}
