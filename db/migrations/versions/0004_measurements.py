@@ -1,5 +1,5 @@
 """Measurements: quoted values per object, metric and period, accumulated from every triaged record (T-24);
-observations keep Fabric's same-origin group so daily activity counts reposts once (T-15)."""
+observations keep the key daily activity counts once, so a repost and its original are one (T-15)."""
 
 import sqlalchemy as sa
 from alembic import op
@@ -46,9 +46,10 @@ def upgrade():
         ["workspace_id", "is_demo", "object", "metric", "unit", "kind", "scope"],
     )
 
-    op.add_column("observations", sa.Column("origin_group", sa.String(200)))
+    op.add_column("observations", sa.Column("activity_key", sa.String(700)))
 
 
 def downgrade():
-    op.execute("ALTER TABLE observations DROP COLUMN IF EXISTS origin_group")
+    op.execute("ALTER TABLE observations DROP COLUMN IF EXISTS activity_key")
+    op.execute("ALTER TABLE observations DROP COLUMN IF EXISTS origin_group")  # an earlier draft of 0004
     op.drop_table("measurements")

@@ -11,7 +11,7 @@ import logging
 import re
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, literal, select
 
 from bioradar import db
 from bioradar.adapters import llm
@@ -296,7 +296,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         topic_id=topic.id if topic else None,
                         alert=alert,
                         closure=bool(item and item.closure),
-                        origin_group=doc.get("origin_group"),
+                        activity_key=activity_key(doc),
                         reason=(item.reason + (" [观测超过3个，只记前3个]" if len(item.measures) > 3 else ""))
                         if item
                         else "triage_failed",
@@ -508,9 +508,21 @@ def series_basis(session, topic_id) -> str:
 BASELINE_DAYS = 7
 
 
+def activity_key(doc) -> str:
+    """What one record counts as in daily activity: an explicit repost is its original (source + record),
+    else Fabric's same-origin group, else the record itself. Sources stay apart (two sources may share an
+    id) and group names never mix with record ids; nothing is guessed from titles."""
+    repost = next((r for r in doc["relations"] if r["kind"] == "reposts"), None)
+    if repost:
+        return f"record:{repost.get('target_source') or doc['source']}:{repost['target_record_id']}"
+    if doc.get("origin_group"):
+        return f"group:{doc['origin_group']}"
+    return f"record:{doc['source']}:{doc['record_id']}"
+
+
 def activity(session, s: Settings, topic, at, is_demo) -> bool:
     """T-15, a naive baseline of information activity (not case incidence): the topic's records on the day
-    of `at`, reposts of one origin counted once, against the previous 7 days the monitor received anything
+    of `at`, each counted once by its activity_key, against the previous 7 days the monitor received anything
     at all; days with no records from any source (collection stopped or missing) are left out, not zero.
     Above mean + 3 standard deviations (mean + 3 when they are all equal) is an anomaly; fewer than 7
     days is not judged. Owes the topic an analysis once per day."""
@@ -526,7 +538,8 @@ def activity(session, s: Settings, topic, at, is_demo) -> bool:
     before = [d for d in received if d < today][-BASELINE_DAYS:]
     if len(before) < BASELINE_DAYS:
         return False
-    counted = func.count(func.distinct(func.coalesce(db.Observation.origin_group, db.Observation.record_id)))
+    itself = literal("record:") + db.Observation.source + literal(":") + db.Observation.record_id
+    counted = func.count(func.distinct(func.coalesce(db.Observation.activity_key, itself)))
     counts = {
         str(d): n
         for d, n in session.execute(

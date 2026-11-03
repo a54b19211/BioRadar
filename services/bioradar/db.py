@@ -143,7 +143,8 @@ class Observation(Base):
     alert: Mapped[str] = mapped_column(String(20))  # none | normal | important | urgent
     closure: Mapped[bool] = mapped_column(Boolean, default=False)
     reason: Mapped[str] = mapped_column(Text, default="")
-    origin_group: Mapped[str | None] = mapped_column(String(200))  # Fabric's same-origin group (T-15)
+    # what daily activity counts once (T-15): a repost's original, else Fabric's same-origin group, else itself
+    activity_key: Mapped[str | None] = mapped_column(String(700))
 
 
 class Measurement(Base):
