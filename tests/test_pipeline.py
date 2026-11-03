@@ -436,6 +436,13 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
     assert run.object_of(named, "E1") == "禾屿县" and run.object_of(guessed, "E2") == ""
     assert run.p["found_objects"] == [{"name": "禾屿县", "ref": "E1", "quote": "禾屿县本周报告3例发热伴皮疹"}]
     assert run.p["objects"] == []  # found objects do not narrow the question
+    # Codex r31: a known name still needs this fact's own quote, or two events get joined
+    other = ReadFact(text="乙城医院收治2例", quote="乙城医院收治2例", stance="supports", object="禾屿县")
+    assert run.object_of(other, "E3") == ""
+    # background keeps its name but takes no place among the names followed up
+    background = ReadFact(text="甲城门诊量平稳", quote="甲城门诊本周登记10人", stance="context", object="甲城")
+    assert run.object_of(background, "E4") == "甲城"
+    assert [o["name"] for o in run.p["found_objects"]] == ["禾屿县"]
 
 
 def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
@@ -446,7 +453,12 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
     )
     run = Run(row, settings(), fabric=FakeFabric([]))
     plan = [{"terms": [f"泛词{i}"], "checks": ["Q1"]} for i in range(10)]
-    run.p.update(queries=list(plan), actions=[{"kind": "search", "args": {"terms": ["泛词0"]}}], notes=[])
+    run.p.update(
+        queries=list(plan),
+        actions=[{"kind": "search", "args": {"terms": ["泛词0"]}}],
+        pages={"s|泛词0": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}},  # still paging
+        notes=[],
+    )
     run.add_query(["芦川发热门诊"], ["Q1"], value=0, origin="read:E1")
     run.add_query(["登记方法"], ["Q1"], value=0, origin="read:E1")
     assert len(run.p["queries"]) == 12
@@ -458,6 +470,24 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
     run.add_query(["另一背景词"], ["Q1"], value=0, origin="read:E6")  # worth no more than what is there
     assert "另一背景词" not in [q["terms"][0] for q in run.p["queries"]]
     assert [n["code"] for n in run.p["notes"]].count("query_replaced") == 2
+
+
+def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in():
+    """Codex r31: once all 12 searches had run, a new term from new evidence could never get in."""
+    row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    queries = [{"terms": [f"词{i}"], "checks": ["Q1"]} for i in range(12)]
+    run.p.update(
+        queries=list(queries),
+        actions=[{"kind": "search", "args": {"terms": q["terms"]}} for q in queries],
+        pages={"s|词3": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}},
+        notes=[],
+    )
+    run.add_query(["新城"], ["Q1"], value=3, origin="object:E9")
+    terms = [q["terms"][0] for q in run.p["queries"]]
+    assert "新城" in terms and "词0" not in terms and "词3" in terms  # still paging, so it stays
+    assert run.p["notes"][-1]["code"] == "query_retired"
+    assert {"kind": "search", "args": {"terms": ["词0"]}} in run.p["actions"]  # history stays
 
 
 def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
@@ -502,6 +532,50 @@ def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
     run.compute()
     assert [c["label"] for c in run.p["computations"]] == ["阳性比例"]
     assert any(n["code"] == "calculation_mixed_units" for n in run.p["notes"])
+
+
+def test_a_percentage_whose_units_cannot_be_read_from_the_quotes_is_not_computed(monkeypatch):
+    """Codex r32: with no units, or "人" claimed for both though the quotes say 套 and 家, 66.67% came out."""
+    from bioradar.research import pipeline
+
+    claimed = {}
+
+    def calculate(settings_, stage, system, payload, model_cls, **options):
+        ids = [f["id"] for f in payload["facts"]]
+        a, b, c = claimed["units"]
+        calcs = [
+            schemas.Calculation(
+                label="覆盖比例",
+                operands=[schemas.Operand(fact=ids[0], value=2, unit=a), schemas.Operand(fact=ids[1], value=3, unit=b)],
+                expression="x1 / x2 * 100",
+                unit="%",
+            ),
+            schemas.Calculation(
+                label="每套金额",
+                operands=[schemas.Operand(fact=ids[2], value=120, unit=c), schemas.Operand(fact=ids[0], value=2, unit="套")],
+                expression="x1 / x2",
+                unit="万元/套",
+            ),
+        ]
+        return schemas.Calculations(calculations=calcs), {"stage": stage, "error": None}
+
+    monkeypatch.setattr(llm, "chat_json", calculate)
+    monkeypatch.setattr(pipeline.Run, "log", lambda self, calls, service="radar": None)
+    for units, code in ((("", "", "万元"), "calculation_unit_unverified"), (("人", "人", "万元"), "calculation_unit_unverified")):
+        claimed["units"] = units
+        row = analyses.create(question=f"覆盖情况如何？{units}", direction="business", is_demo=True, enqueue=False)
+        run = Run(row, settings(), fabric=FakeFabric([]))
+        quotes = ["采购2套设备", "合作3家机构", "合同总额120万元"]
+        run.p.update(
+            needs_calculation=True,
+            relations=[],
+            notes=[],
+            facts=[{"id": f"F{i + 1}", "ref": "E1", "text": q, "quote": q} for i, q in enumerate(quotes)],
+        )
+        run.compute()
+        assert [c["label"] for c in run.p["computations"]] == ["每套金额"]  # 120万元/2套 is no percentage
+        assert run.p["computations"][0]["value"] == 60
+        assert any(n["code"] == code for n in run.p["notes"])
 
 
 def test_reads_tell_the_planner_what_they_found_apart_from_answering(monkeypatch):

@@ -922,22 +922,12 @@ class Run:
         open_ids = [c["id"] for c in self.p["checks"] if c["status"] != "answered"]
         new_facts = self.p["facts"][facts_before:]
         decisive = any(f["stance"] in {"supports", "refutes"} for f in new_facts)
-        new_object = any(
-            f["object"]
-            and f["object"] not in found_before_names
-            and f["object"] not in self.p.get("objects", [])
-            for f in new_facts
-        )
+        new_object = bool(new_names)
         self.found = max(self.found, 1.0 if new_object else 0.6 if decisive else 0.0)
         # a newly found object is followed up by name (later updates of that event); then the reader's terms,
         # worth more when this record said something decisive than when it was only background
-        for name in dict.fromkeys(
-            f["object"]
-            for f in new_facts
-            if f["object"]
-            and f["object"] not in found_before_names
-            and f["object"] not in self.p.get("objects", [])
-        ):
+        new_names = [o["name"] for o in self.p.get("found_objects", []) if o["name"] not in found_before_names]
+        for name in new_names:
             self.add_query([name], hit["checks"] or open_ids, value=3, origin=f"object:{ref}")
         for terms in reading.new_terms[:2]:
             self.add_query(
@@ -950,26 +940,29 @@ class Run:
         return min(1.0, len(after - before) / max(1, len(candidate["target_checks"]))), ref
 
     def object_of(self, fact, ref):
-        """The fact's object: one the question names, or one the record itself names in the quoted words
-        (kept in found_objects with where it was found). Plan-stage guesses never get in this way; found
-        objects do not narrow the question or its checks, and are never merged with each other."""
+        """The fact's object: one the question names, or one this fact's own quoted words name (every
+        attribution needs its own quote, also for a name seen before). Only a fact that supports or refutes
+        something enters a new name into found_objects, the names that are followed up; background facts
+        keep their name but take no place there. Plan-stage guesses never get in; found objects do not
+        narrow the question or its checks, and are never merged with each other."""
         name = " ".join((fact.object or "").split())[:80]
         if not name:
             return ""
         if name in self.p.get("objects", []):
             return name
-        found = self.p.setdefault("found_objects", [])
-        if any(o["name"] == name for o in found):
-            return name
-        if len(name) < 2 or squash(name) not in squash(fact.quote) or len(found) >= MAX_FOUND:
+        if len(name) < 2 or squash(name) not in squash(fact.quote):
             return ""
-        found.append({"name": name, "ref": ref, "quote": fact.quote[:120]})
+        found = self.p.setdefault("found_objects", [])
+        known = any(o["name"] == name for o in found)
+        if not known and fact.stance in {"supports", "refutes"} and len(found) < MAX_FOUND:
+            found.append({"name": name, "ref": ref, "quote": fact.quote[:120]})
         return name
 
     def add_query(self, terms, checks, *, value, origin):
-        """A bounded pool of searches. When it is full, a new search may take the place of one not run yet
-        that is worth less (plan terms 1, terms from a background-only record 0), so early background
-        records cannot fill the pool for good. Searches already run stay."""
+        """A bounded pool of active searches. When it is full, a search already run whose pages are used up
+        is retired first (it stays in actions, and is never run again); otherwise a new search may take the
+        place of one not run yet that is worth less (plan terms 1, terms from a background-only record 0),
+        so early background records cannot fill the pool for good."""
         if not terms or any(terms == q["terms"] for q in self.p["queries"]):
             return
         query = {"terms": terms, "checks": checks, "value": value, "origin": origin}
@@ -979,15 +972,25 @@ class Run:
         ran = {
             tuple(a["args"].get("terms", ())) for a in self.p["actions"] if a["kind"] in {"search", "fetch"}
         }
+        paging = {
+            tuple(key.split("|")[1:])
+            for key, page in self.p.get("pages", {}).items()
+            if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]
+        }
+        done = [i for i, q in enumerate(self.p["queries"]) if tuple(q["terms"]) in ran - paging]
         waiting = [
             (q.get("value", 1), i)
             for i, q in enumerate(self.p["queries"])
             if tuple(q["terms"]) not in ran and q.get("value", 1) < value
         ]
-        if waiting:
-            _, i = min(waiting)
-            self.note("query_replaced", f"{' '.join(self.p['queries'][i]['terms'])} -> {' '.join(terms)}")
-            self.p["queries"][i] = query
+        if done:
+            i, code = done[0], "query_retired"
+        elif waiting:
+            i, code = min(waiting)[1], "query_replaced"
+        else:
+            return
+        self.note(code, f"{' '.join(self.p['queries'][i]['terms'])} -> {' '.join(terms)}")
+        self.p["queries"][i] = query
 
     # ---- compute -------------------------------------------------------------------------------
 
@@ -1017,11 +1020,17 @@ class Run:
                 self.note("calculation_operand_not_in_source", calc.label)
                 continue
             share = calc.unit.strip() in {"%", "百分比"} or any(w in calc.label for w in ("比例", "占比"))
-            units = {o.unit.strip() for o in calc.operands if o.unit.strip()}
-            if share and len(units) > 1:
-                # a percentage of different things (2 devices / 3 institutions) is not a proportion (C05)
-                self.note("calculation_mixed_units", f"{calc.label}: {'、'.join(sorted(units))}")
-                continue
+            if share and len(calc.operands) > 1:
+                # a percentage needs every number's unit, read from that number's own quote, and one unit
+                # for all (2 devices / 3 institutions is no proportion, C05); a unit the model only says
+                # it saw does not count. The program does not check that the numerator is part of the
+                # denominator's population: that stays with the reader and BioCheck.
+                units = [o.unit.strip() for o in calc.operands]
+                seen = all(u and u in facts[o.fact]["quote"] for u, o in zip(units, calc.operands))
+                if not seen or len(set(units)) > 1:
+                    code = "calculation_mixed_units" if seen else "calculation_unit_unverified"
+                    self.note(code, f"{calc.label}: {'、'.join(u or '?' for u in units)}")
+                    continue
             try:
                 value = compute.evaluate(calc.expression, [Decimal(str(o.value)) for o in calc.operands])
             except ValueError as exc:
