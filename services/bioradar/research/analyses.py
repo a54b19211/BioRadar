@@ -118,10 +118,26 @@ def create(
     return row
 
 
+def job_id(analysis_id: str) -> str:
+    return f"analysis-{analysis_id}"
+
+
+def waiting_in_queue(analysis_id: str) -> bool:
+    """Whether this analysis's job is still in Redis, waiting or being worked on."""
+    from rq.job import Job, NoSuchJobError
+
+    try:
+        job = Job.fetch(job_id(analysis_id), connection=queue().connection)
+    except NoSuchJobError:
+        return False
+    return job.get_status(refresh=False) in {"queued", "started", "deferred", "scheduled"}
+
+
 def dispatch(analysis_id: str):
     queue().enqueue(
         "bioradar.research.analyses.execute",
         analysis_id,
+        job_id=job_id(analysis_id),
         job_timeout=int(LEASE.total_seconds()),
         result_ttl=3600,
         failure_ttl=86400,
@@ -192,6 +208,9 @@ def recover(limit=4) -> int:
                 .limit(limit)
             )
         )
+        # a queued row whose job is still waiting in Redis is not lost, only behind others: re-queuing it
+        # every round piled up copies of the same job (24 on the live queue, 2026-11-03)
+        rows = [r for r in rows if r.lease_until is not None or not waiting_in_queue(r.id)]
         for row in rows:
             row.lease_until = None
             row.state = "queued"

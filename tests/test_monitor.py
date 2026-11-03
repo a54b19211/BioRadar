@@ -5,7 +5,8 @@ from datetime import datetime
 from conftest import FakeFabric, record
 
 from bioradar.adapters import llm
-from bioradar.research import monitor, schemas
+from bioradar import db
+from bioradar.research import analyses, monitor, schemas
 
 DAY = "2026-09-{:02d}T08:00:00+08:00"
 
@@ -559,3 +560,20 @@ def test_activity_keys_keep_sources_apart_and_join_a_repost_to_its_original():
     keys = [monitor.activity_key(d) for d in (original, repost, other_source, grouped)]
     assert keys[0] == keys[1]  # the repost is its original, whatever its own group is called
     assert len({keys[0], keys[2], keys[3]}) == 3  # same id in another source, and a group named like an id
+
+
+def test_recovery_does_not_queue_again_an_analysis_whose_job_is_still_waiting(monkeypatch):
+    """Live 2026-11-03: a queued topic analysis was dispatched again every 30 s while its job waited
+    behind others, so the queue held 24 copies."""
+    from datetime import timedelta
+
+    sent = []
+    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: sent.append(analysis_id))
+    row = analyses.create(question="等待中的分析？", direction="pipeline", is_demo=True, enqueue=False)
+    with db.session() as s:
+        s.get(db.Analysis, row.id).created_at = db.now() - timedelta(minutes=30)
+    waiting = {row.id}
+    monkeypatch.setattr(analyses, "waiting_in_queue", lambda analysis_id: analysis_id in waiting)
+    assert analyses.recover() == 0 and sent == []
+    waiting.clear()  # the job is gone from Redis (lost before it reached it, or Redis was flushed)
+    assert analyses.recover() == 1 and sent == [row.id]
