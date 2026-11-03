@@ -1091,9 +1091,11 @@ class Run:
             return
         lines, starts, at = [], [], 0
         for item in items:
-            text = item.get("conclusion", item.get("reason", "")).rstrip("。")
-            line = text + "".join(f"[{g}]" for g in item["grounds"]) + "。"
-            lines.append(line)
+            # Each clause is checked on its own: a long conclusion verified whole hid a reversed figure.
+            refs = "".join(f"[{g}]" for g in item["grounds"])
+            text = item.get("conclusion", item.get("reason", ""))
+            line = "".join(p.strip() + refs + "。" for p in re.split(r"[；;。\n]", text) if p.strip())
+            lines.append(line or refs + "。")
             starts.append(at)
             at += len(line) + 1
         verdicts = [[] for _ in items]
