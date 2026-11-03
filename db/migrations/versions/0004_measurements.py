@@ -51,5 +51,5 @@ def upgrade():
 
 
 def downgrade():
-    op.drop_column("observations", "origin_group")
+    op.execute("ALTER TABLE observations DROP COLUMN IF EXISTS origin_group")
     op.drop_table("measurements")
