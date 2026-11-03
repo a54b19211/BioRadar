@@ -1,6 +1,10 @@
 """HTTP API used by the Vue app and by scripts. Interactive docs at /docs."""
 
+import copy
+import hashlib
 import hmac
+import secrets
+import time
 from datetime import datetime, timedelta
 from typing import Literal
 
@@ -17,6 +21,8 @@ from bioradar.research import analyses, monitor
 
 app = FastAPI(title="BioRadar", version="1.0.0")
 COOKIE = "bioradar_session"
+SESSION_SECONDS = 12 * 3600
+ROLES = {"viewer": 0, "analyst": 1, "admin": 2}  # viewer reads; analyst asks and reviews; admin manages users
 
 
 @app.exception_handler(analyses.NotFound)
@@ -29,10 +35,53 @@ def bad_input(_, exc):
     return JSONResponse({"error_code": "invalid_input", "message": str(exc)}, status_code=422)
 
 
-def signed_in(request: Request):
+def hash_credential(credential: str) -> str:
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(credential.encode(), salt=salt, n=2**14, r=8, p=1)
+    return f"scrypt${salt.hex()}${digest.hex()}"
+
+
+def credential_ok(credential: str, stored: str) -> bool:
+    _, salt, digest = stored.split("$")
+    given = hashlib.scrypt(credential.encode(), salt=bytes.fromhex(salt), n=2**14, r=8, p=1)
+    return hmac.compare_digest(given.hex(), digest)
+
+
+def _sign(body: str) -> str:
+    key = settings().session_secret or settings().dev_credential
+    return hmac.new(key.encode(), body.encode(), "sha256").hexdigest() if key else ""
+
+
+def session_token(user_id: str) -> str:
+    body = f"{user_id}.{int(time.time()) + SESSION_SECONDS}"
+    return f"{body}.{_sign(body)}"
+
+
+def current_user(request: Request) -> db.User | None:
+    """The signed-in person, read again from the table on every request (a role change or a removed
+    user takes effect at once). The token is the cookie, or the same value as a Bearer header."""
     value = request.cookies.get(COOKIE) or request.headers.get("Authorization", "").removeprefix("Bearer ")
-    if not value or not hmac.compare_digest(value, settings().dev_credential):
-        raise HTTPException(401, "请先登录")
+    try:
+        user_id, expires, signature = value.split(".")
+        expired = int(expires) < time.time()
+    except ValueError:
+        return None
+    if expired or not signature or not hmac.compare_digest(signature, _sign(f"{user_id}.{expires}")):
+        return None
+    with db.session() as s:
+        return s.get(db.User, user_id)
+
+
+def require(role: str):
+    def check(request: Request) -> db.User:
+        user = current_user(request)
+        if user is None:
+            raise HTTPException(401, "请先登录")
+        if ROLES[user.role] < ROLES[role]:
+            raise HTTPException(403, "当前账号没有这项权限")
+        return user
+
+    return check
 
 
 @app.get("/health")
@@ -43,15 +92,33 @@ def health():
 
 
 class Login(BaseModel):
+    name: str = "admin"
     credential: str
 
 
 @app.post("/api/session")
 def login(body: Login, response: Response):
-    if not settings().dev_credential or not hmac.compare_digest(body.credential, settings().dev_credential):
-        raise HTTPException(401, "登录凭据不正确")
-    response.set_cookie(COOKIE, body.credential, httponly=True, samesite="lax")
-    return {"signed_in": True}
+    """The first sign-in with BIORADAR_DEV_CREDENTIAL as "admin", while there are no users yet, creates
+    that admin. From then on only the users table counts."""
+    with db.session() as s:
+        user = s.scalar(select(db.User).where(db.User.name == body.name))
+        dev = settings().dev_credential
+        if (
+            user is None
+            and body.name == "admin"
+            and dev
+            and hmac.compare_digest(body.credential, dev)
+            and not s.scalar(select(func.count()).select_from(db.User))
+        ):
+            user = db.User(name="admin", role="admin", credential_hash=hash_credential(dev))
+            s.add(user)
+            s.flush()
+        if user is None or not credential_ok(body.credential, user.credential_hash):
+            raise HTTPException(401, "用户名或登录凭据不正确")
+    response.set_cookie(
+        COOKIE, session_token(user.id), httponly=True, samesite="lax", max_age=SESSION_SECONDS
+    )
+    return {"signed_in": True, "name": user.name, "role": user.role}
 
 
 @app.delete("/api/session")
@@ -62,14 +129,117 @@ def logout(response: Response):
 
 @app.get("/api/session")
 def session_state(request: Request):
-    try:
-        signed_in(request)
-    except HTTPException:
-        return {"signed_in": False}
-    return {"signed_in": True}
+    user = current_user(request)
+    return {"signed_in": True, "name": user.name, "role": user.role} if user else {"signed_in": False}
 
 
-api = [Depends(signed_in)]
+api = [Depends(require("viewer"))]
+analyst = [Depends(require("analyst"))]
+admin = [Depends(require("admin"))]
+
+
+class NewUser(BaseModel):
+    name: str = Field(min_length=1, max_length=80, pattern=r"^[\w.-]+$")
+    role: Literal["viewer", "analyst", "admin"]
+    credential: str = Field(min_length=8, max_length=200)
+
+
+class UserChange(BaseModel):
+    role: Literal["viewer", "analyst", "admin"] | None = None
+    credential: str | None = Field(default=None, min_length=8, max_length=200)
+
+
+def user_view(u: db.User) -> dict:
+    return {"name": u.name, "role": u.role, "created_at": u.created_at.isoformat()}
+
+
+@app.get("/api/users", dependencies=admin)
+def users():
+    with db.session() as s:
+        return [user_view(u) for u in s.scalars(select(db.User).order_by(db.User.created_at))]
+
+
+@app.post("/api/users", dependencies=admin)
+def add_user(body: NewUser):
+    with db.session() as s:
+        if s.scalar(select(db.User).where(db.User.name == body.name)):
+            raise HTTPException(409, "用户名已存在")
+        user = db.User(name=body.name, role=body.role, credential_hash=hash_credential(body.credential))
+        s.add(user)
+        s.flush()
+        return user_view(user)
+
+
+@app.patch("/api/users/{name}", dependencies=admin)
+def change_user(name: str, body: UserChange):
+    """Change a role or replace a credential (also how the first admin stops using the dev credential)."""
+    with db.session() as s:
+        user = s.scalar(select(db.User).where(db.User.name == name))
+        if user is None:
+            raise analyses.NotFound(name)
+        if body.role and body.role != "admin" and user.role == "admin":
+            admins = s.scalar(select(func.count()).select_from(db.User).where(db.User.role == "admin"))
+            if admins <= 1:
+                raise HTTPException(409, "至少保留一个管理员")
+        if body.role:
+            user.role = body.role
+        if body.credential:
+            user.credential_hash = hash_credential(body.credential)
+        return user_view(user)
+
+
+# ---- source access: Fabric's source list is the authority ----------------------------------------
+
+READABLE_SECONDS = 300
+_readable: dict = {"at": None, "sources": None}
+
+
+def readable_sources() -> set[str] | None:
+    """Sources Fabric lets the radar read now. A revoked source drops out of Fabric's list (it is not
+    listed as false). Cached five minutes; when the list cannot be read the answer is None, and nothing
+    is shown as text until it can be read again."""
+    now = time.monotonic()
+    if _readable["at"] is None or now - _readable["at"] >= READABLE_SECONDS:
+        try:
+            listed = Fabric(settings()).sources()["sources"]
+            _readable.update(at=now, sources={r["source_id"] for r in listed})
+        except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError):
+            _readable.update(at=None, sources=None)
+    return _readable["sources"]
+
+
+def withheld(source: str, readable: set[str] | None) -> str | None:
+    if readable is None:
+        return "来源授权状态暂时无法确认"
+    return None if source in readable else "来源已撤权"
+
+
+def redact(value: dict) -> dict:
+    """The one check behind all three exits (original text, analysis detail, export): material from a
+    source that cannot be read now keeps only its number, source and record id; quotes taken from it in
+    facts, sentence checks and computations are dropped. The written draft itself is kept."""
+    readable = readable_sources()
+    hidden = {e["ref"]: withheld(e["source"], readable) for e in value["evidence"]}
+    hidden = {ref: reason for ref, reason in hidden.items() if reason}
+    if not hidden:
+        return value
+    value = copy.deepcopy(value)
+    for e in value["evidence"]:
+        if e["ref"] in hidden:
+            e.update(title="", url=None, withheld=hidden[e["ref"]])
+    for f in (value.get("progress") or {}).get("facts") or []:
+        if f.get("ref") in hidden:
+            f.update(text="", quote="", withheld=hidden[f["ref"]])
+    result = value.get("result") or {}
+    for c in (result.get("review") or {}).get("claims") or []:
+        for q in c.get("quotes") or []:
+            if q.get("ref") in hidden:
+                q["quote"] = ""
+    for c in result.get("computations") or []:
+        for o in c.get("operands") or []:
+            if o.get("ref") in hidden:
+                o["quote"] = ""
+    return value
 
 
 @app.get("/api/options", dependencies=api)
@@ -102,7 +272,7 @@ class Ask(BaseModel):
     scope_record_ids: list[str] = Field(default=[], description="只在这些记录里检索和阅读（固定材料集）")
 
 
-@app.post("/api/analyses", dependencies=api)
+@app.post("/api/analyses", dependencies=analyst)
 def ask(body: Ask):
     row = analyses.create(
         question=body.question,
@@ -120,7 +290,7 @@ class Followup(BaseModel):
     question: str = Field(min_length=4, max_length=2000)
 
 
-@app.post("/api/analyses/{analysis_id}/followup", dependencies=api)
+@app.post("/api/analyses/{analysis_id}/followup", dependencies=analyst)
 def followup(analysis_id: str, body: Followup):
     parent = analyses.get(analysis_id)
     row = analyses.create(
@@ -150,17 +320,22 @@ def list_analyses(investigation_id: str | None = None, limit: int = 30):
 
 @app.get("/api/analyses/{analysis_id}", dependencies=api)
 def get_analysis(analysis_id: str):
-    return analyses.view(analyses.get(analysis_id), full=True)
+    return redact(analyses.view(analyses.get(analysis_id), full=True))
 
 
 @app.get("/api/analyses/{analysis_id}/evidence/{ref}", dependencies=api)
 def evidence(analysis_id: str, ref: str):
-    return analyses.evidence_text(analysis_id, ref)
+    item = analyses.evidence_text(analysis_id, ref)
+    reason = withheld(item["source"], readable_sources())
+    if reason:
+        keep = ("ref", "source", "record_id", "version_id")
+        return {**{k: item[k] for k in keep}, "title": "", "text": "", "url": None, "withheld": reason}
+    return item
 
 
 @app.get("/api/analyses/{analysis_id}/export", dependencies=api, response_class=PlainTextResponse)
 def export(analysis_id: str):
-    value = analyses.view(analyses.get(analysis_id), full=True)
+    value = redact(analyses.view(analyses.get(analysis_id), full=True))
     result = value["result"] or {}
     lines = [
         f"# {value['question']}",
@@ -174,6 +349,9 @@ def export(analysis_id: str):
         "",
     ]
     for e in value["evidence"]:
+        if e.get("withheld"):
+            lines.append(f"- [{e['ref']}] {e['withheld']}（{e['source']} {e['record_id']}）")
+            continue
         lines.append(
             f"- [{e['ref']}] {e['title']}（{e['source']} {e['record_id']}，版本 {e['version_id'][:12]}，"
             f"{e['published_at'] or '日期未知'}{'，未核实' if not e['verified'] else ''}）"
@@ -189,6 +367,28 @@ def export(analysis_id: str):
                 f"后果 {j['consequence']}，优先级 {j['priority']}）待证实：{j['unproven']}"
             )
     return "\n".join(lines)
+
+
+class ReviewIn(BaseModel):
+    action: Literal["confirm", "reject", "flag_source", "set_alert"]
+    analysis_id: str | None = None
+    sentence: int | None = Field(default=None, description="confirm / reject：BioCheck 的句子序号")
+    evidence_ref: str | None = Field(default=None, description="flag_source：材料编号，如 E3")
+    topic_id: str | None = Field(default=None, description="set_alert：专题")
+    alert: Literal["normal", "important", "urgent"] | None = None
+    note: str = Field(default="", max_length=2000)
+
+
+@app.post("/api/reviews")
+def add_review(body: ReviewIn, user: db.User = Depends(require("analyst"))):
+    """A person's decision on a sentence, a material or a topic's alert. Rejecting a sentence or flagging
+    a material owes the analysis's topic a new analysis ("analyst_review")."""
+    return analyses.review(user, **body.model_dump())
+
+
+@app.get("/api/reviews", dependencies=api)
+def list_reviews(analysis_id: str | None = None, topic_id: str | None = None, limit: int = 50):
+    return analyses.reviews(analysis_id=analysis_id, topic_id=topic_id, limit=min(limit, 200))
 
 
 @app.get("/api/investigations", dependencies=api)
@@ -242,7 +442,7 @@ class Tick(BaseModel):
     clock: datetime | None = None
 
 
-@app.post("/api/monitor/tick", dependencies=api)
+@app.post("/api/monitor/tick", dependencies=analyst)
 def tick(body: Tick):
     """Run one monitoring round now. Simulations and replays pass a source clock or cutoff."""
     return monitor.tick(is_demo=body.is_demo, cutoff=body.cutoff, clock=body.clock)

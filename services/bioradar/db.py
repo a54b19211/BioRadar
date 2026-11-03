@@ -205,6 +205,33 @@ class Cursor(Base):
     last_new_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+
+class User(Base):
+    """Who may sign in: viewer reads; analyst asks and reviews; admin also manages users."""
+
+    __tablename__ = "users"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(80), unique=True)
+    role: Mapped[str] = mapped_column(String(20))  # viewer | analyst | admin
+    credential_hash: Mapped[str] = mapped_column(String(200))  # scrypt$salt$hash
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class Review(Base):
+    """A person's decision on a machine result; the table is itself the audit record of human actions."""
+
+    __tablename__ = "reviews"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(20))  # confirm | reject | flag_source | set_alert
+    analysis_id: Mapped[str | None] = mapped_column(ForeignKey("analyses.id"), index=True)
+    sentence: Mapped[int | None] = mapped_column(Integer)  # BioCheck's sentence number
+    evidence_ref: Mapped[str | None] = mapped_column(String(10))
+    topic_id: Mapped[str | None] = mapped_column(ForeignKey("topics.id"), index=True)
+    alert: Mapped[str | None] = mapped_column(String(20))
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
 @lru_cache
 def engine():
     return create_engine(settings().database_url, pool_pre_ping=True)
