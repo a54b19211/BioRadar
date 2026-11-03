@@ -315,7 +315,11 @@ class Run:
         terms = [t for q in queries for t in q["terms"]]
         plan_basis = {n: basis(n) for n in dict.fromkeys([n for n in planned if n] + terms)}
         plan_removed = [
-            {"name": n, "basis": basis(n), "checks": [f"Q{i}" for i, c in enumerate(plan.checks[:8], 1) if k in c.objects]}
+            {
+                "name": n,
+                "basis": basis(n),
+                "checks": [f"Q{i}" for i, c in enumerate(plan.checks[:8], 1) if k in c.objects],
+            }
             for k, n in enumerate(planned, 1)
             if n and basis(n) != "question"
         ]
