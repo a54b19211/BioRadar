@@ -46,6 +46,7 @@ def fake_model(sent):
                     schemas.ReadFact(text="PFS风险比", quote=quote, checks=["Q1"], stance="supports"),
                     schemas.ReadFact(text="编造的事实", quote="OS显著延长", checks=["Q1"], stance="supports"),
                 ],
+                answered=["Q1"],
             )
         elif stage == "calculate":
             fact = next(f for f in payload["facts"] if "0.69" in f["quote"])
@@ -244,3 +245,20 @@ def test_retries_of_empty_searches_are_capped(monkeypatch):
     fabric = FakeFabric(RECORDS)
     Run(row, settings(), fabric=fabric).run()
     assert len([c for c in fabric.calls if c[0] == "search"]) == 8 + MAX_RETRIES
+
+
+def test_a_check_with_supporting_facts_stays_open_until_the_reader_says_it_is_whole(monkeypatch):
+    base = fake_model([])
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "read":
+            value.answered = []
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(question="三家公司各自的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    assert result["checks"][0]["status"] == "open" and result["checks"][0]["evidence"] == ["E1", "E2"]

@@ -566,7 +566,13 @@ class Run:
                 "question": self.input["question"],
                 "material": material,
                 "checks": [
-                    {"id": c["id"], "text": c["text"], "status": c["status"]} for c in self.p["checks"]
+                    {
+                        "id": c["id"],
+                        "text": c["text"],
+                        "status": c["status"],
+                        "known": [f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]][-12:],
+                    }
+                    for c in self.p["checks"]
                 ],
             },
             schemas.Reading,
@@ -596,12 +602,13 @@ class Run:
                 check = checks[i]
                 if ref not in check["evidence"]:
                     check["evidence"].append(ref)
-                # Only a supporting or refuting fact answers a check; a limitation keeps it open.
                 stances = {f["stance"] for f in self.p["facts"] if i in f["checks"]}
                 if {"supports", "refutes"} <= stances:
                     check["status"] = "conflict"
-                elif stances & {"supports", "refutes"}:
-                    check["status"] = "answered"
+        # One record often answers part of a check (one company of three); the model says when it is whole.
+        for i in reading.answered:
+            if i in checks and checks[i]["evidence"] and checks[i]["status"] == "open":
+                checks[i]["status"] = "answered"
         for terms in reading.new_terms[:2]:
             terms = clean_terms(terms)
             if (
@@ -657,7 +664,9 @@ class Run:
                     "population": calc.population,
                     "denominator": calc.denominator,
                     "operands": [
-                        {"fact": o.fact, "value": o.value, "ref": facts[o.fact]["ref"]} for o in calc.operands
+                        # The quote travels with the result so BioCheck can check it without the record.
+                        {"fact": o.fact, "value": o.value, "ref": facts[o.fact]["ref"], "quote": facts[o.fact]["quote"]}
+                        for o in calc.operands
                     ],
                 }
             )
