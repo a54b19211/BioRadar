@@ -79,6 +79,8 @@ cd ../MechEvidence  && uvicorn mechevidence.service:app --port 18563
 
 - 监测：每 30 秒读一次 Fabric 变更流。一个来源第一次被监测时从它**当前的末尾**开始（`legacy_documents` 有 62 万条历史记录，不能全部分诊）；历史材料用回放分析。自动分析每小时最多 6 次（`BIORADAR_AUTO_ANALYSES_PER_HOUR`）。
 - 改代码后：`git pull`，`uv sync --frozen`，有新迁移时 `alembic -c db/alembic.ini upgrade head`，再 `systemctl --user restart bioradar-api bioradar-worker bioradar-monitor`。
+- WeKnora（李明洋）：雷达只通过 weknora-kdd 桥检索，`bioradar-weknora-kdd` 单元监听 127.0.0.1:18564（端口在 `~/.config/systemd/user/bioradar-weknora-kdd.service.d/port.conf`，代码是 WeKnora `main` 的 `extensions/kdd`，检出在 `~/zk_projects/.bioradar-kdd-integration/weknora`）。`radar.env` 填 `BIORADAR_WEKNORA_URL=http://127.0.0.1:18564`、`BIORADAR_WEKNORA_TOKEN`（桥 `runtime.json` 的 token）和 `BIORADAR_WEKNORA_KNOWLEDGE_BASE_ID`。桥按来源范围检索（管线题查 pipeline+research，公卫题查 public_health+research），命中只是指针，原文回 Fabric 读；历史回放不走桥，因为桥只有今天的索引。
+- Fabric 采集（徐子雯）：公开源由 Fabric publisher 按 `~/.config/datafabric-publication/runtime.env` 的 `DATAFABRIC_HISTORY_WATCHES` 定时刷新（最多 8 个）。现在是 WHO、Europe PMC 六组（BCMA、III 期随机、暴发标题、GLP-1 类、ADC/CAR-T/双抗、监管审批）和 ClinicalTrials III 期，查看状态用 `/api/history/source-health?source_id=…`。
 
 2026-11-03 从旧版切换过来。旧库 `bioradar`、旧配置备份 `~/.config/bioradar.before-rebuild-20261103/`、旧网页容器 `bioradar-zktest-web-1` 都保留着，需要退回时运行 `bash ~/.config/bioradar-rollback.sh`。
 
@@ -150,8 +152,30 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 
 **花费**（最终一轮）：A 约 32 万 token，B 约 34 万，C 每次约 23–26 万，专题自动分析 45 万；D 定向 303 万；逐日监测 620 万。重构以来全部运行约 5,250 万 token。没有一次因预算或截断失败。
 
+## 2026-11-03 讨论室修订（Opus 实现，Codex 复核）
+
+**新能力**
+
+- **跨时段观测账**（`measurements` 表，`research/series.py`）：监测分诊对每条进来的记录抽最多 3 个可比较的数值（对象写到项目或基地、指标、值、单位、存量/增量/累计/比例、口径、期间、计划/在建/投运或报告/确认、原文短引），程序校验短引在原文里、数值在短引里才入账。同一对象×指标×单位×类型×口径内，程序算状态推进、增减、新高新低、相邻期间的连续变化；同期同值同状态的重复提及只算一次（旧计划重提不算扩产）；更正从它自己可见的时间起替代旧值；迟到或更正的值会把其后各点重新评估并记 `revised`。只用 `available_at` 不晚于时钟的行，回放看不到未来。变化写成专题的「指标序列变化」事件，状态推进、新高新低、趋势会触发专题分析。
+- **评估输出也核验**：判断结论和假设理由按分句连同依据送 BioCheck，和原文矛盾的撤下（原文留在 notes），未核验通过的最高给「可能」；假设不再给「已证实」，「很可能」要求本段有核验通过的支持事实。
+- **规划范围**：程序判定每个规划名称来自题面、上一份报告还是纯探索；只有题面点名的进 `objects`，只挂在探索对象上的待查问题不能是必答；阅读的相关性只按题面判断。
+- **模型服务故障**：429/503 按 5/20/60 秒退避重发，受剩余请求额度约束；200 但没有正常 choices 记为错误，不再崩溃。
+
+**实测**
+
+- 现役采集：Fabric 原来只有 2 个 watch，其中 Europe PMC 自 10-19 起每小时失败（翻页中命中数下降被当作分页中断）；修复在 Fabric `feat/server_fix`（a7e0c1f、d316aad），现役跑热修分支 `live/epmc-hotfix-20261103`。改成 8 个 watch 后全部至少完成一轮，现役雷达当轮处理 295 条新材料、出现 3 个升温专题。
+- T-12 冻结对照（20 份，`.rebuild-work/out/cmp-*`）：修改后 PASS 没有变多（前 1 份、后 0 份），只修好了 D-S1 planner 的 NOT_RUN；D 的 16 份全部停在步数上限。
+- D-S1 读取分析（`.rebuild-work/out/t21-offline/`，72 条标注与输入分开）：旧读取顺序就是 record_id 字母序，前 20 篇有 14 篇英文同缩写噪声；离线新排序覆盖 3 个聚集事件、无关 2 篇。另发现修改前的规划把题面没提的「武汉」「华南海鲜」写进检索词和待查问题，读到的兰州、哈尔滨布病通报被判无关——D 只能作为历史材料处理的演示，不能当作干净的事前预测证明。
+- 真实 BioCheck：after-C 那条把增长写成「均同比下降」的判断，整句核验漏判，按分句核验判为矛盾（`.rebuild-work/out/t13-repro/`）。
+
 ## 未完成
 
+- **DeepSeek 2026-11-03 起官方维护**：T-16 的 36 次虚构信号用例跑到第 28 次，8 次因 503 在规划阶段失败；T-22 的真实阅读验收、PHX 虚构公卫 240 条 × 4 截面 × 2 方法、观测抽取的真实准确率和规模测试都要等服务恢复，用同版本同配置补跑，首次失败记录保留。
+- **T-22 未修完**：用 before 那份「题面没提武汉、待查问题却写武汉」的规划去读，阅读规则仍扳不过被收窄的待查问题（3 次实测结果不稳）；现在从规划处防（待查问题不得写题面未点名的地点、机构、病名），还要用新代码完整重跑 D-S1 验证。
+- **WeKnora 只接了 WHO**：桥的检索在同一知识库同一范围超过 1000 篇时返回 400，Europe PMC（已有约 1,444 篇、每周新增数千）和 ClinicalTrials（每周约 500 个新版本）一开就会打坏该范围的检索，需要李明洋放开桥的单范围上限后再开。桥没有截止时间参数，历史回放不走桥。知识库里还有 10-30 集成测试从另一个 Fabric 实例发布的旧条目，按名字分不开，读不到的由 Fabric 挡掉。
+- **观测账**：同名或更名对象不做合并（按原文名字精确分开）；比率不单独存分子分母；每条最多 3 个观测、超出部分不记也没有标记；期间写法不规范（「去年下半年」）的丢弃；页面只在专题事件里显示，没有序列图。
+- **同源转载（T-23）**：Fabric 给的 reposts、same_origin 还没有传给阅读和 BioCheck，稿件仍可能写「未说明是否独立」。
+- **读取排序（T-21）、用户角色（T-14）、朴素基线（T-15）、图谱只读接入（T-20）**：方案已和 Codex 对齐，代码未做。
 - **C 的 planner 定向稿没有 PASS**（第十九节「跑通」标准里唯一没达到的一条）：数据、更正、程序计算都对，问题出在写稿模型的总结句自相矛盾（见上表），BioCheck 的覆盖检查判为不完整；修订只改单句，改不了全篇层面的矛盾。另外 planner 仍会读进 A/B 场景的更正记录（演示来源里三个场景混在一起）。下一步：潘倩在 BioCheck 写稿提示里要求总结句只复述正文已写的结论；或者覆盖检查判为不完整时让雷达带着理由重写一次全稿。
 - **公共卫生专题的「重新唤醒」**：最终代码的运行里，被唤醒的只有一个药品专题（沃森 13 价疫苗）；公共卫生专题走完萌发→升温→降温/休眠→唤醒，只在 11-02 第 4 轮（旧代码）的卫健委疫情通报专题上出现过。A 的 L4 按事件独立性开成了新专题而不是唤醒旧专题。下一步：孙博文确认 L4 应当唤醒原专题还是另开专题（`research/prompts.py` 的 TRIAGE），再用 `scenarios.py abc --only A` 验一次。
 - **D 的判断不稳定、人传人没有在 01-21 判出**：大固定材料集一次只读 20 篇，挑选按检索词命中。下一步：D 的固定材料先按来源类型（官方通报优先）排读取顺序；人传人确认原文（卫健委 01-20 23:17）因许可没有全文，需要徐子雯确认能否作为可读材料导入 Fabric。
