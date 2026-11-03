@@ -90,6 +90,8 @@ export interface Result {
   reads: number;
   notes: Note[];
   usage: { llm_calls: number; requests: number; tokens: number };
+  // added later by the monitor when a cited record is corrected or retracted
+  source_updates?: { ref: string; record_id: string; kind: "correction" | "retraction"; by_record: string; at: string }[];
 }
 
 export interface Analysis {

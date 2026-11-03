@@ -369,6 +369,48 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
     return created
 
 
+def flag_corrections(docs, *, is_demo: bool) -> int:
+    """A new correction or retraction marks every completed analysis that cited the old record
+    (matched on source + record_id + demo/real), and owes its topic a new analysis. Analyses without
+    a topic carry the mark on the page ("需复核") and are redone through the follow-up button."""
+    hits = [
+        (d["source"], r["target_record_id"], r["kind"], d["record_id"])
+        for d in docs
+        for r in d["relations"]
+        if r["kind"] in {"corrects", "retracts"}
+    ]
+    flagged = 0
+    with db.session() as session:
+        for source, target, kind, by in hits:
+            rows = session.execute(
+                select(db.Evidence.ref, db.Analysis, db.Investigation.topic_id)
+                .join(db.Analysis, db.Analysis.id == db.Evidence.analysis_id)
+                .join(db.Investigation, db.Investigation.id == db.Analysis.investigation_id)
+                .where(
+                    db.Evidence.source == source,
+                    db.Evidence.record_id == target,
+                    db.Investigation.is_demo == is_demo,
+                    db.Analysis.state == "completed",
+                )
+            ).all()
+            for ref, analysis, topic_id in rows:
+                entry = {
+                    "ref": ref,
+                    "record_id": target,
+                    "kind": "correction" if kind == "corrects" else "retraction",
+                    "by_record": by,
+                }
+                result = dict(analysis.result or {})
+                updates = list(result.get("source_updates") or [])
+                if all({k: u.get(k) for k in entry} != entry for u in updates):
+                    result["source_updates"] = updates + [{**entry, "at": db.now().isoformat()}]
+                    analysis.result = result
+                    flagged += 1
+                if topic_id:
+                    owe(session.get(db.Topic, topic_id), "source_corrected", db.now())
+    return flagged
+
+
 def auto_tokens_today() -> int:
     """Tokens spent today (UTC) on automatic work: live triage plus topic-triggered analyses."""
     start = db.now().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -399,6 +441,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     else:
         docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
     reasons = observe(s, docs, is_demo=is_demo) if docs else {}
+    flag_corrections(docs, is_demo=is_demo)
     fresh = {d["source"] for d in docs}
     with db.session() as session:  # a round that died before this line reads the same records again
         for source, at in ends.items():

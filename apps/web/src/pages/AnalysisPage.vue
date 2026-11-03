@@ -108,6 +108,19 @@ async function download() {
       <span v-if="usage" class="muted">模型调用 {{ usage.llm_calls }} 次（HTTP 请求 {{ usage.requests }} 次），{{ usage.tokens }} tokens</span>
       <RouterLink v-if="a.parent_id" :to="`/analyses/${a.parent_id}`">上一轮分析</RouterLink>
     </div>
+    <el-alert
+      v-if="a.result?.source_updates?.length"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-top: 12px"
+      title="引用来源已更正或撤回，需复核"
+    >
+      <div v-for="u in a.result.source_updates" :key="u.ref + u.by_record">
+        {{ u.ref }}（{{ u.record_id }}）已被 {{ u.by_record }} {{ u.kind === "retraction" ? "撤回" : "更正" }}，{{ fmt(u.at) }}
+      </div>
+      <div class="muted">用「追问」重新分析；专题分析会自动重做。</div>
+    </el-alert>
     <div class="row" style="margin-top: 12px">
       <el-button type="primary" @click="asking = true">追问</el-button>
       <el-button @click="download">导出</el-button>
