@@ -155,6 +155,24 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     return "\n…\n".join(parts) or text[:limit]
 
 
+def lineage(session, analysis_id: str, depth=20) -> list[str]:
+    """The analysis's earlier rounds, nearest first (a follow-up's parent, its parent, ...)."""
+    found, current = [], session.get(db.Analysis, analysis_id)
+    while current is not None and current.parent_id and len(found) < depth:
+        found.append(current.parent_id)
+        current = session.get(db.Analysis, current.parent_id)
+    return found
+
+
+def lineage_sources(analysis_id: str) -> set[str]:
+    """Sources cited by the analysis's earlier rounds: what its previous report was written from."""
+    with db.session() as session:
+        ids = lineage(session, analysis_id)
+        if not ids:
+            return set()
+        return set(session.scalars(select(db.Evidence.source).where(db.Evidence.analysis_id.in_(ids))))
+
+
 def hypothesis_stance(fact):
     """A fact's direction for its hypothesis, judged apart from its stance on the checks (an answer to a
     check can refute the hypothesis); facts saved before the field existed fall back to the check stance."""
@@ -276,6 +294,26 @@ class Run:
             self.save(STAGES[STAGES.index(self.stage) + 1])
         return self.result()
 
+    def previous_report(self):
+        """The earlier round's report, only while every source it was written from (through all earlier
+        rounds) can still be read; checked when the run uses it, not when the follow-up was created
+        (Codex r38: a revoked parent's draft reached the plan model and leaked into the follow-up)."""
+        if not self.input.get("previous_report"):
+            return None
+        if not hasattr(self, "_previous"):
+            self._previous = self.input["previous_report"]
+            sources = lineage_sources(self.id)
+            readable = set()
+            if sources:
+                try:
+                    readable = {r["source_id"] for r in self.fabric.sources()["sources"]}
+                except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError, AttributeError):
+                    readable = None
+            if sources and (readable is None or not sources <= readable):
+                self._previous = None
+                self.note("previous_report_withheld", "上一轮引用的来源现在不可读或授权状态无法确认")
+        return self._previous
+
     @property
     def asked(self):
         """The question as the models and services see it. Scenario material says it is invented; without
@@ -293,8 +331,8 @@ class Run:
             "direction": self.input["direction"],
             "history_cutoff": self.input.get("cutoff"),
         }
-        if self.input.get("previous_report"):
-            payload["previous_report"] = self.input["previous_report"]["draft"][:3000]
+        if self.previous_report():
+            payload["previous_report"] = self.previous_report()["draft"][:3000]
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
@@ -1256,8 +1294,8 @@ class Run:
                 "history_cutoff": self.input.get("cutoff"),
             },
         }
-        if self.input.get("previous_report"):
-            body["previous_report"] = self.input["previous_report"]
+        if self.previous_report():
+            body["previous_report"] = self.previous_report()
         if self.p.get("hypotheses"):
             # The hypotheses and the facts tagged to them go to BioCheck, which writes and checks the
             # 「情报假设」 section; assess only grades what survived that check.

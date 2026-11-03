@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
-from bioradar.research.pipeline import Failed, Run
+from bioradar.research.pipeline import Failed, Run, lineage, lineage_sources  # noqa: F401
 
 LEASE = timedelta(minutes=90)
 DIRECTIONS = {"pipeline", "science", "business", "public_health"}
@@ -50,9 +50,11 @@ def create(
     topic_id=None,
     enqueue=True,
     session=None,
+    previous=True,
 ) -> db.Analysis:
     """With `session`, the row is added to the caller's transaction and not queued: the caller
-    commits it together with its own changes and then calls dispatch()."""
+    commits it together with its own changes and then calls dispatch(). previous=False leaves the
+    parent's report out (the follow-up of a report whose sources cannot be read now)."""
     s = settings()
     if direction not in DIRECTIONS:
         raise InvalidInput("direction")
@@ -85,7 +87,7 @@ def create(
             session.add(investigation)
             session.flush()
             investigation_id = investigation.id
-        if parent_id:
+        if parent_id and previous:
             parent = session.get(db.Analysis, parent_id)
             if parent and parent.result and parent.result.get("draft"):
                 value["previous_report"] = {

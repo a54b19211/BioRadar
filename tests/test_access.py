@@ -380,3 +380,27 @@ def test_when_the_source_list_cannot_be_read_no_text_leaves_the_api(fabric_sourc
     assert admin.get(f"/api/analyses/{analysis_id}/evidence/E1").json()["text"] == "open_src 原文全文"
     api_module._readable["at"] -= api_module.READABLE_SECONDS
     assert admin.get(f"/api/analyses/{analysis_id}/evidence/E1").json()["withheld"] == "来源已撤权"
+
+
+def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_sources, monkeypatch):
+    """Codex r38: the follow-up got the revoked parent's draft as previous_report, the plan model saw it,
+    and a name from it came back in the follow-up's detail."""
+    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: None)
+    admin = admin_client()
+    parent_id, _ = topic_analysis()  # cites open_src E1 and gone_src E2; only open_src is listed
+    child = admin.post(f"/api/analyses/{parent_id}/followup", json={"question": "后续进展如何？"}).json()
+    assert "previous_report" not in analyses.get(child["id"]).input
+    # the same follow-up while every source can be read keeps the earlier report
+    fabric_sources["value"] = ["open_src", "gone_src"]
+    api_module._readable.update(at=None, sources=None)
+    again = admin.post(f"/api/analyses/{parent_id}/followup", json={"question": "再后续呢？"}).json()
+    assert "第二句撤权原文" in analyses.get(again["id"]).input["previous_report"]["draft"]
+    # a follow-up written while the parent was readable is withheld once the parent's source is revoked
+    with db.session() as s:
+        row = s.get(db.Analysis, again["id"])
+        row.state, row.result = "completed", {"draft": "依上一轮：撤权原文城的病例在增加。", "report_status": "PASS"}
+    fabric_sources["value"] = ["open_src"]
+    api_module._readable.update(at=None, sources=None)
+    detail = admin.get(f"/api/analyses/{again['id']}").json()
+    assert detail["result"]["draft"] == "" and "上一轮" in detail["result"]["withheld"]
+    assert "撤权原文" not in admin.get(f"/api/analyses/{again['id']}/export").text

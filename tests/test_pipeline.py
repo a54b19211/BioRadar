@@ -651,6 +651,32 @@ def test_the_report_input_keeps_every_quoted_fact_even_far_down_a_long_record():
     assert all(q in sent for q in quotes) and len(sent) <= 4000 + 12 * 3
 
 
+def test_a_queued_follow_up_checks_its_earlier_report_again_when_it_runs():
+    """Codex r38: permission is checked when the run uses the earlier report, not only at creation."""
+    parent = analyses.create(question="上一轮？", direction="pipeline", is_demo=True, enqueue=False)
+    with db.session() as s:
+        row = s.get(db.Analysis, parent.id)
+        row.result = {"draft": "上一轮稿件[E1]。"}
+        s.add(db.Evidence(analysis_id=parent.id, ref="E1", source="gone", record_id="r", version_id="v",
+                          title="t", text="x", meta={}))
+    child = analyses.create(question="追问？", direction="pipeline", is_demo=True, parent_id=parent.id,
+                            enqueue=False)
+    assert child.input["previous_report"]["draft"] == "上一轮稿件[E1]。"
+
+    class Listed(FakeFabric):
+        def __init__(self, listed):
+            super().__init__([])
+            self.listed = listed
+
+        def sources(self):
+            return {"sources": [{"source_id": x} for x in self.listed]}
+
+    assert Run(child, settings(), fabric=Listed(["gone"])).previous_report()["draft"] == "上一轮稿件[E1]。"
+    run = Run(child, settings(), fabric=Listed(["external_archive"]))
+    assert run.previous_report() is None and run.p["notes"][-1]["code"] == "previous_report_withheld"
+    assert Run(child, settings(), fabric=FakeFabric([])).previous_report() is None  # list unreadable
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

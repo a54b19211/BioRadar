@@ -284,7 +284,9 @@ def redact(value: dict) -> dict:
     numbers, states and references stay. Nothing stored is changed."""
     readable = readable_sources()
     hidden = hidden_refs(value["evidence"], readable)
-    if not hidden:
+    # what the earlier rounds cited binds this one too: its text grew out of their reports
+    inherited = hidden_by_analysis([value["id"]], own=False).get(value["id"], {}) if value.get("parent_id") else {}
+    if not hidden and not inherited:
         return value
     value = copy.deepcopy(value)
     for e in value["evidence"]:
@@ -302,7 +304,7 @@ def redact(value: dict) -> dict:
     def safe(terms, origin):
         """Terms that may stay: from the plan or a still readable record; without a known origin (older
         runs, retired queries) only words of the user's own question."""
-        if origin:
+        if origin and not inherited:  # under an earlier round's revoked report nothing else is checkable
             return origin not in origins
         return all("".join(t.split()) in question for t in terms)
 
@@ -317,7 +319,7 @@ def redact(value: dict) -> dict:
         n["detail"] = ""
     result = value.get("result") or {}
     if result:
-        result["withheld"] = notice(hidden)
+        result["withheld"] = notice({**hidden, **inherited})
         result["draft"] = ""
         for key in ("review", "assessment", "mechanism"):
             if result.get(key):
@@ -331,22 +333,34 @@ def redact(value: dict) -> dict:
     return value
 
 
-def hidden_by_analysis(ids) -> dict:
-    """{analysis_id: {ref: reason}} for the given analyses that cite a source not readable now."""
+def hidden_by_analysis(ids, *, own=True) -> dict:
+    """{analysis_id: {ref: reason}} for the given analyses that cite a source not readable now, through
+    their earlier rounds too (a follow-up's text grew out of its parent's report). An earlier round's
+    material is named "上一轮<id>:E3". own=False checks only the earlier rounds."""
+    ids = list(ids)
     if not ids:
         return {}
     with db.session() as s:
+        chains = {a: ([a] if own else []) + analyses.lineage(s, a) for a in ids}
+        wanted = {x for chain in chains.values() for x in chain}
         rows = s.execute(
             select(db.Evidence.analysis_id, db.Evidence.ref, db.Evidence.source).where(
-                db.Evidence.analysis_id.in_(list(ids))
+                db.Evidence.analysis_id.in_(list(wanted))
             )
-        ).all()
+        ).all() if wanted else []
     readable = readable_sources()
     by_analysis = {}
     for analysis_id, ref, source in rows:
         by_analysis.setdefault(analysis_id, []).append({"ref": ref, "source": source})
-    found = {a: hidden_refs(refs, readable) for a, refs in by_analysis.items()}
-    return {a: hidden for a, hidden in found.items() if hidden}
+    found = {}
+    for a, chain in chains.items():
+        hidden = {}
+        for x in chain:
+            for ref, reason in hidden_refs(by_analysis.get(x, []), readable).items():
+                hidden[ref if x == a else f"上一轮{x[:8]}:{ref}"] = reason
+        if hidden:
+            found[a] = hidden
+    return found
 
 
 def redact_summaries(values: list[dict]) -> list[dict]:
@@ -453,7 +467,11 @@ class Followup(BaseModel):
 @app.post("/api/analyses/{analysis_id}/followup", dependencies=analyst)
 def followup(analysis_id: str, body: Followup):
     parent = analyses.get(analysis_id)
+    # a report whose sources (through its earlier rounds) cannot be read now is not handed on; the run
+    # checks again when it uses it (Codex r38)
+    previous = parent.id not in hidden_by_analysis([parent.id])
     row = analyses.create(
+        previous=previous,
         question=body.question,
         direction=parent.input["direction"],
         method=parent.method,
