@@ -202,7 +202,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
         decisions = triage(s, batch, topics)
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
-            flag_corrections(session, batch, is_demo=is_demo)  # same transaction as the observations
+            flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
             for doc, item in zip(batch, decisions):
                 at = parse_time(doc["available_at"])
                 alert = item.alert if item else "none"
@@ -378,12 +378,15 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
     return created
 
 
-def flag_corrections(session, docs, *, is_demo: bool) -> int:
+def flag_corrections(docs, *, is_demo: bool, session=None) -> int:
     """A new correction or retraction marks every analysis that cited the old record (matched on the
     relation's target source + record, and version when Fabric names one; demo and real kept apart),
     and owes its topic a new analysis. Runs in the triage transaction, so the mark is never lost
     between "record seen" and "analyses marked". Analyses still running keep the mark when they
     finish (analyses.execute merges it). Analyses without a topic carry it on the page ("需复核")."""
+    if session is None:
+        with db.session() as own:
+            return flag_corrections(docs, is_demo=is_demo, session=own)
     flagged = 0
     for doc in docs:
         for r in doc["relations"]:
