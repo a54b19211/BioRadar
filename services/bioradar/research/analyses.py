@@ -256,6 +256,7 @@ def view(row: db.Analysis, *, full=False) -> dict:
                     select(db.LlmCall).where(db.LlmCall.analysis_id == row.id).order_by(db.LlmCall.id)
                 )
             ]
+            value["reviews"] = reviews(analysis_id=row.id, limit=200, session=session)
     return value
 
 
@@ -274,7 +275,111 @@ def evidence_text(analysis_id: str, ref: str) -> dict:
         )
     if row is None:
         raise NotFound(ref)
-    return {"ref": row.ref, "title": row.title, "text": row.text, "version_id": row.version_id, **row.meta}
+    return {
+        "ref": row.ref,
+        "source": row.source,
+        "record_id": row.record_id,
+        "title": row.title,
+        "text": row.text,
+        "version_id": row.version_id,
+        **row.meta,
+    }
+
+
+def review_view(r: db.Review, name: str) -> dict:
+    return {
+        "id": r.id,
+        "by": name,
+        "action": r.action,
+        "analysis_id": r.analysis_id,
+        "sentence": r.sentence,
+        "evidence_ref": r.evidence_ref,
+        "topic_id": r.topic_id,
+        "alert": r.alert,
+        "note": r.note,
+        "created_at": r.created_at.isoformat(),
+    }
+
+
+def review(
+    user: db.User,
+    *,
+    action,
+    analysis_id=None,
+    sentence=None,
+    evidence_ref=None,
+    topic_id=None,
+    alert=None,
+    note="",
+) -> dict:
+    """Record a person's decision. confirm / reject name a BioCheck sentence of a completed analysis,
+    flag_source one of its materials, set_alert a topic's alert. reject and flag_source owe the analysis's
+    topic a new analysis (analyst_review); an analysis without a topic only keeps the record."""
+    from bioradar.research import monitor  # monitor imports this module
+
+    at = db.now()
+    with db.session() as session:
+        topic = None
+        if action == "set_alert":
+            topic = session.get(db.Topic, topic_id) if topic_id else None
+            if topic is None or alert is None:
+                raise InvalidInput("set_alert 需要存在的 topic_id 和 alert")
+            if topic.alert != alert:
+                monitor.event(session, topic, at, "alert", before=topic.alert, after=alert, by=user.name)
+                topic.alert = alert
+            analysis_id = sentence = evidence_ref = None
+        else:
+            row = session.get(db.Analysis, analysis_id) if analysis_id else None
+            if row is None:
+                raise NotFound(analysis_id or "analysis_id")
+            if action == "flag_source":
+                found = session.scalar(
+                    select(db.Evidence.id).where(
+                        db.Evidence.analysis_id == row.id, db.Evidence.ref == (evidence_ref or "")
+                    )
+                )
+                if found is None:
+                    raise InvalidInput(f"这份分析没有材料 {evidence_ref}")
+                sentence = None
+            else:
+                claims = ((row.result or {}).get("review") or {}).get("claims") or []
+                if sentence not in {c.get("index") for c in claims}:
+                    raise InvalidInput(f"这份报告没有第 {sentence} 句")
+                evidence_ref = None
+            investigation = session.get(db.Investigation, row.investigation_id)
+            topic = session.get(db.Topic, investigation.topic_id) if investigation.topic_id else None
+            if action in {"reject", "flag_source"} and topic is not None:
+                monitor.owe(topic, "analyst_review", at)
+            alert = None
+        record = db.Review(
+            user_id=user.id,
+            action=action,
+            analysis_id=analysis_id,
+            sentence=sentence,
+            evidence_ref=evidence_ref,
+            topic_id=topic.id if topic else None,
+            alert=alert,
+            note=note,
+            created_at=at,
+        )
+        session.add(record)
+        session.flush()
+        return review_view(record, user.name)
+
+
+def reviews(*, analysis_id=None, topic_id=None, limit=50, session=None) -> list[dict]:
+    with nullcontext(session) if session is not None else db.session() as session:
+        query = (
+            select(db.Review, db.User.name)
+            .join(db.User, db.User.id == db.Review.user_id)
+            .order_by(db.Review.id.desc())
+            .limit(limit)
+        )
+        if analysis_id:
+            query = query.where(db.Review.analysis_id == analysis_id)
+        if topic_id:
+            query = query.where(db.Review.topic_id == topic_id)
+        return [review_view(r, name) for r, name in session.execute(query).all()]
 
 
 def wait_until_done(analysis_id: str, timeout=3600):

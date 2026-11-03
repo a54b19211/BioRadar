@@ -597,6 +597,27 @@ def advance(s: Settings, clock: datetime, *, is_demo: bool):
     return rising
 
 
+def review_basis(session, topic_id, since) -> str:
+    """What analysts rejected or flagged since this topic was owed, for the new analysis to address."""
+    rows = session.scalars(
+        select(db.Review)
+        .where(
+            db.Review.topic_id == topic_id,
+            db.Review.action.in_(("reject", "flag_source")),
+            db.Review.created_at >= since,
+        )
+        .order_by(db.Review.id)
+        .limit(10)
+    )
+    lines = []
+    for r in rows:
+        what = (
+            f"报告第 {r.sentence} 句被驳回" if r.action == "reject" else f"材料 {r.evidence_ref} 被标记有误"
+        )
+        lines.append(f"{what}（上一轮分析 {r.analysis_id[:8]}）" + (f"：{r.note}" if r.note else ""))
+    return ("\n分析员复核意见，请逐条回应：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
+
+
 def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budget=False):
     """One automatic analysis per topic that is owed one (started rising, awoke or raised its alert),
     most urgent first. Live monitoring is capped per hour; what the cap holds back stays owed."""
@@ -649,6 +670,8 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             )
             if "series_change" in reason.split("+"):
                 question += series_basis(session, topic_id)
+            if "analyst_review" in reason.split("+"):
+                question += review_basis(session, topic_id, owed_topic.pending_since)
             row = analyses.create(
                 question=question,
                 direction=topic.direction,

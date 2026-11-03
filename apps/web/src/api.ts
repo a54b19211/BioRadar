@@ -91,8 +91,21 @@ export interface Result {
   reads: number;
   notes: Note[];
   usage: { llm_calls: number; requests: number; tokens: number };
+  // set when a cited material's source cannot be read now: the texts below are withheld
+  withheld?: string;
+  // BioCheck's sentence-by-sentence check; the sentence index is what a review refers to
+  review?: { claims?: Claim[] | null } | null;
   // added later by the monitor when a cited record is corrected or retracted
   source_updates?: { ref: string; record_id: string; kind: "correction" | "retraction"; by_record: string; at: string }[];
+}
+
+export interface Claim {
+  index: number;
+  text: string;
+  citations: string[];
+  verdict: string;
+  reason?: string;
+  quotes?: { ref: string; quote: string; found: boolean }[];
 }
 
 export interface Analysis {
@@ -147,15 +160,19 @@ export interface Evidence {
   material_kind: string | null;
   verified: boolean;
   url: string | null;
+  withheld?: string; // the source cannot be read now (revoked, or Fabric's source list unreadable)
 }
 
 export interface EvidenceText {
   ref: string;
+  source: string;
+  record_id: string;
   title: string;
   text: string;
   version_id: string;
   url?: string | null;
   text_level?: string | null;
+  withheld?: string;
 }
 
 export interface ModelCall {
@@ -180,6 +197,7 @@ export interface AnalysisFull extends Analysis {
   };
   evidence: Evidence[];
   calls: ModelCall[];
+  reviews: Review[];
 }
 
 export type TopicState = "emerging" | "rising" | "cooling" | "dormant";
@@ -202,13 +220,14 @@ export interface Topic {
 // An event is { at, kind } plus the keys of its detail, which depend on the kind.
 export interface TopicEvent {
   at: string;
-  kind: "created" | "observed" | "state" | "analysis";
+  kind: "created" | "observed" | "state" | "analysis" | "watch" | "series" | "alert";
   record?: string;
   title?: string;
   alert?: Alert;
   closure?: boolean;
-  before?: TopicState;
-  after?: TopicState;
+  before?: string; // a TopicState, or an Alert for kind "alert"
+  after?: string;
+  by?: string; // kind "alert": who changed it
   reason?: string;
   analysis_id?: string;
 }
@@ -258,7 +277,14 @@ export class ApiError extends Error {
 }
 
 /** null = not checked yet. The router guard fills it in, login/logout and any 401 update it. */
-export const auth = reactive<{ signedIn: boolean | null }>({ signedIn: null });
+export type Role = "viewer" | "analyst" | "admin";
+export const auth = reactive<{ signedIn: boolean | null; name: string; role: Role | null }>({
+  signedIn: null,
+  name: "",
+  role: null,
+});
+// viewer reads; analyst also asks, follows up and reviews; admin also manages users
+export const canReview = () => auth.role === "analyst" || auth.role === "admin";
 
 // The backend answers errors in three shapes: {error_code, message}, {detail: "text"} and {detail: [{msg}]}.
 async function errorText(res: Response): Promise<string> {
@@ -297,17 +323,51 @@ const demo = (isDemo: boolean) => `is_demo=${isDemo}`;
 
 // ---- session -------------------------------------------------------------------------------
 
-export async function checkSession() {
-  auth.signedIn = (await request<{ signed_in: boolean }>("GET", "/api/session")).signed_in;
+interface SessionState {
+  signed_in: boolean;
+  name?: string;
+  role?: Role;
 }
-export async function login(credential: string) {
-  await request("POST", "/api/session", { credential });
-  auth.signedIn = true;
+function setSession(s: SessionState) {
+  auth.signedIn = s.signed_in;
+  auth.name = s.name ?? "";
+  auth.role = s.role ?? null;
+}
+export async function checkSession() {
+  setSession(await request<SessionState>("GET", "/api/session"));
+}
+export async function login(name: string, credential: string) {
+  setSession(await request<SessionState>("POST", "/api/session", { name, credential }));
 }
 export async function logout() {
   await request("DELETE", "/api/session");
-  auth.signedIn = false;
+  setSession({ signed_in: false });
 }
+
+// ---- human reviews -------------------------------------------------------------------------
+
+export type ReviewAction = "confirm" | "reject" | "flag_source" | "set_alert";
+export interface Review {
+  id: number;
+  by: string;
+  action: ReviewAction;
+  analysis_id: string | null;
+  sentence: number | null;
+  evidence_ref: string | null;
+  topic_id: string | null;
+  alert: Alert | null;
+  note: string;
+  created_at: string;
+}
+export const addReview = (body: {
+  action: ReviewAction;
+  analysis_id?: string;
+  sentence?: number;
+  evidence_ref?: string;
+  topic_id?: string;
+  alert?: Alert;
+  note?: string;
+}) => request<Review>("POST", "/api/reviews", body);
 
 // ---- analyses ------------------------------------------------------------------------------
 

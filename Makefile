@@ -9,7 +9,7 @@ help:
 	@echo 'make dev         start postgres, redis, api, worker, monitor and web in Docker'
 	@echo 'make check       run the three checks: test, lint, web-check'
 init:
-	test -f ops/.env || python3 -c "import secrets,pathlib; t=pathlib.Path('ops/env.example').read_text(); t=t.replace('replace-with-generated-local-password', secrets.token_urlsafe(18)).replace('replace-with-generated-login', secrets.token_urlsafe(12)); p=pathlib.Path('ops/.env'); p.write_text(t); p.chmod(0o600)"
+	test -f ops/.env || python3 -c "import secrets,pathlib; t=pathlib.Path('ops/env.example').read_text(); t=t.replace('replace-with-generated-local-password', secrets.token_urlsafe(18)).replace('replace-with-generated-login', secrets.token_urlsafe(12)).replace('replace-with-generated-session-key', secrets.token_urlsafe(32)); p=pathlib.Path('ops/.env'); p.write_text(t); p.chmod(0o600)"
 bootstrap:
 	python3 -m venv .tools/bootstrap
 	.tools/bootstrap/bin/python -m pip install uv==0.13.0

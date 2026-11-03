@@ -2,13 +2,14 @@
 import { computed, onBeforeUnmount, provide, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { ElMessage } from "element-plus";
-import { exportAnalysis, followup, getAnalysis, type AnalysisFull } from "../api";
+import { canReview, exportAnalysis, followup, getAnalysis, type AnalysisFull } from "../api";
 import { fmt, label } from "../labels";
 import StatusTag from "../components/StatusTag.vue";
 import CiteLink from "../components/CiteLink.vue";
 import EvidenceDrawer from "../components/EvidenceDrawer.vue";
 import AnalysisResult from "../components/AnalysisResult.vue";
 import AnalysisProcess from "../components/AnalysisProcess.vue";
+import ReviewPanel from "../components/ReviewPanel.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -121,8 +122,16 @@ async function download() {
       </div>
       <div class="muted">用「追问」重新分析；专题分析会自动重做。</div>
     </el-alert>
+    <el-alert
+      v-if="a.result?.withheld"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-top: 12px"
+      :title="a.result.withheld"
+    />
     <div class="row" style="margin-top: 12px">
-      <el-button type="primary" @click="asking = true">追问</el-button>
+      <el-button v-if="canReview()" type="primary" @click="asking = true">追问</el-button>
       <el-button @click="download">导出</el-button>
       <span v-if="running" class="muted">正在运行，页面每 4 秒自动刷新</span>
     </div>
@@ -150,6 +159,7 @@ async function download() {
       {{ running ? "报告尚未生成。" : "没有生成报告，原因见下方备注。" }}
     </p>
 
+    <ReviewPanel :a="a" @changed="refresh" />
     <AnalysisResult :a="a" />
     <AnalysisProcess :a="a" />
   </template>
