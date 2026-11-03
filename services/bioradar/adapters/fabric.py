@@ -26,7 +26,13 @@ def _time(value):
 
 UNVERIFIED_KINDS = {"social_media", "repost"}
 NOT_RESEARCH = ("editorial", "letter", "comment", "news", "erratum", "retraction")
-RESEARCH = {"research-article", "journal article", "clinical trial", "randomized controlled trial", "case reports"}
+RESEARCH = {
+    "research-article",
+    "journal article",
+    "clinical trial",
+    "randomized controlled trial",
+    "case reports",
+}
 
 
 def native_kind(record: dict):

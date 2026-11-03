@@ -114,8 +114,14 @@ def test_a_literature_record_without_document_evidence_keeps_its_own_publication
 
     def epmc(types, evidence=None):
         raw = {"pubTypeList": {"pubType": types}, "abstractText": "We performed ..."}
-        rec = {"source_id": "europe_pmc", "source_record_id": "MED:1", "version_id": "v", "is_demo": False,
-               "record_kind": "document", "raw_content": json.dumps(raw)}
+        rec = {
+            "source_id": "europe_pmc",
+            "source_record_id": "MED:1",
+            "version_id": "v",
+            "is_demo": False,
+            "record_kind": "document",
+            "raw_content": json.dumps(raw),
+        }
         if evidence:
             rec["document_evidence"] = evidence
         return document(rec)
