@@ -113,7 +113,10 @@ def outcome_lines(value, pointer="") -> list[str]:
         groups = {g.get("id"): g.get("title", g.get("id")) for g in m.get("groups", [])}
         denoms = [
             f"{d.get('units', '')}: "
-            + "，".join(f"{groups.get(c.get('groupId'), c.get('groupId'))} {c.get('value')}" for c in d.get("counts", []))
+            + "，".join(
+                f"{groups.get(c.get('groupId'), c.get('groupId'))} {c.get('value')}"
+                for c in d.get("counts", [])
+            )
             for d in m.get("denoms", [])
         ]
         parts = []

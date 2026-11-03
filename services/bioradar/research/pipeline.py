@@ -185,12 +185,20 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     return "\n…\n".join(parts) or text[:limit]
 
 
-
 # A trial registry's fields the writer gets whether or not a fact quoted them (Codex r41): what the trial
 # is now and its primary results. Each line names its JSON pointer in the same fixed version.
-REGISTRY_ESSENTIALS = ("status", "phase", "study_type", "enrollment", "enrollment_type", "start_date",
-                       "primary_completion_date", "primary_completion_date_type", "completion_date",
-                       "has_results")
+REGISTRY_ESSENTIALS = (
+    "status",
+    "phase",
+    "study_type",
+    "enrollment",
+    "enrollment_type",
+    "start_date",
+    "primary_completion_date",
+    "primary_completion_date_type",
+    "completion_date",
+    "has_results",
+)
 ESSENTIALS_SHARE = 0.6  # of the record's report characters; the rest is for the quoted passages
 
 

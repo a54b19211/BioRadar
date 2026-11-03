@@ -302,18 +302,34 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
     }
     measures["outcomeMeasures"][0]["denoms"][0]["units"] = "Participants"
     ci = {
-        "type": "SECONDARY", "title": "HbA1c change", "timeFrame": "Week 24", "unitOfMeasure": "%",
-        "paramType": "MEAN", "dispersionType": "95% Confidence Interval",
+        "type": "SECONDARY",
+        "title": "HbA1c change",
+        "timeFrame": "Week 24",
+        "unitOfMeasure": "%",
+        "paramType": "MEAN",
+        "dispersionType": "95% Confidence Interval",
         "groups": [{"id": "OG000", "title": "Drug"}],
         "denoms": [{"units": "Participants", "counts": [{"value": "40", "groupId": "OG000"}]}],
-        "classes": [{"categories": [{"measurements": [
-            {"value": "12", "lowerLimit": "10", "upperLimit": "14", "groupId": "OG000"}]}]}],
+        "classes": [
+            {
+                "categories": [
+                    {
+                        "measurements": [
+                            {"value": "12", "lowerLimit": "10", "upperLimit": "14", "groupId": "OG000"}
+                        ]
+                    }
+                ]
+            }
+        ],
     }
     measures["outcomeMeasures"].append(ci)
-    record["field_locators"]["results_outcome_measures"] = {"json_pointer": "/resultsSection/outcomeMeasuresModule"}
+    record["field_locators"]["results_outcome_measures"] = {
+        "json_pointer": "/resultsSection/outcomeMeasuresModule"
+    }
     text = document(dict(record, facts=dict(record["facts"], results_outcome_measures=measures)))["text"]
     assert (
-        "终点 PRIMARY 「Total Energy Expenditure (TEE)」（/resultsSection/outcomeMeasuresModule/outcomeMeasures/0；"
+        "终点 PRIMARY 「Total Energy Expenditure (TEE)」（"
+        "/resultsSection/outcomeMeasuresModule/outcomeMeasures/0；"
         "unitOfMeasure kcal/day；paramType MEAN；dispersionType STANDARD_DEVIATION；"
         "分析数 Participants: Leptin Repletion 22，T3 Repletion 9）: "
         "Initial Wt: Leptin Repletion 3131 (spread 500)，T3 Repletion 2961 (spread 243)"
@@ -321,6 +337,7 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
     # Codex r41: a confidence interval keeps its limits, its time frame and its analysed units
     assert (
         "（/resultsSection/outcomeMeasuresModule/outcomeMeasures/1；timeFrame Week 24；unitOfMeasure %；"
-        "paramType MEAN；dispersionType 95% Confidence Interval；分析数 Participants: Drug 40）: Drug 12 [10, 14]"
+        "paramType MEAN；dispersionType 95% Confidence Interval；"
+        "分析数 Participants: Drug 40）: Drug 12 [10, 14]"
     ) in text
     assert '"outcomeMeasures"' not in text  # the long JSON is not repeated beside the compact lines
