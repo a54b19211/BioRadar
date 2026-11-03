@@ -582,7 +582,9 @@ def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_i
         value, call = base(settings_, stage, system, payload, model_cls, **options)
         if stage == "plan":
             value.objects = [schemas.PlanObject(name="武汉")]
-            value.checks = [schemas.PlanCheck(text="武汉卫健委是否确认华南海鲜市场聚集", required=True, objects=[1])]
+            value.checks = [
+                schemas.PlanCheck(text="武汉卫健委是否确认华南海鲜市场聚集", required=True, objects=[1])
+            ]
             value.queries = [schemas.PlanQuery(terms=["华南海鲜"], checks=[1])]
         return value, call
 

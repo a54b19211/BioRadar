@@ -116,19 +116,27 @@ def points(rows):
         if r.get("superseded_by") in visible:
             continue  # a correction replaces the row only from when the correction itself was visible
         seen.setdefault((r["period_start"], r["period_end"], r["value"], r["status"]), r)
-    return sorted(seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"]))
+    return sorted(
+        seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"])
+    )
 
 
 def adjacent(points_):
     """A trend needs consecutive periods: no gap, no overlap, no as-of stock."""
     return all(
-        a["period"] and b["period"] and timedelta(0) < b["period_start"] - a["period_end"] <= timedelta(days=1)
+        a["period"]
+        and b["period"]
+        and timedelta(0) < b["period_start"] - a["period_end"] <= timedelta(days=1)
         for a, b in zip(points_, points_[1:])
     )
 
 
 def _same_period(p, q):
-    return (p["period_start"], p["period_end"], p["status"]) == (q["period_start"], q["period_end"], q["status"])
+    return (p["period_start"], p["period_end"], p["status"]) == (
+        q["period_start"],
+        q["period_end"],
+        q["status"],
+    )
 
 
 def _conflicted(series, p):
@@ -176,9 +184,13 @@ def evaluate(series, i):
         out.append(step)
     before = [p["value"] for p in same[:-1]]
     if len(before) >= 2 and cur["value"] > max(before):
-        out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]})
+        out.append(
+            {"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]}
+        )
     if len(before) >= 2 and cur["value"] < min(before):
-        out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]})
+        out.append(
+            {"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]}
+        )
     tail = same[-(STREAK + 1) :]
     if len(tail) == STREAK + 1 and adjacent(tail):
         steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
@@ -210,7 +222,12 @@ def changes(rows, new_id):
         if _summary(now) != was.get(series[j]["id"], []):
             before = sorted({k for k, _ in was.get(series[j]["id"], [])})
             out.append(
-                {"kind": "revised", "rows": [series[j]["id"]], "was": before, "now": sorted({c["kind"] for c in now})}
+                {
+                    "kind": "revised",
+                    "rows": [series[j]["id"]],
+                    "was": before,
+                    "now": sorted({c["kind"] for c in now}),
+                }
             )
     return out
 

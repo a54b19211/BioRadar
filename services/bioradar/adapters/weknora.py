@@ -80,7 +80,9 @@ def search(
             scopes[scope] = {"error": f"http_{status}" if status else type(exc).__name__}
             continue
         # channels, usage, model descriptors and degraded reasons; the publication list is left out (size)
-        scopes[scope] = {k: v for k, v in (data.get("execution") or {}).items() if k != "filtered_publications"}
+        scopes[scope] = {
+            k: v for k, v in (data.get("execution") or {}).items() if k != "filtered_publications"
+        }
         for hit in data.get("results") or []:
             key = identity(hit)
             instance = (hit.get("identity") or {}).get("source_instance")

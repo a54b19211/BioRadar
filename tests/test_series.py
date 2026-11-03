@@ -111,7 +111,14 @@ def fake_triage(by_title, payloads, *, topic_title=""):
                     measures=measures,
                 )
             )
-        call = {"stage": stage, "model": "fake", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
+        call = {
+            "stage": stage,
+            "model": "fake",
+            "finish_reason": "stop",
+            "usage": {},
+            "seconds": 0,
+            "error": None,
+        }
         return schemas.Triage(items=items), call
 
     return chat_json
@@ -142,12 +149,27 @@ def lines(period, value, status, quote):
 
 QUARTERS = [
     ("R1", "2026-01-15", "甲公司一季报：计划新建2条灌装线", ("2026Q1", 2, "planned", "计划新建2条灌装线")),
-    ("R2", "2026-04-15", "甲公司二季报：重申计划新建2条灌装线", ("2026Q2", 2, "planned", "计划新建2条灌装线")),
-    ("R3", "2026-07-15", "甲公司三季报：2条灌装线已开工建设", ("2026Q3", 2, "under_construction", "2条灌装线已开工")),
+    (
+        "R2",
+        "2026-04-15",
+        "甲公司二季报：重申计划新建2条灌装线",
+        ("2026Q2", 2, "planned", "计划新建2条灌装线"),
+    ),
+    (
+        "R3",
+        "2026-07-15",
+        "甲公司三季报：2条灌装线已开工建设",
+        ("2026Q3", 2, "under_construction", "2条灌装线已开工"),
+    ),
     ("R4", "2026-10-15", "甲公司四季报：3条灌装线投运", ("2026Q4", 3, "operational", "3条灌装线投运")),
     ("R5", "2026-10-20", "甲公司更正：四季度投运2条灌装线", ("2026Q4", 2, "operational", "投运2条灌装线")),
     ("R6", "2026-10-21", "甲公司新闻稿：产能扩张", ("2026Q4", 9, "operational", "原文里没有的9条")),
-    ("R7", "2026-10-22", "甲公司公告：2026Q4有12条线在调试", ("2026Q4", 2, "operational", "2026Q4有12条线在调试")),
+    (
+        "R7",
+        "2026-10-22",
+        "甲公司公告：2026Q4有12条线在调试",
+        ("2026Q4", 2, "operational", "2026Q4有12条线在调试"),
+    ),
 ]
 
 
@@ -226,12 +248,37 @@ def ili(period, value, quote, scope="5个哨点"):
 
 
 WEEKS = [
-    ("H1", "2026-10-12", "澜津哨点周报第41周流感样病例比例4.1%", [ili("2026-10-05/2026-10-11", 4.1, "流感样病例比例4.1%")]),
-    ("H2", "2026-10-19", "澜津哨点周报第42周流感样病例比例4.6%", [ili("2026-10-12/2026-10-18", 4.6, "流感样病例比例4.6%")]),
-    ("H3", "2026-10-26", "澜津哨点周报第43周流感样病例比例5.2%", [ili("2026-10-19/2026-10-25", 5.2, "流感样病例比例5.2%")]),
+    (
+        "H1",
+        "2026-10-12",
+        "澜津哨点周报第41周流感样病例比例4.1%",
+        [ili("2026-10-05/2026-10-11", 4.1, "流感样病例比例4.1%")],
+    ),
+    (
+        "H2",
+        "2026-10-19",
+        "澜津哨点周报第42周流感样病例比例4.6%",
+        [ili("2026-10-12/2026-10-18", 4.6, "流感样病例比例4.6%")],
+    ),
+    (
+        "H3",
+        "2026-10-26",
+        "澜津哨点周报第43周流感样病例比例5.2%",
+        [ili("2026-10-19/2026-10-25", 5.2, "流感样病例比例5.2%")],
+    ),
     # a wider coverage and a yearly figure are other series, never compared with the weekly 5-sentinel one
-    ("H4", "2026-10-27", "澜津新增哨点后的周报全部8个哨点为3.0%", [ili("2026-10-19/2026-10-25", 3.0, "全部8个哨点为3.0%", "8个哨点")]),
-    ("H5", "2026-10-28", "澜津年度监测综述全年流感样病例比例2.5%", [ili("2026", 2.5, "全年流感样病例比例2.5%")]),
+    (
+        "H4",
+        "2026-10-27",
+        "澜津新增哨点后的周报全部8个哨点为3.0%",
+        [ili("2026-10-19/2026-10-25", 3.0, "全部8个哨点为3.0%", "8个哨点")],
+    ),
+    (
+        "H5",
+        "2026-10-28",
+        "澜津年度监测综述全年流感样病例比例2.5%",
+        [ili("2026", 2.5, "全年流感样病例比例2.5%")],
+    ),
 ]
 
 
@@ -249,7 +296,10 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
     assert [t.title for t in topics] == ["澜津·流感样病例比例（5个哨点）"]
     assert topics[0].pending_reason == "series_change" and topics[0].direction == "public_health"
     assert [[c["kind"] for c in e.detail["changes"]] for e in events] == [["step", "new_high", "streak_up"]]
-    assert len(rows) == 5 and {r.scope for r in rows} == {"5个哨点", "8个哨点"}  # all kept, none compared across
+    assert len(rows) == 5 and {r.scope for r in rows} == {
+        "5个哨点",
+        "8个哨点",
+    }  # all kept, none compared across
 
 
 def test_known_series_shown_to_a_replay_are_only_those_visible_then():

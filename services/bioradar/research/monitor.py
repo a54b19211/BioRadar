@@ -379,7 +379,9 @@ def measure(session, s: Settings, doc, item, topic, at, is_demo, topics) -> list
             value=m.value,
             # a rate's parts are kept only when the quote states them too
             numerator=m.numerator if m.numerator is not None and series.quoted(m.numerator, quote) else None,
-            denominator=m.denominator if m.denominator is not None and series.quoted(m.denominator, quote) else None,
+            denominator=m.denominator
+            if m.denominator is not None and series.quoted(m.denominator, quote)
+            else None,
             period=m.period.strip()[:40],
             period_start=bounds[0],
             period_end=bounds[1],
@@ -394,7 +396,9 @@ def measure(session, s: Settings, doc, item, topic, at, is_demo, topics) -> list
         session.add(row)
         session.flush()
         for source, record_id, version_id in corrected:
-            query = select(db.Measurement).filter_by(source=source, record_id=record_id, period=row.period, **same)
+            query = select(db.Measurement).filter_by(
+                source=source, record_id=record_id, period=row.period, **same
+            )
             if version_id:
                 query = query.filter_by(version_id=version_id)
             for old in session.scalars(query):
