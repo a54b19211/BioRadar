@@ -680,7 +680,14 @@ def test_same_opening_with_the_opposite_ending_is_not_a_copy():
         pages={},
         objects=[],
         hits=[
-            {"source": "s", "record_id": rid, "title": "", "checks": ["Q1"], "critical": False, "read": rid == "r0"}
+            {
+                "source": "s",
+                "record_id": rid,
+                "title": "",
+                "checks": ["Q1"],
+                "critical": False,
+                "read": rid == "r0",
+            }
             for rid in ("r0", "same", "bg", "tail")
         ],
     )
