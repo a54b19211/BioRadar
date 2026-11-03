@@ -18,6 +18,8 @@ def upgrade():
         sa.Column("object", sa.String(200), nullable=False),
         sa.Column("metric", sa.String(200), nullable=False),
         sa.Column("unit", sa.String(50), nullable=False, server_default=""),
+        sa.Column("kind", sa.String(20), nullable=False, server_default="other"),
+        sa.Column("scope", sa.String(200), nullable=False, server_default=""),
         sa.Column("value", sa.Float, nullable=False),
         sa.Column("period", sa.String(40), nullable=False, server_default=""),
         sa.Column("period_start", sa.DateTime(timezone=True), nullable=False),
@@ -28,14 +30,17 @@ def upgrade():
         sa.Column("version_id", sa.String(128), nullable=False),
         sa.Column("quote", sa.Text, nullable=False),
         sa.Column("available_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("received_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
         sa.Column("topic_id", sa.String(36), sa.ForeignKey("topics.id")),
         sa.Column("superseded_by", sa.Integer),
-        sa.UniqueConstraint("version_id", "object", "metric", "unit", "period"),
+        sa.UniqueConstraint("version_id", "object", "metric", "unit", "kind", "scope", "period"),
     )
     op.create_index("ix_measurements_object", "measurements", ["object"])
     op.create_index("ix_measurements_topic_id", "measurements", ["topic_id"])
     op.create_index(
-        "ix_measurements_series", "measurements", ["workspace_id", "is_demo", "object", "metric", "unit"]
+        "ix_measurements_series",
+        "measurements",
+        ["workspace_id", "is_demo", "object", "metric", "unit", "kind", "scope"],
     )
 
 

@@ -153,16 +153,19 @@ def watches(session, topic_ids) -> dict:
     return current
 
 
+KEY = (db.Measurement.object, db.Measurement.metric, db.Measurement.unit, db.Measurement.kind, db.Measurement.scope)
+
+
 def known_series(session, s: Settings, is_demo: bool, limit=40):
     """The most recently measured object/metric/unit keys, shown to triage so names stay the same."""
     rows = session.execute(
-        select(db.Measurement.object, db.Measurement.metric, db.Measurement.unit)
+        select(*KEY)
         .where(db.Measurement.workspace_id == s.workspace_id, db.Measurement.is_demo == is_demo)
-        .group_by(db.Measurement.object, db.Measurement.metric, db.Measurement.unit)
+        .group_by(*KEY)
         .order_by(func.max(db.Measurement.available_at).desc())
         .limit(limit)
     ).all()
-    return [{"object": o, "metric": m, "unit": u} for o, m, u in rows]
+    return [dict(zip(("object", "metric", "unit", "kind", "scope"), r)) for r in rows]
 
 
 def triage(s: Settings, docs, topics, watch=None, known=None):
@@ -342,15 +345,17 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
     for m in measures:
         quote = re.sub(r"\s+", "", m.quote)
         bounds = series.period_bounds(m.period, at)
-        if not quote or quote not in text or bounds is None:
-            log.info(
-                "measure dropped (%s): %s %s",
-                "period" if quote in text else "quote",
-                doc["record_id"],
-                m.metric,
-            )
+        number = f"{m.value:g}"  # the value itself must be written in the quote, not just some real text
+        if not quote or quote not in text or number not in quote or bounds is None:
+            log.info("measure dropped: %s %s %s", doc["record_id"], m.metric, number)
             continue
-        key = dict(object=m.object.strip()[:200], metric=m.metric.strip()[:200], unit=m.unit.strip()[:50])
+        key = dict(
+            object=m.object.strip()[:200],
+            metric=m.metric.strip()[:200],
+            unit=m.unit.strip()[:50],
+            kind=m.kind,
+            scope=m.scope.strip()[:200],
+        )
         same = dict(key, workspace_id=s.workspace_id, is_demo=is_demo)
         if session.scalar(
             select(db.Measurement.id).filter_by(version_id=doc["version_id"], period=m.period.strip(), **key)
@@ -384,6 +389,8 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
                 "id": r.id,
                 "value": r.value,
                 "status": r.status,
+                "period": r.period,
+                "period_start": r.period_start,
                 "period_end": r.period_end,
                 "available_at": r.available_at,
                 "superseded_by": r.superseded_by,
@@ -404,6 +411,7 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
                 value=m.value,
                 period=row.period,
                 changes=found,
+                algo=series.VERSION,
             )
         notable = notable or any(c["kind"] in series.NOTABLE for c in found)
     return notable

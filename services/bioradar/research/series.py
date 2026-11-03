@@ -7,7 +7,9 @@ compares them: only within the same unit, repeated mentions of the same period/v
 a correction replaces the row it corrects, and only rows visible at the clock are used."""
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+
+VERSION = "series-v1"  # written into each series event, so a later rule change is visible in old events
 
 # planned -> under construction -> operational; reported -> confirmed
 RANK = {"planned": 0, "under_construction": 1, "operational": 2, "reported": 0, "confirmed": 1}
@@ -66,14 +68,31 @@ def _utc(value):
 def points(rows):
     """Visible, unsuperseded rows of one series -> one point per (period, value, status), ordered by period
     end; the earliest-available row stands for repeated mentions."""
-    rows = [dict(r, period_end=_utc(r["period_end"]), available_at=_utc(r["available_at"])) for r in rows]
+    rows = [
+        dict(
+            r,
+            period_start=_utc(r["period_start"]),
+            period_end=_utc(r["period_end"]),
+            available_at=_utc(r["available_at"]),
+        )
+        for r in rows
+    ]
+    visible = {r["id"] for r in rows}
     seen = {}
     for r in sorted(rows, key=lambda r: r["available_at"]):
-        if r.get("superseded_by"):
-            continue
+        if r.get("superseded_by") in visible:
+            continue  # a correction replaces the row only from when the correction itself was visible
         seen.setdefault((r["period_end"], r["value"], r["status"]), r)
     return sorted(
         seen.values(), key=lambda r: (r["period_end"], RANK.get(r["status"], -1), r["available_at"])
+    )
+
+
+def adjacent(points_):
+    """A trend needs consecutive periods: a missing quarter (or an as-of stock) breaks it."""
+    return all(
+        a["period"] and b["period"] and b["period_start"] - a["period_end"] <= timedelta(days=1)
+        for a, b in zip(points_, points_[1:])
     )
 
 
@@ -127,7 +146,7 @@ def changes(rows, new_id):
                 }
             )
         tail = series[max(0, i - STREAK) : i + 1]
-        if len(tail) == STREAK + 1:
+        if len(tail) == STREAK + 1 and adjacent(tail):
             steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
             if all(d > 0 for d in steps):
                 out.append({"kind": "streak_up", "rows": [r["id"] for r in tail], "late": late})

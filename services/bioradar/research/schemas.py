@@ -119,16 +119,16 @@ class Assessment(BaseModel):
 
 
 class Measure(BaseModel):
-    object: str = Field(description="对象，原文写法")
+    object: str = Field(description="对象，原文写法，具体到项目或基地；series 里已有时沿用")
     metric: str = Field(description="指标名；series 里已有同义指标时沿用原名")
-    value: float
-    unit: str = Field(default="", description="单位；series 里已有同义指标时沿用原单位")
-    period: str = Field(
-        default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空"
+    value: float = Field(description="原文里的数，必须出现在 quote 中")
+    unit: str = ""
+    kind: Literal["stock", "flow", "cumulative", "rate", "other"] = Field(
+        default="other", description="stock 某时点的存量/flow 当期新增/cumulative 累计/rate 比例"
     )
-    status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = (
-        "other"
-    )
+    scope: str = Field(default="", description="统计口径或覆盖范围，如“5个哨点”“全公司”")
+    period: str = Field(default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空")
+    status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = "other"
     quote: str = Field(description="含这个数值的连续原文，逐字复制，不超过120字")
 
 

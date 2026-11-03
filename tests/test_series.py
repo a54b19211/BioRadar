@@ -3,7 +3,7 @@
 from datetime import UTC, datetime
 
 from conftest import FakeFabric, record
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters import llm
@@ -23,11 +23,13 @@ def test_periods_are_read_or_refused():
 
 
 def row(id_, quarter, value, status, available, superseded=None):
-    end = series.period_bounds(quarter, None)[1]
+    start, end = series.period_bounds(quarter, None)
     return {
         "id": id_,
         "value": value,
         "status": status,
+        "period": quarter,
+        "period_start": start,
         "period_end": end,
         "available_at": datetime(2026, 1, available, tzinfo=UTC),
         "superseded_by": superseded,
@@ -54,30 +56,35 @@ def test_a_plan_repeated_each_quarter_is_not_growth_and_a_late_value_is_put_in_o
     assert {(c["kind"], c["late"]) for c in late} >= {("step", False), ("step", True)}
 
 
-def test_values_in_other_units_or_superseded_rows_are_not_compared():
-    rows = [row(1, "2026Q1", 100, "reported", 1), row(2, "2026Q2", 120, "reported", 2, superseded=3)]
-    rows.append(row(3, "2026Q2", 90, "reported", 3))
+def test_a_stock_series_is_compared_not_summed_and_a_missing_quarter_breaks_the_trend():
+    rows = [row(1, "2026Q1", 3, "operational", 1), row(2, "2026Q2", 4, "operational", 2)]
+    rows.append(row(3, "2026Q3", 5, "operational", 3))
     found = series.changes(rows, 3)
-    assert [(c["kind"], c.get("delta")) for c in found] == [("step", -10)]  # against Q1, not the replaced 120
+    assert kinds(found) == ["new_high", "step", "streak_up"]
+    assert [c.get("delta") for c in found if c["kind"] == "step"] == [1]  # 5 lines now, not 3+4+5
+    gap = [row(1, "2026Q1", 3, "operational", 1), row(2, "2026Q3", 5, "operational", 2)]
+    gap.append(row(3, "2026Q4", 6, "operational", 3))
+    assert "streak_up" not in kinds(series.changes(gap, 3))  # Q2 is missing, so no three-quarter trend
+
+
+def test_a_correction_counts_only_from_when_it_was_visible():
+    early = [row(1, "2026Q1", 100, "reported", 1), row(2, "2026Q2", 5, "reported", 2, superseded=3)]
+    corrected = early + [row(3, "2026Q2", 4, "reported", 5)]
+    # as of day 3 the correction is not visible yet: Q2 is still 5
+    assert [p["value"] for p in series.points(early)] == [100, 5]
+    # as of day 6 it is: Q2 is 4, compared with Q1 and not with the replaced 5
+    assert [p["value"] for p in series.points(corrected)] == [100, 4]
+    assert [(c["kind"], c.get("delta")) for c in series.changes(corrected, 3)] == [("step", -96)]
 
 
 QUARTERS = [
     ("R1", "2026-01-15", "甲公司一季报：计划新建2条灌装线", ("2026Q1", 2, "planned", "计划新建2条灌装线")),
-    (
-        "R2",
-        "2026-04-15",
-        "甲公司二季报：重申计划新建2条灌装线",
-        ("2026Q2", 2, "planned", "计划新建2条灌装线"),
-    ),
-    (
-        "R3",
-        "2026-07-15",
-        "甲公司三季报：2条灌装线已开工建设",
-        ("2026Q3", 2, "under_construction", "2条灌装线已开工"),
-    ),
+    ("R2", "2026-04-15", "甲公司二季报：重申计划新建2条灌装线", ("2026Q2", 2, "planned", "计划新建2条灌装线")),
+    ("R3", "2026-07-15", "甲公司三季报：2条灌装线已开工建设", ("2026Q3", 2, "under_construction", "2条灌装线已开工")),
     ("R4", "2026-10-15", "甲公司四季报：3条灌装线投运", ("2026Q4", 3, "operational", "3条灌装线投运")),
     ("R5", "2026-10-20", "甲公司更正：四季度投运2条灌装线", ("2026Q4", 2, "operational", "投运2条灌装线")),
     ("R6", "2026-10-21", "甲公司新闻稿：产能扩张", ("2026Q4", 9, "operational", "原文里没有的9条")),
+    ("R7", "2026-10-22", "甲公司公告：产能扩张顺利", ("2026Q4", 9, "operational", "产能扩张顺利")),
 ]
 
 
@@ -90,10 +97,11 @@ def triage_measures(payloads):
         for r in payload["records"]:
             period, value, status, quote = by_title[r["title"]]
             measure = schemas.Measure(
-                object="甲公司",
+                object="甲公司苏州基地",
                 metric="灌装线数量",
                 value=value,
                 unit="条",
+                kind="stock",
                 period=period,
                 status=status,
                 quote=quote,
@@ -109,14 +117,8 @@ def triage_measures(payloads):
                     measures=[measure],
                 )
             )
-        return schemas.Triage(items=items), {
-            "stage": stage,
-            "model": "fake",
-            "finish_reason": "stop",
-            "usage": {},
-            "seconds": 0,
-            "error": None,
-        }
+        call = {"stage": stage, "model": "fake", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
+        return schemas.Triage(items=items), call
 
     return chat_json
 
@@ -127,9 +129,8 @@ def test_quarterly_records_build_one_series_and_owe_the_topic_only_real_changes(
     fabric = FakeFabric([])
     for rid, day, title, _ in QUARTERS:
         relations = [("corrects", "R4")] if rid == "R5" else ()
-        fabric.docs += FakeFabric(
-            [record(rid, title, title, available=day + "T08:00:00+08:00", relations=relations)]
-        ).docs
+        available = day + "T08:00:00+08:00"
+        fabric.docs += FakeFabric([record(rid, title, title, available=available, relations=relations)]).docs
         monitor.tick(is_demo=True, fabric=fabric)
     with db.session() as s:
         rows = list(s.scalars(select(db.Measurement).order_by(db.Measurement.id)))
@@ -137,7 +138,7 @@ def test_quarterly_records_build_one_series_and_owe_the_topic_only_real_changes(
             s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "series").order_by(db.TopicEvent.id))
         )
         topic = s.scalars(select(db.Topic)).one()
-    # R6's quote is not in its text, so nothing is stored for it
+    # R6's quote is not in its text and R7's quote does not contain its value: nothing stored for either
     assert [(r.record_id, r.value, r.status) for r in rows] == [
         ("R1", 2, "planned"),
         ("R2", 2, "planned"),
@@ -151,6 +152,18 @@ def test_quarterly_records_build_one_series_and_owe_the_topic_only_real_changes(
         ("R4", ["step", "new_high"]),
         ("R5", ["status_advance"]),  # after the correction Q4 is the same 2 lines, now operational
     ]
+    assert {e.detail["algo"] for e in events} == {series.VERSION}
     assert "series_change" in (topic.pending_reason or "")
-    # triage is shown the series already being tracked, so the name stays the same next quarter
-    assert payloads[-1]["series"] == [{"object": "甲公司", "metric": "灌装线数量", "unit": "条"}]
+    # triage is shown the series already being tracked, so the names stay the same next quarter
+    assert payloads[-1]["series"] == [
+        {"object": "甲公司苏州基地", "metric": "灌装线数量", "unit": "条", "kind": "stock", "scope": ""}
+    ]
+    # the same correction triaged again (a retried round) is not measured or announced twice
+    doc = next(d for d in fabric.docs if d["record_id"] == "R5")
+    again = schemas.Measure(
+        object="甲公司苏州基地", metric="灌装线数量", value=2, unit="条", kind="stock",
+        period="2026Q4", status="operational", quote="投运2条灌装线",
+    )
+    with db.session() as s:
+        assert monitor.measure(s, monitor.settings(), doc, [again], topic, rows[4].available_at, True) is False
+        assert s.scalar(select(func.count()).select_from(db.Measurement)) == 5
