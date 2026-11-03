@@ -108,7 +108,9 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                 got = 0
                 while got < limit:
                     at = ends[source]
-                    items, after = fabric.changes(source, is_demo=is_demo, after=at, limit=min(100, limit - got))
+                    items, after = fabric.changes(
+                        source, is_demo=is_demo, after=at, limit=min(100, limit - got)
+                    )
                     fresh = unseen(session, items)
                     docs.extend(fresh)
                     got += len(fresh)
