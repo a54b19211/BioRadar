@@ -53,7 +53,7 @@ ASSESS = (
   真实性不高但后果严重的线索仍可以是高优先级。
 - grounds 只填报告里实际引用的材料编号。unproven 写还没证实的部分和最能区分的下一项证据。
 - 没有检出不等于排除。季节性疾病也可能需要优先核实。未证实的传言不能写成已证实。
-- hypotheses：只给 hypotheses 里出现的编号评级（insufficient/possible/probable/confirmed/refuted），只归纳报告里已经核验过的说法，不能把报告里的「可能」升级成证实，也不能补新事实。
+- hypotheses：只给 hypotheses 里出现的编号评级（insufficient/possible/probable/confirmed/refuted），只归纳报告里已经核验过的说法，不能把报告里的「可能」升级成证实，也不能补新事实；报告只写待验证的假设，所以最高给 probable。
 - alert：整体情报等级。none=无关或噪声；normal=值得记录；important=需要尽快核实跟进；urgent=可能有重大后果且需要立即行动。"""
 )
 

@@ -362,7 +362,46 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
     result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
     generate = next(body for op, body in sent if op == "generate")
     assert generate["hypotheses"][0]["id"] == "H1" and generate["hypotheses"][0]["facts"]
-    assert [(h["id"], h["level"]) for h in result["assessment"]["hypotheses"]] == [("H1", "probable")]
+    # no sentence was verified, so the tagged facts back nothing
+    assert [(h["id"], h["level"]) for h in result["assessment"]["hypotheses"]] == [("H1", "possible")]
     with db.session() as s:
         watch = s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "watch")).one()
     assert [(w["id"], w["direction"]) for w in watch.detail["items"]] == [("W1", "confirm"), ("W2", "refute")]
+
+
+def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
+    """Nothing is confirmed after the report; probable needs a verified supporting fact."""
+    row = analyses.create(question="工厂是否为 XQ-17 备货？", direction="business", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    run.p.update(
+        checks=[],
+        judgments=[],
+        hypotheses=[{"id": h, "statement": h} for h in ("H1", "H2", "H3", "H4")],
+        facts=[
+            {"ref": "E1", "hypothesis": "H1", "stance": "supports"},
+            {"ref": "E2", "hypothesis": "H2", "stance": "supports"},  # cited, but not verified
+            {"ref": "E1", "hypothesis": "H3", "stance": "supports"},
+            {"ref": "E3", "hypothesis": "H3", "stance": "refutes"},
+        ],
+        report={
+            "status": "PASS",
+            "draft": "新工厂可能用于 XQ-17 备货[E1][E2][E3]。",
+            "claims": [
+                {"verdict": "supported", "citations": ["E1", "E3"]},
+                {"verdict": "insufficient", "citations": ["E2"]},
+            ],
+        },
+    )
+    graded = schemas.Assessment(
+        alert="important",
+        hypotheses=[schemas.HypothesisLevel(id=h, level="confirmed") for h in ("H1", "H2", "H3")]
+        + [schemas.HypothesisLevel(id="H4", level="refuted")],
+    )
+    monkeypatch.setattr(run, "ask", lambda *a, **k: graded)
+    run.assess()
+    assert [(h["id"], h["level"]) for h in run.p["assessment"]["hypotheses"]] == [
+        ("H1", "probable"),
+        ("H2", "possible"),
+        ("H3", "possible"),
+        ("H4", "possible"),
+    ]

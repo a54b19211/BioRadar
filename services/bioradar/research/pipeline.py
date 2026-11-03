@@ -1008,9 +1008,28 @@ class Run:
             judgment.grounds = [g for g in judgment.grounds if g in cited]
         known = {h["id"] for h in self.p.get("hypotheses", [])}
         result.hypotheses = [h for h in result.hypotheses if h.id in known]
+        # A grade cannot go past the verified report. BioCheck writes hypotheses as 待验证 and never
+        # as confirmed, so assess cannot confirm either; probable needs a tagged supporting fact whose
+        # citing sentence BioCheck found supported in a PASS report and no such refutation; refuted
+        # needs a verified refutation. Anything else is at most possible.
+        verified = {
+            e for c in report.get("claims", []) if c["verdict"] == "supported" for e in c["citations"]
+        }
+        order = ["insufficient", "possible", "probable", "confirmed"]
         for h in result.hypotheses:
-            if h.level == "confirmed" and report["status"] != "PASS":
-                h.level = "probable"  # an unverified report cannot confirm anything
+            stances = {
+                f["stance"]
+                for f in self.p.get("facts", [])
+                if f.get("hypothesis") == h.id and f["ref"] in verified
+            }
+            if h.level == "refuted":
+                if "refutes" not in stances:
+                    h.level = "possible"
+                continue
+            strong = report["status"] == "PASS" and "supports" in stances and "refutes" not in stances
+            cap = "probable" if strong else "possible"
+            if order.index(h.level) > order.index(cap):
+                h.level = cap
         self.p["assessment"] = result.model_dump()
         self.watch()
 
