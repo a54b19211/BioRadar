@@ -554,6 +554,7 @@ def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
     assert reads and reads[0]["objects"] == ["XQ-17"]
     assert [c["exploratory"] for c in reads[0]["checks"]] == [["华南海鲜"], []]
     assert [c["objects"] for c in result["checks"]] == [[], ["XQ-17"]]
+    assert [c["required"] for c in result["checks"]] == [False, True]  # Q1 is only about 武汉
     with db.session() as s:
         progress = s.get(db.Analysis, row.id).progress
     assert progress["plan_removed"] == [{"name": "武汉", "basis": "exploratory", "checks": ["Q1"]}]

@@ -300,8 +300,13 @@ class Run:
             }
             for i, c in enumerate(plan.checks[:8], 1)
         ]
+        for c, planned_check in zip(checks, plan.checks):
+            # a check only about objects the question never named is a direction, never required
+            if planned_check.objects and not c["objects"]:
+                c["required"], c["importance"] = False, 0.5
         if not any(c["required"] for c in checks):
-            checks[0]["required"] = True
+            anchor = next((c for c, pc in zip(checks, plan.checks) if not pc.objects or c["objects"]), checks[0])
+            anchor["required"] = True
         required = [c["id"] for c in checks if c["required"]]
         queries = []
         for q in plan.queries[:10]:
