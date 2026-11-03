@@ -1023,12 +1023,13 @@ class Run:
                 if f.get("hypothesis") == h.id and f["ref"] in verified
             }
             if h.level == "refuted":
-                if "refutes" not in stances:
-                    h.level = "possible"
-                continue
-            strong = report["status"] == "PASS" and "supports" in stances and "refutes" not in stances
-            cap = "probable" if strong else "possible"
-            if order.index(h.level) > order.index(cap):
+                cap = "refuted" if "refutes" in stances else "possible"
+            else:
+                strong = report["status"] == "PASS" and "supports" in stances and "refutes" not in stances
+                cap = "probable" if strong else "possible"
+                cap = h.level if order.index(h.level) <= order.index(cap) else cap
+            if cap != h.level:
+                h.reason = f"评估给 {h.level}，已核验报告只撑得住 {cap}"
                 h.level = cap
         self.p["assessment"] = result.model_dump()
         self.watch()

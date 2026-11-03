@@ -401,6 +401,7 @@ def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
     )
     monkeypatch.setattr(run, "ask", lambda *a, **k: graded)
     run.assess()
+    assert "已核验报告" in run.p["assessment"]["hypotheses"][0]["reason"]
     assert [(h["id"], h["level"]) for h in run.p["assessment"]["hypotheses"]] == [
         ("H1", "probable"),
         ("H2", "possible"),
