@@ -53,9 +53,14 @@ def _month_end(year, month):
     return datetime.fromtimestamp(nxt.timestamp() - 86400, UTC)
 
 
+def _utc(value):
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value  # SQLite returns naive values
+
+
 def points(rows):
     """Visible, unsuperseded rows of one series -> one point per (period, value, status), ordered by period
     end; the earliest-available row stands for repeated mentions."""
+    rows = [dict(r, period_end=_utc(r["period_end"]), available_at=_utc(r["available_at"])) for r in rows]
     seen = {}
     for r in sorted(rows, key=lambda r: r["available_at"]):
         if r.get("superseded_by"):
