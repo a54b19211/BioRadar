@@ -371,7 +371,9 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
 
 def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
     """Nothing is confirmed after the report; probable needs a verified supporting fact."""
-    row = analyses.create(question="工厂是否为 XQ-17 备货？", direction="business", is_demo=True, enqueue=False)
+    row = analyses.create(
+        question="工厂是否为 XQ-17 备货？", direction="business", is_demo=True, enqueue=False
+    )
     run = Run(row, settings(), fabric=FakeFabric([]))
     run.p.update(
         checks=[],
