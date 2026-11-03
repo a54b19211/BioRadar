@@ -319,6 +319,9 @@ def redact(value: dict) -> dict:
             if not safe([c.get("text", "")], ""):
                 c["text"] = ""
             c["exploratory"] = [n for n in c.get("exploratory", []) if safe([n], "")]
+        result_ = value.get("result") or {}
+        if isinstance(result_.get("plan_basis"), dict):  # the plan's names are its keys, not its values
+            result_["plan_basis"] = {k: v for k, v in result_["plan_basis"].items() if safe([k], "")}
     for a in progress.get("actions") or []:
         terms = a.get("args", {}).get("terms")
         if terms and not safe(terms, a.get("origin", "")):
