@@ -184,12 +184,18 @@ def test_weknora_search_goes_through_the_bridge_by_direction_scope():
 
     def handler(request):
         body = json.loads(request.content)
-        sent.append((request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"]))
+        sent.append(
+            (request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"])
+        )
         hit = {"identity": {"source_id": "who_don", "source_record_id": "D1"}, "score": 0.5}
         return httpx.Response(200, json={"results": [hit, {"identity": {}, "score": 0.1}]})
 
     s = settings().model_copy(
-        update={"weknora_url": "http://bridge.invalid/", "weknora_token": "t", "weknora_knowledge_base_id": "kb"}
+        update={
+            "weknora_url": "http://bridge.invalid/",
+            "weknora_token": "t",
+            "weknora_knowledge_base_id": "kb",
+        }
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
     hits = weknora.search(s, "布病 聚集", direction="public_health", client=client)
