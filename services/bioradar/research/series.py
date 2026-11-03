@@ -203,9 +203,13 @@ def evaluate(series, i, index=None):
         out.append(step)
     before = [p["value"] for p in same[:-1]]
     if len(before) >= 2 and cur["value"] > max(before):
-        out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]})
+        out.append(
+            {"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]}
+        )
     if len(before) >= 2 and cur["value"] < min(before):
-        out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]})
+        out.append(
+            {"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]}
+        )
     tail = same[-(STREAK + 1) :]
     if len(tail) == STREAK + 1 and adjacent(tail):
         steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
@@ -239,13 +243,22 @@ def changes(rows, new_id):
         return out
     earlier = points([r for r in rows if r["id"] != new_id])  # the series as it was without this row
     before_index = _Index(earlier)
-    was = {p["id"]: _summary(evaluate(earlier, k, before_index)) for k, p in enumerate(earlier) if p["id"] in later}
+    was = {
+        p["id"]: _summary(evaluate(earlier, k, before_index))
+        for k, p in enumerate(earlier)
+        if p["id"] in later
+    }
     for j in range(at + 1, len(series)):
         now = evaluate(series, j, index)
         if _summary(now) != was.get(series[j]["id"], []):
             before = sorted({k for k, _ in was.get(series[j]["id"], [])})
             out.append(
-                {"kind": "revised", "rows": [series[j]["id"]], "was": before, "now": sorted({c["kind"] for c in now})}
+                {
+                    "kind": "revised",
+                    "rows": [series[j]["id"]],
+                    "was": before,
+                    "now": sorted({c["kind"] for c in now}),
+                }
             )
     return out
 
