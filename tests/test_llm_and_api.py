@@ -83,7 +83,8 @@ def test_source_status_keeps_collection_state_new_records_and_publication_apart(
             pass
 
         def source_health(self, source):
-            watches = [{"watch_id": "w1", "state": "failed", "scope": "BCMA"}] if source == "europe_pmc" else []
+            failed = {"watch_id": "w1", "state": "failed", "scope": "BCMA"}
+            watches = [failed] if source == "europe_pmc" else []
             return {"collection": {"state": "unknown", "scope": "recorded_crawl_task"}, "watches": watches}
 
         def latest(self, source, *, is_demo):
@@ -101,5 +102,6 @@ def test_source_status_keeps_collection_state_new_records_and_publication_apart(
     rows = {r["source"]: r for r in body["sources"]}
     assert rows["europe_pmc"]["note"].startswith("采集任务失败")
     assert rows["who_don"]["note"] == "长时间无新增，采集状态待核"
-    assert rows["who_don"]["latest_published_at"] == "2026-10-19" and rows["who_don"]["collection"]["state"] == "unknown"
+    assert rows["who_don"]["latest_published_at"] == "2026-10-19"
+    assert rows["who_don"]["collection"]["state"] == "unknown"
     assert body["daily_auto_tokens"] == s.daily_auto_tokens

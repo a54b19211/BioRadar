@@ -158,7 +158,8 @@ class Cursor(Base):
     source: Mapped[str] = mapped_column(String(80), primary_key=True)
     is_demo: Mapped[bool] = mapped_column(Boolean, primary_key=True)
     after_seq: Mapped[int] = mapped_column(Integer, default=0)
-    last_new_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))  # last round with new records
+    # when a live round last found new records in this feed (source status page)
+    last_new_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 @lru_cache

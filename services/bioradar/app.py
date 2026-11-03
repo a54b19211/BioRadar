@@ -275,7 +275,8 @@ def observations(is_demo: bool = False, limit: int = 50):
 def source_row(fabric: Fabric, source: str, cursor, now: datetime, quiet_hours: int) -> dict:
     """Three things kept apart: Fabric's crawl-task status, the radar's last new record, and the
     newest material's publication time. No combined freshness score."""
-    row = {"source": source, "last_new_at": cursor.last_new_at.isoformat() if cursor and cursor.last_new_at else None}
+    last_new = cursor.last_new_at.isoformat() if cursor and cursor.last_new_at else None
+    row = {"source": source, "last_new_at": last_new}
     try:
         health = fabric.source_health(source)
         collection = health.get("collection") or {}
@@ -313,7 +314,8 @@ def source_status():
     s = settings()
     fabric = Fabric(s)
     with db.session() as session:
-        cursors = {c.source: c for c in session.scalars(select(db.Cursor).where(db.Cursor.is_demo.is_(False)))}
+        live = select(db.Cursor).where(db.Cursor.is_demo.is_(False))
+        cursors = {c.source: c for c in session.scalars(live)}
     now = db.now()
     return {
         "sources": [
