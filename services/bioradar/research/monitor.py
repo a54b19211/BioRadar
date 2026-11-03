@@ -481,8 +481,12 @@ def series_basis(session, topic_id) -> str:
         return ""
     d = last.detail
     used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
-    rows = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end))
-    points = "；".join(f"{r.period or '当时'} {r.value:g}{r.unit}（{r.status}，记录 {r.record_id}）" for r in rows)
+    rows = session.scalars(
+        select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
+    )
+    points = "；".join(
+        f"{r.period or '当时'} {r.value:g}{r.unit}（{r.status}，记录 {r.record_id}）" for r in rows
+    )
     scope = f"（{d['scope']}）" if d.get("scope") else ""
     found = "、".join(sorted({c["kind"] for c in d["changes"]}))
     return f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。这只是待核实的线索，请回原文核对数值、口径和期间。"
