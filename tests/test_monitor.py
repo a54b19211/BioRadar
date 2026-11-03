@@ -568,6 +568,7 @@ def test_recovery_does_not_queue_again_an_analysis_whose_job_is_still_waiting(mo
     from datetime import timedelta
 
     sent = []
+    monkeypatch.setattr(analyses, "_scan", {"offset": 0})
     monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: sent.append(analysis_id))
     row = analyses.create(question="等待中的分析？", direction="pipeline", is_demo=True, enqueue=False)
     with db.session() as s:
@@ -577,3 +578,37 @@ def test_recovery_does_not_queue_again_an_analysis_whose_job_is_still_waiting(mo
     assert analyses.recover() == 0 and sent == []
     waiting.clear()  # the job is gone from Redis (lost before it reached it, or Redis was flushed)
     assert analyses.recover() == 1 and sent == [row.id]
+
+
+def test_waiting_rows_at_the_front_do_not_hide_a_lost_one_and_redis_trouble_is_not_loss(monkeypatch):
+    """Codex r39: with limit 4 taken before the Redis check, four waiting rows hid a fifth lost one forever."""
+    from datetime import timedelta
+
+    sent, waiting = [], set()
+    monkeypatch.setattr(analyses, "_scan", {"offset": 0})
+    # a dispatched job is in Redis afterwards
+    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: sent.append(analysis_id) or waiting.add(analysis_id))
+    rows = []
+    for i in range(5):
+        row = analyses.create(question=f"等待中的分析{i}？", direction="pipeline", is_demo=True, enqueue=False)
+        with db.session() as s:
+            s.get(db.Analysis, row.id).created_at = db.now() - timedelta(minutes=60 - i)
+        rows.append(row.id)
+    waiting.update(rows[:4])
+    monkeypatch.setattr(analyses, "waiting_in_queue", lambda analysis_id: analysis_id in waiting)
+    assert analyses.recover() == 1 and sent == [rows[4]]
+    sent.clear()
+    assert analyses.recover() == 0 and sent == []  # the next round does not queue it twice
+    with db.session() as s:  # beyond one page: the scan moves on round by round and still finds it
+        s.get(db.Analysis, rows[4]).state = "completed"
+    monkeypatch.setattr(analyses, "RECOVER_SCAN", 2)
+    waiting.discard(rows[3])
+    found = [analyses.recover() for _ in range(3)]
+    assert sum(found) == 1 and sent == [rows[3]]
+
+    def down(analysis_id):
+        raise ConnectionError("redis down")
+
+    sent.clear()
+    monkeypatch.setattr(analyses, "waiting_in_queue", down)
+    assert all(analyses.recover() == 0 for _ in range(3)) and sent == []

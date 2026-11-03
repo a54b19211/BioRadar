@@ -195,8 +195,16 @@ def execute(analysis_id: str):
             row.result = {**result, "source_updates": marks} if marks else result
 
 
+RECOVER_SCAN = 100  # rows looked at per round; the next round goes on from where this one stopped
+_scan = {"offset": 0}
+
+
 def recover(limit=4) -> int:
-    """Re-queue analyses whose worker died (lease expired) or whose job never reached Redis."""
+    """Re-queue analyses whose worker died (lease expired) or whose job never reached Redis.
+    A queued row whose job is still waiting in Redis is only behind others: re-queuing it every round
+    piled up copies of the same job (24 on the live queue, 2026-11-03). Rows are looked at a bounded
+    page at a time, moving on each round, so healthy waiting rows at the front cannot hide a lost one
+    behind them; when Redis cannot be asked, a row is left alone (unknown is not lost)."""
     stale = db.now() - timedelta(minutes=10)
     with db.session() as session:
         rows = list(
@@ -207,18 +215,30 @@ def recover(limit=4) -> int:
                     (db.Analysis.lease_until.is_(None) & (db.Analysis.created_at < stale))
                     | (db.Analysis.lease_until < db.now()),
                 )
-                .limit(limit)
+                .order_by(db.Analysis.created_at, db.Analysis.id)
+                .offset(_scan["offset"])
+                .limit(RECOVER_SCAN)
             )
         )
-        # a queued row whose job is still waiting in Redis is not lost, only behind others: re-queuing it
-        # every round piled up copies of the same job (24 on the live queue, 2026-11-03)
-        rows = [r for r in rows if r.lease_until is not None or not waiting_in_queue(r.id)]
+        _scan["offset"] = _scan["offset"] + len(rows) if len(rows) == RECOVER_SCAN else 0
+        lost = []
         for row in rows:
+            if len(lost) >= limit:
+                break
+            if row.lease_until is not None:  # the worker died while running it
+                lost.append(row)
+                continue
+            try:
+                if not waiting_in_queue(row.id):
+                    lost.append(row)
+            except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
+                continue
+        for row in lost:
             row.lease_until = None
             row.state = "queued"
-    for row in rows:
+    for row in lost:
         dispatch(row.id)
-    return len(rows)
+    return len(lost)
 
 
 def view(row: db.Analysis, *, full=False) -> dict:
