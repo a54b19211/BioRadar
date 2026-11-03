@@ -444,7 +444,14 @@ def test_a_signal_picks_its_question_and_a_watched_signal_reopens_the_topic(monk
                     watch=watch,
                 )
             )
-        call = {"stage": stage, "model": "f", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
+        call = {
+            "stage": stage,
+            "model": "f",
+            "finish_reason": "stop",
+            "usage": {},
+            "seconds": 0,
+            "error": None,
+        }
         return schemas.Triage(items=items), call
 
     monkeypatch.setattr(llm, "chat_json", chat_json)
@@ -455,8 +462,14 @@ def test_a_signal_picks_its_question_and_a_watched_signal_reopens_the_topic(monk
     assert analyses.get(first).input["question"].startswith("专题“启衡新厂房”出现产能或厂房信号")
     with db.session() as session:
         topic = session.scalars(select_topics()).one()
-        session.add(db.TopicEvent(topic_id=topic.id, at=topic.first_seen_at, kind="watch",
-                                  detail={"items": [{"id": "W1", "text": "厂房通过 GMP 检查"}]}))
+        session.add(
+            db.TopicEvent(
+                topic_id=topic.id,
+                at=topic.first_seen_at,
+                kind="watch",
+                detail={"items": [{"id": "W1", "text": "厂房通过 GMP 检查"}]},
+            )
+        )
     fabric.docs += FakeFabric([record("S2", "无关新闻", "x", available=DAY.format(2))]).docs
     monitor.tick(is_demo=True, fabric=fabric)
     assert _topics()[0]["pending_reason"] is None  # W9 is not on the topic's list

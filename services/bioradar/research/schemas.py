@@ -61,7 +61,9 @@ class ReadFact(BaseModel):
     object: str = Field(
         default="", description="这条事实说的是哪个对象（给出的对象名之一）；不涉及具体对象留空"
     )
-    hypothesis: str = Field(default="", description="这条事实支持或反驳哪条假设（如H1，方向见stance）；无关留空")
+    hypothesis: str = Field(
+        default="", description="这条事实支持或反驳哪条假设（如H1，方向见stance）；无关留空"
+    )
 
 
 class Reading(BaseModel):
@@ -125,8 +127,21 @@ class TriageItem(BaseModel):
     )
     alert: Literal["none", "normal", "important", "urgent"]
     signal: Literal[
-        "capacity", "hiring", "financing", "deal", "filing", "approval", "rejection",
-        "trial_start", "trial_result", "trial_stop", "publication", "policy", "outbreak", "safety", "other",
+        "capacity",
+        "hiring",
+        "financing",
+        "deal",
+        "filing",
+        "approval",
+        "rejection",
+        "trial_start",
+        "trial_result",
+        "trial_stop",
+        "publication",
+        "policy",
+        "outbreak",
+        "safety",
+        "other",
     ] = Field(default="other", description="信号类型")
     objects: list[PlanObject] = Field(default_factory=list, description="记录说到的具体对象")
     watch: str | None = Field(default=None, description="归入已有专题时，命中该专题哪条待验证信号（如W2）")

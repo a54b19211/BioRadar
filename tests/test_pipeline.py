@@ -314,15 +314,21 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
         value, call = base(settings_, stage, system, payload, model_cls, **options)
         if stage == "plan":
             value.hypotheses = [
-                schemas.PlanHypothesis(statement="待验证：XQ-17 准备申报", alternatives=["只是数据更正"],
-                                       confirm=["上市申请受理"], refute=["试验终止"])
+                schemas.PlanHypothesis(
+                    statement="待验证：XQ-17 准备申报",
+                    alternatives=["只是数据更正"],
+                    confirm=["上市申请受理"],
+                    refute=["试验终止"],
+                )
             ]
         if stage == "read":
             for fact in value.facts:
                 fact.hypothesis = "H1"
         if stage == "assess":
-            value.hypotheses = [schemas.HypothesisLevel(id="H1", level="confirmed"),
-                                schemas.HypothesisLevel(id="H7", level="possible")]
+            value.hypotheses = [
+                schemas.HypothesisLevel(id="H1", level="confirmed"),
+                schemas.HypothesisLevel(id="H7", level="possible"),
+            ]
         return value, call
 
     def biocheck(s, operation, body):
@@ -336,11 +342,23 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
     monkeypatch.setattr(services, "biocheck", biocheck)
     at = datetime.fromisoformat("2026-09-30T08:00:00+08:00")
     with db.session() as s:
-        topic = db.Topic(workspace_id="w", title="XQ-17", direction="pipeline", is_demo=True,
-                         first_seen_at=at, last_activity_at=at)
+        topic = db.Topic(
+            workspace_id="w",
+            title="XQ-17",
+            direction="pipeline",
+            is_demo=True,
+            first_seen_at=at,
+            last_activity_at=at,
+        )
         s.add(topic)
-    row = analyses.create(question="XQ-17 信号研判", direction="pipeline", is_demo=True, trigger="topic",
-                          topic_id=topic.id, enqueue=False)
+    row = analyses.create(
+        question="XQ-17 信号研判",
+        direction="pipeline",
+        is_demo=True,
+        trigger="topic",
+        topic_id=topic.id,
+        enqueue=False,
+    )
     result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
     generate = next(body for op, body in sent if op == "generate")
     assert generate["hypotheses"][0]["id"] == "H1" and generate["hypotheses"][0]["facts"]

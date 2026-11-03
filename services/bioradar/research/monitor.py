@@ -288,7 +288,9 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         owe(topic, f"alert_{alert}", at)
                 if item and item.closure:
                     topic.closed = True
-                hit = item.watch if item and item.watch in {w["id"] for w in watch.get(topic.id, [])} else None
+                hit = (
+                    item.watch if item and item.watch in {w["id"] for w in watch.get(topic.id, [])} else None
+                )
                 if hit:
                     wake[topic.id] = "watch_hit"
                     owe(topic, "watch_hit", at)

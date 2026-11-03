@@ -276,7 +276,9 @@ class Run:
         if not queries:
             raise Failed("plan_without_queries")
         hypotheses = [
-            {"id": f"H{n}", **h.model_dump()} for n, h in enumerate(plan.hypotheses[:3], 1) if h.statement.strip()
+            {"id": f"H{n}", **h.model_dump()}
+            for n, h in enumerate(plan.hypotheses[:3], 1)
+            if h.statement.strip()
         ]
         self.p.update(
             hypotheses=hypotheses,
@@ -621,7 +623,9 @@ class Run:
                 "question": self.input["question"],
                 "material": material,
                 "objects": self.p.get("objects", []),
-                "hypotheses": [{"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])],
+                "hypotheses": [
+                    {"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])
+                ],
                 "checks": [
                     {
                         "id": c["id"],
@@ -979,7 +983,9 @@ class Run:
                 "judgments": self.p.get("judgments", []),
                 "report": report["draft"],
                 "report_status": report["status"],
-                "hypotheses": [{"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])],
+                "hypotheses": [
+                    {"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])
+                ],
                 "checks": [{k: c[k] for k in ("id", "text", "status", "evidence")} for c in self.p["checks"]],
                 "evidence": [
                     {
@@ -1029,7 +1035,10 @@ class Run:
                 item["id"] = f"W{n}"
             s.add(
                 db.TopicEvent(
-                    topic_id=topic_id, at=db.now(), kind="watch", detail={"items": items, "analysis_id": self.id}
+                    topic_id=topic_id,
+                    at=db.now(),
+                    kind="watch",
+                    detail={"items": items, "analysis_id": self.id},
                 )
             )
 
