@@ -581,16 +581,20 @@ def test_recovery_does_not_queue_again_an_analysis_whose_job_is_still_waiting(mo
 
 
 def test_waiting_rows_at_the_front_do_not_hide_a_lost_one_and_redis_trouble_is_not_loss(monkeypatch):
-    """Codex r39: with limit 4 taken before the Redis check, four waiting rows hid a fifth lost one forever."""
+    """Codex r39: limit 4 was taken before the Redis check, so four waiting rows hid a lost fifth forever."""
     from datetime import timedelta
 
     sent, waiting = [], set()
     monkeypatch.setattr(analyses, "_scan", {"offset": 0})
     # a dispatched job is in Redis afterwards
-    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: sent.append(analysis_id) or waiting.add(analysis_id))
+    monkeypatch.setattr(
+        analyses, "dispatch", lambda analysis_id: sent.append(analysis_id) or waiting.add(analysis_id)
+    )
     rows = []
     for i in range(5):
-        row = analyses.create(question=f"等待中的分析{i}？", direction="pipeline", is_demo=True, enqueue=False)
+        row = analyses.create(
+            question=f"等待中的分析{i}？", direction="pipeline", is_demo=True, enqueue=False
+        )
         with db.session() as s:
             s.get(db.Analysis, row.id).created_at = db.now() - timedelta(minutes=60 - i)
         rows.append(row.id)
