@@ -504,6 +504,28 @@ def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
     assert any(n["code"] == "calculation_mixed_units" for n in run.p["notes"])
 
 
+def test_reads_tell_the_planner_what_they_found_apart_from_answering(monkeypatch):
+    """Codex PHX r2: a read that found a key fact without finishing a broad check reported gain 0 only."""
+    base = fake_model([])
+    bodies = []
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "read":
+            value.answered = []  # nothing is finished
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: bodies.append(body) or first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    reads = [h for h in bodies[-1]["history"] if h["kind"] == "read"]
+    assert reads and all(h["gain"] == 0.0 for h in reads)
+    assert any(h["evidence_gain"] >= 0.6 for h in reads)  # decisive facts were found
+    assert all("evidence_gain" not in h for h in bodies[-1]["history"] if h["kind"] == "search")
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

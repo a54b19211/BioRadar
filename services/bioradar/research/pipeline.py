@@ -182,6 +182,7 @@ def hypothesis_citations(draft, claims, ids):
 
 class Run:
     def __init__(self, analysis: db.Analysis, settings: Settings, fabric: Fabric | None = None):
+        self.found = 0.0  # what the current read found apart from answering (evidence_gain)
         self.id = analysis.id
         self.row_investigation = analysis.investigation_id
         self.input = analysis.input
@@ -639,6 +640,8 @@ class Run:
                 "args": {k: v for k, v in a["args"].items()},
                 "status": a["status"],
             }
+            # what a read found apart from answering checks (query-planner's evidence_gain)
+            | ({"evidence_gain": a["evidence_gain"]} if "evidence_gain" in a else {})
             for a in self.p["actions"]
         ]
 
@@ -687,7 +690,9 @@ class Run:
         }
         try:
             if candidate["kind"] == "read":
+                self.found = 0.0
                 action["gain"], action["ref"] = self.read(candidate)
+                action["evidence_gain"] = self.found
             else:
                 found, new = self.search(candidate)
                 action["found"], action["new"] = found, new
@@ -827,6 +832,7 @@ class Run:
             if relation["kind"] in {"corrects", "retracts"}:
                 target = relation.get("target_source") or source
                 self.add_hit(target, relation["target_record_id"], "", hit["checks"], critical=True)
+                self.found = 1.0  # a correction or retraction arrived
         checks = {c["id"]: c for c in self.p["checks"]}
         material = {
             "ref": ref,
@@ -916,6 +922,11 @@ class Run:
         open_ids = [c["id"] for c in self.p["checks"] if c["status"] != "answered"]
         new_facts = self.p["facts"][facts_before:]
         decisive = any(f["stance"] in {"supports", "refutes"} for f in new_facts)
+        new_object = any(
+            f["object"] and f["object"] not in found_before_names and f["object"] not in self.p.get("objects", [])
+            for f in new_facts
+        )
+        self.found = max(self.found, 1.0 if new_object else 0.6 if decisive else 0.0)
         # a newly found object is followed up by name (later updates of that event); then the reader's terms,
         # worth more when this record said something decisive than when it was only background
         for name in dict.fromkeys(
