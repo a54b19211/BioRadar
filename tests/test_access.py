@@ -172,6 +172,13 @@ def topic_analysis():
             "computations": [{"id": "C1", "operands": [{"fact": "F2", "ref": "E2", "quote": "撤权原文"}]}],
         }
         a.progress = {
+            # names and search terms taken from the revoked record (Codex r35)
+            "queries": [
+                {"terms": ["XQ-17"], "checks": ["Q1"]},
+                {"terms": ["撤权原文城"], "checks": ["Q1"], "value": 3, "origin": "object:E2"},
+            ],
+            "actions": [{"kind": "search", "source": "gone_src", "args": {"terms": ["撤权原文城"]}}],
+            "notes": [{"code": "query_replaced", "detail": "泛词 -> 撤权原文城", "stage": "investigate"}],
             "facts": [
                 {
                     "id": "F1",
@@ -186,6 +193,7 @@ def topic_analysis():
                     "ref": "E2",
                     "text": "撤权事实",
                     "quote": "撤权原文",
+                    "object": "撤权原文城",
                     "checks": [],
                     "stance": "supports",
                 },
@@ -311,6 +319,7 @@ def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
     evidence = {e["ref"]: e for e in detail["evidence"]}
     assert evidence["E1"]["title"] == "open_src 标题" and "withheld" not in evidence["E1"]
     assert evidence["E2"]["title"] == "" and evidence["E2"]["withheld"] == "来源已撤权"
+    assert detail["progress"]["queries"][0]["terms"] == ["XQ-17"]  # the question's own terms stay
     facts = {f["ref"]: f for f in detail["progress"]["facts"]}
     assert facts["E1"]["quote"] == "开放原文" and facts["E2"]["quote"] == "" and facts["E2"]["text"] == ""
     assert detail["result"]["computations"][0]["operands"][0]["quote"] == ""

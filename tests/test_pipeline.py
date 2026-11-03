@@ -485,15 +485,34 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
     queries = [{"terms": [f"词{i}"], "checks": ["Q1"]} for i in range(12)]
     run.p.update(
         queries=list(queries),
-        actions=[{"kind": "search", "args": {"terms": q["terms"]}} for q in queries],
-        pages={"s|词3": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}},
+        actions=[{"kind": "search", "source": "external_archive", "args": {"terms": q["terms"]}} for q in queries],
+        pages={"external_archive|词3": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}},
         notes=[],
     )
     run.add_query(["新城"], ["Q1"], value=3, origin="object:E9")
     terms = [q["terms"][0] for q in run.p["queries"]]
     assert "新城" in terms and "词0" not in terms and "词3" in terms  # still paging, so it stays
     assert run.p["notes"][-1]["code"] == "query_retired"
-    assert {"kind": "search", "args": {"terms": ["词0"]}} in run.p["actions"]  # history stays
+    assert {"kind": "search", "source": "external_archive", "args": {"terms": ["词0"]}} in run.p["actions"]
+    # Codex r35: with two sources, a search run on one only is not done
+    two = Run(
+        analyses.create(
+            question="两源？", direction="public_health", is_demo=True, sources=["a", "b"], enqueue=False
+        ),
+        settings(),
+        fabric=FakeFabric([]),
+    )
+    two.p.update(
+        queries=[{"terms": [f"词{i}"], "checks": ["Q1"]} for i in range(12)],
+        actions=[{"kind": "search", "source": "a", "args": {"terms": ["词0"]}}],
+        pages={},
+        notes=[],
+        hits=[],
+        objects=[],
+    )
+    two.add_query(["新城"], ["Q1"], value=3, origin="object:E9")
+    assert "词0" in [q["terms"][0] for q in two.p["queries"]]  # b has not searched it yet
+    assert any(c.get("follows_up") for c in two.candidates() if c["args"].get("terms") == ["新城"])
 
 
 def test_a_percentage_of_different_things_is_not_computed(monkeypatch):

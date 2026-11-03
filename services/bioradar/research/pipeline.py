@@ -524,6 +524,9 @@ class Run:
                             "source": source,
                             "args": {"terms": q["terms"]},
                             "target_checks": q["checks"],
+                            # an object a read record named with a decisive fact (query-planner ranks it
+                            # with the question's named objects)
+                            "follows_up": q.get("origin", "").startswith("object:"),
                         }
                     )
                 elif (
@@ -971,14 +974,24 @@ class Run:
             self.p["queries"].append(query)
             return
         ran = {
-            tuple(a["args"].get("terms", ())) for a in self.p["actions"] if a["kind"] in {"search", "fetch"}
+            (a["source"], tuple(a["args"].get("terms", ())))
+            for a in self.p["actions"]
+            if a["kind"] in {"search", "fetch"}
         }
         paging = {
             tuple(key.split("|")[1:])
             for key, page in self.p.get("pages", {}).items()
             if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]
         }
-        done = [i for i, q in enumerate(self.p["queries"]) if tuple(q["terms"]) in ran - paging]
+        bridge = self.s.weknora_url and self.cutoff is None
+        sources = list(self.input["sources"]) + (["weknora"] if bridge else [])
+        # retired only once every source it applies to has been searched (or failed) and paged out
+        done = [
+            i
+            for i, q in enumerate(self.p["queries"])
+            if all((src, tuple(q["terms"])) in ran for src in sources) and tuple(q["terms"]) not in paging
+        ]
+        ran = {terms for _, terms in ran}
         waiting = [
             (q.get("value", 1), i)
             for i, q in enumerate(self.p["queries"])

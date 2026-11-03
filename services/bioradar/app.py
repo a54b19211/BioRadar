@@ -290,9 +290,22 @@ def redact(value: dict) -> dict:
     for e in value["evidence"]:
         if e["ref"] in hidden:
             e.update(title="", url=None, withheld=hidden[e["ref"]])
-    for f in (value.get("progress") or {}).get("facts") or []:
+    progress = value.get("progress") or {}
+    for f in progress.get("facts") or []:
         if f.get("ref") in hidden:
-            f.update(text="", quote="", withheld=hidden[f["ref"]])
+            f.update(text="", quote="", object="", withheld=hidden[f["ref"]])
+    # search terms taken from those records (names found in them, the reader's new terms) and the search
+    # actions that used them; notes may quote any of it, so their details go too (codes stay)
+    origins = {f"read:{ref}" for ref in hidden} | {f"object:{ref}" for ref in hidden}
+    derived = {tuple(q["terms"]) for q in progress.get("queries") or [] if q.get("origin") in origins}
+    for q in progress.get("queries") or []:
+        if tuple(q["terms"]) in derived:
+            q["terms"] = []
+    for a in progress.get("actions") or []:
+        if tuple(a.get("args", {}).get("terms", ())) in derived:
+            a["args"] = dict(a["args"], terms=[])
+    for n in (progress.get("notes") or []) + ((value.get("result") or {}).get("notes") or []):
+        n["detail"] = ""
     result = value.get("result") or {}
     if result:
         result["withheld"] = notice(hidden)
