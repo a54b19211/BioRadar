@@ -130,8 +130,8 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact.
     Every quote goes in first; the room left then widens each quote, shortest first, to its whole line
     (a registry field's title-only quote such as "Total Energy Expenditure" is useless without the values
-    on that line, Codex r40), and what is still left adds 400, then 150 characters around quotes not yet
-    widened. Nothing quoted is dropped for context (Codex r38)."""
+    on that line, Codex r40), and what is still left widens the quotes not yet widened (first 100 before and 900 after, since values follow their titles). Nothing quoted is dropped
+    for context (Codex r38)."""
     if len(text) <= limit:
         return text
     spans = []
@@ -163,11 +163,12 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
         trial = windows[:i] + [line(*spans[i])] + windows[i + 1 :]
         if size(trial) <= limit:
             windows, _ = trial, widened.add(i)
-    for context in (400, 150):
+    # values follow their titles in records and tables, so the first try reaches further forward
+    for before, after in ((100, 900), (400, 400), (150, 150)):
         for i, (a, b) in enumerate(spans):
             if i in widened:
                 continue
-            trial = windows[:i] + [[max(0, a - context), min(len(text), b + context)]] + windows[i + 1 :]
+            trial = windows[:i] + [[max(0, a - before), min(len(text), b + after)]] + windows[i + 1 :]
             if size(trial) <= limit:
                 windows, _ = trial, widened.add(i)
     parts = [text[a:b] for a, b in merged(windows)]
