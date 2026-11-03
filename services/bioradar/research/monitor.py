@@ -7,6 +7,7 @@ historical replay behaves the same way as live monitoring:
   cooling --(topic_dormant_days without records, or a closure notice)--> dormant
   cooling / dormant --(a new related record)--> rising again (an awakening)"""
 
+import logging
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, func, select
@@ -17,6 +18,7 @@ from bioradar.adapters.fabric import Fabric
 from bioradar.config import Settings, settings
 from bioradar.research import analyses, prompts, schemas
 
+log = logging.getLogger("bioradar")
 ALERTS = ["none", "normal", "important", "urgent"]
 WEIGHT = {"none": 0, "normal": 1, "important": 2, "urgent": 3}
 BATCH = 10
@@ -61,10 +63,13 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
             docs += [d for d in items if d["version_id"] not in seen]
         for source in sources:
             if cutoff is None:
-                cursor = session.get(db.Cursor, (source, is_demo)) or db.Cursor(
-                    source=source, is_demo=is_demo, after_seq=0
-                )
-                session.add(cursor)
+                cursor = session.get(db.Cursor, (source, is_demo))
+                if cursor is None:
+                    # A real feed starts at its current end (legacy_documents alone holds 600k records);
+                    # history is for replays. Demo feeds are scenario data and start at 0.
+                    start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
+                    cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
+                    session.add(cursor)
                 while True:
                     items, after = fabric.changes(source, is_demo=is_demo, after=cursor.after_seq)
                     docs += [d for d in items if d["version_id"] not in seen]
@@ -244,9 +249,21 @@ def advance(s: Settings, clock: datetime, *, is_demo: bool):
 
 
 def start_analyses(s: Settings, reasons: dict, *, cutoff: datetime | None):
-    """One automatic analysis per topic that started rising, awoke or raised its alert."""
+    """One automatic analysis per topic that started rising, awoke or raised its alert.
+    Live monitoring is capped per hour; replays are not."""
     created = []
+    live = cutoff is None
+    if live:
+        with db.session() as session:
+            recent = session.scalar(
+                select(func.count())
+                .select_from(db.Analysis)
+                .where(db.Analysis.trigger == "topic", db.Analysis.created_at > db.now() - timedelta(hours=1))
+            )
     for topic_id, reason in reasons.items():
+        if live and recent + len(created) >= s.auto_analyses_per_hour:
+            log.info("auto analysis skipped (hourly cap): topic %s %s", topic_id, reason)
+            continue
         with db.session() as session:
             topic = session.get(db.Topic, topic_id)
             records = list(

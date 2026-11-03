@@ -90,6 +90,9 @@ class FakeFabric:
         page = found[start : start + limit]
         return page, (str(start + limit) if start + limit < len(found) else None)
 
+    def head(self, source, *, is_demo):
+        return max([0] + [d["seq"] for d in self.docs if d["source"] == source])
+
     def changes(self, source, *, is_demo, after=0, limit=100):
         items = [d for d in self.docs if d["source"] == source and d["seq"] > after][:limit]
         return items, max([after] + [d["seq"] for d in items])

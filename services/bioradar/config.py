@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     monitor_enabled: bool = False
     monitor_seconds: int = 30
     auto_analysis: bool = False
+    auto_analyses_per_hour: int = 6  # live monitoring only
     topic_cool_days: int = 7
     topic_dormant_days: int = 21
 

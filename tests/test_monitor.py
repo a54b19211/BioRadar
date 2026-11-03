@@ -109,3 +109,12 @@ def test_records_whose_triage_failed_are_triaged_again(monkeypatch):
     with db.session() as s:
         rows = list(s.scalars(select(db.Observation).where(db.Observation.record_id == "T1")))
     assert len(rows) == 1 and rows[0].reason != "triage_failed" and rows[0].topic_id
+
+
+def test_a_real_feed_is_monitored_from_its_current_end(monkeypatch):
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    old = [record(f"H{i}", "历史记录", "x", source="who_don") for i in range(3)]
+    fabric = FakeFabric(old)
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 0
+    fabric.docs += FakeFabric([record("N1", "两家医院确认7例", "x", source="who_don")]).docs
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1

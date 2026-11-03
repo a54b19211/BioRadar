@@ -110,6 +110,14 @@ class Fabric:
         items = [document(item) for item in data["items"]]
         return items, max([after] + [item["seq"] or 0 for item in items])
 
+    def head(self, source, *, is_demo):
+        """The feed's current last sequence number."""
+        data = self._get(
+            "/api/history/changes",
+            {"source_id": source, "is_demo": str(is_demo).lower(), "after": 0, "limit": 1},
+        )
+        return data.get("max_seq") or 0
+
     def sources(self):
         return self._get("/api/history/sources", {})
 
