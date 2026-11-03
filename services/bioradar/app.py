@@ -185,8 +185,10 @@ def change_user(name: str, body: UserChange):
         user = s.scalar(select(db.User).where(db.User.name == name))
         if user is None:
             raise analyses.NotFound(name)
-        losing_admin = user.role == "admin" and user.active and (
-            (body.role and body.role != "admin") or body.active is False
+        losing_admin = (
+            user.role == "admin"
+            and user.active
+            and ((body.role and body.role != "admin") or body.active is False)
         )
         if losing_admin:
             admins = s.scalar(
@@ -233,8 +235,24 @@ def withheld(source: str, readable: set[str] | None) -> str | None:
 
 # Enum-like fields kept when model-written text is withheld; every other string is blanked.
 KEEP = {
-    "id", "ref", "index", "check", "status", "verdict", "confidence", "credibility", "consequence",
-    "priority", "alert", "level", "stance", "kind", "question", "grounds", "citations", "found",
+    "id",
+    "ref",
+    "index",
+    "check",
+    "status",
+    "verdict",
+    "confidence",
+    "credibility",
+    "consequence",
+    "priority",
+    "alert",
+    "level",
+    "stance",
+    "kind",
+    "question",
+    "grounds",
+    "citations",
+    "found",
 }
 
 
