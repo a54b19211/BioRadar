@@ -558,3 +558,15 @@ def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
         progress = s.get(db.Analysis, row.id).progress
     assert progress["plan_removed"] == [{"name": "武汉", "basis": "exploratory", "checks": ["Q1"]}]
     assert any(n["code"] == "plan_exploratory_scope" for n in result["notes"])
+
+
+def test_a_replay_does_not_search_the_bridge_index(monkeypatch):
+    """The bridge searches today's index: in a replay it would pick records by text written later."""
+    s = settings().model_copy(update={"weknora_url": "http://bridge.invalid"})
+    for cutoff, expected in ((None, True), ("2026-09-30T00:00:00+08:00", False)):
+        row = analyses.create(
+            question="XQ-17 的PFS？", direction="pipeline", is_demo=True, cutoff=cutoff, enqueue=False
+        )
+        run = Run(row, s, fabric=FakeFabric([]))
+        run.p.update(queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[])
+        assert any(c["source"] == "weknora" for c in run.candidates()) is expected

@@ -21,7 +21,7 @@ def reply(content, finish="stop"):
 def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
     bodies = []
     replies = iter([reply('{"value": "x"}'), reply('{"value": 2}')])
-    monkeypatch.setattr(llm, "post", lambda s, body, call: bodies.append(body) or next(replies))
+    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: bodies.append(body) or next(replies))
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed.value == 2 and call["attempts"] == 2 and call["usage"]["total_tokens"] == 10
     assert "不合格" in bodies[1]["messages"][-1]["content"]
@@ -29,13 +29,13 @@ def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
 
 
 def test_empty_output_at_limit_is_reported_not_retried(monkeypatch):
-    monkeypatch.setattr(llm, "post", lambda s, body, call: reply("", "length"))
+    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: reply("", "length"))
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "output_empty_after_limit" and call["attempts"] == 1
 
 
 def test_timeout_is_not_resent(monkeypatch):
-    def slow(s, body, call):
+    def slow(s, body, call, limit=None):
         raise httpx.ReadTimeout("slow")
 
     monkeypatch.setattr(llm, "post", slow)
@@ -66,8 +66,24 @@ def test_a_refusal_that_outlasts_the_pauses_is_reported(monkeypatch):
     assert parsed is None and call["error"] == "http_error:503" and call["requests"] == 4
 
 
+def test_resends_stop_at_the_request_budget(monkeypatch):
+    request = httpx.Request("POST", "http://model.invalid/chat/completions")
+    sent = []
+    monkeypatch.setattr(llm.httpx, "post", lambda url, **kwargs: sent.append(1) or httpx.Response(503, request=request))
+    monkeypatch.setattr(llm.time, "sleep", lambda seconds: None)
+    parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer, max_requests=1)
+    assert parsed is None and len(sent) == 1 and call["requests"] == 1
+
+
+def test_a_choice_without_a_message_is_an_error_not_a_crash(monkeypatch):
+    for reply_ in ({"choices": [None]}, {"choices": [{"message": None}]}):
+        monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None, reply_=reply_: reply_)
+        parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
+        assert parsed is None and call["error"] == "response_without_choices"
+
+
 def test_a_200_without_choices_is_an_error_not_a_crash(monkeypatch):
-    monkeypatch.setattr(llm, "post", lambda s, body, call: None)
+    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: None)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "response_without_choices"
 
@@ -184,23 +200,20 @@ def test_weknora_search_goes_through_the_bridge_by_direction_scope():
 
     def handler(request):
         body = json.loads(request.content)
-        sent.append(
-            (request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"])
-        )
-        hit = {"identity": {"source_id": "who_don", "source_record_id": "D1"}, "score": 0.5}
-        return httpx.Response(200, json={"results": [hit, {"identity": {}, "score": 0.1}]})
+        sent.append((request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"]))
+        if body["source_scope"] == "research":
+            return httpx.Response(400, json={"detail": "search scope exceeds 1000 published documents"})
+        hit = {"identity": {"source_id": "who_don", "source_record_id": "D1", "version_id": "v1"}, "score": 0.5}
+        execution = {"keyword": "succeeded", "vector": "skipped", "embedding": "failed", "degraded": True}
+        return httpx.Response(200, json={"results": [hit, {"identity": {}, "score": 0.1}], "execution": execution})
 
     s = settings().model_copy(
-        update={
-            "weknora_url": "http://bridge.invalid/",
-            "weknora_token": "t",
-            "weknora_knowledge_base_id": "kb",
-        }
+        update={"weknora_url": "http://bridge.invalid/", "weknora_token": "t", "weknora_knowledge_base_id": "kb"}
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
-    hits = weknora.search(s, "布病 聚集", direction="public_health", client=client)
-    assert hits == [("who_don", "D1", 0.5)]  # deduplicated across scopes; identity-less hit skipped
-    assert sent == [
-        ("/api/v1/kdd/search", "Bearer t", "public_health", False),
-        ("/api/v1/kdd/search", "Bearer t", "research", False),
-    ]
+    hits, scopes = weknora.search(s, "布病 聚集", direction="public_health", client=client)
+    # the failed scope keeps the other's hits; the identity-less hit is skipped
+    assert hits == [{"source": "who_don", "record_id": "D1", "version_id": "v1", "score": 0.5}]
+    assert scopes["research"] == {"error": "http_400"}
+    assert scopes["public_health"]["degraded"] is True and scopes["public_health"]["embedding"] == "failed"
+    assert [x[2] for x in sent] == ["public_health", "research"]

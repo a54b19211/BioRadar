@@ -224,9 +224,11 @@ class Run:
         if self.calls_left() <= 0:
             self.note("llm_budget", stage)
             return None
+        options["max_requests"] = self.calls_left()
         parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
         self.log([call])
         if call["error"] == "output_invalid" and self.calls_left() > 0:  # one retry; it is usually a one-off
+            options["max_requests"] = self.calls_left()
             parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
             self.log([call])
         if call["error"]:
@@ -413,7 +415,9 @@ class Run:
             )
             for a in self.p["actions"]
         }
-        sources = list(self.input["sources"]) + (["weknora"] if self.s.weknora_url else [])
+        # The bridge searches today's index, so a replay would choose records by text seen later.
+        bridge = self.s.weknora_url and self.cutoff is None
+        sources = list(self.input["sources"]) + (["weknora"] if bridge else [])
         result = []
         for q in self.p["queries"]:
             for source in sources:
@@ -557,20 +561,27 @@ class Run:
         source, terms, kind = candidate["source"], candidate["args"]["terms"], candidate["kind"]
         key = f"{source}|{'|'.join(terms)}"
         if source == "weknora":
-            hits = weknora.search(
+            hits, scopes = weknora.search(
                 self.s, " ".join(terms), direction=self.input["direction"], is_demo=self.input["is_demo"]
             )
+            self.p.setdefault("weknora", []).append({"terms": terms, "scopes": scopes})
+            for scope, state in scopes.items():
+                if state.get("error") or state.get("degraded"):
+                    self.note("weknora_scope", f"{scope}: {state.get('error') or 'degraded'}")
             docs = []
-            for hit_source, record_id, _ in hits:
-                if hit_source in self.input["sources"]:
+            for hit in hits:
+                if hit["source"] in self.input["sources"]:
                     found, _ = self.fabric.search(
-                        hit_source,
+                        hit["source"],
                         (),
                         is_demo=self.input["is_demo"],
                         cutoff=self.cutoff,
-                        record_ids=[record_id],
+                        record_ids=[hit["record_id"]],
                         limit=1,
                     )
+                    if found and hit["version_id"] and found[0]["version_id"] != hit["version_id"]:
+                        # the index holds another version; the current Fabric version is what is read
+                        self.note("weknora_version_differs", f"{hit['record_id']}: {hit['version_id'][:12]}")
                     docs += found
             cursor = None
         elif kind == "fetch":

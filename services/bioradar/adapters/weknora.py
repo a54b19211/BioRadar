@@ -52,27 +52,39 @@ def search(
     top_k: int = 10,
     client: httpx.Client | None = None,
 ):
-    """Return [(source_id, source_record_id, score)] for bridge hits that carry a Fabric identity."""
+    """Return (hits, scopes). hits: [{source, record_id, version_id, score}] for bridge hits that carry a
+    Fabric identity. scopes: per scope, which channels actually ran (keyword/vector/embedding/rerank,
+    degraded) or the error, so one failed scope keeps the others' hits and a keyword-only fallback is
+    never mistaken for a semantic search. The bridge has no cutoff: callers must not use it in a replay."""
     if not settings.weknora_url:
-        return []
+        return [], {}
     http = client or httpx.Client(timeout=60)
-    result, seen = [], set()
+    hits, seen, scopes = [], set(), {}
     for scope in SCOPES.get(direction, ("research",)):
-        response = http.post(
-            settings.weknora_url.rstrip("/") + "/api/v1/kdd/search",
-            headers={"Authorization": f"Bearer {settings.weknora_token}"},
-            json={
-                "knowledge_base_id": settings.weknora_knowledge_base_id,
-                "source_scope": scope,
-                "query_text": query,
-                "top_k": top_k,
-                "is_demo": is_demo,
-            },
-        )
-        response.raise_for_status()
-        for hit in response.json().get("results") or []:
+        try:
+            response = http.post(
+                settings.weknora_url.rstrip("/") + "/api/v1/kdd/search",
+                headers={"Authorization": f"Bearer {settings.weknora_token}"},
+                json={
+                    "knowledge_base_id": settings.weknora_knowledge_base_id,
+                    "source_scope": scope,
+                    "query_text": query,
+                    "top_k": top_k,
+                    "is_demo": is_demo,
+                },
+            )
+            response.raise_for_status()
+            data = response.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            scopes[scope] = {"error": f"http_{status}" if status else type(exc).__name__}
+            continue
+        execution = data.get("execution") or {}
+        scopes[scope] = {k: execution.get(k) for k in ("keyword", "vector", "embedding", "rerank", "degraded")}
+        for hit in data.get("results") or []:
             key = identity(hit)
             if key and key not in seen:
                 seen.add(key)
-                result.append((*key, hit.get("score")))
-    return result
+                version = (hit.get("identity") or {}).get("version_id")
+                hits.append({"source": key[0], "record_id": key[1], "version_id": version, "score": hit.get("score")})
+    return hits, scopes

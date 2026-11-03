@@ -32,11 +32,13 @@ def describe(model_cls: type[BaseModel]) -> str:
     return "\n".join(fields(schema))
 
 
-REFUSED = (429, 503)  # the provider turned the request away without running it, so a resend is safe
+# Usually refused before the model runs, but that is not guaranteed (it may still be billed), so resends are
+# few and each one counts against the caller's request budget.
+REFUSED = (429, 503)
 BACKOFF = (5, 20, 60)  # seconds before each resend; seen 2026-11-03: DeepSeek 503 for ~25 minutes
 
 
-def post(settings: Settings, body: dict, call: dict) -> dict:
+def post(settings: Settings, body: dict, call: dict, limit: int | None = None) -> dict:
     for wait in (*BACKOFF, None):
         call["requests"] = call.get("requests", 0) + 1
         response = httpx.post(
@@ -45,7 +47,7 @@ def post(settings: Settings, body: dict, call: dict) -> dict:
             json=body,
             timeout=settings.llm_timeout_seconds,
         )
-        if response.status_code not in REFUSED or wait is None:
+        if response.status_code not in REFUSED or wait is None or (limit and call["requests"] >= limit):
             break
         time.sleep(wait)
     response.raise_for_status()
@@ -61,8 +63,10 @@ def chat_json(
     *,
     max_tokens: int = 4096,
     thinking: bool = False,
+    max_requests: int | None = None,
 ):
-    """Return (parsed object or None, call record). Never raises for model-side failures."""
+    """Return (parsed object or None, call record). Never raises for model-side failures. `max_requests`
+    caps the HTTP requests (format retry and resends included) at what the caller's budget has left."""
     messages = [
         {"role": "system", "content": system + "\n\n只返回一个JSON对象，字段：\n" + describe(model_cls)},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
@@ -89,9 +93,12 @@ def chat_json(
             body["thinking"] = {"type": "enabled" if thinking else "disabled"}
         if not thinking:
             body["temperature"] = 0
+        if max_requests and call.get("requests", 0) >= max_requests:
+            call["error"] = call["error"] or "request_budget"
+            break
         call["attempts"] = attempt + 1
         try:
-            data = post(settings, body, call)
+            data = post(settings, body, call, max_requests)
         except httpx.TimeoutException:
             call["error"] = "timeout"  # not resent: the provider may have billed it
             break
@@ -101,11 +108,11 @@ def chat_json(
         except ValueError:
             call["error"] = "response_not_json"
             break
-        if not isinstance(data, dict) or not data.get("choices"):
+        choice = (data.get("choices") or [None])[0] if isinstance(data, dict) else None
+        if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
             # seen 2026-11-03: HTTP 200 with a null body; not resent, it may have been billed
             call["error"] = "response_without_choices"
             break
-        choice = data["choices"][0]
         content = choice["message"].get("content") or ""
         call["finish_reason"] = choice.get("finish_reason")
         for key, value in (data.get("usage") or {}).items():
