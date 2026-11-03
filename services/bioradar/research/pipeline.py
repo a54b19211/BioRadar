@@ -424,17 +424,28 @@ class Run:
                     bundle_refs = []
                 for node in resolution.get("candidates") or []:
                     entry["candidates"].append(
-                        {"id": node.get("id"), "name": node.get("name"), "identity": node.get("identity_status")}
+                        {
+                            "id": node.get("id"),
+                            "name": node.get("name"),
+                            "identity": node.get("identity_status"),
+                        }
                     )
                     # the node's own evidence, else the documents of the bundle it was found in
-                    refs = [(ev, "node") for ev in node.get("evidence") or []] or [(ev, "bundle") for ev in bundle_refs]
+                    refs = [(ev, "node") for ev in node.get("evidence") or []] or [
+                        (ev, "bundle") for ev in bundle_refs
+                    ]
                     for ev, basis in refs:
                         key = (ev["source_id"], ev["source_record_id"])
                         if ev["source_id"] not in self.input["sources"] or key in seen:
                             continue
                         seen.add(key)
                         entry["refs"].append(
-                            {"source": key[0], "record_id": key[1], "version_id": ev["version_id"], "basis": basis}
+                            {
+                                "source": key[0],
+                                "record_id": key[1],
+                                "version_id": ev["version_id"],
+                                "basis": basis,
+                            }
                         )
                         self.add_hit(*key, f"图谱：{node.get('name')}", checks)
             found.append(entry)
