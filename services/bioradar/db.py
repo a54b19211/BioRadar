@@ -11,6 +11,7 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -142,6 +143,36 @@ class Observation(Base):
     alert: Mapped[str] = mapped_column(String(20))  # none | normal | important | urgent
     closure: Mapped[bool] = mapped_column(Boolean, default=False)
     reason: Mapped[str] = mapped_column(Text, default="")
+
+
+class Measurement(Base):
+    """One quoted value of one metric of one object for one period, from one fixed record version (T-24).
+    Series are read with available_at <= the clock, so a replay never sees a later value."""
+
+    __tablename__ = "measurements"
+    __table_args__ = (
+        UniqueConstraint("version_id", "object", "metric", "unit", "period"),
+        Index("ix_measurements_series", "workspace_id", "is_demo", "object", "metric", "unit"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    object: Mapped[str] = mapped_column(String(200), index=True)
+    metric: Mapped[str] = mapped_column(String(200))
+    unit: Mapped[str] = mapped_column(String(50), default="")
+    value: Mapped[float] = mapped_column(Float)
+    period: Mapped[str] = mapped_column(String(40), default="")  # as written; "" = as of the record
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(30), default="other")
+    source: Mapped[str] = mapped_column(String(80))
+    record_id: Mapped[str] = mapped_column(String(400))
+    version_id: Mapped[str] = mapped_column(String(128))
+    quote: Mapped[str] = mapped_column(Text)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    topic_id: Mapped[str | None] = mapped_column(ForeignKey("topics.id"), index=True)
+    # set when a correction of this record gives the same object/metric/period again
+    superseded_by: Mapped[int | None] = mapped_column(Integer)
 
 
 class TopicEvent(Base):

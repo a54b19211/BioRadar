@@ -118,6 +118,16 @@ class Assessment(BaseModel):
     hypotheses: list[HypothesisLevel] = Field(default_factory=list, description="只给出现过的假设编号评级")
 
 
+class Measure(BaseModel):
+    object: str = Field(description="对象，原文写法")
+    metric: str = Field(description="指标名；series 里已有同义指标时沿用原名")
+    value: float
+    unit: str = Field(default="", description="单位；series 里已有同义指标时沿用原单位")
+    period: str = Field(default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空")
+    status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = "other"
+    quote: str = Field(description="含这个数值的连续原文，逐字复制，不超过120字")
+
+
 class TriageItem(BaseModel):
     index: int = Field(description="记录序号，从1开始")
     topic: int | None = Field(default=None, description="归入已有专题的序号；新事件填null")
@@ -146,6 +156,7 @@ class TriageItem(BaseModel):
     objects: list[PlanObject] = Field(default_factory=list, description="记录说到的具体对象")
     watch: str | None = Field(default=None, description="归入已有专题时，命中该专题哪条待验证信号（如W2）")
     closure: bool = Field(default=False, description="这条记录宣布该事件已结案或可以停止跟踪")
+    measures: list[Measure] = Field(default_factory=list, description="可跨期比较的数值，最多3个")
     reason: str = ""
 
 

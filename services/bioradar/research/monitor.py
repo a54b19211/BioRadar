@@ -8,6 +8,7 @@ historical replay behaves the same way as live monitoring:
   cooling / dormant --(a new related record)--> rising again (an awakening)"""
 
 import logging
+import re
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import delete, func, select
@@ -16,7 +17,7 @@ from bioradar import db
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import Fabric
 from bioradar.config import Settings, settings
-from bioradar.research import analyses, prompts, schemas
+from bioradar.research import analyses, prompts, schemas, series
 
 log = logging.getLogger("bioradar")
 _turn = 0  # rotates which monitored source is read first in a live round
@@ -152,9 +153,22 @@ def watches(session, topic_ids) -> dict:
     return current
 
 
-def triage(s: Settings, docs, topics, watch=None):
+def known_series(session, s: Settings, is_demo: bool, limit=40):
+    """The most recently measured object/metric/unit keys, shown to triage so names stay the same."""
+    rows = session.execute(
+        select(db.Measurement.object, db.Measurement.metric, db.Measurement.unit)
+        .where(db.Measurement.workspace_id == s.workspace_id, db.Measurement.is_demo == is_demo)
+        .group_by(db.Measurement.object, db.Measurement.metric, db.Measurement.unit)
+        .order_by(func.max(db.Measurement.available_at).desc())
+        .limit(limit)
+    ).all()
+    return [{"object": o, "metric": m, "unit": u} for o, m, u in rows]
+
+
+def triage(s: Settings, docs, topics, watch=None, known=None):
     watch = watch or {}
     payload = {
+        "series": known or [],
         "topics": [
             {"index": i, "title": t.title, "state": t.state, "watch": watch.get(t.id, [])}
             for i, t in enumerate(topics, 1)
@@ -217,7 +231,8 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
             )
         with db.session() as session:
             watch = watches(session, [t.id for t in topics])
-        decisions = triage(s, batch, topics, watch)
+            known = known_series(session, s, is_demo)
+        decisions = triage(s, batch, topics, watch, known)
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
             flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
@@ -269,8 +284,12 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         reason=item.reason if item else "triage_failed",
                     )
                 )
+                changed = measure(session, s, doc, item.measures[:3] if item else [], topic, at, is_demo)
                 if topic is None:
                     continue
+                if changed:
+                    wake[topic.id] = "series_change"
+                    owe(topic, "series_change", at)
                 if topic.state in {"cooling", "dormant"} and not (item and item.closure):
                     topic.awakenings += 1
                     topic.closed = False
@@ -307,6 +326,64 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                     watch=hit,
                 )
     return wake, True
+
+
+def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
+    """Store the quoted measures of one record and compare each with its series as visible at `at`.
+    A correction of an earlier record replaces that record's value for the same object/metric/period.
+    Writes a `series` topic event per change; returns whether any is notable (owes an analysis)."""
+    text = re.sub(r"\s+", "", (doc["title"] or "") + (doc["text"] or ""))
+    corrected = [
+        (r.get("target_source", doc["source"]), r["target_record_id"])
+        for r in doc["relations"]
+        if r["kind"] == "corrects"
+    ]
+    notable = False
+    for m in measures:
+        quote = re.sub(r"\s+", "", m.quote)
+        bounds = series.period_bounds(m.period, at)
+        if not quote or quote not in text or bounds is None:
+            log.info("measure dropped (%s): %s %s", "period" if quote in text else "quote", doc["record_id"], m.metric)
+            continue
+        key = dict(object=m.object.strip()[:200], metric=m.metric.strip()[:200], unit=m.unit.strip()[:50])
+        same = dict(key, workspace_id=s.workspace_id, is_demo=is_demo)
+        if session.scalar(
+            select(db.Measurement.id).filter_by(version_id=doc["version_id"], period=m.period.strip(), **key)
+        ):
+            continue  # this version was measured before (a retried triage)
+        row = db.Measurement(
+            **same,
+            value=m.value,
+            period=m.period.strip()[:40],
+            period_start=bounds[0],
+            period_end=bounds[1],
+            status=m.status,
+            source=doc["source"],
+            record_id=doc["record_id"],
+            version_id=doc["version_id"],
+            quote=m.quote[:300],
+            available_at=at,
+            topic_id=topic.id if topic else None,
+        )
+        session.add(row)
+        session.flush()
+        for source, record_id in corrected:
+            for old in session.scalars(
+                select(db.Measurement).filter_by(source=source, record_id=record_id, period=row.period, **same)
+            ):
+                old.superseded_by = row.id
+        rows = [
+            {"id": r.id, "value": r.value, "status": r.status, "period_end": r.period_end,
+             "available_at": r.available_at, "superseded_by": r.superseded_by}
+            for r in session.scalars(
+                select(db.Measurement).filter_by(**same).where(db.Measurement.available_at <= at)
+            )
+        ]
+        found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
+        if topic is not None and found:
+            event(session, topic, at, "series", record=doc["record_id"], **key, value=m.value, period=row.period, changes=found)
+        notable = notable or any(c["kind"] in series.NOTABLE for c in found)
+    return notable
 
 
 def owe(topic, reason, at):
