@@ -485,8 +485,12 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
     queries = [{"terms": [f"词{i}"], "checks": ["Q1"]} for i in range(12)]
     run.p.update(
         queries=list(queries),
-        actions=[{"kind": "search", "source": "external_archive", "args": {"terms": q["terms"]}} for q in queries],
-        pages={"external_archive|词3": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}},
+        actions=[
+            {"kind": "search", "source": "external_archive", "args": {"terms": q["terms"]}} for q in queries
+        ],
+        pages={
+            "external_archive|词3": {"cursor": "c", "pages": 1, "new": True, "found": 10, "checks": ["Q1"]}
+        },
         notes=[],
     )
     run.add_query(["新城"], ["Q1"], value=3, origin="object:E9")

@@ -197,7 +197,7 @@ def topic_analysis():
                     "checks": [],
                     "stance": "supports",
                 },
-            ]
+            ],
         }
         for ref, source in (("E1", "open_src"), ("E2", "gone_src")):
             s.add(

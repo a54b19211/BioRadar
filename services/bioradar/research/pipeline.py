@@ -974,7 +974,7 @@ class Run:
             self.p["queries"].append(query)
             return
         ran = {
-            (a["source"], tuple(a["args"].get("terms", ())))
+            (a.get("source", ""), tuple(a["args"].get("terms", ())))
             for a in self.p["actions"]
             if a["kind"] in {"search", "fetch"}
         }
