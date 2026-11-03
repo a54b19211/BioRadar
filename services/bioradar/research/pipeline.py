@@ -499,7 +499,9 @@ class Run:
             page = self.p["pages"].setdefault(
                 key, {"pages": 0, "found": 0, "checks": candidate["target_checks"]}
             )
-            page.update(cursor=cursor, pages=page["pages"] + 1, new=new or more, found=page["found"] + len(docs))
+            page.update(
+                cursor=cursor, pages=page["pages"] + 1, new=new or more, found=page["found"] + len(docs)
+            )
         if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
             # Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss.
             for shorter in (terms[:-1], terms[1:]):

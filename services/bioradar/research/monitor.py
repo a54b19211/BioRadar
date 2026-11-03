@@ -41,8 +41,12 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     docs = []
     with db.session() as session:
         rows = session.execute(
-            select(db.Observation.source, db.Observation.record_id, db.Observation.version_id, db.Observation.reason)
-            .where(db.Observation.is_demo == is_demo)
+            select(
+                db.Observation.source,
+                db.Observation.record_id,
+                db.Observation.version_id,
+                db.Observation.reason,
+            ).where(db.Observation.is_demo == is_demo)
         ).all()
         seen = {r.version_id for r in rows if r.reason != "triage_failed"}
         # Records whose triage call failed are triaged again (live mode: the change cursor moved on).
@@ -51,7 +55,9 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
             if r.reason == "triage_failed":
                 failed.setdefault(r.source, []).append(r.record_id)
         for source, ids in failed.items():
-            items, _ = fabric.search(source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids))
+            items, _ = fabric.search(
+                source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids)
+            )
             docs += [d for d in items if d["version_id"] not in seen]
         for source in sources:
             if cutoff is None:
@@ -164,7 +170,8 @@ def observe(s: Settings, docs, *, is_demo: bool):
                     event(session, topic, at, "created", record=doc["record_id"], title=doc["title"])
                 session.execute(
                     delete(db.Observation).where(
-                        db.Observation.version_id == doc["version_id"], db.Observation.reason == "triage_failed"
+                        db.Observation.version_id == doc["version_id"],
+                        db.Observation.reason == "triage_failed",
                     )
                 )
                 session.add(
