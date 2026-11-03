@@ -602,7 +602,7 @@ def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_i
 
 
 def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_baseline_keeps_its_order():
-    """D-S1: literal hits came back in record-id order and twenty unrelated English acronym hits were read first."""
+    """D-S1: literal hits came back in record-id order and unrelated English acronym hits were read first."""
     docs = {
         "a1": ("SARS officers trained", "South African Revenue Service officers trained", "2019-12-20"),
         "b2": ("兰州布病聚集", "兰州通报布病聚集病例，抗体阳性65人", "2019-12-07"),

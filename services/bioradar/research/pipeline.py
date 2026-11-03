@@ -478,9 +478,9 @@ class Run:
         def named(title):
             return any(o in (title or "") for o in objects)
 
-        # T-21 reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits in
-        # record-id order, so without this a tie is read alphabetically. coverage: the share of this plan's
-        # search terms found in the record's text, a cheap ordering feature and not relevance or truth.
+        # T-21 reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits
+        # in record-id order, so without this a tie is read alphabetically. coverage: the share of this
+        # plan's search terms found in the record's text, a cheap ordering feature, not relevance or truth.
         terms = list(dict.fromkeys(squash(t) for q in self.p["queries"] for t in q["terms"]))
 
         def text(hit):
