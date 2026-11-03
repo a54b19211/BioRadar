@@ -73,3 +73,33 @@ def test_a_failed_service_call_keeps_the_model_calls_it_paid_for(monkeypatch):
         assert exc.code == "model_failed" and exc.calls == calls
     else:
         raise AssertionError("expected ServiceError")
+
+
+def test_source_status_keeps_collection_state_new_records_and_publication_apart(monkeypatch):
+    from bioradar import app as api_module
+
+    class Fake:
+        def __init__(self, s):
+            pass
+
+        def source_health(self, source):
+            watches = [{"watch_id": "w1", "state": "failed", "scope": "BCMA"}] if source == "europe_pmc" else []
+            return {"collection": {"state": "unknown", "scope": "recorded_crawl_task"}, "watches": watches}
+
+        def latest(self, source, *, is_demo):
+            return {"published_at": "2026-10-19"}
+
+        def head(self, source, *, is_demo):
+            return 5
+
+    monkeypatch.setattr(api_module, "Fabric", Fake)
+    s = settings()
+    monkeypatch.setattr(s, "monitor_sources", ["europe_pmc", "who_don"])
+    client = TestClient(app)
+    client.post("/api/session", json={"credential": s.dev_credential})
+    body = client.get("/api/sources").json()
+    rows = {r["source"]: r for r in body["sources"]}
+    assert rows["europe_pmc"]["note"].startswith("采集任务失败")
+    assert rows["who_don"]["note"] == "长时间无新增，采集状态待核"
+    assert rows["who_don"]["latest_published_at"] == "2026-10-19" and rows["who_don"]["collection"]["state"] == "unknown"
+    assert body["daily_auto_tokens"] == s.daily_auto_tokens

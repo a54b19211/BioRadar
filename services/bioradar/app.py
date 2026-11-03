@@ -1,15 +1,17 @@
 """HTTP API used by the Vue app and by scripts. Interactive docs at /docs."""
 
 import hmac
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Literal
 
+import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 
 from bioradar import db
+from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
 from bioradar.research import analyses, monitor
 
@@ -268,6 +270,59 @@ def observations(is_demo: bool = False, limit: int = 50):
         }
         for o in rows
     ]
+
+
+def source_row(fabric: Fabric, source: str, cursor, now: datetime, quiet_hours: int) -> dict:
+    """Three things kept apart: Fabric's crawl-task status, the radar's last new record, and the
+    newest material's publication time. No combined freshness score."""
+    row = {"source": source, "last_new_at": cursor.last_new_at.isoformat() if cursor and cursor.last_new_at else None}
+    try:
+        health = fabric.source_health(source)
+        collection = health.get("collection") or {}
+        row["collection"] = {
+            k: collection.get(k)
+            for k in ("state", "last_recorded_success_at", "last_recorded_failure_at", "scope", "coverage")
+        }
+        row["failed_tasks"] = [
+            {k: w.get(k) for k in ("watch_id", "scope", "window_ended_at")}
+            for w in health.get("watches") or []
+            if w.get("state") == "failed"
+        ]
+        latest = fabric.latest(source, is_demo=False)
+        head = fabric.head(source, is_demo=False)
+        row["latest_published_at"] = (latest or {}).get("published_at")
+        row["lag"] = head - cursor.after_seq if cursor else None
+    except (FabricError, httpx.HTTPError) as exc:
+        row["collection"] = {"state": "unavailable", "error": getattr(exc, "code", type(exc).__name__)}
+        row["failed_tasks"], row["latest_published_at"], row["lag"] = [], None, None
+    last = monitor.parse_time(cursor.last_new_at) if cursor and cursor.last_new_at else None
+    quiet = last is None or now - last > timedelta(hours=quiet_hours)
+    if row["failed_tasks"]:
+        row["note"] = "采集任务失败：" + "、".join(t["watch_id"] or "?" for t in row["failed_tasks"])
+    elif quiet and row["collection"].get("state") in {None, "unknown", "unavailable"}:
+        row["note"] = "长时间无新增，采集状态待核"
+    else:
+        row["note"] = ""
+    return row
+
+
+@app.get("/api/sources", dependencies=api)
+def source_status():
+    """Monitored sources: collection status, last new record, newest publication time; and today's
+    automatic token use against the daily ceiling."""
+    s = settings()
+    fabric = Fabric(s)
+    with db.session() as session:
+        cursors = {c.source: c for c in session.scalars(select(db.Cursor).where(db.Cursor.is_demo.is_(False)))}
+    now = db.now()
+    return {
+        "sources": [
+            source_row(fabric, source, cursors.get(source), now, s.quiet_hours)
+            for source in (s.monitor_sources or s.sources)
+        ],
+        "auto_tokens_today": monitor.auto_tokens_today(),
+        "daily_auto_tokens": s.daily_auto_tokens,
+    }
 
 
 @app.get("/api/usage", dependencies=api)

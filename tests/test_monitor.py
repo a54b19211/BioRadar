@@ -254,3 +254,23 @@ def test_a_flooding_source_does_not_starve_a_quiet_one(monkeypatch):
 
     with db.session() as session:
         assert "Q1" in set(session.scalars(select(db.Observation.record_id)))
+
+
+def test_live_monitoring_pauses_at_the_daily_automatic_token_ceiling(monkeypatch):
+    from bioradar import db
+    from bioradar.config import settings
+
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", triage_by_title(sent))
+    s = settings()
+    monkeypatch.setattr(s, "daily_auto_tokens", 1000)
+    monkeypatch.setattr(s, "monitor_sources", ["who_don"])
+    fabric = FakeFabric([record("P0", "历史", "x", source="who_don")])
+    monitor.tick(is_demo=False, fabric=fabric)
+    with db.session() as session:  # today's automatic work already used the ceiling
+        session.add(db.LlmCall(stage="triage", service="radar", total_tokens=1000))
+    fabric.docs += FakeFabric([record("P1", "两家医院确认7例", "x", source="who_don")]).docs
+    paused = monitor.tick(is_demo=False, fabric=fabric)
+    assert paused["paused"] == "daily_auto_tokens" and paused["records"] == 0 and sent == []
+    monkeypatch.setattr(s, "daily_auto_tokens", 10**9)
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1  # the record waited in the feed

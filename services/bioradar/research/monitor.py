@@ -369,22 +369,51 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
     return created
 
 
+def auto_tokens_today() -> int:
+    """Tokens spent today (UTC) on automatic work: live triage plus topic-triggered analyses."""
+    start = db.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    with db.session() as session:
+        triage_tokens = session.scalar(
+            select(func.coalesce(func.sum(db.LlmCall.total_tokens), 0)).where(
+                db.LlmCall.stage == "triage", db.LlmCall.created_at >= start
+            )
+        )
+        topic_tokens = session.scalar(
+            select(func.coalesce(func.sum(db.LlmCall.total_tokens), 0))
+            .join(db.Analysis, db.Analysis.id == db.LlmCall.analysis_id)
+            .where(db.Analysis.trigger == "topic", db.LlmCall.created_at >= start)
+        )
+    return int(triage_tokens) + int(topic_tokens)
+
+
 def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | None = None, fabric=None):
-    """One monitoring round. `clock` moves topic states during blank periods with no new records."""
+    """One monitoring round. `clock` moves topic states during blank periods with no new records.
+    Live real monitoring pauses new triage and automatic analyses once today's automatic tokens reach
+    daily_auto_tokens; the backlog stays in the feed and owed analyses stay owed."""
     s = settings()
     fabric = fabric or Fabric(s)
-    docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
+    paused = cutoff is None and not is_demo and auto_tokens_today() >= s.daily_auto_tokens
+    if paused:
+        log.info("monitor paused: daily_auto_tokens reached")
+        docs, ends, backlog = [], {}, True
+    else:
+        docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
     reasons = observe(s, docs, is_demo=is_demo) if docs else {}
+    fresh = {d["source"] for d in docs}
     with db.session() as session:  # a round that died before this line reads the same records again
         for source, at in ends.items():
-            session.get(db.Cursor, (source, is_demo)).after_seq = at
+            cursor = session.get(db.Cursor, (source, is_demo))
+            cursor.after_seq = at
+            if source in fresh:
+                cursor.last_new_at = db.now()
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
     reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
-    created = start_analyses(s, is_demo=is_demo, cutoff=cutoff) if s.auto_analysis else []
+    created = start_analyses(s, is_demo=is_demo, cutoff=cutoff) if s.auto_analysis and not paused else []
     return {
         "records": len(docs),
         "backlog": backlog,  # more new records are waiting in the feed than one round takes
+        "paused": "daily_auto_tokens" if paused else None,
         "clock": clock.isoformat(),
         "topics": reasons,
         "analyses": created,

@@ -228,6 +228,8 @@ export interface TopicFull extends Topic {
 
 export interface TickSummary {
   records: number;
+  backlog: boolean; // more new records wait in the feed than one round takes
+  paused: string | null; // "daily_auto_tokens" when today's automatic ceiling is reached
   clock: string;
   topics: Record<string, string>; // topic id -> why it needs attention
   analyses: string[]; // ids of the analyses started
@@ -327,3 +329,19 @@ export const tick = (isDemo: boolean) =>
 export const listObservations = (isDemo: boolean) =>
   request<Observation[]>("GET", `/api/monitor/observations?${demo(isDemo)}`);
 export const getUsage = () => request<UsageRow[]>("GET", "/api/usage");
+
+export interface SourceStatus {
+  source: string;
+  collection: { state: string | null; last_recorded_success_at?: string | null; last_recorded_failure_at?: string | null; scope?: string | null; coverage?: string | null; error?: string };
+  failed_tasks: { watch_id: string | null; scope: string | null; window_ended_at: string | null }[];
+  last_new_at: string | null;
+  latest_published_at: string | null;
+  lag: number | null;
+  note: string;
+}
+export interface SourceReport {
+  sources: SourceStatus[];
+  auto_tokens_today: number;
+  daily_auto_tokens: number;
+}
+export const getSources = () => request<SourceReport>("GET", "/api/sources");

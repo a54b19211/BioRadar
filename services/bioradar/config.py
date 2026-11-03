@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     monitor_max_records: int = 100  # per live round (about 10 triage calls); the rest waits in the feed
     auto_analysis: bool = False
     auto_analyses_per_hour: int = 6  # live monitoring only
+    # Soft ceiling on today's automatic work (live triage + topic analyses); manual questions are exempt.
+    # In-flight work may overshoot by one triage batch and the analyses already running.
+    daily_auto_tokens: int = 3_000_000
+    quiet_hours: int = 72  # no new record for this long, and no collection status: "待核"
     topic_cool_days: int = 7
     topic_dormant_days: int = 21
 

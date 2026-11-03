@@ -118,6 +118,18 @@ class Fabric:
         )
         return data.get("max_seq") or 0
 
+    def source_health(self, source):
+        """Fabric's own record of its crawl tasks for this source (state, last success/failure, scope)."""
+        return self._get("/api/history/source-health", {"source_id": source})
+
+    def latest(self, source, *, is_demo):
+        """The newest record of a feed, or None."""
+        head = self.head(source, is_demo=is_demo)
+        if not head:
+            return None
+        items, _ = self.changes(source, is_demo=is_demo, after=head - 1, limit=1)
+        return items[0] if items else None
+
     def sources(self):
         return self._get("/api/history/sources", {})
 
