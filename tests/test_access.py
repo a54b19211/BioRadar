@@ -406,11 +406,17 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
                 "plan_basis": {"撤权原文城": "prior_report"},
                 # Codex r45: every model text of the round, wherever it sits
                 "computations": [
-                    {"description": "撤权原文城的人数", "operands": [{"ref": "E1", "quote": "本记录列有40人。"}], "value": 40}
+                    {
+                        "description": "撤权原文城的人数",
+                        "operands": [{"ref": "E1", "quote": "本记录列有40人。"}],
+                        "value": 40,
+                    }
                 ],
                 "review": {
                     "versions": [{"step": "generate", "draft": "撤权原文城四十人。", "status": "unchecked"}],
-                    "claims": [{"index": 0, "verdict": "supported", "citations": ["E1"], "text": "撤权原文城"}],
+                    "claims": [
+                        {"index": 0, "verdict": "supported", "citations": ["E1"], "text": "撤权原文城"}
+                    ],
                 },
                 "stop": {"decision": "insufficient", "reason": "step_limit"},
             },

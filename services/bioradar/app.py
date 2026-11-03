@@ -370,7 +370,10 @@ def redact(value: dict) -> dict:
         actions = [a.get("args", {}).get("terms") for a in progress.get("actions") or []]
         checks = {
             key: [(c.get("text", ""), c.get("exploratory", [])) for c in where]
-            for key, where in (("progress", progress.get("checks") or []), ("result", result.get("checks") or []))
+            for key, where in (
+                ("progress", progress.get("checks") or []),
+                ("result", result.get("checks") or []),
+            )
         }
         operands = [
             [o.get("quote", "") if o.get("ref") not in hidden else "" for o in c.get("operands") or []]
@@ -385,7 +388,10 @@ def redact(value: dict) -> dict:
         for a, terms in zip(progress.get("actions") or [], actions):
             if terms is not None:
                 a["args"]["terms"] = terms
-        for key, where in (("progress", progress.get("checks") or []), ("result", result.get("checks") or [])):
+        for key, where in (
+            ("progress", progress.get("checks") or []),
+            ("result", result.get("checks") or []),
+        ):
             for c, (text, exploratory) in zip(where, checks[key]):
                 c.update(text=text, exploratory=exploratory)
         for c, quoted in zip(result.get("computations") or [], operands):
