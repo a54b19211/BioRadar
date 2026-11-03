@@ -919,6 +919,22 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
     with pytest.raises(Failed) as stopped:
         run.run()
     assert stopped.value.code == "upstream_access_withdrawn"
+    # Codex r43: revoked inside the investigation, after the stage started: the next Fabric action stops
+    fabric.listed = ["gone", "external_archive"]
+    inside = Run(child, settings(), fabric=fabric)
+    inside.stage = "investigate"
+    candidate = next(c for c in inside.candidates() if c["kind"] == "search")
+    fabric.listed = ["external_archive"]
+    calls_before = len(fabric.calls)
+    with pytest.raises(Failed):
+        inside.act(candidate)
+    assert len(fabric.calls) == calls_before  # nothing went to Fabric
+    # progress saved before the field existed: an earlier report and past the plan counts as used
+    old = Run(child, settings(), fabric=fabric)
+    old.stage = "report"
+    old.p.pop("used_previous", None)
+    with pytest.raises(Failed):
+        old.report_input()
 
 
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():

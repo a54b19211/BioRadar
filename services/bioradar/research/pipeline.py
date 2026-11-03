@@ -345,6 +345,7 @@ class Run:
         return self.input["budget"]["max_llm_calls"] - self.calls_used
 
     def ask(self, stage, system, payload, model_cls, **options):
+        self.upstream_still_readable()
         if self.calls_left() <= 0:
             self.note("llm_budget", stage)
             return None
@@ -388,9 +389,15 @@ class Run:
         return self.result()
 
     def upstream_still_readable(self):
-        """Raise when the plan used the earlier report and its sources can no longer be read: checked at
-        each stage and again at the writer's service boundary."""
-        if self.p.get("used_previous") and self.previous_report() is None:
+        """Raise when the plan used the earlier report and its sources can no longer be read. Checked
+        before every model call, Fabric action and professional-service request, not only at stage starts
+        (Codex r43: revoked mid-investigation, the plan's terms still reached Fabric). Calls already sent
+        are not taken back. Progress saved before used_previous existed, with an earlier report and past
+        the plan, counts as having used it: a missing field is not "not used"."""
+        if not self.input.get("previous_report") or self.stage == "plan":
+            return
+        used = self.p.get("used_previous", True)
+        if used and self.previous_report() is None:
             raise Failed("upstream_access_withdrawn")
 
     def previous_report(self):
@@ -430,9 +437,9 @@ class Run:
             "history_cutoff": self.input.get("cutoff"),
         }
         previous = self.previous_report()
+        self.p["used_previous"] = bool(previous)
         if previous:
             payload["previous_report"] = previous["draft"][:3000]
-            self.p["used_previous"] = True
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
@@ -884,6 +891,7 @@ class Run:
                 },
                 "policy": self.input["method"],
             }
+            self.upstream_still_readable()
             try:
                 decision = services.decide(self.s, request)
             except ServiceError as exc:
@@ -902,6 +910,7 @@ class Run:
             self.save()
 
     def act(self, candidate):
+        self.upstream_still_readable()
         action = {
             "kind": candidate["kind"],
             "source": candidate["source"],
@@ -1340,6 +1349,7 @@ class Run:
         if not materials:
             self.p["mechanism_result"] = {"status": "not_run", "reason": "no_research_material"}
             return
+        self.upstream_still_readable()
         try:
             response = services.mechevidence(
                 self.s,
