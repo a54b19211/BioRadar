@@ -461,7 +461,7 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
 
 
 def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
-    """Codex C05: 2 devices over 3 institutions came out as 66.6667%, with a caveat that did not make it valid."""
+    """Codex C05: 2 devices over 3 institutions came out as 66.6667%; a caveat does not make it valid."""
     from bioradar.research import pipeline
 
     def calculate(settings_, stage, system, payload, model_cls, **options):
@@ -469,13 +469,19 @@ def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
         calcs = [
             schemas.Calculation(
                 label="设备覆盖比例",
-                operands=[schemas.Operand(fact=ids[0], value=2, unit="套"), schemas.Operand(fact=ids[1], value=3, unit="家")],
+                operands=[
+                    schemas.Operand(fact=ids[0], value=2, unit="套"),
+                    schemas.Operand(fact=ids[1], value=3, unit="家"),
+                ],
                 expression="x1 / x2 * 100",
                 unit="%",
             ),
             schemas.Calculation(
                 label="阳性比例",
-                operands=[schemas.Operand(fact=ids[2], value=5, unit="人"), schemas.Operand(fact=ids[3], value=20, unit="人")],
+                operands=[
+                    schemas.Operand(fact=ids[2], value=5, unit="人"),
+                    schemas.Operand(fact=ids[3], value=20, unit="人"),
+                ],
                 expression="x1 / x2 * 100",
                 unit="%",
             ),
