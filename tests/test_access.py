@@ -1,8 +1,8 @@
 """T-14: people and roles, human reviews, and material from sources Fabric no longer lets us read."""
 
 import pytest
-from sqlalchemy import select
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from bioradar import app as api_module
 from bioradar import db
@@ -323,7 +323,11 @@ def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
 
     with db.session() as s:  # a reviewer's note quoting the sentence (Codex r22)
         user_id = s.scalar(select(db.User.id).where(db.User.name == "admin"))
-        s.add(db.Review(user_id=user_id, action="reject", analysis_id=analysis_id, sentence=2, note="撤权原文写错了"))
+        s.add(
+            db.Review(
+                user_id=user_id, action="reject", analysis_id=analysis_id, sentence=2, note="撤权原文写错了"
+            )
+        )
     detail = admin.get(f"/api/analyses/{analysis_id}").json()
     assert detail["reviews"][0]["action"] == "reject" and detail["reviews"][0]["note"] == ""
     for exit_ in (

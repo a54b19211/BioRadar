@@ -528,8 +528,10 @@ def add_review(body: ReviewIn, user: db.User = Depends(require("analyst"))):
 def list_reviews(analysis_id: str | None = None, topic_id: str | None = None, limit: int = 50):
     rows = analyses.reviews(analysis_id=analysis_id, topic_id=topic_id, limit=min(limit, 200))
     hidden_in = hidden_by_analysis({r["analysis_id"] for r in rows if r["analysis_id"]})
-    return [dict(r, note="", withheld=notice(hidden_in[r["analysis_id"]])) if r["analysis_id"] in hidden_in else r
-            for r in rows]
+    return [
+        dict(r, note="", withheld=notice(hidden_in[r["analysis_id"]])) if r["analysis_id"] in hidden_in else r
+        for r in rows
+    ]
 
 
 @app.get("/api/investigations", dependencies=api)
