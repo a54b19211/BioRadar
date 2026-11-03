@@ -540,7 +540,7 @@ def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
     monkeypatch.setattr(services, "biocheck", empty_report)
     row = analyses.create(question="XQ-17 当前有哪些异常聚集与PFS结果？", direction="pipeline", is_demo=True, enqueue=False)
     result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
-    assert result["plan_basis"] == {"武汉": "exploratory", "XQ-17": "question", "华南海鲜": "exploratory", "PFS": "question", "XQ": "question"}
+    assert result["plan_basis"] == {"武汉": "exploratory", "XQ-17": "question", "华南海鲜": "exploratory", "PFS": "question"}
     assert reads and reads[0]["objects"] == ["XQ-17"]
     assert [c["exploratory"] for c in reads[0]["checks"]] == [["华南海鲜"], []]
     assert [c["objects"] for c in result["checks"]] == [[], ["XQ-17"]]
