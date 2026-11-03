@@ -654,3 +654,27 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
         )
         order = [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"]
         assert order == expected, method
+
+
+def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unread(monkeypatch):
+    """C01-W2: Fabric said C01-04 reposts C01-03, but only corrections reached BioCheck, so the draft
+    wrote that the materials did not say whether the repost was independent."""
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", lambda s, op, body: sent.append((op, body)) or empty_report(s, op, body))
+    records = RECORDS + [
+        record("B51", "转载：XQ-17 随机试验", "转载：随机试验纳入240例，PFS的HR为0.62。", relations=[("reposts", "B31")]),
+        record("B61", "转载另一篇PFS", "另一篇PFS转载，原文未附。", relations=[("reposts", "B99")]),
+    ]
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    Run(row, settings(), fabric=FakeFabric(records)).run()
+    with db.session() as s:
+        ref = {e.record_id: e.ref for e in s.scalars(select(db.Evidence).where(db.Evidence.analysis_id == row.id))}
+    generate = next(body for op, body in sent if op == "generate")
+    assert sorted(generate["source_relations"], key=lambda r: r["target_record"]) == [
+        {"kind": "repost", "source": ref["B51"], "target": ref["B31"], "target_record": "B31", "read": True},
+        {"kind": "repost", "source": ref["B61"], "target": None, "target_record": "B99", "read": False},
+    ]
+    assert generate["source_updates"] and all(u["kind"] == "correction" for u in generate["source_updates"])
+    assert all("origin_group" in e for e in generate["evidence"])

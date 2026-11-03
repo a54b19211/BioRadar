@@ -941,6 +941,8 @@ class Run:
                 "source_kind": source_kind(r.material_kind, r.source),
                 "verified": r.verified,
                 "text": excerpt(r.text, quotes.get(r.ref, [])),
+                # Fabric's explicit same-origin group; absent means independence is unknown, not proven
+                "origin_group": (r.meta or {}).get("origin_group"),
             }
             for r in rows
             if r.ref in quotes or r.record_id in related
@@ -991,6 +993,22 @@ class Run:
             for r in self.p["relations"]
             if r["kind"] in {"corrects", "retracts"} and (pair := bound(r))
         ]
+        # T-23: reposts and supplements keep their own field (they do not supersede anything); the end not
+        # read is named by record and marked unread instead of being guessed from a title or a site
+        relations = []
+        for r in self.p["relations"]:
+            if r["kind"] not in {"reposts", "supplements"} or (r["source"], r["from"]) not in refs:
+                continue
+            pair = bound(r)
+            relations.append(
+                {
+                    "kind": "repost" if r["kind"] == "reposts" else "supplement",
+                    "source": refs[(r["source"], r["from"])].ref,
+                    "target": pair[0].ref if pair else None,
+                    "target_record": r["to"],
+                    "read": bool(pair),
+                }
+            )
         searched = {i for a in self.p["actions"] if a["status"] == "completed" for i in a["target_checks"]}
         failed = [
             f"{a['kind']} {a['source']} {a.get('error')}"
@@ -1002,6 +1020,7 @@ class Run:
             "evidence": evidence,
             "analysis_results": results,
             "source_updates": updates,
+            "source_relations": relations,
             "research_scope": {
                 "checked": [
                     c["text"]
