@@ -128,41 +128,49 @@ def adopt(text, terms, limit):
 
 def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact.
-    When the windows do not fit, the context around each quote shrinks before any quote is dropped (a
-    trial's results table came after its status fields and never reached the writer, Codex r38)."""
+    Every quote goes in first; the room left then widens each quote, shortest first, to its whole line
+    (a registry field's title-only quote such as "Total Energy Expenditure" is useless without the values
+    on that line, Codex r40), and what is still left adds 400, then 150 characters around quotes not yet
+    widened. Nothing quoted is dropped for context (Codex r38)."""
     if len(text) <= limit:
         return text
-    found = []
+    spans = []
     for quote in quotes:
         # Quotes were checked with whitespace removed, so locate them the same way.
         hit = re.search(r"\s*".join(map(re.escape, squash(quote))), text) if squash(quote) else None
         if hit:
-            found.append((hit.start(), hit.end()))
+            spans.append([hit.start(), hit.end()])
+
+    def merged(windows):
+        out = []
+        for a, b in sorted(windows):
+            if out and a <= out[-1][1]:
+                out[-1][1] = max(out[-1][1], b)
+            else:
+                out.append([a, b])
+        return out
+
+    def size(windows):
+        return sum(b - a for a, b in merged(windows))
+
     def line(a, b):
         end = text.find("\n", b)
         return [text.rfind("\n", 0, a) + 1, len(text) if end < 0 else end]
 
-    # first the whole line each quote is on: a registry field's title-only quote ("Total Energy
-    # Expenditure") is useless without the values on the same line (Codex r40); then shrinking context
-    for context in ("line", 400, 150, 0):
-        if context == "line":
-            spans = sorted(line(a, b) for a, b in found)
-        else:
-            spans = sorted([max(0, a - context), min(len(text), b + context)] for a, b in found)
-        merged = []
-        for span in spans:
-            if merged and span[0] <= merged[-1][1]:
-                merged[-1][1] = max(merged[-1][1], span[1])
-            else:
-                merged.append(span)
-        if sum(b - a for a, b in merged) <= limit:
-            break
-    parts, size = [], 0
-    for start, end in merged:
-        if size + end - start > limit:
-            continue  # only quotes longer than everything left; the rest still go in
-        parts.append(text[start:end])
-        size += end - start
+    windows = [list(s) for s in spans]
+    widened = set()
+    for i in sorted(range(len(spans)), key=lambda i: line(*spans[i])[1] - line(*spans[i])[0]):
+        trial = windows[:i] + [line(*spans[i])] + windows[i + 1 :]
+        if size(trial) <= limit:
+            windows, _ = trial, widened.add(i)
+    for context in (400, 150):
+        for i, (a, b) in enumerate(spans):
+            if i in widened:
+                continue
+            trial = windows[:i] + [[max(0, a - context), min(len(text), b + context)]] + windows[i + 1 :]
+            if size(trial) <= limit:
+                windows, _ = trial, widened.add(i)
+    parts = [text[a:b] for a, b in merged(windows)]
     return "\n…\n".join(parts) or text[:limit]
 
 
