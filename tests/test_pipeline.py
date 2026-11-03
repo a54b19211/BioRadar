@@ -788,6 +788,36 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
             lineage(s, last.id)
 
 
+def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on_a_term():
+    """Codex r40 decision: within the task's own material set, list what is visible at the cutoff."""
+    early = [record(f"S{i:03d}", f"记录{i}", "门诊登记", available="2026-09-20T08:00:00+08:00") for i in range(110)]
+    late = [record(f"L{i}", f"后来{i}", "后来的", available="2026-10-20T08:00:00+08:00") for i in range(5)]
+    scope = [r["source_record_id"] for r in early + late]
+    row = analyses.create(
+        question="当前有哪些值得核实的事件？",
+        direction="public_health",
+        is_demo=True,
+        cutoff="2026-10-01T00:00:00+08:00",
+        scope_record_ids=scope,
+        enqueue=False,
+    )
+    fabric = FakeFabric(early + late)
+    run = Run(row, settings(), fabric=fabric)
+    run.p.update(queries=[], hits=[], actions=[], pages={}, objects=[], notes=[],
+                 checks=[{"id": "Q1", "text": "事件", "required": True, "status": "open", "evidence": []}])
+    browse = [c for c in run.candidates() if c["args"].get("browse")]
+    assert len(browse) == 1 and browse[0]["kind"] == "search" and browse[0]["args"]["terms"] == []
+    run.act(browse[0])
+    assert run.p["actions"][-1]["found"] == 110 and len(run.p["hits"]) == 110  # nothing after the cutoff
+    assert not [c for c in run.candidates() if c["args"].get("browse")]  # once per source
+    assert run.p["notes"][-1]["code"] == "scope_browsed"
+    small = analyses.create(question="小材料集？", direction="public_health", is_demo=True,
+                            scope_record_ids=scope[:3], enqueue=False)
+    run = Run(small, settings(), fabric=fabric)
+    run.p.update(queries=[], hits=[], actions=[], pages={}, objects=[], notes=[], checks=[])
+    assert not [c for c in run.candidates() if c["args"].get("browse")]  # small sets are listed at plan
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

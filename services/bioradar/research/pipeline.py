@@ -503,6 +503,24 @@ class Run:
                     self.docs[(doc["source"], doc["record_id"])] = doc
                     self.add_hit(doc["source"], doc["record_id"], doc["title"], required, critical=True)
 
+    def browse(self, source, checks):
+        """Every record of the fixed material set visible at the cutoff becomes a reading candidate, in
+        pages of FABRIC_PAGE ids at one time point; the records are read later like any other hit."""
+        at = datetime.now(UTC)
+        found = new = 0
+        for start in range(0, len(self.scope), FABRIC_PAGE):
+            ids = self.scope[start : start + FABRIC_PAGE]
+            docs, _ = self.fabric.search(
+                source, (), is_demo=self.input["is_demo"], cutoff=self.cutoff, record_ids=ids,
+                limit=len(ids), now=at,
+            )
+            for doc in docs:
+                found += 1
+                self.docs[(doc["source"], doc["record_id"])] = doc
+                new += self.add_hit(doc["source"], doc["record_id"], doc["title"], checks)
+        self.note("scope_browsed", f"{source}: 材料集 {len(self.scope)} 条，截止时可见 {found} 条，新增候选 {new} 条")
+        return found, new
+
     def graph(self, checks):
         """T-20: the question's own objects looked up in Tang's reviewed graph (read only, through Fabric).
         Graph records visible at the cutoff that mention the exact name are resolved; each candidate keeps
@@ -636,6 +654,22 @@ class Run:
                                 "cost": 3,
                             }
                         )
+        if self.scope and len(self.scope) > FABRIC_PAGE:
+            # a large fixed material set (the task's own scope): list what is visible at the cutoff, so
+            # discovery does not depend on a search term happening to match (PHX attempt 4, W1: 17 of 20
+            # searches found 0-1 records). An ordinary candidate, same budget; no ranking by importance.
+            required = [c["id"] for c in self.p["checks"] if c.get("required")]
+            for source in self.input["sources"]:
+                if ("search", source, (), None, None) not in done:
+                    result.append(
+                        {
+                            "kind": "search",
+                            "source": source,
+                            "args": {"terms": [], "browse": "scope"},
+                            "target_checks": required,
+                            "_value": 1,
+                        }
+                    )
         for key, page in self.p["pages"].items():
             if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]:
                 source, *terms = key.split("|")
@@ -829,6 +863,8 @@ class Run:
     def search(self, candidate):
         source, terms, kind = candidate["source"], candidate["args"]["terms"], candidate["kind"]
         key = f"{source}|{'|'.join(terms)}"
+        if candidate["args"].get("browse"):
+            return self.browse(source, candidate["target_checks"])
         if source == "weknora":
             hits, scopes = weknora.search(
                 self.s, " ".join(terms), direction=self.input["direction"], is_demo=self.input["is_demo"]
