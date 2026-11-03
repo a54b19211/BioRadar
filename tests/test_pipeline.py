@@ -867,10 +867,21 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
     parent = analyses.create(question="上一轮？", direction="pipeline", is_demo=True, enqueue=False)
     with db.session() as s:
         s.get(db.Analysis, parent.id).result = {"draft": "上一轮稿件[E1]。"}
-        s.add(db.Evidence(analysis_id=parent.id, ref="E1", source="gone", record_id="r", version_id="v",
-                          title="t", text="x", meta={}))
-    child = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, parent_id=parent.id,
-                            enqueue=False)
+        s.add(
+            db.Evidence(
+                analysis_id=parent.id,
+                ref="E1",
+                source="gone",
+                record_id="r",
+                version_id="v",
+                title="t",
+                text="x",
+                meta={},
+            )
+        )
+    child = analyses.create(
+        question="XQ-17 的PFS？", direction="pipeline", is_demo=True, parent_id=parent.id, enqueue=False
+    )
 
     class Listed(FakeFabric):
         listed = ["gone", "external_archive"]
