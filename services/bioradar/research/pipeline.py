@@ -567,8 +567,10 @@ class Run:
         """One page (FABRIC_PAGE ids) of the fixed material set: its records visible at the cutoff become
         reading candidates, read later like any other hit. One Fabric request per action, so an action's
         cost does not grow with the set; the pages done are kept in progress for a resumed run, and a
-        page that failed is offered again (Codex r42)."""
+        page that failed is offered again (Codex r42). In current mode every page, retry and resumed run
+        reads at the time of the source's first browse, kept in progress before the first request (Codex r44)."""
         ids = self.scope[page * FABRIC_PAGE : (page + 1) * FABRIC_PAGE]
+        at = self.p.setdefault("browse_at", {}).setdefault(source, datetime.now(UTC).isoformat())
         docs, _ = self.fabric.search(
             source,
             (),
@@ -576,7 +578,7 @@ class Run:
             cutoff=self.cutoff,
             record_ids=ids,
             limit=len(ids),
-            now=datetime.now(UTC),
+            now=datetime.fromisoformat(at),
         )
         new = 0
         for doc in docs:

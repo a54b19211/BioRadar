@@ -805,6 +805,14 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
         enqueue=False,
     )
     fabric = FakeFabric(early + late)
+    times = []
+    plain = fabric.search
+
+    def timed(*args, **kwargs):
+        times.append(kwargs["now"])
+        return plain(*args, **kwargs)
+
+    fabric.search = timed
     run = Run(row, settings(), fabric=fabric)
     run.p.update(
         queries=[],
@@ -822,6 +830,7 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
     from bioradar.adapters.fabric import FabricError
 
     def down(*args, **kwargs):
+        times.append(kwargs["now"])
         raise FabricError("fabric_http_503", "down")
 
     real, fabric.search = fabric.search, down
@@ -840,6 +849,8 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
     assert len(resumed.p["hits"]) == 110  # 10 more were visible; the 5 later ones were not
     assert not [c for c in resumed.candidates() if c["args"].get("browse")]
     assert [n["code"] for n in resumed.p["notes"]].count("scope_browsed") == 2
+    # one material set, one moment: page 2, its retry and the resumed run all read at the first page's time
+    assert len(times) == 3 and len(set(times)) == 1 and times[0] is not None
     small = analyses.create(
         question="小材料集？",
         direction="public_health",
