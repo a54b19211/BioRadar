@@ -402,7 +402,10 @@ def measure(session, s: Settings, doc, item, topic, at, is_demo, topics) -> list
             if version_id:
                 query = query.filter_by(version_id=version_id)
             for old in session.scalars(query):
-                old.superseded_by = row.id
+                # a replacement already in force keeps its date: a second notice correcting the same value
+                # is not a correction of the first one, so the two stand as a conflict from now on
+                if old.superseded_by is None:
+                    old.superseded_by = row.id
         grain = series.grain(row.period)
         rows = [
             {

@@ -340,3 +340,30 @@ def test_known_series_shown_to_a_replay_are_only_those_visible_then():
     with db.session() as s:
         shown = monitor.known_series(s, monitor.settings(), True, datetime(2026, 1, 10, tzinfo=UTC))
     assert [k["object"] for k in shown] == ["早"]
+
+
+def test_a_second_notice_correcting_the_same_value_does_not_bring_the_old_value_back(monkeypatch):
+    """Codex r15: 5, corrected to 4 on day 5, another notice corrects the same 5 to 3 on day 8. As of day 6
+    the value is 4 before and after the second notice arrives; from day 8 the two notices conflict."""
+    payloads = []
+    quarters = [
+        ("R4", "2026-10-01", "乙公司Q4投运5条灌装线", ("2026Q4", 5, "operational", "投运5条灌装线")),
+        ("R5", "2026-10-05", "乙公司更正：Q4投运4条灌装线", ("2026Q4", 4, "operational", "投运4条灌装线")),
+        ("R6", "2026-10-08", "乙公司另一通知：Q4投运3条灌装线", ("2026Q4", 3, "operational", "投运3条灌装线")),
+    ]
+    by_title = {title: ([lines(*m)], "normal") for _, _, title, m in quarters}
+    monkeypatch.setattr(llm, "chat_json", fake_triage(by_title, payloads, topic_title="乙公司扩产"))
+    records = [(rid, day, title, [("corrects", "R4")] if rid != "R4" else ()) for rid, day, title, _ in quarters]
+    for _ in feed(records):
+        pass
+    with db.session() as s:
+        rows = list(s.scalars(select(db.Measurement).order_by(db.Measurement.id)))
+    as_rows = [
+        {"id": r.id, "value": r.value, "status": r.status, "period": r.period, "period_start": r.period_start,
+         "period_end": r.period_end, "available_at": r.available_at, "superseded_by": r.superseded_by}
+        for r in rows
+    ]
+    day6 = [r for r in as_rows if series._utc(r["available_at"]) <= datetime(2026, 10, 6, tzinfo=UTC)]
+    assert [p["value"] for p in series.points(day6)] == [4]  # the 5 stays replaced
+    assert sorted(p["value"] for p in series.points(as_rows)) == [3, 4]  # two notices, no basis to choose
+    assert [c["kind"] for c in series.changes(as_rows, rows[2].id)] == ["conflict"]

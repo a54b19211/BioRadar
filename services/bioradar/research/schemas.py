@@ -61,8 +61,9 @@ class ReadFact(BaseModel):
     object: str = Field(
         default="", description="这条事实说的是哪个对象（给出的对象名之一）；不涉及具体对象留空"
     )
-    hypothesis: str = Field(
-        default="", description="这条事实支持或反驳哪条假设（如H1，方向见stance）；无关留空"
+    hypothesis: str = Field(default="", description="这条事实支持或反驳哪条假设（如H1）；无关留空")
+    hypothesis_stance: Literal["supports", "refutes", "none"] = Field(
+        default="none", description="对这条假设本身的作用，与对待查问题的 stance 分开判断"
     )
 
 

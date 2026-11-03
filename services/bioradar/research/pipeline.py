@@ -144,6 +144,12 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     return "\n…\n".join(parts) or text[:limit]
 
 
+def hypothesis_stance(fact):
+    """A fact's direction for its hypothesis, judged apart from its stance on the checks (an answer to a
+    check can refute the hypothesis); facts saved before the field existed fall back to the check stance."""
+    return fact.get("hypothesis_stance", fact["stance"])
+
+
 def hypothesis_citations(draft, claims, ids):
     """{hypothesis id: citations of the supported sentences in its paragraph} for the hypotheses the
     draft writes up. A paragraph runs from the id (first one inside 「情报假设」 when that section
@@ -778,6 +784,7 @@ class Run:
                     "hypothesis": fact.hypothesis
                     if fact.hypothesis in {h["id"] for h in self.p.get("hypotheses", [])}
                     else "",
+                    "hypothesis_stance": fact.hypothesis_stance,
                 }
             )
             if fact.stance == "context":
@@ -1049,7 +1056,12 @@ class Run:
                 dict(
                     h,
                     facts=[
-                        {"ref": f["ref"], "text": f["text"], "stance": f["stance"]}
+                        {
+                            "ref": f["ref"],
+                            "text": f["text"],
+                            # BioCheck's contract: a fact with no direction for this hypothesis is context
+                            "stance": hypothesis_stance(f) if hypothesis_stance(f) in {"supports", "refutes"} else "context",
+                        }
                         for f in self.p["facts"]
                         if f.get("hypothesis") == h["id"] and f["ref"] in cited
                     ],
@@ -1156,7 +1168,7 @@ class Run:
                     f["ref"]
                     for f in facts
                     if f.get("hypothesis") == h["id"]
-                    and f["stance"] == stance
+                    and hypothesis_stance(f) == stance
                     and f["ref"] in verified[h["id"]]
                 }
             )
@@ -1174,7 +1186,9 @@ class Run:
         # refuted needs a supported reason on a verified refutation. Anything else is at most possible.
         for h in assessment["hypotheses"]:
             refuted = any(
-                f.get("hypothesis") == h["id"] and f["stance"] == "refutes" and f["ref"] in verified[h["id"]]
+                f.get("hypothesis") == h["id"]
+                and hypothesis_stance(f) == "refutes"
+                and f["ref"] in verified[h["id"]]
                 for f in facts
             )
             backed = h["check"] == "supported" and h["grounds"]
