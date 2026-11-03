@@ -6,7 +6,7 @@ from the saved stage; a model call that was in flight when the worker died is se
 import bisect
 import json
 import re
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import httpx
@@ -725,6 +725,10 @@ class Run:
             docs, cursor = self.fabric.fetch(source, " ".join(terms)), None
         else:
             page = self.p["pages"].get(key, {})
+            # current mode: a next page is read at the time of its first page (Fabric rejects the cursor
+            # otherwise: invalid_cursor on live Europe PMC, T-19)
+            at = page.get("at") if kind == "next_page" else None
+            at = datetime.fromisoformat(at) if at else datetime.now(UTC)
             docs, cursor = self.fabric.search(
                 source,
                 terms,
@@ -733,6 +737,7 @@ class Run:
                 cursor=page.get("cursor") if kind == "next_page" else None,
                 record_ids=self.scope if len(self.scope) <= FABRIC_PAGE else (),
                 limit=FABRIC_PAGE if len(self.scope) > FABRIC_PAGE else 10,
+                now=at,
             )
         # A large set is filtered here; a page without in-set hits must not end paging.
         more = bool(docs) and len(self.scope) > FABRIC_PAGE
@@ -750,6 +755,8 @@ class Run:
             page.update(
                 cursor=cursor, pages=page["pages"] + 1, new=new or more, found=page["found"] + len(docs)
             )
+            if kind == "search" and self.cutoff is None:
+                page["at"] = at.isoformat()
         if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
             # Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss.
             for shorter in (terms[:-1], terms[1:]):

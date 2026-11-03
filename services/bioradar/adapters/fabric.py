@@ -122,13 +122,14 @@ class Fabric:
             raise FabricError(code or f"fabric_http_{response.status_code}", str(error)[:300])
         return response.json()
 
-    def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=()):
-        """One page of records matching all terms. cutoff=None means now (current mode)."""
+    def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=(), now=None):
+        """One page of records matching all terms. cutoff=None means current mode at `now` (default: this
+        moment); Fabric binds a page cursor to that time, so later pages must pass the same `now`."""
         params = {
             "source_id": source,
             "is_demo": str(is_demo).lower(),
             "mode": HISTORY if cutoff else CURRENT,
-            "cutoff": (cutoff or datetime.now(UTC)).isoformat(),
+            "cutoff": (cutoff or now or datetime.now(UTC)).isoformat(),
             "limit": limit,
         }
         if terms:

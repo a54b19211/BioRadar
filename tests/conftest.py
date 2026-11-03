@@ -73,8 +73,9 @@ class FakeFabric:
         self.docs = [document(r) for r in records]
         self.calls = []
 
-    def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=()):
+    def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=(), now=None):
         self.calls.append(("search", source, tuple(terms), tuple(record_ids)))
+        self.times = getattr(self, "times", []) + [(tuple(terms), cursor, now)]
         found = [
             d
             for d in self.docs

@@ -320,6 +320,28 @@ def test_scenario_material_is_judged_inside_the_scenario_and_real_questions_stay
         assert row.input["question"] == "XQ-17 的PFS？"
 
 
+def test_a_next_page_in_current_mode_is_read_at_the_time_of_its_first_page(monkeypatch):
+    """T-19: live Europe PMC answered invalid_cursor twice; each page was asked "as of now" again."""
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", fake_model(sent))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    order = iter(["search", "next_page"])
+
+    def decide(s, body):
+        want = next(order, None)
+        pick = next((i for i, c in enumerate(body["candidates"]) if c["kind"] == want), None)
+        return {"decision": "continue", "candidate": pick} if pick is not None else {"decision": "complete"}
+
+    monkeypatch.setattr(services, "decide", decide)
+    records = [record(f"P{i}", f"PFS 研究 {i}", "PFS 的结果") for i in range(15)]
+    fabric = FakeFabric(records)
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    Run(row, settings(), fabric=fabric).run()
+    first, second = fabric.times[0], fabric.times[1]
+    assert first[1] is None and second[1] is not None  # the second call is the next page
+    assert first[2] is not None and second[2] == first[2]
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
