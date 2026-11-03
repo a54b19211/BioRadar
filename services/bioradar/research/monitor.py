@@ -453,9 +453,39 @@ def measure(session, s: Settings, doc, item, topic, at, is_demo, topics) -> list
                 changes=found,
                 algo=series.VERSION,
             )
-        if holder is not None and series.notable(found) and holder not in owed:
-            owed.append(holder)
+        if holder is not None and series.notable(found):
+            # the records the computation used become the topic's records, so its analysis reads them
+            used = {i for c in found for i in c.get("rows", [])} | {row.id}
+            versions = session.scalars(select(db.Measurement.version_id).where(db.Measurement.id.in_(used)))
+            for obs in session.scalars(
+                select(db.Observation).where(
+                    db.Observation.version_id.in_(list(versions)), db.Observation.topic_id.is_(None)
+                )
+            ):
+                obs.topic_id = holder.id
+            if holder not in owed:
+                owed.append(holder)
     return owed
+
+
+def series_basis(session, topic_id) -> str:
+    """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
+    and records, so the investigation starts from what the program found instead of searching blind."""
+    last = session.scalar(
+        select(db.TopicEvent)
+        .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
+        .order_by(db.TopicEvent.id.desc())
+        .limit(1)
+    )
+    if last is None:
+        return ""
+    d = last.detail
+    used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
+    rows = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end))
+    points = "；".join(f"{r.period or '当时'} {r.value:g}{r.unit}（{r.status}，记录 {r.record_id}）" for r in rows)
+    scope = f"（{d['scope']}）" if d.get("scope") else ""
+    found = "、".join(sorted({c["kind"] for c in d["changes"]}))
+    return f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。这只是待核实的线索，请回原文核对数值、口径和期间。"
 
 
 def owe(topic, reason, at):
@@ -542,6 +572,8 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 else f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
                 "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
             )
+            if "series_change" in reason.split("+"):
+                question += series_basis(session, topic_id)
             row = analyses.create(
                 question=question,
                 direction=topic.direction,

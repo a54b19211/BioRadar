@@ -85,13 +85,16 @@ def _month_end(year, month):
     return datetime.fromtimestamp(nxt.timestamp() - 86400, UTC)
 
 
-NUMBER = re.compile(r"(?<![\d.,A-Za-z])(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?")
+NUMBER = re.compile(r"(?<![\d.,A-Za-z])([-−]?)(\d{1,3}(?:,\d{3})+|\d+)(\.\d+)?")
 
 
 def quoted(value: float, quote: str) -> bool:
-    """The value is one of the numbers written in the quote (3.0 is 3, 1,444 is 1444), not a digit inside
-    12 or 2026 and not the 1 of Q1."""
-    return any(float(whole.replace(",", "") + frac) == value for whole, frac in NUMBER.findall(quote))
+    """The value is one of the numbers written in the quote (3.0 is 3, 1,444 is 1444, -3 keeps its sign), not
+    a digit inside 12 or 2026 and not the 1 of Q1."""
+    return any(
+        float(("-" if sign else "") + whole.replace(",", "") + frac) == value
+        for sign, whole, frac in NUMBER.findall(quote)
+    )
 
 
 def _utc(value):
