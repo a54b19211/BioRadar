@@ -250,6 +250,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
             flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
+            touched = {}  # topic id -> latest record time in this batch, for the activity baseline
             for doc, item in zip(batch, decisions):
                 at = parse_time(doc["available_at"])
                 alert = item.alert if item else "none"
@@ -295,6 +296,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         topic_id=topic.id if topic else None,
                         alert=alert,
                         closure=bool(item and item.closure),
+                        origin_group=doc.get("origin_group"),
                         reason=(item.reason + (" [观测超过3个，只记前3个]" if len(item.measures) > 3 else ""))
                         if item
                         else "triage_failed",
@@ -340,6 +342,11 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                     objects=[o.name for o in item.objects] if item else [],
                     watch=hit,
                 )
+                touched[topic.id] = max(touched.get(topic.id, at), at)
+            session.flush()
+            for topic_id, at in sorted(touched.items()):
+                if activity(session, s, session.get(db.Topic, topic_id), at, is_demo):
+                    wake[topic_id] = "activity_anomaly"
     return wake, True
 
 
@@ -496,6 +503,51 @@ def series_basis(session, topic_id) -> str:
         f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
         "这只是待核实的线索，请回原文核对数值、口径和期间。"
     )
+
+
+BASELINE_DAYS = 7
+
+
+def activity(session, s: Settings, topic, at, is_demo) -> bool:
+    """T-15, a naive baseline of information activity (not case incidence): the topic's records on the day
+    of `at`, reposts of one origin counted once, against the previous 7 days the monitor received anything
+    at all; days with no records from any source (collection stopped or missing) are left out, not zero.
+    Above mean + 3 standard deviations (mean + 3 when they are all equal) is an anomaly; fewer than 7
+    days is not judged. Owes the topic an analysis once per day."""
+    day = func.date(db.Observation.available_at)
+    scope = (
+        db.Observation.workspace_id == s.workspace_id,
+        db.Observation.is_demo == is_demo,
+        db.Observation.available_at >= at - timedelta(days=4 * BASELINE_DAYS),
+        db.Observation.available_at <= at,
+    )
+    received = sorted(str(d) for d in session.scalars(select(day).where(*scope).distinct()))
+    today = str(at.astimezone(UTC).date())  # the database groups by UTC day
+    before = [d for d in received if d < today][-BASELINE_DAYS:]
+    if len(before) < BASELINE_DAYS:
+        return False
+    counted = func.count(func.distinct(func.coalesce(db.Observation.origin_group, db.Observation.record_id)))
+    counts = {
+        str(d): n
+        for d, n in session.execute(
+            select(day, counted).where(*scope, db.Observation.topic_id == topic.id).group_by(day)
+        ).all()
+    }
+    values = [counts.get(d, 0) for d in before]
+    mean = sum(values) / len(values)
+    spread = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
+    threshold = mean + 3 * spread if spread else mean + 3
+    if counts.get(today, 0) <= threshold:
+        return False
+    events = session.scalars(
+        select(db.TopicEvent).where(db.TopicEvent.topic_id == topic.id, db.TopicEvent.kind == "activity")
+    )
+    if any(e.detail.get("day") == today for e in events):
+        return False
+    detail = dict(day=today, records=counts.get(today, 0), mean=round(mean, 2), sd=round(spread, 2))
+    event(session, topic, at, "activity", **detail, threshold=round(threshold, 2), days=before)
+    owe(topic, "activity_anomaly", at)
+    return True
 
 
 def owe(topic, reason, at):

@@ -483,3 +483,49 @@ def select_topics():
     from bioradar import db
 
     return select(db.Topic)
+
+
+def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeypatch):
+    """T-15: activity, not incidence; days with nothing received are left out; reposts count once."""
+    from datetime import UTC, timedelta
+
+    from sqlalchemy import select
+
+    from bioradar import db
+    from bioradar.config import settings
+
+    s = settings()
+    start = datetime(2026, 10, 1, 4, tzinfo=UTC)
+    with db.session() as session:
+        topic = db.Topic(workspace_id=s.workspace_id, title="T", direction="public_health", is_demo=True,
+                         first_seen_at=start, last_activity_at=start)
+        session.add(topic)
+        session.flush()
+
+        def seen(day, n, *, topic_id=None, origin=None):
+            for i in range(n):
+                session.add(db.Observation(
+                    workspace_id=s.workspace_id, source="x", record_id=f"{day}-{topic_id}-{i}-{origin}",
+                    version_id=f"v{day}-{topic_id}-{i}-{origin}", is_demo=True, title="t",
+                    available_at=start + timedelta(days=day), topic_id=topic_id, alert="normal", origin_group=origin,
+                ))
+
+        for day in range(8):
+            if day == 3:
+                continue  # nothing received at all that day: not a zero in the baseline
+            seen(day, 2)  # other records the feed delivered
+            seen(day, 1, topic_id=topic.id)
+        session.flush()
+        at = start + timedelta(days=7)
+        assert monitor.activity(session, s, topic, at, True) is False  # only 6 received days before day 7
+        seen(8, 2)
+        seen(8, 4, topic_id=topic.id)
+        seen(8, 2, topic_id=topic.id, origin="og-1")  # one origin reposted twice counts once
+        session.flush()
+        at = start + timedelta(days=8)
+        assert monitor.activity(session, s, topic, at, True) is True  # 5 > mean 1 + 3 (all days equal)
+        assert monitor.activity(session, s, topic, at, True) is False  # once per day
+        [event] = list(session.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "activity")))
+        assert (event.detail["records"], event.detail["threshold"], len(event.detail["days"])) == (5, 4.0, 7)
+        assert "2026-10-04" not in event.detail["days"]
+        assert topic.pending_reason == "activity_anomaly"

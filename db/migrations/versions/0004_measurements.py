@@ -1,4 +1,5 @@
-"""Measurements: quoted values per object, metric and period, accumulated from every triaged record (T-24)."""
+"""Measurements: quoted values per object, metric and period, accumulated from every triaged record (T-24);
+observations keep Fabric's same-origin group so daily activity counts reposts once (T-15)."""
 
 import sqlalchemy as sa
 from alembic import op
@@ -46,5 +47,9 @@ def upgrade():
     )
 
 
+    op.add_column("observations", sa.Column("origin_group", sa.String(200)))
+
+
 def downgrade():
+    op.drop_column("observations", "origin_group")
     op.drop_table("measurements")
