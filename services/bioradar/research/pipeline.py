@@ -667,7 +667,7 @@ class Run:
             schemas.Calculations,
         )
         facts = {f["id"]: f for f in numeric}
-        for calc in (result.calculations if result else [])[:6]:
+        for calc in (result.calculations if result else [])[:10]:
             if not calc.operands or any(
                 o.fact not in facts or not compute.appears(o.value, facts[o.fact]["quote"])
                 for o in calc.operands
