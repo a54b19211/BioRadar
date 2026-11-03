@@ -213,14 +213,23 @@ class Fabric:
     def __init__(self, settings: Settings, client: httpx.Client | None = None):
         self.settings = settings
         self.client = client or httpx.Client(base_url=settings.fabric_url, timeout=30)
+        # HTTP requests actually sent, per endpoint: counts only, no parameters, tokens or texts (Codex r44)
+        self.requests = {}
 
     def _get(self, path, params, token=None):
-        response = self.client.get(
-            path,
-            params=params,
-            headers={"Authorization": f"Bearer {token or self.settings.fabric_read_token}"},
-        )
+        count = self.requests.setdefault(path.removeprefix("/api/history/").split("/")[0], {"n": 0, "errors": 0})
+        count["n"] += 1
+        try:
+            response = self.client.get(
+                path,
+                params=params,
+                headers={"Authorization": f"Bearer {token or self.settings.fabric_read_token}"},
+            )
+        except httpx.HTTPError:
+            count["errors"] += 1
+            raise
         if response.status_code >= 400:
+            count["errors"] += 1
             try:
                 error = response.json().get("error") or response.json().get("detail") or {}
             except ValueError:

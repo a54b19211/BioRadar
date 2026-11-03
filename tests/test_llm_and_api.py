@@ -341,3 +341,30 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
         "分析数 Participants: Drug 40）: Drug 12 [10, 14]"
     ) in text
     assert '"outcomeMeasures"' not in text  # the long JSON is not repeated beside the compact lines
+
+
+def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resumed_run():
+    """Codex r44: a read served from the run's cache sends nothing, so request counts come from the
+    client, not from the number of actions. Counts only: endpoint, requests, errors."""
+    from bioradar.adapters.fabric import Fabric, FabricError
+    from bioradar.research import analyses
+    from bioradar.research.pipeline import Run
+
+    replies = iter([httpx.Response(200, json={"items": []}), httpx.Response(503, json={})])
+    client = httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(lambda r: next(replies)))
+    fabric = Fabric(settings(), client=client)
+    row = analyses.create(question="计数？", direction="pipeline", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=fabric)
+    fabric.search("s", ["x"], is_demo=True)
+    run.save()
+    run.save()  # saving again adds nothing
+    try:
+        fabric.search("s", ["x"], is_demo=True)
+    except FabricError:
+        pass
+    run.save()
+    assert run.p["fabric_requests"] == {"records": {"n": 2, "errors": 1}}
+    resumed = Run(analyses.get(row.id), settings(), fabric=Fabric(settings(), client=client))
+    resumed.save()
+    assert resumed.p["fabric_requests"] == {"records": {"n": 2, "errors": 1}}
+    assert all(set(c) == {"n", "errors"} for c in resumed.p["fabric_requests"].values())

@@ -302,6 +302,7 @@ class Run:
         self.s = settings
         self.fabric = fabric or Fabric(settings)
         self.docs = {}  # (source, record_id) -> document read in this process
+        self.counted = {}  # Fabric request counts already added to progress by this process
         with db.session() as s:
             self.calls_used = (
                 s.scalar(select(func.sum(db.LlmCall.requests)).where(db.LlmCall.analysis_id == self.id)) or 0
@@ -363,6 +364,14 @@ class Run:
     def save(self, stage=None):
         if stage:
             self.stage = stage
+        # what this process sent to Fabric since the last save, added to the totals of earlier processes;
+        # an action's cache hit sends nothing and is not counted
+        for op, c in getattr(self.fabric, "requests", {}).items():
+            seen = self.counted.get(op, {"n": 0, "errors": 0})
+            total = self.p.setdefault("fabric_requests", {}).setdefault(op, {"n": 0, "errors": 0})
+            total["n"] += c["n"] - seen["n"]
+            total["errors"] += c["errors"] - seen["errors"]
+            self.counted[op] = dict(c)
         with db.session() as s:
             row = s.get(db.Analysis, self.id)
             row.progress, row.stage = dict(self.p), self.stage
