@@ -21,8 +21,7 @@ from bioradar.research import compute, prompts, schemas
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 DEMO_SETTING = (
-    "
-（情景说明：这是演练用的模拟情景，材料里的地点、机构、人物和数字都是为演练编写的。请在这个情景内部、"
+    "\n（情景说明：这是演练用的模拟情景，材料里的地点、机构、人物和数字都是为演练编写的。请在这个情景内部、"
     "按材料本身的证据判断；不要因为材料是虚构的就认定没有事件，或因此降低可信度、后果和核实优先级。）"
 )
 MAX_PAGES = 3
