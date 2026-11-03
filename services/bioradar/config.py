@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://bioradar:bioradar@127.0.0.1:15436/bioradar"
     redis_url: str = "redis://127.0.0.1:16379/0"
     queue_name: str = "bioradar"
-    dev_credential: str = "dev"
+    dev_credential: str = ""  # must be set; empty means nobody can sign in
     workspace_id: str = "default"
 
     # Data-Fabric history API (徐子雯). Records are read at a fixed version and cutoff.

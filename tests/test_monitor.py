@@ -90,3 +90,22 @@ def _topics():
 
     with db.session() as s:
         return [monitor.topic_view(t) for t in s.scalars(select(db.Topic))]
+
+
+def test_records_whose_triage_failed_are_triaged_again(monkeypatch):
+    from sqlalchemy import select
+
+    from bioradar import db
+
+    def down(settings_, stage, system, payload, model_cls, **options):
+        call = {"stage": stage, "model": "fake", "finish_reason": None, "usage": {}, "seconds": 0}
+        return None, {**call, "error": "timeout"}
+
+    fabric = FakeFabric([record("T1", "两家医院确认7例", "x", available=DAY.format(3))])
+    monkeypatch.setattr(llm, "chat_json", down)
+    monitor.tick(is_demo=False, fabric=fabric)
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1
+    with db.session() as s:
+        rows = list(s.scalars(select(db.Observation).where(db.Observation.record_id == "T1")))
+    assert len(rows) == 1 and rows[0].reason != "triage_failed" and rows[0].topic_id

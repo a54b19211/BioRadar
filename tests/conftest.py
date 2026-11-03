@@ -9,6 +9,7 @@ import pytest
 os.environ["BIORADAR_DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(), "test.db")
 os.environ["BIORADAR_LLM_BASE_URL"] = "http://model.invalid"
 os.environ["BIORADAR_LLM_MODEL"] = "fake"
+os.environ["BIORADAR_DEV_CREDENTIAL"] = "test-login"
 os.environ["BIORADAR_PLANNER_URL"] = "http://planner.invalid"
 os.environ["BIORADAR_BIOCHECK_URL"] = "http://biocheck.invalid"
 

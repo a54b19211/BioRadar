@@ -9,7 +9,7 @@ historical replay behaves the same way as live monitoring:
 
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 
 from bioradar import db
 from bioradar.adapters import llm
@@ -40,9 +40,19 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     sources = s.demo_sources if is_demo else s.sources
     docs = []
     with db.session() as session:
-        seen = set(
-            session.scalars(select(db.Observation.version_id).where(db.Observation.is_demo == is_demo))
-        )
+        rows = session.execute(
+            select(db.Observation.source, db.Observation.record_id, db.Observation.version_id, db.Observation.reason)
+            .where(db.Observation.is_demo == is_demo)
+        ).all()
+        seen = {r.version_id for r in rows if r.reason != "triage_failed"}
+        # Records whose triage call failed are triaged again (live mode: the change cursor moved on).
+        failed = {}
+        for r in rows:
+            if r.reason == "triage_failed":
+                failed.setdefault(r.source, []).append(r.record_id)
+        for source, ids in failed.items():
+            items, _ = fabric.search(source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids))
+            docs += [d for d in items if d["version_id"] not in seen]
         for source in sources:
             if cutoff is None:
                 cursor = session.get(db.Cursor, (source, is_demo)) or db.Cursor(
@@ -152,6 +162,11 @@ def observe(s: Settings, docs, *, is_demo: bool):
                     session.flush()
                     topics.append(topic)
                     event(session, topic, at, "created", record=doc["record_id"], title=doc["title"])
+                session.execute(
+                    delete(db.Observation).where(
+                        db.Observation.version_id == doc["version_id"], db.Observation.reason == "triage_failed"
+                    )
+                )
                 session.add(
                     db.Observation(
                         workspace_id=s.workspace_id,

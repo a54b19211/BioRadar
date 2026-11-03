@@ -262,3 +262,10 @@ def test_a_check_with_supporting_facts_stays_open_until_the_reader_says_it_is_wh
     row = analyses.create(question="三家公司各自的PFS？", direction="pipeline", is_demo=True, enqueue=False)
     result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
     assert result["checks"][0]["status"] == "open" and result["checks"][0]["evidence"] == ["E1", "E2"]
+
+
+def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
+    from bioradar.research.pipeline import excerpt
+
+    text = "甲" * 5000 + "PFS的HR\n为 0.69" + "乙" * 5000
+    assert "0.69" in excerpt(text, ["PFS的HR为0.69"], limit=2000)

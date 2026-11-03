@@ -46,7 +46,7 @@ class Login(BaseModel):
 
 @app.post("/api/session")
 def login(body: Login, response: Response):
-    if not hmac.compare_digest(body.credential, settings().dev_credential):
+    if not settings().dev_credential or not hmac.compare_digest(body.credential, settings().dev_credential):
         raise HTTPException(401, "登录凭据不正确")
     response.set_cookie(COOKIE, body.credential, httponly=True, samesite="lax")
     return {"signed_in": True}

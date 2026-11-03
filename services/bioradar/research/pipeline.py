@@ -7,6 +7,7 @@ import re
 from datetime import datetime
 from decimal import Decimal
 
+import httpx
 from sqlalchemy import delete, func, select
 
 from bioradar import db
@@ -120,9 +121,10 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
         return text
     spans = []
     for quote in quotes:
-        at = text.find(quote)
-        if at >= 0:
-            spans.append([max(0, at - 400), min(len(text), at + len(quote) + 400)])
+        # Quotes were checked with whitespace removed, so locate them the same way.
+        found = re.search(r"\s*".join(map(re.escape, squash(quote))), text) if squash(quote) else None
+        if found:
+            spans.append([max(0, found.start() - 400), min(len(text), found.end() + 400)])
     spans.sort()
     merged = []
     for span in spans:
@@ -297,6 +299,8 @@ class Run:
     # ---- investigate ---------------------------------------------------------------------------
 
     def add_hit(self, source, record_id, title, checks, *, critical=False):
+        if self.scope and record_id not in self.scope:
+            return False  # a seed or correction target outside the fixed material set
         for hit in self.p["hits"]:
             if (hit["source"], hit["record_id"]) == (source, record_id):
                 hit["checks"] = sorted(set(hit["checks"]) | set(checks))
@@ -419,7 +423,10 @@ class Run:
                 self.p["stop"] = {"decision": "insufficient", "reason": f"planner_{exc.code}"}
                 return
             self.p["stop"] = {"decision": decision["decision"], "reason": decision["reason"]}
-            if decision["decision"] != "continue" or self.calls_left() <= 3:
+            if decision["decision"] != "continue":
+                return
+            if self.calls_left() <= 3:  # keep the calls the report needs
+                self.p["stop"] = {"decision": "insufficient", "reason": "llm_call_limit"}
                 return
             self.act(candidates[decision["candidate"]])
             self.save()
@@ -443,6 +450,9 @@ class Run:
         except (FabricError, ServiceError) as exc:
             action["status"], action["error"] = "failed", exc.code
             self.note(exc.code, f"{candidate['kind']} {candidate['source']}")
+        except httpx.HTTPError as exc:  # timeout, refused connection, 5xx from WeKnora
+            action["status"], action["error"] = "failed", "http_error"
+            self.note("http_error", f"{candidate['kind']} {candidate['source']}: {type(exc).__name__}")
         self.p["actions"].append(action)
 
     def search(self, candidate):
@@ -474,7 +484,10 @@ class Run:
                 cutoff=self.cutoff,
                 cursor=page.get("cursor") if kind == "next_page" else None,
                 record_ids=self.scope if len(self.scope) <= FABRIC_PAGE else (),
+                limit=FABRIC_PAGE if len(self.scope) > FABRIC_PAGE else 10,
             )
+        # A large set is filtered here; a page without in-set hits must not end paging.
+        more = bool(docs) and len(self.scope) > FABRIC_PAGE
         if self.scope:
             inside = set(self.scope)
             docs = [d for d in docs if d["record_id"] in inside]
@@ -486,7 +499,7 @@ class Run:
             page = self.p["pages"].setdefault(
                 key, {"pages": 0, "found": 0, "checks": candidate["target_checks"]}
             )
-            page.update(cursor=cursor, pages=page["pages"] + 1, new=new, found=page["found"] + len(docs))
+            page.update(cursor=cursor, pages=page["pages"] + 1, new=new or more, found=page["found"] + len(docs))
         if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
             # Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss.
             for shorter in (terms[:-1], terms[1:]):
@@ -736,6 +749,8 @@ class Run:
         quotes = {}
         for fact in self.p["facts"]:
             quotes.setdefault(fact["ref"], []).append(fact["quote"])
+        # Both ends of a correction go to BioCheck even if one yielded no fact.
+        related = {r["to"] for r in self.p["relations"]} | {r["from"] for r in self.p["relations"]}
         evidence = [
             {
                 "id": r.ref,
@@ -744,10 +759,10 @@ class Run:
                 "published_at": r.published_at,
                 "source_kind": source_kind(r.material_kind, r.source),
                 "verified": r.verified,
-                "text": excerpt(r.text, quotes[r.ref]),
+                "text": excerpt(r.text, quotes.get(r.ref, [])),
             }
             for r in rows
-            if r.ref in quotes
+            if r.ref in quotes or r.record_id in related
         ]
         results = [
             {
