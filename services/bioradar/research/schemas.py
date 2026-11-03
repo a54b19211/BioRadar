@@ -8,7 +8,9 @@ from pydantic import BaseModel, Field
 class PlanCheck(BaseModel):
     text: str = Field(description="要查清的一件事，一句话")
     required: bool = Field(description="不查清就不能回答问题时为true")
-    objects: list[int] = Field(default_factory=list, description="这件事涉及哪些对象（objects 的序号，从1开始）")
+    objects: list[int] = Field(
+        default_factory=list, description="这件事涉及哪些对象（objects 的序号，从1开始）"
+    )
 
 
 class PlanObject(BaseModel):
@@ -46,7 +48,9 @@ class ReadFact(BaseModel):
     stance: Literal["supports", "refutes", "limits", "context"] = Field(
         description="对相关待查问题：提供肯定依据/提供否定依据/提供限制条件/仅背景"
     )
-    object: str = Field(default="", description="这条事实说的是哪个对象（给出的对象名之一）；不涉及具体对象留空")
+    object: str = Field(
+        default="", description="这条事实说的是哪个对象（给出的对象名之一）；不涉及具体对象留空"
+    )
 
 
 class Reading(BaseModel):

@@ -658,7 +658,9 @@ class Run:
                 continue
             # every object the check names needs a supporting or refuting fact of its own
             covered = {
-                f.get("object") for f in self.p["facts"] if i in f["checks"] and f["stance"] in {"supports", "refutes"}
+                f.get("object")
+                for f in self.p["facts"]
+                if i in f["checks"] and f["stance"] in {"supports", "refutes"}
             }
             if all(o in covered for o in check.get("objects", [])):
                 check["status"] = "answered"
