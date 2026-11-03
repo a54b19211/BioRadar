@@ -598,3 +598,28 @@ def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_i
         ("武汉卫健委是否确认华南海鲜市场聚集", False),
         (question, True),
     ]
+
+
+def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_baseline_keeps_its_order():
+    """D-S1: literal hits came back in record-id order and twenty unrelated English acronym hits were read first."""
+    docs = {
+        "a1": ("SARS officers trained", "South African Revenue Service officers trained", "2019-12-20"),
+        "b2": ("兰州布病聚集", "兰州通报布病聚集病例，抗体阳性65人", "2019-12-07"),
+        "c3": ("同一通报转发", "已读的那篇正文", "2019-12-08"),
+        "d4": ("更正通知", "更正：病例数", "2019-12-01"),
+    }
+    for method, expected in (("planner", ["d4", "b2", "a1", "c3"]), ("baseline", ["d4", "a1", "b2", "c3"])):
+        row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", method=method,
+                              is_demo=True, enqueue=False)
+        run = Run(row, settings(), fabric=FakeFabric([]))
+        hits = [
+            {"source": "s", "record_id": rid, "title": title, "checks": ["Q1"], "critical": rid == "d4", "read": False}
+            for rid, (title, _, _) in docs.items()
+        ] + [{"source": "s", "record_id": "r0", "title": "已读", "checks": ["Q1"], "critical": False, "read": True}]
+        run.docs = {("s", rid): {"title": t, "text": x, "published_at": d} for rid, (t, x, d) in docs.items()}
+        run.docs[("s", "r0")] = {"title": "", "text": "已读的那篇正文", "published_at": None}
+        run.docs[("s", "c3")]["title"] = ""  # an exact copy of the text already read
+        run.p.update(queries=[{"terms": ["布病"], "checks": ["Q1"]}, {"terms": ["聚集"], "checks": ["Q1"]},
+                              {"terms": ["SARS"], "checks": ["Q1"]}], actions=[], pages={}, hits=hits, objects=[])
+        order = [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"]
+        assert order == expected, method

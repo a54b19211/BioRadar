@@ -478,10 +478,35 @@ class Run:
         def named(title):
             return any(o in (title or "") for o in objects)
 
+        # T-21 reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits in
+        # record-id order, so without this a tie is read alphabetically. coverage: the share of this plan's
+        # search terms found in the record's text, a cheap ordering feature and not relevance or truth.
+        terms = list(dict.fromkeys(squash(t) for q in self.p["queries"] for t in q["terms"]))
+
+        def text(hit):
+            doc = self.docs.get((hit["source"], hit["record_id"]))
+            return squash((doc["title"] or "") + (doc["text"] or "")) if doc else ""
+
+        def coverage(hit):
+            body = text(hit)
+            return sum(1 for t in terms if t in body) / len(terms) if body and terms else 0.0
+
+        def newest(hit):  # the record's own visible time; unknown sorts last
+            doc = self.docs.get((hit["source"], hit["record_id"]))
+            value = doc and (doc.get("published_at") or doc.get("available_at"))
+            try:
+                return -datetime.fromisoformat(value).timestamp() if value else 0.0
+            except (TypeError, ValueError):
+                return 0.0
+
+        read_texts = {text(h) for h in self.p["hits"] if h["read"]} - {""}
         unread = [h for h in self.p["hits"] if not h["read"]]
         if self.input["method"] == "planner":
-            unread.sort(key=lambda h: (not h["critical"], not named(h["title"])))
-        else:  # the baseline keeps its fixed order
+            # corrections and seeds first; exact copies of a text already read go behind, never dropped
+            unread.sort(
+                key=lambda h: (not h["critical"], text(h) in read_texts, not named(h["title"]), -coverage(h), newest(h))
+            )
+        else:
             unread.sort(key=lambda h: not h["critical"])
         for hit in unread[:40]:
             result.append(
@@ -491,12 +516,9 @@ class Run:
                     "args": {"record_id": hit["record_id"]},
                     "target_checks": hit["checks"],
                     "critical": hit["critical"],
-                    # A record that several different searches find is more likely on topic.
-                    # Only the planner uses this; the baseline keeps its fixed order.
-                    # and one whose title names an object the question asks about
-                    "scope_match": min(
-                        1.0, 0.4 + 0.3 * hit.get("found_by", 1) + (0.3 if named(hit["title"]) else 0)
-                    ),
+                    # query-planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
+                    # object the question asks about
+                    "scope_match": round(0.4 + 0.3 * coverage(hit) + (0.3 if named(hit["title"]) else 0), 3),
                 }
             )
         return result
