@@ -563,7 +563,12 @@ class Run:
         page that failed is offered again (Codex r42)."""
         ids = self.scope[page * FABRIC_PAGE : (page + 1) * FABRIC_PAGE]
         docs, _ = self.fabric.search(
-            source, (), is_demo=self.input["is_demo"], cutoff=self.cutoff, record_ids=ids, limit=len(ids),
+            source,
+            (),
+            is_demo=self.input["is_demo"],
+            cutoff=self.cutoff,
+            record_ids=ids,
+            limit=len(ids),
             now=datetime.now(UTC),
         )
         new = 0
@@ -574,7 +579,8 @@ class Run:
         pages = -(-len(self.scope) // FABRIC_PAGE)
         self.note(
             "scope_browsed",
-            f"{source}: 第 {page + 1}/{pages} 页（{len(ids)} 个记录号），截止时可见 {len(docs)} 条，新增候选 {new} 条",
+            f"{source}: 第 {page + 1}/{pages} 页（{len(ids)} 个记录号），"
+            f"截止时可见 {len(docs)} 条，新增候选 {new} 条",
         )
         return len(docs), new
 
