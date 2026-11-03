@@ -134,48 +134,64 @@ def adjacent(points_):
     )
 
 
-def _same_period(p, q):
-    return (p["period_start"], p["period_end"], p["status"]) == (
-        q["period_start"],
-        q["period_end"],
-        q["status"],
-    )
+def _key(p):
+    return p["period_start"], p["period_end"], p["status"]
 
 
-def _conflicted(series, p):
-    return any(_same_period(p, q) and q["value"] != p["value"] for q in series)
+class _Index:
+    """Per series, computed once: where each period/status first holds two different values (a conflict
+    from that point on), and which points have each status. Keeps evaluate() linear in the series."""
+
+    def __init__(self, series):
+        self.series, self.by_key, self.by_status, self.conflict_from = series, {}, {}, {}
+        values = {}
+        for i, p in enumerate(series):
+            key = _key(p)
+            self.by_key.setdefault(key, []).append(i)
+            self.by_status.setdefault(p["status"], []).append(i)
+            values.setdefault(key, set()).add(p["value"])
+            if len(values[key]) == 2 and key not in self.conflict_from:
+                self.conflict_from[key] = i
+
+    def conflicted(self, j, i):
+        """Whether point j's period is in conflict among the points up to i."""
+        return self.conflict_from.get(_key(self.series[j]), len(self.series)) <= i
 
 
-def evaluate(series, i):
+def evaluate(series, i, index=None):
     """What point i of an ordered series shows against the points before it."""
-    cur, known = series[i], series[: i + 1]
-    if _conflicted(known, cur):
-        return [{"kind": "conflict", "rows": [q["id"] for q in known if _same_period(q, cur)]}]
+    index = index or _Index(series)
+    cur = series[i]
+    if index.conflicted(i, i):
+        return [{"kind": "conflict", "rows": [series[j]["id"] for j in index.by_key[_key(cur)] if j <= i]}]
     out = []
-    family, earlier = FAMILY.get(cur["status"]), series[:i]
-    lower = [
-        p
-        for p in earlier
-        if family
-        and FAMILY.get(p["status"]) == family
-        and RANK[p["status"]] < RANK[cur["status"]]
-        and not _conflicted(known, p)
-    ]
-    if lower and not any(p["status"] == cur["status"] for p in earlier):
-        # the first point at a later stage: reported with both values, never as a rise or fall
-        prev = lower[-1]
-        out.append(
-            {
-                "kind": "status_advance",
-                "from": prev["status"],
-                "to": cur["status"],
-                "from_value": prev["value"],
-                "to_value": cur["value"],
-                "rows": [prev["id"], cur["id"]],
-            }
+    family = FAMILY.get(cur["status"])
+    first_at_stage = index.by_status[cur["status"]][0] == i
+    if family and first_at_stage:
+        prev = next(
+            (
+                series[j]
+                for j in range(i - 1, -1, -1)
+                if FAMILY.get(series[j]["status"]) == family
+                and RANK[series[j]["status"]] < RANK[cur["status"]]
+                and not index.conflicted(j, i)
+            ),
+            None,
         )
+        if prev is not None:
+            # the first point at a later stage: reported with both values, never as a rise or fall
+            out.append(
+                {
+                    "kind": "status_advance",
+                    "from": prev["status"],
+                    "to": cur["status"],
+                    "from_value": prev["value"],
+                    "to_value": cur["value"],
+                    "rows": [prev["id"], cur["id"]],
+                }
+            )
     # values are compared only between points of the same status, leaving out conflicting periods
-    same = [p for p in known if p["status"] == cur["status"] and not _conflicted(known, p)]
+    same = [series[j] for j in index.by_status[cur["status"]] if j <= i and not index.conflicted(j, i)]
     if len(same) < 2:
         return out
     prev = same[-2]
@@ -187,13 +203,9 @@ def evaluate(series, i):
         out.append(step)
     before = [p["value"] for p in same[:-1]]
     if len(before) >= 2 and cur["value"] > max(before):
-        out.append(
-            {"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]}
-        )
+        out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]})
     if len(before) >= 2 and cur["value"] < min(before):
-        out.append(
-            {"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]}
-        )
+        out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]})
     tail = same[-(STREAK + 1) :]
     if len(tail) == STREAK + 1 and adjacent(tail):
         steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
@@ -220,20 +232,20 @@ def changes(rows, new_id):
     at = next((i for i, r in enumerate(series) if r["id"] == new_id), None)
     if at is None:
         return [{"kind": "repeat", "rows": [new_id]}]  # same period/value/status already known
-    out = evaluate(series, at)
+    index = _Index(series)
+    out = evaluate(series, at, index)
+    later = {p["id"] for p in series[at + 1 :]}
+    if not later:  # the usual case, a value appended at the end: nothing to re-evaluate
+        return out
     earlier = points([r for r in rows if r["id"] != new_id])  # the series as it was without this row
-    was = {p["id"]: _summary(evaluate(earlier, k)) for k, p in enumerate(earlier)}
+    before_index = _Index(earlier)
+    was = {p["id"]: _summary(evaluate(earlier, k, before_index)) for k, p in enumerate(earlier) if p["id"] in later}
     for j in range(at + 1, len(series)):
-        now = evaluate(series, j)
+        now = evaluate(series, j, index)
         if _summary(now) != was.get(series[j]["id"], []):
             before = sorted({k for k, _ in was.get(series[j]["id"], [])})
             out.append(
-                {
-                    "kind": "revised",
-                    "rows": [series[j]["id"]],
-                    "was": before,
-                    "now": sorted({c["kind"] for c in now}),
-                }
+                {"kind": "revised", "rows": [series[j]["id"]], "was": before, "now": sorted({c["kind"] for c in now})}
             )
     return out
 
