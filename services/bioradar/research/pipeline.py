@@ -1181,15 +1181,31 @@ class Run:
 
     def report(self):
         body = self.report_input()
-        report = {"status": "NOT_RUN", "draft": "", "revised": False}
+        report = {"status": "NOT_RUN", "draft": "", "revised": False, "versions": []}
         self.p["report"] = report
+
+        def keep(step, review):
+            """Every draft with its check, so a wrong citation can be traced to the step that made it."""
+            report["versions"].append(
+                {
+                    "step": step,
+                    "draft": report["draft"],
+                    "status": review["status"],
+                    "claims": [
+                        {k: c.get(k) for k in ("index", "start", "end", "verdict", "citations", "labels")}
+                        for c in review["claims"]
+                    ],
+                }
+            )
+
         if not body["evidence"]:
             report["reason"] = "no_evidence"
             return
         try:
             report["draft"] = self.service("generate", dict(body))["draft"]
             review = self.service("verify", dict(body, draft=report["draft"]))
-            for _ in range(REVISIONS):
+            keep("generate", review)
+            for n in range(REVISIONS):
                 fixable = [
                     c
                     for c in review["claims"]
@@ -1205,6 +1221,7 @@ class Run:
                     break
                 report.update(draft=revised["draft"], revised=True, changed=revised["changed"])
                 review = self.service("verify", dict(body, draft=report["draft"]))
+                keep(f"revise_{n + 1}", review)
         except ServiceError as exc:
             self.log(exc.calls, "biocheck")
             report["reason"] = f"biocheck_{exc.code}"
@@ -1389,7 +1406,8 @@ class Run:
             "report_status": report.get("status", "NOT_RUN"),
             "draft": report.get("draft", ""),
             "review": {
-                k: report.get(k) for k in ("claims", "coverage", "read_requests", "reason", "revised")
+                k: report.get(k)
+                for k in ("claims", "coverage", "read_requests", "reason", "revised", "versions")
             },
             "assessment": self.p.get("assessment"),
             "checks": self.p.get("checks", []),

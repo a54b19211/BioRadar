@@ -368,6 +368,39 @@ def test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so
         assert notes.count("fetch_not_configured") == (0 if fetch else 1)
 
 
+def test_every_draft_and_its_check_are_kept_so_a_wrong_citation_can_be_traced(monkeypatch):
+    """Codex PHX r2: only revised=true survived, so nobody could tell which step mis-cited."""
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    checks = iter(["REVIEW", "PASS"])
+
+    def biocheck(s, op, body):
+        if op == "generate":
+            return {"draft": "HR为0.62[E2]。", "llm_calls": []}
+        if op == "revise":
+            return {"draft": "HR为0.62[E1]。", "changed": [1], "llm_calls": []}
+        status = next(checks, "PASS")  # later verify calls check the judgments
+        claim = {
+            "index": 1,
+            "start": 0,
+            "end": 11,
+            "citations": [body["draft"][-4:-2]],
+            "labels": [],
+            "verdict": "supported" if status == "PASS" else "contradicted",
+        }
+        return {"status": status, "claims": [claim], "coverage": {"verdict": "complete"}, "llm_calls": []}
+
+    monkeypatch.setattr(services, "biocheck", biocheck)
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    versions = result["review"]["versions"]
+    assert [(v["step"], v["status"], v["claims"][0]["citations"]) for v in versions] == [
+        ("generate", "REVIEW", ["E2"]),
+        ("revise_1", "PASS", ["E1"]),
+    ]
+    assert versions[0]["draft"] == "HR为0.62[E2]。" and result["draft"] == "HR为0.62[E1]。"
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
