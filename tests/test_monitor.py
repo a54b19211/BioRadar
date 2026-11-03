@@ -227,7 +227,7 @@ def test_a_flood_is_triaged_a_bounded_amount_per_round_without_loss(monkeypatch)
     sent = []
     monkeypatch.setattr(llm, "chat_json", triage_by_title(sent))
     monkeypatch.setattr(settings(), "monitor_max_records", 100)
-    fabric = FakeFabric([record(f"F{i}", f"噪声{i}", "x", available=DAY.format(3)) for i in range(250)])
+    fabric = FakeFabric([record(f"F{i:03d}", f"噪声{i}", "x", available=DAY.format(3)) for i in range(250)])
     rounds = [monitor.tick(is_demo=True, fabric=fabric) for _ in range(4)]
     assert [r["records"] for r in rounds] == [100, 100, 50, 0]
     assert [r["backlog"] for r in rounds] == [True, True, False, False]
