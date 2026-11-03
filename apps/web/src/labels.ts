@@ -58,6 +58,8 @@ const maps = {
     observed: "观察到新材料",
     state: "状态变化",
     analysis: "自动分析",
+    watch: "待验证信号",
+    series: "指标序列变化",
   },
   trigger: { manual: "手动提问", followup: "追问", topic: "专题触发" },
   reason: {
@@ -70,6 +72,9 @@ const maps = {
     alert_important: "警示升为重要",
     alert_urgent: "警示升为紧急",
     triage_failed: "分诊失败",
+    watch_hit: "命中待验证信号",
+    series_change: "指标序列变化",
+    source_corrected: "来源被更正",
   },
 };
 
