@@ -4,8 +4,8 @@ from datetime import datetime
 
 from conftest import FakeFabric, record
 
-from bioradar.adapters import llm
 from bioradar import db
+from bioradar.adapters import llm
 from bioradar.research import analyses, monitor, schemas
 
 DAY = "2026-09-{:02d}T08:00:00+08:00"
