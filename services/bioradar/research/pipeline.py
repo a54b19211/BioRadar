@@ -546,7 +546,9 @@ class Run:
         source, terms, kind = candidate["source"], candidate["args"]["terms"], candidate["kind"]
         key = f"{source}|{'|'.join(terms)}"
         if source == "weknora":
-            hits = weknora.search(self.s, " ".join(terms))
+            hits = weknora.search(
+                self.s, " ".join(terms), direction=self.input["direction"], is_demo=self.input["is_demo"]
+            )
             docs = []
             for hit_source, record_id, _ in hits:
                 if hit_source in self.input["sources"]:

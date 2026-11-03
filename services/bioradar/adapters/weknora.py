@@ -1,6 +1,8 @@
-"""WeKnora semantic search (李明洋).
+"""WeKnora semantic search through the weknora-kdd bridge (李明洋).
 
-A hit is only a pointer: the text is re-read from Fabric at the fixed version."""
+The bridge only returns documents Fabric published at a fixed version, scoped by business area, and says
+which keyword / vector / rerank channels actually ran. A hit is only a pointer: the text is re-read from
+Fabric at the analysis cutoff, so documents not yet visible then drop out there."""
 
 import json
 
@@ -14,6 +16,7 @@ def identity(hit: dict) -> tuple[str, str] | None:
     The weknora-kdd bridge keeps it as a JSON string in raw_locator. Documents uploaded without a
     Fabric identity (the old crawler knowledge base) have none and are skipped."""
     for holder in (
+        hit.get("identity"),
         hit.get("metadata"),
         hit.get("custom_metadata"),
         (hit.get("knowledge") or {}).get("metadata"),
@@ -31,23 +34,45 @@ def identity(hit: dict) -> tuple[str, str] | None:
     return None
 
 
-def search(settings: Settings, query: str, *, top_k: int = 10, client: httpx.Client | None = None):
-    """Return [(source_id, source_record_id, score)] for hits that carry a Fabric identity."""
+# Bridge source scopes searched per analysis direction (configured in the bridge's source mappings).
+SCOPES = {
+    "pipeline": ("pipeline", "research"),
+    "science": ("research",),
+    "business": ("business", "pipeline"),
+    "public_health": ("public_health", "research"),
+}
+
+
+def search(
+    settings: Settings,
+    query: str,
+    *,
+    direction: str,
+    is_demo: bool = False,
+    top_k: int = 10,
+    client: httpx.Client | None = None,
+):
+    """Return [(source_id, source_record_id, score)] for bridge hits that carry a Fabric identity."""
     if not settings.weknora_url:
         return []
-    http = client or httpx.Client(timeout=30)
-    response = http.post(
-        settings.weknora_url.rstrip("/") + "/api/v1/knowledge-search",
-        headers={"X-API-Key": settings.weknora_token},
-        # v0.9 fields; hybrid search (keyword-only search fails on ParadeDB in v0.9.0).
-        json={"query": query, "knowledge_base_id": settings.weknora_knowledge_base_id, "match_count": top_k},
-    )
-    response.raise_for_status()
-    data = response.json().get("data") or []
+    http = client or httpx.Client(timeout=60)
     result, seen = [], set()
-    for hit in data:
-        key = identity(hit)
-        if key and key not in seen:
-            seen.add(key)
-            result.append((*key, hit.get("score")))
+    for scope in SCOPES.get(direction, ("research",)):
+        response = http.post(
+            settings.weknora_url.rstrip("/") + "/api/v1/kdd/search",
+            headers={"Authorization": f"Bearer {settings.weknora_token}"},
+            json={
+                "knowledge_base_id": settings.weknora_knowledge_base_id,
+                "source_scope": scope,
+                "query_text": query,
+                "top_k": top_k,
+                "is_demo": is_demo,
+            },
+        )
+        response.raise_for_status()
+        for hit in response.json().get("results") or []:
+            key = identity(hit)
+            if key and key not in seen:
+                seen.add(key)
+                result.append((*key, hit.get("score")))
     return result
