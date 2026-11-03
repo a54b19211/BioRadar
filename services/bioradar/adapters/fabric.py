@@ -106,7 +106,10 @@ def registry_text(record: dict) -> str:
             value = json.dumps(facts[key], ensure_ascii=False, separators=(",", ":"))
             if len(value) > REGISTRY_FIELD_CHARS:
                 # say that more exists, so a writer does not report the rest as missing
-                value = value[:REGISTRY_FIELD_CHARS] + f"…（此字段共 {len(value)} 字符，这里只取前 {REGISTRY_FIELD_CHARS}）"
+                value = (
+                    value[:REGISTRY_FIELD_CHARS]
+                    + f"…（此字段共 {len(value)} 字符，这里只取前 {REGISTRY_FIELD_CHARS}）"
+                )
         lines.append(f"{label} {key}（{pointer}）: {value}")
     return "\n".join(lines)
 
