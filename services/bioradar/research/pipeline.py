@@ -21,6 +21,7 @@ MAX_PAGES = 3
 MAX_QUERIES = 12
 MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
 FABRIC_PAGE = 100  # Fabric page cap; a larger fixed material set is filtered here, not in the query
+OVERALL = {"supported": "机制获得支持", "partial": "机制部分获得支持", "insufficient": "机制证据不足"}
 FETCHABLE = {"clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don"}
 EXCERPT_CHARACTERS = 4000
 
@@ -750,7 +751,11 @@ class Run:
                 {
                     "id": f"A{len(results) + 1}",
                     "method": "mechevidence",
-                    "output": {k: mech.get(k) for k in ("overall", "gaps", "conflicts")},
+                    # The writer copies values into Chinese prose, so the verdict goes in as words.
+                    "output": {
+                        "overall": OVERALL.get(mech.get("overall"), mech.get("overall")),
+                        **{k: mech.get(k) for k in ("rationale", "gaps", "conflicts")},
+                    },
                     "calculation_basis": {"mechanism": self.p["mechanism"]["statement"]},
                     "limitations": ["机制评价是专业判断，不是实验原件"],
                 }
