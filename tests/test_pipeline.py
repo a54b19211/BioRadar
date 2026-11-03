@@ -815,12 +815,31 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
         notes=[],
         checks=[{"id": "Q1", "text": "事件", "required": True, "status": "open", "evidence": []}],
     )
-    browse = [c for c in run.candidates() if c["args"].get("browse")]
-    assert len(browse) == 1 and browse[0]["kind"] == "search" and browse[0]["args"]["terms"] == []
-    run.act(browse[0])
-    assert run.p["actions"][-1]["found"] == 110 and len(run.p["hits"]) == 110  # nothing after the cutoff
-    assert not [c for c in run.candidates() if c["args"].get("browse")]  # once per source
-    assert run.p["notes"][-1]["code"] == "scope_browsed"
+    first = [c for c in run.candidates() if c["args"].get("browse")]
+    assert len(first) == 1 and first[0]["args"]["page"] == 0 and first[0]["args"]["terms"] == []
+    run.act(first[0])  # one page: one Fabric request, 100 ids
+    assert run.p["actions"][-1]["found"] == 100 and len(run.p["hits"]) == 100
+    from bioradar.adapters.fabric import FabricError
+
+    def down(*args, **kwargs):
+        raise FabricError("fabric_http_503", "down")
+
+    real, fabric.search = fabric.search, down
+    second = [c for c in run.candidates() if c["args"].get("browse")]
+    assert second[0]["args"]["page"] == 1
+    run.act(second[0])
+    assert run.p["actions"][-1]["status"] == "failed"
+    fabric.search = real
+    import json
+
+    resumed = Run(row, settings(), fabric=fabric)  # a restart keeps what was browsed and what failed
+    resumed.p = json.loads(json.dumps(run.p))
+    again = [c for c in resumed.candidates() if c["args"].get("browse")]
+    assert again and again[0]["args"]["page"] == 1  # the failed page is offered again
+    resumed.act(again[0])
+    assert len(resumed.p["hits"]) == 110  # 10 more were visible; the 5 later ones were not
+    assert not [c for c in resumed.candidates() if c["args"].get("browse")]
+    assert [n["code"] for n in resumed.p["notes"]].count("scope_browsed") == 2
     small = analyses.create(
         question="小材料集？",
         direction="public_health",
