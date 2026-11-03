@@ -588,9 +588,11 @@ class Run:
             self.p["relations"].append(
                 {
                     "from": record_id,
+                    "source": source,  # the record that states the relation
                     "to": relation["target_record_id"],
+                    "to_source": relation.get("target_source") or source,
+                    "to_version": relation.get("target_version_id"),
                     "kind": relation["kind"],
-                    "source": source,
                 }
             )
             if relation["kind"] in {"corrects", "retracts"}:
@@ -795,7 +797,7 @@ class Run:
 
     def report_input(self):
         rows = self.evidence_rows()
-        refs = {r.record_id: r.ref for r in rows}
+        refs = {(r.source, r.record_id): r for r in rows}
         quotes = {}
         for fact in self.p["facts"]:
             quotes.setdefault(fact["ref"], []).append(fact["quote"])
@@ -841,14 +843,23 @@ class Run:
                     "limitations": ["机制评价是专业判断，不是实验原件"],
                 }
             )
+        def bound(r):
+            """The (old, new) evidence rows a relation links: same source and record, and the same
+            version when Fabric names one; None when either end was not read."""
+            old = refs.get((r.get("to_source", r["source"]), r["to"]))
+            new = refs.get((r["source"], r["from"]))
+            if old and new and (not r.get("to_version") or old.version_id == r["to_version"]):
+                return old, new
+            return None
+
         updates = [
             {
-                "target": refs[r["to"]],
-                "replacement": refs[r["from"]],
+                "target": pair[0].ref,
+                "replacement": pair[1].ref,
                 "kind": "correction" if r["kind"] == "corrects" else "retraction",
             }
             for r in self.p["relations"]
-            if r["kind"] in {"corrects", "retracts"} and r["to"] in refs and r["from"] in refs
+            if r["kind"] in {"corrects", "retracts"} and (pair := bound(r))
         ]
         searched = {i for a in self.p["actions"] if a["status"] == "completed" for i in a["target_checks"]}
         failed = [
