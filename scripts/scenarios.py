@@ -3,6 +3,7 @@
   python scripts/scenarios.py abc --data DIR --out OUT     four waves, directed analyses, topic lifecycle
   python scripts/scenarios.py d --data DIR/D --out OUT     import the replay archive, run the cutoff cases
   python scripts/scenarios.py d ... --daily 2019-12-01 2020-01-21   also replay monitoring day by day
+  python scripts/scenarios.py cases --data DIR --out OUT     a fixed-material case packet (no date shift)
 
 The radar, Fabric and the services must already run with an isolated database (see README).
 A/B/C dates are shifted two months earlier so every simulated time is in the past for Fabric;
@@ -244,6 +245,32 @@ def run_d(args):
             )
 
 
+def run_cases(args):
+    """A fixed-material case packet (e.g. the T-16 signal cases): import the archive in wave order
+    without shifting dates, then run every case with the methods it lists, each with its own cutoff
+    and fixed material set."""
+    data, runner = Path(args.data), Runner(Path(args.out))
+    entries = json.loads((data / "archive-templates.json").read_text(encoding="utf-8"))["entries"]
+    if not args.skip_import:
+        for entry in sorted(entries, key=lambda e: e["wave"]):  # stable: file order within a wave
+            runner.publish(entry, shift=False)
+        runner.log(scenario="cases", name="import", records=len(entries))
+    for case in json.loads((data / args.packet).read_text(encoding="utf-8"))["cases"]:
+        if args.cases and case["case_id"] not in args.cases:
+            continue
+        for method in case.get("methods", ["planner"]):
+            runner.analyse(
+                f"{case['case_id']}-{method}",
+                question=case["question"],
+                direction=case["direction"],
+                method=method,
+                is_demo=case["is_demo"],
+                sources=case["source_ids"],
+                cutoff=case["historical_scope"]["cutoff"],
+                scope_record_ids=case["scope_record_ids"],
+            )
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
@@ -257,5 +284,11 @@ if __name__ == "__main__":
     d.add_argument("--cases", nargs="*")
     d.add_argument("--daily", nargs=2, metavar=("START", "END"))
     d.add_argument("--skip-import", action="store_true")
+    cases = sub.add_parser("cases")
+    cases.add_argument("--data", required=True)
+    cases.add_argument("--out", required=True)
+    cases.add_argument("--packet", default="R10-packet.json")
+    cases.add_argument("--cases", nargs="*")
+    cases.add_argument("--skip-import", action="store_true")
     parsed = parser.parse_args()
-    {"abc": run_abc, "d": run_d}[parsed.command](parsed)
+    {"abc": run_abc, "d": run_d, "cases": run_cases}[parsed.command](parsed)
