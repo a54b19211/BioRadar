@@ -89,7 +89,7 @@ export interface Result {
   stop: Stop | null;
   reads: number;
   notes: Note[];
-  usage: { llm_calls: number; tokens: number };
+  usage: { llm_calls: number; requests: number; tokens: number };
 }
 
 export interface Analysis {
@@ -160,6 +160,7 @@ export interface ModelCall {
   service: string;
   model: string | null;
   tokens: number;
+  requests: number;
   finish_reason: string | null;
   seconds: number;
   error: string | null;
@@ -236,6 +237,7 @@ export interface UsageRow {
   day: string;
   service: string;
   calls: number;
+  requests: number;
   tokens: number;
 }
 

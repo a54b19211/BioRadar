@@ -221,6 +221,7 @@ def view(row: db.Analysis, *, full=False) -> dict:
                     "service": c.service,
                     "model": c.model,
                     "tokens": c.total_tokens,
+                    "requests": c.requests,
                     "finish_reason": c.finish_reason,
                     "seconds": c.seconds,
                     "error": c.error,

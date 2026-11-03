@@ -937,9 +937,11 @@ class Run:
     def result(self):
         with db.session() as s:
             usage = s.execute(
-                select(func.count(), func.coalesce(func.sum(db.LlmCall.total_tokens), 0)).where(
-                    db.LlmCall.analysis_id == self.id
-                )
+                select(
+                    func.count(),
+                    func.coalesce(func.sum(db.LlmCall.requests), 0),
+                    func.coalesce(func.sum(db.LlmCall.total_tokens), 0),
+                ).where(db.LlmCall.analysis_id == self.id)
             ).one()
         report = self.p.get("report") or {}
         return {
@@ -955,5 +957,6 @@ class Run:
             "stop": self.p.get("stop"),
             "reads": sum(1 for h in self.p.get("hits", []) if h["read"]),
             "notes": self.p.get("notes", []),
-            "usage": {"llm_calls": usage[0], "tokens": int(usage[1])},
+            # llm_calls: logical model calls; requests: HTTP requests behind them (what the budget counts)
+            "usage": {"llm_calls": usage[0], "requests": int(usage[1]), "tokens": int(usage[2])},
         }

@@ -24,6 +24,7 @@ const usage = computed(() => {
   return (
     a.value.result?.usage ?? {
       llm_calls: a.value.calls.length,
+      requests: a.value.calls.reduce((n, c) => n + c.requests, 0),
       tokens: a.value.calls.reduce((n, c) => n + c.tokens, 0),
     }
   );
@@ -104,7 +105,7 @@ async function download() {
       <el-tag size="small" effect="plain">{{ label("trigger", a.trigger) }}</el-tag>
       <span class="muted">创建 {{ fmt(a.created_at) }}</span>
       <span v-if="a.cutoff" class="muted">历史回放截止 {{ fmt(a.cutoff) }}</span>
-      <span v-if="usage" class="muted">模型调用 {{ usage.llm_calls }} 次，{{ usage.tokens }} tokens</span>
+      <span v-if="usage" class="muted">模型调用 {{ usage.llm_calls }} 次（HTTP 请求 {{ usage.requests }} 次），{{ usage.tokens }} tokens</span>
       <RouterLink v-if="a.parent_id" :to="`/analyses/${a.parent_id}`">上一轮分析</RouterLink>
     </div>
     <div class="row" style="margin-top: 12px">

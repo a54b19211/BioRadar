@@ -278,6 +278,7 @@ def usage():
                 func.date(db.LlmCall.created_at),
                 db.LlmCall.service,
                 func.count(),
+                func.sum(db.LlmCall.requests),
                 func.sum(db.LlmCall.total_tokens),
             )
             .group_by(func.date(db.LlmCall.created_at), db.LlmCall.service)
@@ -285,6 +286,6 @@ def usage():
             .limit(90)
         ).all()
     return [
-        {"day": str(day), "service": service, "calls": calls, "tokens": int(tokens or 0)}
-        for day, service, calls, tokens in rows
+        {"day": str(day), "service": service, "calls": calls, "requests": int(requests or 0), "tokens": int(tokens or 0)}
+        for day, service, calls, requests, tokens in rows
     ]

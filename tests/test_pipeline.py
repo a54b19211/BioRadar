@@ -105,6 +105,7 @@ def test_analysis_end_to_end(monkeypatch):
         biocheck.append((operation, body))
         call = [{"stage": operation, "model": "fake", "usage": {"total_tokens": 7}}]
         if operation == "generate":
+            call[0]["requests"] = 2  # a format retry inside BioCheck
             return {"draft": "同一试验更正后PFS的HR为0.69[E2]。", "llm_calls": call}
         return {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": call}
 
@@ -135,6 +136,7 @@ def test_analysis_end_to_end(monkeypatch):
     assert (
         result["usage"]["llm_calls"] == 1 + 2 + 1 + 1 + 2
     )  # plan, two reads, calculate, assess, BioCheck x2
+    assert result["usage"]["requests"] == result["usage"]["llm_calls"] + 1
 
 
 def test_planner_unavailable_fails_cleanly(monkeypatch):

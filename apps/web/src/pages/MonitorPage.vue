@@ -70,6 +70,7 @@ async function runRound() {
     <el-table-column label="日期" prop="day" width="140" />
     <el-table-column label="服务" prop="service" width="160" />
     <el-table-column label="调用次数" prop="calls" width="110" />
+    <el-table-column label="HTTP 请求" prop="requests" width="110" />
     <el-table-column label="tokens" prop="tokens" />
   </el-table>
 </template>
