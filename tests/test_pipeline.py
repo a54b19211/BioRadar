@@ -108,7 +108,7 @@ def test_analysis_end_to_end(monkeypatch):
         call = [{"stage": operation, "model": "fake", "usage": {"total_tokens": 7}}]
         if operation == "generate":
             call[0]["requests"] = 2  # a format retry inside BioCheck
-            return {"draft": "同一试验更正后PFS的HR为0.69[E2]。", "llm_calls": call}
+            return {"draft": "同一试验更正后PFS的HR为0.69[E1]。", "llm_calls": call}
         return {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": call}
 
     monkeypatch.setattr(services, "biocheck", fake_biocheck)
