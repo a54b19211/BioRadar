@@ -504,7 +504,13 @@ class Run:
         if self.input["method"] == "planner":
             # corrections and seeds first; exact copies of a text already read go behind, never dropped
             unread.sort(
-                key=lambda h: (not h["critical"], text(h) in read_texts, not named(h["title"]), -coverage(h), newest(h))
+                key=lambda h: (
+                    not h["critical"],
+                    text(h) in read_texts,
+                    not named(h["title"]),
+                    -coverage(h),
+                    newest(h),
+                )
             )
         else:
             unread.sort(key=lambda h: not h["critical"])

@@ -610,17 +610,47 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
         "d4": ("更正通知", "更正：病例数", "2019-12-01"),
     }
     for method, expected in (("planner", ["d4", "b2", "a1", "c3"]), ("baseline", ["d4", "a1", "b2", "c3"])):
-        row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", method=method,
-                              is_demo=True, enqueue=False)
+        row = analyses.create(
+            question="当前有哪些异常聚集？",
+            direction="public_health",
+            method=method,
+            is_demo=True,
+            enqueue=False,
+        )
         run = Run(row, settings(), fabric=FakeFabric([]))
         hits = [
-            {"source": "s", "record_id": rid, "title": title, "checks": ["Q1"], "critical": rid == "d4", "read": False}
+            {
+                "source": "s",
+                "record_id": rid,
+                "title": title,
+                "checks": ["Q1"],
+                "critical": rid == "d4",
+                "read": False,
+            }
             for rid, (title, _, _) in docs.items()
-        ] + [{"source": "s", "record_id": "r0", "title": "已读", "checks": ["Q1"], "critical": False, "read": True}]
+        ] + [
+            {
+                "source": "s",
+                "record_id": "r0",
+                "title": "已读",
+                "checks": ["Q1"],
+                "critical": False,
+                "read": True,
+            }
+        ]
         run.docs = {("s", rid): {"title": t, "text": x, "published_at": d} for rid, (t, x, d) in docs.items()}
         run.docs[("s", "r0")] = {"title": "", "text": "已读的那篇正文", "published_at": None}
         run.docs[("s", "c3")]["title"] = ""  # an exact copy of the text already read
-        run.p.update(queries=[{"terms": ["布病"], "checks": ["Q1"]}, {"terms": ["聚集"], "checks": ["Q1"]},
-                              {"terms": ["SARS"], "checks": ["Q1"]}], actions=[], pages={}, hits=hits, objects=[])
+        run.p.update(
+            queries=[
+                {"terms": ["布病"], "checks": ["Q1"]},
+                {"terms": ["聚集"], "checks": ["Q1"]},
+                {"terms": ["SARS"], "checks": ["Q1"]},
+            ],
+            actions=[],
+            pages={},
+            hits=hits,
+            objects=[],
+        )
         order = [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"]
         assert order == expected, method
