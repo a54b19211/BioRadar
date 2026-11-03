@@ -569,5 +569,7 @@ def test_a_replay_does_not_search_the_bridge_index(monkeypatch):
             question="XQ-17 的PFS？", direction="pipeline", is_demo=True, cutoff=cutoff, enqueue=False
         )
         run = Run(row, s, fabric=FakeFabric([]))
-        run.p.update(queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[])
+        run.p.update(
+            queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[]
+        )
         assert any(c["source"] == "weknora" for c in run.candidates()) is expected

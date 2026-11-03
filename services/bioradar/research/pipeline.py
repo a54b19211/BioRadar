@@ -305,7 +305,9 @@ class Run:
             if planned_check.objects and not c["objects"]:
                 c["required"], c["importance"] = False, 0.5
         if not any(c["required"] for c in checks):
-            anchor = next((c for c, pc in zip(checks, plan.checks) if not pc.objects or c["objects"]), checks[0])
+            anchor = next(
+                (c for c, pc in zip(checks, plan.checks) if not pc.objects or c["objects"]), checks[0]
+            )
             anchor["required"] = True
         required = [c["id"] for c in checks if c["required"]]
         queries = []

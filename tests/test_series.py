@@ -79,8 +79,18 @@ def test_a_correction_counts_only_from_when_it_was_visible():
 
 QUARTERS = [
     ("R1", "2026-01-15", "甲公司一季报：计划新建2条灌装线", ("2026Q1", 2, "planned", "计划新建2条灌装线")),
-    ("R2", "2026-04-15", "甲公司二季报：重申计划新建2条灌装线", ("2026Q2", 2, "planned", "计划新建2条灌装线")),
-    ("R3", "2026-07-15", "甲公司三季报：2条灌装线已开工建设", ("2026Q3", 2, "under_construction", "2条灌装线已开工")),
+    (
+        "R2",
+        "2026-04-15",
+        "甲公司二季报：重申计划新建2条灌装线",
+        ("2026Q2", 2, "planned", "计划新建2条灌装线"),
+    ),
+    (
+        "R3",
+        "2026-07-15",
+        "甲公司三季报：2条灌装线已开工建设",
+        ("2026Q3", 2, "under_construction", "2条灌装线已开工"),
+    ),
     ("R4", "2026-10-15", "甲公司四季报：3条灌装线投运", ("2026Q4", 3, "operational", "3条灌装线投运")),
     ("R5", "2026-10-20", "甲公司更正：四季度投运2条灌装线", ("2026Q4", 2, "operational", "投运2条灌装线")),
     ("R6", "2026-10-21", "甲公司新闻稿：产能扩张", ("2026Q4", 9, "operational", "原文里没有的9条")),
@@ -117,7 +127,14 @@ def triage_measures(payloads):
                     measures=[measure],
                 )
             )
-        call = {"stage": stage, "model": "fake", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
+        call = {
+            "stage": stage,
+            "model": "fake",
+            "finish_reason": "stop",
+            "usage": {},
+            "seconds": 0,
+            "error": None,
+        }
         return schemas.Triage(items=items), call
 
     return chat_json
@@ -161,9 +178,17 @@ def test_quarterly_records_build_one_series_and_owe_the_topic_only_real_changes(
     # the same correction triaged again (a retried round) is not measured or announced twice
     doc = next(d for d in fabric.docs if d["record_id"] == "R5")
     again = schemas.Measure(
-        object="甲公司苏州基地", metric="灌装线数量", value=2, unit="条", kind="stock",
-        period="2026Q4", status="operational", quote="投运2条灌装线",
+        object="甲公司苏州基地",
+        metric="灌装线数量",
+        value=2,
+        unit="条",
+        kind="stock",
+        period="2026Q4",
+        status="operational",
+        quote="投运2条灌装线",
     )
     with db.session() as s:
-        assert monitor.measure(s, monitor.settings(), doc, [again], topic, rows[4].available_at, True) is False
+        assert (
+            monitor.measure(s, monitor.settings(), doc, [again], topic, rows[4].available_at, True) is False
+        )
         assert s.scalar(select(func.count()).select_from(db.Measurement)) == 5

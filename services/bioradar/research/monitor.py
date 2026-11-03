@@ -153,7 +153,13 @@ def watches(session, topic_ids) -> dict:
     return current
 
 
-KEY = (db.Measurement.object, db.Measurement.metric, db.Measurement.unit, db.Measurement.kind, db.Measurement.scope)
+KEY = (
+    db.Measurement.object,
+    db.Measurement.metric,
+    db.Measurement.unit,
+    db.Measurement.kind,
+    db.Measurement.scope,
+)
 
 
 def known_series(session, s: Settings, is_demo: bool, limit=40):

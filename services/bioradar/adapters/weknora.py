@@ -80,11 +80,15 @@ def search(
             scopes[scope] = {"error": f"http_{status}" if status else type(exc).__name__}
             continue
         execution = data.get("execution") or {}
-        scopes[scope] = {k: execution.get(k) for k in ("keyword", "vector", "embedding", "rerank", "degraded")}
+        scopes[scope] = {
+            k: execution.get(k) for k in ("keyword", "vector", "embedding", "rerank", "degraded")
+        }
         for hit in data.get("results") or []:
             key = identity(hit)
             if key and key not in seen:
                 seen.add(key)
                 version = (hit.get("identity") or {}).get("version_id")
-                hits.append({"source": key[0], "record_id": key[1], "version_id": version, "score": hit.get("score")})
+                hits.append(
+                    {"source": key[0], "record_id": key[1], "version_id": version, "score": hit.get("score")}
+                )
     return hits, scopes

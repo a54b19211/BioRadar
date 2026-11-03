@@ -69,7 +69,9 @@ def test_a_refusal_that_outlasts_the_pauses_is_reported(monkeypatch):
 def test_resends_stop_at_the_request_budget(monkeypatch):
     request = httpx.Request("POST", "http://model.invalid/chat/completions")
     sent = []
-    monkeypatch.setattr(llm.httpx, "post", lambda url, **kwargs: sent.append(1) or httpx.Response(503, request=request))
+    monkeypatch.setattr(
+        llm.httpx, "post", lambda url, **kwargs: sent.append(1) or httpx.Response(503, request=request)
+    )
     monkeypatch.setattr(llm.time, "sleep", lambda seconds: None)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer, max_requests=1)
     assert parsed is None and len(sent) == 1 and call["requests"] == 1
@@ -200,15 +202,26 @@ def test_weknora_search_goes_through_the_bridge_by_direction_scope():
 
     def handler(request):
         body = json.loads(request.content)
-        sent.append((request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"]))
+        sent.append(
+            (request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"])
+        )
         if body["source_scope"] == "research":
             return httpx.Response(400, json={"detail": "search scope exceeds 1000 published documents"})
-        hit = {"identity": {"source_id": "who_don", "source_record_id": "D1", "version_id": "v1"}, "score": 0.5}
+        hit = {
+            "identity": {"source_id": "who_don", "source_record_id": "D1", "version_id": "v1"},
+            "score": 0.5,
+        }
         execution = {"keyword": "succeeded", "vector": "skipped", "embedding": "failed", "degraded": True}
-        return httpx.Response(200, json={"results": [hit, {"identity": {}, "score": 0.1}], "execution": execution})
+        return httpx.Response(
+            200, json={"results": [hit, {"identity": {}, "score": 0.1}], "execution": execution}
+        )
 
     s = settings().model_copy(
-        update={"weknora_url": "http://bridge.invalid/", "weknora_token": "t", "weknora_knowledge_base_id": "kb"}
+        update={
+            "weknora_url": "http://bridge.invalid/",
+            "weknora_token": "t",
+            "weknora_knowledge_base_id": "kb",
+        }
     )
     client = httpx.Client(transport=httpx.MockTransport(handler))
     hits, scopes = weknora.search(s, "布病 聚集", direction="public_health", client=client)
