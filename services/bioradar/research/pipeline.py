@@ -273,7 +273,8 @@ class Run:
         # T-22: where each planned name comes from, decided here and not reported by the model: the
         # question, the previous report (a draft, not an original record), or nowhere (exploratory). Only
         # names from the question become objects; the others may steer searching but never narrow what
-        # counts as relevant. plan_basis keeps the whole plan for audit.
+        # counts as relevant. plan_basis records every planned name's basis and plan_removed the objects
+        # left out with the checks they were attached to (the model's raw output is not kept in progress).
         shown = squash(self.input["question"]), squash(payload.get("previous_report", ""))
 
         def basis(name):
@@ -313,6 +314,11 @@ class Run:
             raise Failed("plan_without_queries")
         terms = [t for q in queries for t in q["terms"]]
         plan_basis = {n: basis(n) for n in dict.fromkeys([n for n in planned if n] + terms)}
+        plan_removed = [
+            {"name": n, "basis": basis(n), "checks": [f"Q{i}" for i, c in enumerate(plan.checks[:8], 1) if k in c.objects]}
+            for k, n in enumerate(planned, 1)
+            if n and basis(n) != "question"
+        ]
         exploratory = [n for n, b in plan_basis.items() if b != "question"]
         for c in checks:
             # shown to the reader as search directions that do not limit the question's scope
@@ -331,6 +337,7 @@ class Run:
             hypotheses=hypotheses,
             objects=objects,
             plan_basis=plan_basis,
+            plan_removed=plan_removed,
             checks=checks,
             queries=queries,
             judgments=plan.judgments[:4],
