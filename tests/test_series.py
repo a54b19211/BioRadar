@@ -57,7 +57,12 @@ def test_a_plan_repeated_each_quarter_is_not_growth_and_a_late_value_is_put_in_o
     assert [c["kind"] for c in late] == ["step", "new_low", "revised", "revised"]
     assert late[2] == {"kind": "revised", "rows": [3], "was": ["status_advance"], "now": ["step"]}
     # and Q2 1 -> Q3 2 -> Q4 3 is now a three-quarter rise
-    assert late[3] == {"kind": "revised", "rows": [4], "was": ["new_high", "step"], "now": ["new_high", "step", "streak_up"]}
+    assert late[3] == {
+        "kind": "revised",
+        "rows": [4],
+        "was": ["new_high", "step"],
+        "now": ["new_high", "step", "streak_up"],
+    }
     assert series.notable(late)  # a state change it had shown no longer holds
 
 

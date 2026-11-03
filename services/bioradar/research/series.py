@@ -104,7 +104,14 @@ def evaluate(series, i):
     out = []
     same_family = FAMILY.get(cur["status"]) and FAMILY.get(cur["status"]) == FAMILY.get(prev["status"])
     if cur["value"] == prev["value"] and same_family and RANK[cur["status"]] > RANK[prev["status"]]:
-        out.append({"kind": "status_advance", "from": prev["status"], "to": cur["status"], "rows": [prev["id"], cur["id"]]})
+        out.append(
+            {
+                "kind": "status_advance",
+                "from": prev["status"],
+                "to": cur["status"],
+                "rows": [prev["id"], cur["id"]],
+            }
+        )
     elif cur["value"] != prev["value"]:
         delta = cur["value"] - prev["value"]
         step = {"kind": "step", "delta": delta, "rows": [prev["id"], cur["id"]]}
@@ -113,9 +120,13 @@ def evaluate(series, i):
         out.append(step)
     before = [r["value"] for r in series[:i]]
     if len(before) >= 2 and cur["value"] > max(before):
-        out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]})
+        out.append(
+            {"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]}
+        )
     if len(before) >= 2 and cur["value"] < min(before):
-        out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]})
+        out.append(
+            {"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]}
+        )
     tail = series[max(0, i - STREAK) : i + 1]
     if len(tail) == STREAK + 1 and adjacent(tail):
         steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
@@ -146,7 +157,14 @@ def changes(rows, new_id):
         now = evaluate(series, j)
         if _summary(now) != was.get(series[j]["id"], []):
             before = sorted({k for k, _ in was.get(series[j]["id"], [])})
-            out.append({"kind": "revised", "rows": [series[j]["id"]], "was": before, "now": sorted({c["kind"] for c in now})})
+            out.append(
+                {
+                    "kind": "revised",
+                    "rows": [series[j]["id"]],
+                    "was": before,
+                    "now": sorted({c["kind"] for c in now}),
+                }
+            )
     return out
 
 
