@@ -380,11 +380,17 @@ class Run:
             # once the plan used the earlier report, every later stage carries what came from it (checks,
             # search terms, the report's research scope); if that report's sources can no longer be read,
             # the run stops with the reason instead of passing those on (Codex r41)
-            if self.stage != "plan" and self.p.get("used_previous") and self.previous_report() is None:
-                raise Failed("upstream_access_withdrawn")
+            if self.stage != "plan":
+                self.upstream_still_readable()
             steps[self.stage]()
             self.save(STAGES[STAGES.index(self.stage) + 1])
         return self.result()
+
+    def upstream_still_readable(self):
+        """Raise when the plan used the earlier report and its sources can no longer be read: checked at
+        each stage and again at the writer's service boundary."""
+        if self.p.get("used_previous") and self.previous_report() is None:
+            raise Failed("upstream_access_withdrawn")
 
     def previous_report(self):
         """The earlier round's report, only while every source it was written from (through all earlier
@@ -1344,6 +1350,7 @@ class Run:
     # ---- report --------------------------------------------------------------------------------
 
     def report_input(self):
+        self.upstream_still_readable()  # the scope and checks below may carry the earlier report's words
         rows = self.evidence_rows()
         refs = {(r.source, r.record_id): r for r in rows}
         quotes = {}
