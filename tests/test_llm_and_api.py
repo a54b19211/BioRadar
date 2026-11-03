@@ -238,13 +238,26 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
     from bioradar.adapters.fabric import document
 
     record = {
-        "source_id": "clinicaltrials", "source_record_id": "NCT00073242", "version_id": "v" * 64,
-        "is_demo": False, "record_kind": "trial", "title": "Leptin", "clean_text": "Brief summary.",
-        "facts": {"phase": ["PHASE3"], "status": "COMPLETED", "enrollment": 31, "enrollment_type": "ACTUAL",
-                  "has_results": True, "primary_completion_date_type": "ESTIMATED"},
-        "field_locators": {"phase": {"json_pointer": "/protocolSection/designModule/phases"},
-                           "enrollment": {"json_pointer": "/protocolSection/designModule/enrollmentInfo/count"},
-                           "has_results": {"json_pointer": "/hasResults"}},
+        "source_id": "clinicaltrials",
+        "source_record_id": "NCT00073242",
+        "version_id": "v" * 64,
+        "is_demo": False,
+        "record_kind": "trial",
+        "title": "Leptin",
+        "clean_text": "Brief summary.",
+        "facts": {
+            "phase": ["PHASE3"],
+            "status": "COMPLETED",
+            "enrollment": 31,
+            "enrollment_type": "ACTUAL",
+            "has_results": True,
+            "primary_completion_date_type": "ESTIMATED",
+        },
+        "field_locators": {
+            "phase": {"json_pointer": "/protocolSection/designModule/phases"},
+            "enrollment": {"json_pointer": "/protocolSection/designModule/enrollmentInfo/count"},
+            "has_results": {"json_pointer": "/hasResults"},
+        },
     }
     text = document(record)["text"]
     assert text.startswith("Brief summary.")
@@ -252,5 +265,7 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
     assert "入组人数 enrollment（/protocolSection/designModule/enrollmentInfo/count）: 31" in text
     assert '入组人数类型 enrollment_type（）: "ACTUAL"' in text and '"ESTIMATED"' in text
     assert "登记中有结果表 has_results（/hasResults）: true" in text
-    assert "结果：终点数据 results_outcome_measures（）: （原件无此字段）" in text  # missing is not 0 or false
+    assert (
+        "结果：终点数据 results_outcome_measures（）: （原件无此字段）" in text
+    )  # missing is not 0 or false
     assert document(dict(record, record_kind="document"))["text"] == "Brief summary."
