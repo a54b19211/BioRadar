@@ -282,23 +282,55 @@ def test_a_correction_marks_the_analyses_that_cited_the_old_record(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
     at = datetime.fromisoformat(DAY.format(1))
     with db.session() as session:
-        topic = db.Topic(workspace_id="w", title="XQ-17", direction="pipeline", is_demo=True,
-                         first_seen_at=at, last_activity_at=at)
+        topic = db.Topic(
+            workspace_id="w",
+            title="XQ-17",
+            direction="pipeline",
+            is_demo=True,
+            first_seen_at=at,
+            last_activity_at=at,
+        )
         session.add(topic)
         session.flush()
-        for name, topic_id, is_demo in (("manual", None, True), ("topic", topic.id, True), ("real", None, False)):
-            inv = db.Investigation(workspace_id="w", question=name, direction="pipeline", is_demo=is_demo,
-                                   topic_id=topic_id)
+        for name, topic_id, is_demo in (
+            ("manual", None, True),
+            ("topic", topic.id, True),
+            ("real", None, False),
+        ):
+            inv = db.Investigation(
+                workspace_id="w", question=name, direction="pipeline", is_demo=is_demo, topic_id=topic_id
+            )
             session.add(inv)
             session.flush()
-            row = db.Analysis(id=name, investigation_id=inv.id, trigger="manual", method="planner", input={},
-                              input_hash=name, progress={}, stage="done", state="completed", result={"draft": "x"})
+            row = db.Analysis(
+                id=name,
+                investigation_id=inv.id,
+                trigger="manual",
+                method="planner",
+                input={},
+                input_hash=name,
+                progress={},
+                stage="done",
+                state="completed",
+                result={"draft": "x"},
+            )
             session.add(row)
             session.flush()
-            session.add(db.Evidence(analysis_id=name, ref="E1", source="external_archive", record_id="B31",
-                                    version_id="v", title="初报", text="HR为0.62"))
+            session.add(
+                db.Evidence(
+                    analysis_id=name,
+                    ref="E1",
+                    source="external_archive",
+                    record_id="B31",
+                    version_id="v",
+                    title="初报",
+                    text="HR为0.62",
+                )
+            )
         topic_id = topic.id
-    correction = record("B41", "试验结果更正", "HR为0.69", available=DAY.format(2), relations=[("corrects", "B31")])
+    correction = record(
+        "B41", "试验结果更正", "HR为0.69", available=DAY.format(2), relations=[("corrects", "B31")]
+    )
     monitor.tick(is_demo=True, fabric=FakeFabric([correction]))
     with db.session() as session:
         manual, real = session.get(db.Analysis, "manual"), session.get(db.Analysis, "real")
