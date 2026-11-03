@@ -318,7 +318,10 @@ class Run:
             # shown to the reader as search directions that do not limit the question's scope
             c["exploratory"] = [n for n in exploratory if squash(n) in squash(c["text"])]
         if any(c["exploratory"] for c in checks):
-            self.note("plan_exploratory_scope", "；".join(f"{c['id']}:{'、'.join(c['exploratory'])}" for c in checks))
+            self.note(
+                "plan_exploratory_scope",
+                "；".join(f"{c['id']}:{'、'.join(c['exploratory'])}" for c in checks),
+            )
         hypotheses = [
             {"id": f"H{n}", **h.model_dump()}
             for n, h in enumerate(plan.hypotheses[:3], 1)
