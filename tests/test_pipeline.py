@@ -428,8 +428,13 @@ def test_a_judgment_that_contradicts_the_evidence_is_flagged(monkeypatch):
     run = Run(row, settings(), fabric=FakeFabric([]))
     judgments = [
         schemas.Judgment(
-            question=q, conclusion=c, confidence="probable", credibility="high",
-            consequence="medium", priority="medium", grounds=["E2"],
+            question=q,
+            conclusion=c,
+            confidence="probable",
+            credibility="high",
+            consequence="medium",
+            priority="medium",
+            grounds=["E2"],
         ).model_dump()
         for q, c in [("验收", "验收台数增加到18台"), ("收入", "验收、收入、回款均同比下降")]
     ]
