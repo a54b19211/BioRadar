@@ -180,3 +180,17 @@ def test_a_round_that_dies_after_creating_the_analysis_does_not_create_another(m
     with db.session() as session:
         # one queued row, which analyses.recover() dispatches later
         assert session.scalar(select(func.count()).select_from(db.Analysis)) == 1
+
+
+def test_live_monitoring_skips_sources_kept_for_search_only(monkeypatch):
+    from bioradar.config import settings
+
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    s = settings()
+    monkeypatch.setattr(s, "monitor_sources", ["who_don"])
+    fabric = FakeFabric([record("H0", "历史", "x", source="who_don"), record("L0", "旧文档", "x", source="legacy_documents")])
+    monitor.tick(is_demo=False, fabric=fabric)  # both feeds start at their current end
+    fabric.docs += FakeFabric(
+        [record("H1", "两家医院确认7例", "x", source="who_don"), record("L1", "旧文档补录", "x", source="legacy_documents")]
+    ).docs
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1

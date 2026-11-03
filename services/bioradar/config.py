@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     fabric_admin_token: str = ""
     sources: list[str] = ["pubmed", "clinicaltrials", "who_don", "europe_pmc"]
     demo_sources: list[str] = ["external_archive"]
+    # Live monitoring reads only these (default: sources). Bulk backfills such as legacy_documents
+    # stay searchable for analyses but must not flood triage with old documents.
+    monitor_sources: list[str] | None = None
 
     # WeKnora semantic search; empty URL disables it.
     weknora_url: str = ""

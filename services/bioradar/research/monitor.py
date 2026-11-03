@@ -39,7 +39,7 @@ def parse_time(value) -> datetime:
 def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None):
     """Live: the change feed after the saved cursor.
     Replay: everything visible at the cutoff that was not observed yet."""
-    sources = s.demo_sources if is_demo else s.sources
+    sources = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
     docs, ends = [], {}
     with db.session() as session:
         rows = session.execute(
