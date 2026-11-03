@@ -515,3 +515,33 @@ def test_no_budget_left_means_the_assessment_stays_unverified(monkeypatch):
     run.check_assessment({"judgments": [judgment], "hypotheses": []})
     assert sent == [] and judgment["check"] == "unverified"
     assert run.p["notes"][-1]["code"] == "assessment_biocheck_no_budget"
+
+
+def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
+    """T-22: a plan that brings in a place the question never named keeps it as a search direction only."""
+    base = fake_model([])
+    reads = []
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "plan":
+            value.objects = [schemas.PlanObject(name="武汉"), schemas.PlanObject(name="XQ-17")]
+            value.checks = [
+                schemas.PlanCheck(text="材料是否提及华南海鲜市场暴露史", required=True, objects=[1]),
+                schemas.PlanCheck(text="XQ-17 的PFS", required=True, objects=[2]),
+            ]
+            value.queries = [schemas.PlanQuery(terms=["华南海鲜"], checks=[1]), schemas.PlanQuery(terms=["PFS"])]
+        if stage == "read":
+            reads.append(payload)
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(question="XQ-17 当前有哪些异常聚集与PFS结果？", direction="pipeline", is_demo=True, enqueue=False)
+    result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
+    assert result["plan_basis"] == {"武汉": "exploratory", "XQ-17": "question", "华南海鲜": "exploratory", "PFS": "question", "XQ": "question"}
+    assert reads and reads[0]["objects"] == ["XQ-17"]
+    assert [c["exploratory"] for c in reads[0]["checks"]] == [["华南海鲜"], []]
+    assert [c["objects"] for c in result["checks"]] == [[], ["XQ-17"]]
+    assert any(n["code"] == "plan_exploratory_scope" for n in result["notes"])

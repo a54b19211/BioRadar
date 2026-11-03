@@ -269,7 +269,17 @@ class Run:
         plan = self.ask("plan", prompts.PLAN, payload, schemas.Plan)
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
-        named = [o.name.strip() for o in plan.objects[:8]]  # check indexes refer to this list
+        planned = [o.name.strip() for o in plan.objects[:8]]
+        # T-22: where each planned name comes from, decided here and not reported by the model: the
+        # question, material the plan was shown (a previous report), or nowhere (exploratory). Exploratory
+        # names may steer searching but never narrow what counts as relevant, so they are not objects.
+        shown = squash(self.input["question"]), squash(payload.get("previous_report", ""))
+
+        def basis(name):
+            name = squash(name)
+            return "question" if name in shown[0] else "material" if name in shown[1] else "exploratory"
+
+        named = [n if n and basis(n) != "exploratory" else "" for n in planned]  # check indexes
         objects = list(dict.fromkeys(n for n in named if n))
         checks = [
             {
@@ -300,6 +310,14 @@ class Run:
                 queries.append({"terms": root, "checks": required})
         if not queries:
             raise Failed("plan_without_queries")
+        terms = [t for q in queries for t in q["terms"]]
+        plan_basis = {n: basis(n) for n in dict.fromkeys([n for n in planned if n] + terms)}
+        exploratory = [n for n, b in plan_basis.items() if b == "exploratory"]
+        for c in checks:
+            # shown to the reader as search directions that do not limit the question's scope
+            c["exploratory"] = [n for n in exploratory if squash(n) in squash(c["text"])]
+        if any(c["exploratory"] for c in checks):
+            self.note("plan_exploratory_scope", "；".join(f"{c['id']}:{'、'.join(c['exploratory'])}" for c in checks))
         hypotheses = [
             {"id": f"H{n}", **h.model_dump()}
             for n, h in enumerate(plan.hypotheses[:3], 1)
@@ -308,6 +326,7 @@ class Run:
         self.p.update(
             hypotheses=hypotheses,
             objects=objects,
+            plan_basis=plan_basis,
             checks=checks,
             queries=queries,
             judgments=plan.judgments[:4],
@@ -657,6 +676,7 @@ class Run:
                         "text": c["text"],
                         "status": c["status"],
                         "objects": c.get("objects", []),
+                        "exploratory": c.get("exploratory", []),
                         "known": [
                             f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]
                         ][-12:],
@@ -1166,6 +1186,7 @@ class Run:
             },
             "assessment": self.p.get("assessment"),
             "checks": self.p.get("checks", []),
+            "plan_basis": self.p.get("plan_basis", {}),  # name -> question / material / exploratory
             "computations": self.p.get("computations", []),
             "mechanism": self.p.get("mechanism_result"),
             "stop": self.p.get("stop"),
