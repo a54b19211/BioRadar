@@ -307,7 +307,8 @@ def redact_summaries(values: list[dict]) -> list[dict]:
     for v in values:
         hidden = hidden_refs(by_analysis.get(v["id"], []), readable)
         if hidden:
-            v["result"] = dict(v["result"], assessment=blank(v["result"]["assessment"]), withheld=notice(hidden))
+            assessment = blank(v["result"]["assessment"])
+            v["result"] = dict(v["result"], assessment=assessment, withheld=notice(hidden))
     return values
 
 
@@ -351,6 +352,26 @@ def redact_topics(values: list[dict]) -> list[dict]:
                     e["withheld"] = withheld(sources.get(record, ""), readable)
         out.append(v)
     return out
+
+
+@app.get("/api/options", dependencies=api)
+def options():
+    s = settings()
+    return {
+        "sources": s.sources,
+        "demo_sources": s.demo_sources,
+        "directions": sorted(analyses.DIRECTIONS),
+        "methods": ["planner", "baseline"],
+        "configured": {
+            "model": bool(s.llm_base_url and s.llm_model),
+            "planner": bool(s.planner_url),
+            "biocheck": bool(s.biocheck_url),
+            "mechevidence": bool(s.mechevidence_url),
+            "weknora": bool(s.weknora_url),
+        },
+        "limits": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
+        "monitor": {"enabled": s.monitor_enabled, "auto_analysis": s.auto_analysis},
+    }
 
 
 class Ask(BaseModel):

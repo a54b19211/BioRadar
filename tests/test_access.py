@@ -142,6 +142,9 @@ def topic_analysis():
                         "question": "是否重要",
                         "conclusion": "据撤权原文判断重要",
                         "confidence": "possible",
+                        "credibility": "medium",
+                        "consequence": "medium",
+                        "priority": "high",
                         "grounds": ["E2"],
                         "unproven": "撤权原文以外的佐证",
                         "check": "supported",
@@ -215,7 +218,10 @@ def topic_analysis():
         )
         s.add(
             db.TopicEvent(
-                topic_id=topic_id, at=db.now(), kind="created", detail={"record": "gone_src-1", "title": "撤权原文标题"}
+                topic_id=topic_id,
+                at=db.now(),
+                kind="created",
+                detail={"record": "gone_src-1", "title": "撤权原文标题"},
             )
         )
     return row.id, topic_id
@@ -309,7 +315,8 @@ def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
     result = detail["result"]
     assert "E2（来源已撤权）" in result["withheld"] and result["draft"] == ""
     judgment = result["assessment"]["judgments"][0]
-    assert judgment["conclusion"] == "" and judgment["confidence"] == "possible" and judgment["grounds"] == ["E2"]
+    assert judgment["conclusion"] == "" and judgment["confidence"] == "possible"
+    assert judgment["grounds"] == ["E2"]
     assert [c["index"] for c in result["review"]["claims"]] == [1, 2]
     import json
 
