@@ -842,7 +842,7 @@ def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted
              '状态 status（/protocolSection/statusModule/overallStatus）: "COMPLETED"',
              "入组人数 enrollment（/protocolSection/designModule/enrollmentInfo/count）: 31",
              "长字段 eligibility（/protocolSection/eligibilityModule）: " + "条件" * 2000]
-    lines += [f"  终点 PRIMARY 「终点{i}」（…）: 组A {i}0 (spread 5)" + "，组B 1" * 60 for i in range(6)]
+    lines += [f"  终点 PRIMARY 「终点{i}」（…）: 组A {i}0 (spread 5)" + "，组B 1" * 60 for i in range(12)]
     text = "\n".join(lines)
     sent = report_text(text, ["Brief summary."])
     assert '"PHASE3"' in sent and '"COMPLETED"' in sent and ": 31" in sent
