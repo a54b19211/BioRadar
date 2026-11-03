@@ -92,6 +92,34 @@ REGISTRY_FIELDS = [
 REGISTRY_FIELD_CHARS = 3000  # one long results table must not push the protocol fields out
 
 
+def outcome_lines(value) -> list[str]:
+    """ClinicalTrials results (resultsSection/outcomeMeasuresModule) as one compact line per measure:
+    type, title, unit and statistic, then each class's group values with their spread and the group's
+    number analysed. The same numbers as the JSON, without its keys, so a measure fits beside the
+    protocol fields in a report's input (Codex r40: the means sat 835 characters into the JSON line)."""
+    lines = []
+    for m in (value or {}).get("outcomeMeasures", []) if isinstance(value, dict) else []:
+        groups = {g.get("id"): g.get("title", g.get("id")) for g in m.get("groups", [])}
+        counts = {c.get("groupId"): c.get("value") for d in m.get("denoms", [])[:1] for c in d.get("counts", [])}
+        parts = []
+        for c in m.get("classes", []):
+            for cat in c.get("categories", []):
+                values = "，".join(
+                    f"{groups.get(x.get('groupId'), x.get('groupId'))} {x.get('value')}"
+                    + (f"±{x['spread']}" if x.get("spread") else "")
+                    for x in cat.get("measurements", [])
+                )
+                label = "／".join(t for t in (c.get("title"), cat.get("title")) if t)
+                parts.append(f"{label}: {values}" if label else values)
+        n = "，".join(f"{groups.get(k, k)} n={v}" for k, v in counts.items())
+        lines.append(
+            f"终点 {m.get('type', '')} 「{m.get('title', '')}」（{m.get('unitOfMeasure', '')}，"
+            f"{m.get('paramType', '')}{'/' + m['dispersionType'] if m.get('dispersionType') else ''}；{n}）: "
+            + "；".join(parts)
+        )
+    return lines
+
+
 def registry_text(record: dict) -> str:
     """The trial's registry fields as lines "名称 field（JSON pointer）: value"; empty for other records."""
     facts, locators = record.get("facts") or {}, record.get("field_locators") or {}
@@ -111,6 +139,8 @@ def registry_text(record: dict) -> str:
                     + f"…（此字段共 {len(value)} 字符，这里只取前 {REGISTRY_FIELD_CHARS}）"
                 )
         lines.append(f"{label} {key}（{pointer}）: {value}")
+        if key == "results_outcome_measures" and key in facts:
+            lines += [f"  {line}" for line in outcome_lines(facts[key])]
     return "\n".join(lines)
 
 

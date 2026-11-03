@@ -269,3 +269,14 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
         "结果：终点数据 results_outcome_measures（）: （原件无此字段）" in text
     )  # missing is not 0 or false
     assert document(dict(record, record_kind="document"))["text"] == "Brief summary."
+    measures = {"outcomeMeasures": [{
+        "type": "PRIMARY", "title": "Total Energy Expenditure (TEE)", "unitOfMeasure": "kcal/day",
+        "paramType": "MEAN", "dispersionType": "STANDARD_DEVIATION",
+        "groups": [{"id": "OG000", "title": "Leptin Repletion"}, {"id": "OG001", "title": "T3 Repletion"}],
+        "denoms": [{"counts": [{"value": "22", "groupId": "OG000"}, {"value": "9", "groupId": "OG001"}]}],
+        "classes": [{"title": "Initial Wt", "categories": [{"measurements": [
+            {"value": "3131", "spread": "500", "groupId": "OG000"}, {"value": "2961", "spread": "243", "groupId": "OG001"}]}]}],
+    }]}
+    text = document(dict(record, facts=dict(record["facts"], results_outcome_measures=measures)))["text"]
+    assert ("终点 PRIMARY 「Total Energy Expenditure (TEE)」（kcal/day，MEAN/STANDARD_DEVIATION；"
+            "Leptin Repletion n=22，T3 Repletion n=9）: Initial Wt: Leptin Repletion 3131±500，T3 Repletion 2961±243") in text
