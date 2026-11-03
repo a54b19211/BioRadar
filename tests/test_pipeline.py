@@ -73,7 +73,7 @@ def fake_model(sent):
                         credibility="high",
                         consequence="high",
                         priority="high",
-                        grounds=["E2", "E9"],
+                        grounds=["E1", "E9"],
                     )
                 ],
             )
@@ -119,22 +119,23 @@ def test_analysis_end_to_end(monkeypatch):
 
     with db.session() as s:
         evidence = list(s.scalars(select(db.Evidence).order_by(db.Evidence.ref)))
-    assert [(e.ref, e.record_id) for e in evidence] == [("E1", "B31"), ("E2", "B41")]
+    # the planner reads the newer of two equally matching records first (T-21), so the correction is E1
+    assert [(e.ref, e.record_id) for e in evidence] == [("E1", "B41"), ("E2", "B31")]
     assert result["report_status"] == "PASS"
     # The invented quote is dropped, the real ones stay.
     assert [n["code"] for n in result["notes"]].count("quote_not_found") == 2
     assert result["checks"][0]["status"] == "answered" and result["checks"][0]["evidence"] == ["E1", "E2"]
     # The correction reaches BioCheck as a source update, old -> new.
     generate = biocheck[0][1]
-    assert generate["source_updates"] == [{"target": "E1", "replacement": "E2", "kind": "correction"}]
+    assert generate["source_updates"] == [{"target": "E2", "replacement": "E1", "kind": "correction"}]
     assert {e["source_kind"] for e in generate["evidence"]} == {"official"}
     # The number is computed by the program, not by the model.
     assert result["computations"][0]["value"] == 31.0
     assert generate["analysis_results"][0]["id"] == "A1"
     # Judgment grounds keep only refs the verified report actually cites.
-    assert result["assessment"]["judgments"][0]["grounds"] == ["E2"]
+    assert result["assessment"]["judgments"][0]["grounds"] == ["E1"]
     # The conclusion itself goes back to BioCheck; with no supported sentence it is capped.
-    assert biocheck[-1][1]["draft"] == "有限人群内的重要进展[E2]。"
+    assert biocheck[-1][1]["draft"] == "有限人群内的重要进展[E1]。"
     judgment = result["assessment"]["judgments"][0]
     assert (judgment["check"], judgment["confidence"]) == ("unverified", "possible")
     # Structured stages run with thinking off (the default of chat_json).
