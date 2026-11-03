@@ -1045,7 +1045,9 @@ class Run:
                 {
                     f["ref"]
                     for f in facts
-                    if f.get("hypothesis") == h["id"] and f["stance"] == stance and f["ref"] in verified[h["id"]]
+                    if f.get("hypothesis") == h["id"]
+                    and f["stance"] == stance
+                    and f["ref"] in verified[h["id"]]
                 }
             )
         self.check_assessment(assessment)

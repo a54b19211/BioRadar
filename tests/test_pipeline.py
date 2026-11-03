@@ -437,7 +437,9 @@ def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
     )
     monkeypatch.setattr(run, "ask", lambda *a, **k: graded)
     monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
-    monkeypatch.setattr(services, "biocheck", line_verifier(lambda line: "contradicted" if "备产" in line else "supported"))
+    monkeypatch.setattr(
+        services, "biocheck", line_verifier(lambda line: "contradicted" if "备产" in line else "supported")
+    )
     run.assess()
     hypotheses = run.p["assessment"]["hypotheses"]
     assert [(h["id"], h["level"], h["grounds"]) for h in hypotheses] == [
@@ -480,7 +482,9 @@ def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
 
     def biocheck(s, operation, body):
         drafts.append(body["draft"])
-        return line_verifier(lambda line: "contradicted" if "下降" in line else "supported")(s, operation, body)
+        return line_verifier(lambda line: "contradicted" if "下降" in line else "supported")(
+            s, operation, body
+        )
 
     monkeypatch.setattr(run, "ask", lambda *a, **k: graded)
     monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
