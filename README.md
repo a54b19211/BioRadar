@@ -31,7 +31,7 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
                      fetch   （实时模式）让 Fabric 去上游抓新记录
      ─► compute     需要算数时，模型只写算式，程序用原文数值计算（A1..An）
      ─► mechanism   问题涉及机制时，把研究材料交给 MechEvidence
-     ─► report      BioCheck 写稿 → 逐句核验 → 必要时修订一次再核验
+     ─► report      BioCheck 写稿 → 逐句核验 → 必要时修订再核验（最多两轮）
      ─► assess      模型按核验后的报告给结构化判断和情报等级
 ```
 
@@ -64,7 +64,23 @@ cd ../BioCheck      && uvicorn app.service:app --port 18562
 cd ../MechEvidence  && uvicorn mechevidence.service:app --port 18563
 ```
 
-zktest 上的常驻部署用 `ops/systemd/` 里的单元（`systemctl --user`），配置文件在 `~/.config/bioradar/*.env`（0600）。
+### zktest 常驻部署
+
+- 进程：`ops/systemd/` 里的六个单元（`systemctl --user status 'bioradar-*'`）：api 18100、worker、monitor、planner 18561、biocheck 18562、mechevidence 18563。
+- 配置：`~/.config/bioradar/radar.env`、`planner.env`、`biocheck.env`、`mechevidence.env`（0600）。登录凭据在 `~/.config/bioradar/login.txt`。
+- 数据：PostgreSQL 15436 上的 `bioradar_live` 库，Redis 16379 的 3 号库。Fabric 用现役的 18511（只读）。
+- 网页：`bioradar-web` 容器走主机网络，监听 127.0.0.1:15176，配置是 `ops/nginx-host.conf`。改了前端后：
+
+  ```sh
+  docker build --network host -f ops/Dockerfile.web -t bioradar-web:main .
+  docker rm -f bioradar-web && docker run -d --name bioradar-web --network host --restart unless-stopped \
+    -v $PWD/ops/nginx-host.conf:/etc/nginx/conf.d/default.conf:ro bioradar-web:main
+  ```
+
+- 监测：每 30 秒读一次 Fabric 变更流。一个来源第一次被监测时从它**当前的末尾**开始（`legacy_documents` 有 62 万条历史记录，不能全部分诊）；历史材料用回放分析。自动分析每小时最多 6 次（`BIORADAR_AUTO_ANALYSES_PER_HOUR`）。
+- 改代码后：`git pull`，`uv sync --frozen`，有新迁移时 `alembic -c db/alembic.ini upgrade head`，再 `systemctl --user restart bioradar-api bioradar-worker bioradar-monitor`。
+
+2026-11-03 从旧版切换过来。旧库 `bioradar`、旧配置备份 `~/.config/bioradar.before-rebuild-20261103/`、旧网页容器 `bioradar-zktest-web-1` 都保留着，需要退回时运行 `bash ~/.config/bioradar-rollback.sh`。
 
 ## 用一个真实问题跑一次
 

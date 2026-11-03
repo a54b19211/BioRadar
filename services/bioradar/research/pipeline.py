@@ -20,6 +20,7 @@ from bioradar.research import compute, prompts, schemas
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 MAX_PAGES = 3
 MAX_QUERIES = 12
+REVISIONS = 2  # revise -> re-verify rounds; each only touches the sentences the last check flagged
 MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
 FABRIC_PAGE = 100  # Fabric page cap; a larger fixed material set is filtered here, not in the query
 OVERALL = {"supported": "机制获得支持", "partial": "机制部分获得支持", "insufficient": "机制证据不足"}
@@ -859,19 +860,22 @@ class Run:
         try:
             report["draft"] = self.service("generate", dict(body))["draft"]
             review = self.service("verify", dict(body, draft=report["draft"]))
-            fixable = [
-                c
-                for c in review["claims"]
-                if c["verdict"] == "contradicted"
-                or c.get("scope_span")
-                or (c["verdict"] == "insufficient" and c["citations"] and c["labels"])
-                or (c["verdict"] == "insufficient" and not c["citations"])
-            ]
-            if review["status"] != "PASS" and fixable and self.calls_left() > 2:
+            for _ in range(REVISIONS):
+                fixable = [
+                    c
+                    for c in review["claims"]
+                    if c["verdict"] == "contradicted"
+                    or c.get("scope_span")
+                    or (c["verdict"] == "insufficient" and c["citations"] and c["labels"])
+                    or (c["verdict"] == "insufficient" and not c["citations"])
+                ]
+                if review["status"] == "PASS" or not fixable or self.calls_left() <= 2:
+                    break
                 revised = self.service("revise", dict(body, draft=report["draft"], review=review))
-                if revised.get("changed"):
-                    report.update(draft=revised["draft"], revised=True, changed=revised["changed"])
-                    review = self.service("verify", dict(body, draft=report["draft"]))
+                if not revised.get("changed"):
+                    break
+                report.update(draft=revised["draft"], revised=True, changed=revised["changed"])
+                review = self.service("verify", dict(body, draft=report["draft"]))
         except ServiceError as exc:
             report["reason"] = f"biocheck_{exc.code}"
             self.note(report["reason"])
