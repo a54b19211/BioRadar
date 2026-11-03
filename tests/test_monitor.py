@@ -497,18 +497,33 @@ def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeyp
     s = settings()
     start = datetime(2026, 10, 1, 4, tzinfo=UTC)
     with db.session() as session:
-        topic = db.Topic(workspace_id=s.workspace_id, title="T", direction="public_health", is_demo=True,
-                         first_seen_at=start, last_activity_at=start)
+        topic = db.Topic(
+            workspace_id=s.workspace_id,
+            title="T",
+            direction="public_health",
+            is_demo=True,
+            first_seen_at=start,
+            last_activity_at=start,
+        )
         session.add(topic)
         session.flush()
 
         def seen(day, n, *, topic_id=None, origin=None):
             for i in range(n):
-                session.add(db.Observation(
-                    workspace_id=s.workspace_id, source="x", record_id=f"{day}-{topic_id}-{i}-{origin}",
-                    version_id=f"v{day}-{topic_id}-{i}-{origin}", is_demo=True, title="t",
-                    available_at=start + timedelta(days=day), topic_id=topic_id, alert="normal", origin_group=origin,
-                ))
+                session.add(
+                    db.Observation(
+                        workspace_id=s.workspace_id,
+                        source="x",
+                        record_id=f"{day}-{topic_id}-{i}-{origin}",
+                        version_id=f"v{day}-{topic_id}-{i}-{origin}",
+                        is_demo=True,
+                        title="t",
+                        available_at=start + timedelta(days=day),
+                        topic_id=topic_id,
+                        alert="normal",
+                        origin_group=origin,
+                    )
+                )
 
         for day in range(8):
             if day == 3:

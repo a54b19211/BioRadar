@@ -46,7 +46,6 @@ def upgrade():
         ["workspace_id", "is_demo", "object", "metric", "unit", "kind", "scope"],
     )
 
-
     op.add_column("observations", sa.Column("origin_group", sa.String(200)))
 
 
