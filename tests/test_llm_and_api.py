@@ -172,3 +172,29 @@ def test_weknora_hits_point_back_to_fabric_only_with_a_fabric_identity():
     assert identity({"metadata": {"raw_locator": json.dumps(locator)}}) == ("clinicaltrials", "NCT07500001")
     assert identity({"metadata": {"source_id": "who_don", "source_record_id": "D1"}}) == ("who_don", "D1")
     assert identity({"metadata": {"content": "---\nsource_site: chictr\n---"}}) is None  # crawler upload
+    assert identity({"identity": {"source_id": "who_don", "source_record_id": "D2"}}) == ("who_don", "D2")
+
+
+def test_weknora_search_goes_through_the_bridge_by_direction_scope():
+    import json
+
+    from bioradar.adapters import weknora
+
+    sent = []
+
+    def handler(request):
+        body = json.loads(request.content)
+        sent.append((request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"]))
+        hit = {"identity": {"source_id": "who_don", "source_record_id": "D1"}, "score": 0.5}
+        return httpx.Response(200, json={"results": [hit, {"identity": {}, "score": 0.1}]})
+
+    s = settings().model_copy(
+        update={"weknora_url": "http://bridge.invalid/", "weknora_token": "t", "weknora_knowledge_base_id": "kb"}
+    )
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    hits = weknora.search(s, "布病 聚集", direction="public_health", client=client)
+    assert hits == [("who_don", "D1", 0.5)]  # deduplicated across scopes; identity-less hit skipped
+    assert sent == [
+        ("/api/v1/kdd/search", "Bearer t", "public_health", False),
+        ("/api/v1/kdd/search", "Bearer t", "research", False),
+    ]
