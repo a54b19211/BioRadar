@@ -91,6 +91,8 @@ export interface Result {
   reads: number;
   notes: Note[];
   usage: { llm_calls: number; requests: number; tokens: number };
+  // set when a cited material's source cannot be read now: the texts below are withheld
+  withheld?: string;
   // BioCheck's sentence-by-sentence check; the sentence index is what a review refers to
   review?: { claims?: Claim[] | null } | null;
   // added later by the monitor when a cited record is corrected or retracted

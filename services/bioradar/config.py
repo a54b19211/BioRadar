@@ -12,8 +12,8 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://bioradar:bioradar@127.0.0.1:15436/bioradar"
     redis_url: str = "redis://127.0.0.1:16379/0"
     queue_name: str = "bioradar"
-    dev_credential: str = ""  # the first admin's credential; empty and no users means nobody can sign in
-    session_secret: str = ""  # signs session cookies; empty: the dev credential does
+    dev_credential: str = ""  # the first admin's credential (while there are no users yet)
+    session_secret: str = ""  # signs session cookies; random, never a login credential; empty: no sign-in
     workspace_id: str = "default"
 
     # Data-Fabric history API (徐子雯). Records are read at a fixed version and cutoff.

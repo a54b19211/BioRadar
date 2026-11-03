@@ -57,12 +57,19 @@ def test_the_dev_credential_creates_the_first_admin_and_roles_limit_what_each_pe
 
 
 def test_a_tampered_or_foreign_token_is_not_a_session():
+    import hmac
+
     admin = admin_client()
     token = admin.cookies.get(api_module.COOKIE)
-    user_id, expires, signature = token.split(".")
+    user_id, version, expires, signature = token.split(".")
+    body = f"{user_id}.{version}.{expires}"
+    # Codex r20: with no session key the dev credential used to sign, so whoever knew it could mint an admin
+    by_dev = hmac.new(settings().dev_credential.encode(), body.encode(), "sha256").hexdigest()
     for bad in (
-        f"{user_id}.{int(expires) + 999}.{signature}",
-        f"{user_id}.{expires}.",
+        f"{user_id}.{version}.{int(expires) + 999}.{signature}",
+        f"{user_id}.{int(version) + 1}.{expires}.{signature}",
+        f"{body}.",
+        f"{body}.{by_dev}",
         "x",
         settings().dev_credential,
     ):
@@ -72,6 +79,37 @@ def test_a_tampered_or_foreign_token_is_not_a_session():
     assert (
         TestClient(app).get("/api/options", headers={"Authorization": f"Bearer {token}"}).status_code == 200
     )
+
+
+def test_a_new_credential_or_deactivation_ends_older_sessions_at_once():
+    """Codex r20: after alice's credential was replaced her old browser still read protected pages."""
+    admin = admin_client()
+    admin.post("/api/users", json={"name": "alice", "role": "analyst", "credential": "alice-pass-1"})
+    old = signed_in("alice", "alice-pass-1")
+    assert old.get("/api/options").status_code == 200
+    assert admin.patch("/api/users/alice", json={"credential": "alice-pass-2"}).status_code == 200
+    assert old.get("/api/options").status_code == 401
+    assert old.get("/api/session").json() == {"signed_in": False}
+    again = signed_in("alice", "alice-pass-2")
+    assert again.get("/api/options").status_code == 200
+    # a role change keeps the session (it is re-read on every request)
+    assert admin.patch("/api/users/alice", json={"role": "viewer"}).status_code == 200
+    assert again.get("/api/options").status_code == 200
+    # deactivation ends it, and the person cannot sign in until reactivated
+    assert admin.patch("/api/users/alice", json={"active": False}).status_code == 200
+    assert again.get("/api/options").status_code == 401
+    off = TestClient(app).post("/api/session", json={"name": "alice", "credential": "alice-pass-2"})
+    assert off.status_code == 401
+    assert admin.patch("/api/users/alice", json={"active": True}).status_code == 200
+    signed_in("alice", "alice-pass-2")
+    # the last active admin can be neither demoted nor deactivated
+    assert admin.patch("/api/users/admin", json={"active": False}).status_code == 409
+
+
+def test_without_a_session_key_nobody_signs_in(monkeypatch):
+    monkeypatch.setattr(settings(), "session_secret", "")
+    response = TestClient(app).post("/api/session", json={"credential": settings().dev_credential})
+    assert response.status_code == 503
 
 
 def topic_analysis():
@@ -95,7 +133,22 @@ def topic_analysis():
         a = s.get(db.Analysis, row.id)
         a.state = "completed"
         a.result = {
-            "draft": "第一句[E1]。第二句[E2]。",
+            "draft": "第一句[E1]。第二句撤权原文[E2]。",
+            "report_status": "PASS",
+            "assessment": {
+                "alert": "important",
+                "judgments": [
+                    {
+                        "question": "是否重要",
+                        "conclusion": "据撤权原文判断重要",
+                        "confidence": "possible",
+                        "grounds": ["E2"],
+                        "unproven": "撤权原文以外的佐证",
+                        "check": "supported",
+                    }
+                ],
+            },
+            "mechanism": {"status": "completed", "overall": "撤权原文支持该机制"},
             "review": {
                 "claims": [
                     {
@@ -105,7 +158,7 @@ def topic_analysis():
                     },
                     {
                         "index": 2,
-                        "text": "第二句[E2]。",
+                        "text": "第二句撤权原文[E2]。",
                         "quotes": [{"ref": "E2", "quote": "撤权原文", "found": True}],
                     },
                 ]
@@ -145,6 +198,26 @@ def topic_analysis():
                     meta={"url": f"https://example.org/{source}"},
                 )
             )
+        s.add(
+            db.Observation(
+                workspace_id="default",
+                source="gone_src",
+                record_id="gone_src-1",
+                version_id="v" * 64,
+                title="撤权原文标题",
+                is_demo=True,
+                available_at=db.now(),
+                alert="important",
+                closure=False,
+                reason="分诊：撤权原文提到聚集",
+                topic_id=topic_id,
+            )
+        )
+        s.add(
+            db.TopicEvent(
+                topic_id=topic_id, at=db.now(), kind="created", detail={"record": "gone_src-1", "title": "撤权原文标题"}
+            )
+        )
     return row.id, topic_id
 
 
@@ -216,9 +289,9 @@ def fabric_sources(monkeypatch):
     return listed
 
 
-def test_a_revoked_source_shows_no_text_in_the_original_the_detail_or_the_export(fabric_sources):
+def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
     admin = admin_client()
-    analysis_id, _ = topic_analysis()
+    analysis_id, topic_id = topic_analysis()
 
     assert admin.get(f"/api/analyses/{analysis_id}/evidence/E1").json()["text"] == "open_src 原文全文"
     gone = admin.get(f"/api/analyses/{analysis_id}/evidence/E2").json()
@@ -231,13 +304,28 @@ def test_a_revoked_source_shows_no_text_in_the_original_the_detail_or_the_export
     assert evidence["E2"]["title"] == "" and evidence["E2"]["withheld"] == "来源已撤权"
     facts = {f["ref"]: f for f in detail["progress"]["facts"]}
     assert facts["E1"]["quote"] == "开放原文" and facts["E2"]["quote"] == "" and facts["E2"]["text"] == ""
-    claims = detail["result"]["review"]["claims"]
-    assert claims[0]["quotes"][0]["quote"] == "开放原文" and claims[1]["quotes"][0]["quote"] == ""
     assert detail["result"]["computations"][0]["operands"][0]["quote"] == ""
+    # Codex r20: the same words also sat in the draft, the sentence checks, the judgments and the export
+    result = detail["result"]
+    assert "E2（来源已撤权）" in result["withheld"] and result["draft"] == ""
+    judgment = result["assessment"]["judgments"][0]
+    assert judgment["conclusion"] == "" and judgment["confidence"] == "possible" and judgment["grounds"] == ["E2"]
+    assert [c["index"] for c in result["review"]["claims"]] == [1, 2]
+    import json
 
+    for exit_ in (
+        json.dumps(detail, ensure_ascii=False),
+        json.dumps(admin.get("/api/analyses").json(), ensure_ascii=False),
+        admin.get(f"/api/analyses/{analysis_id}/export").text,
+        json.dumps(admin.get("/api/topics?is_demo=true").json(), ensure_ascii=False),
+        json.dumps(admin.get(f"/api/topics/{topic_id}").json(), ensure_ascii=False),
+        json.dumps(admin.get("/api/monitor/observations?is_demo=true").json(), ensure_ascii=False),
+    ):
+        assert "撤权原文" not in exit_ and "gone_src 标题" not in exit_
     export = admin.get(f"/api/analyses/{analysis_id}/export").text
-    assert "open_src 标题" in export and "gone_src 标题" not in export and "撤权原文" not in export
-    assert "[E2] 来源已撤权（gone_src gone_src-1）" in export
+    assert "open_src 标题" in export and "[E2] 来源已撤权（gone_src gone_src-1）" in export
+    topic = admin.get(f"/api/topics/{topic_id}").json()
+    assert topic["withheld"] == "来源已撤权" and topic["observations"][0]["record_id"] == "gone_src-1"
     with db.session() as s:  # nothing stored was changed; only what leaves the API
         assert s.get(db.Analysis, analysis_id).progress["facts"][1]["quote"] == "撤权原文"
 

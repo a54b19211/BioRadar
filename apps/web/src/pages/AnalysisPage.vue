@@ -122,6 +122,14 @@ async function download() {
       </div>
       <div class="muted">用「追问」重新分析；专题分析会自动重做。</div>
     </el-alert>
+    <el-alert
+      v-if="a.result?.withheld"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-top: 12px"
+      :title="a.result.withheld"
+    />
     <div class="row" style="margin-top: 12px">
       <el-button v-if="canReview()" type="primary" @click="asking = true">追问</el-button>
       <el-button @click="download">导出</el-button>

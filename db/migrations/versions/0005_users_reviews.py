@@ -16,6 +16,8 @@ def upgrade():
         sa.Column("name", sa.String(80), nullable=False, unique=True),
         sa.Column("role", sa.String(20), nullable=False),
         sa.Column("credential_hash", sa.String(200), nullable=False),
+        sa.Column("active", sa.Boolean, nullable=False, server_default=sa.true()),
+        sa.Column("session_version", sa.Integer, nullable=False, server_default="1"),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     )
     op.create_table(

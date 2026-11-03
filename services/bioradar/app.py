@@ -48,28 +48,34 @@ def credential_ok(credential: str, stored: str) -> bool:
 
 
 def _sign(body: str) -> str:
-    key = settings().session_secret or settings().dev_credential
+    """Signed with BIORADAR_SESSION_SECRET only, never with a login credential (those change hands)."""
+    key = settings().session_secret
     return hmac.new(key.encode(), body.encode(), "sha256").hexdigest() if key else ""
 
 
-def session_token(user_id: str) -> str:
-    body = f"{user_id}.{int(time.time()) + SESSION_SECONDS}"
+def session_token(user: db.User) -> str:
+    body = f"{user.id}.{user.session_version}.{int(time.time()) + SESSION_SECONDS}"
     return f"{body}.{_sign(body)}"
 
 
 def current_user(request: Request) -> db.User | None:
-    """The signed-in person, read again from the table on every request (a role change or a removed
-    user takes effect at once). The token is the cookie, or the same value as a Bearer header."""
+    """The signed-in person, read again from the table on every request: a role change takes effect at
+    once, a new credential or deactivation ends every older session (session_version).
+    The token is the cookie, or the same value as a Bearer header."""
     value = request.cookies.get(COOKIE) or request.headers.get("Authorization", "").removeprefix("Bearer ")
     try:
-        user_id, expires, signature = value.split(".")
+        user_id, version, expires, signature = value.split(".")
         expired = int(expires) < time.time()
     except ValueError:
         return None
-    if expired or not signature or not hmac.compare_digest(signature, _sign(f"{user_id}.{expires}")):
+    body = f"{user_id}.{version}.{expires}"
+    if expired or not signature or not hmac.compare_digest(signature, _sign(body) or "-"):
         return None
     with db.session() as s:
-        return s.get(db.User, user_id)
+        user = s.get(db.User, user_id)
+    if user is None or not user.active or str(user.session_version) != version:
+        return None
+    return user
 
 
 def require(role: str):
@@ -100,6 +106,8 @@ class Login(BaseModel):
 def login(body: Login, response: Response):
     """The first sign-in with BIORADAR_DEV_CREDENTIAL as "admin", while there are no users yet, creates
     that admin. From then on only the users table counts."""
+    if not settings().session_secret:
+        raise HTTPException(503, "BIORADAR_SESSION_SECRET 未配置，不能登录")
     with db.session() as s:
         user = s.scalar(select(db.User).where(db.User.name == body.name))
         dev = settings().dev_credential
@@ -113,11 +121,9 @@ def login(body: Login, response: Response):
             user = db.User(name="admin", role="admin", credential_hash=hash_credential(dev))
             s.add(user)
             s.flush()
-        if user is None or not credential_ok(body.credential, user.credential_hash):
+        if user is None or not user.active or not credential_ok(body.credential, user.credential_hash):
             raise HTTPException(401, "用户名或登录凭据不正确")
-    response.set_cookie(
-        COOKIE, session_token(user.id), httponly=True, samesite="lax", max_age=SESSION_SECONDS
-    )
+    response.set_cookie(COOKIE, session_token(user), httponly=True, samesite="lax", max_age=SESSION_SECONDS)
     return {"signed_in": True, "name": user.name, "role": user.role}
 
 
@@ -147,10 +153,11 @@ class NewUser(BaseModel):
 class UserChange(BaseModel):
     role: Literal["viewer", "analyst", "admin"] | None = None
     credential: str | None = Field(default=None, min_length=8, max_length=200)
+    active: bool | None = Field(default=None, description="false 停用：立即结束他所有的会话")
 
 
 def user_view(u: db.User) -> dict:
-    return {"name": u.name, "role": u.role, "created_at": u.created_at.isoformat()}
+    return {"name": u.name, "role": u.role, "active": u.active, "created_at": u.created_at.isoformat()}
 
 
 @app.get("/api/users", dependencies=admin)
@@ -172,19 +179,29 @@ def add_user(body: NewUser):
 
 @app.patch("/api/users/{name}", dependencies=admin)
 def change_user(name: str, body: UserChange):
-    """Change a role or replace a credential (also how the first admin stops using the dev credential)."""
+    """Change a role, replace a credential (also how the first admin stops using the dev credential) or
+    deactivate someone. A new credential or deactivation ends all of that person's sessions."""
     with db.session() as s:
         user = s.scalar(select(db.User).where(db.User.name == name))
         if user is None:
             raise analyses.NotFound(name)
-        if body.role and body.role != "admin" and user.role == "admin":
-            admins = s.scalar(select(func.count()).select_from(db.User).where(db.User.role == "admin"))
+        losing_admin = user.role == "admin" and user.active and (
+            (body.role and body.role != "admin") or body.active is False
+        )
+        if losing_admin:
+            admins = s.scalar(
+                select(func.count()).select_from(db.User).where(db.User.role == "admin", db.User.active)
+            )
             if admins <= 1:
-                raise HTTPException(409, "至少保留一个管理员")
+                raise HTTPException(409, "至少保留一个启用的管理员")
         if body.role:
             user.role = body.role
         if body.credential:
             user.credential_hash = hash_credential(body.credential)
+            user.session_version += 1
+        if body.active is not None and body.active != user.active:
+            user.active = body.active
+            user.session_version += 1
         return user_view(user)
 
 
@@ -214,13 +231,41 @@ def withheld(source: str, readable: set[str] | None) -> str | None:
     return None if source in readable else "来源已撤权"
 
 
+# Enum-like fields kept when model-written text is withheld; every other string is blanked.
+KEEP = {
+    "id", "ref", "index", "check", "status", "verdict", "confidence", "credibility", "consequence",
+    "priority", "alert", "level", "stance", "kind", "question", "grounds", "citations", "found",
+}
+
+
+def blank(value):
+    """Model-written text derived from the materials, with the words removed and the structure kept."""
+    if isinstance(value, dict):
+        return {k: (v if k in KEEP else blank(v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [blank(v) for v in value]
+    return "" if isinstance(value, str) else value
+
+
+def hidden_refs(rows, readable) -> dict:
+    """{ref: reason} for the materials whose source cannot be read now."""
+    reasons = {r["ref"]: withheld(r["source"], readable) for r in rows}
+    return {ref: reason for ref, reason in reasons.items() if reason}
+
+
+def notice(hidden: dict) -> str:
+    listed = "、".join(f"{ref}（{reason}）" for ref, reason in sorted(hidden.items()))
+    return f"引用的材料 {listed} 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+
+
 def redact(value: dict) -> dict:
-    """The one check behind all three exits (original text, analysis detail, export): material from a
-    source that cannot be read now keeps only its number, source and record id; quotes taken from it in
-    facts, sentence checks and computations are dropped. The written draft itself is kept."""
+    """The one output check behind the analysis exits (original text, detail, list, export). When any
+    material of an analysis comes from a source that cannot be read now, its own entry keeps only number,
+    source and record id, and every piece of model-written text that could carry its words (the draft,
+    sentence checks, judgments and hypotheses, the mechanism evaluation) is withheld with the reason;
+    numbers, states and references stay. Nothing stored is changed."""
     readable = readable_sources()
-    hidden = {e["ref"]: withheld(e["source"], readable) for e in value["evidence"]}
-    hidden = {ref: reason for ref, reason in hidden.items() if reason}
+    hidden = hidden_refs(value["evidence"], readable)
     if not hidden:
         return value
     value = copy.deepcopy(value)
@@ -231,35 +276,81 @@ def redact(value: dict) -> dict:
         if f.get("ref") in hidden:
             f.update(text="", quote="", withheld=hidden[f["ref"]])
     result = value.get("result") or {}
-    for c in (result.get("review") or {}).get("claims") or []:
-        for q in c.get("quotes") or []:
-            if q.get("ref") in hidden:
-                q["quote"] = ""
-    for c in result.get("computations") or []:
-        for o in c.get("operands") or []:
-            if o.get("ref") in hidden:
-                o["quote"] = ""
+    if result:
+        result["withheld"] = notice(hidden)
+        result["draft"] = ""
+        for key in ("review", "assessment", "mechanism"):
+            if result.get(key):
+                result[key] = blank(result[key])
+        for c in result.get("computations") or []:
+            for o in c.get("operands") or []:
+                if o.get("ref") in hidden:
+                    o["quote"] = ""
     return value
 
 
-@app.get("/api/options", dependencies=api)
-def options():
-    s = settings()
-    return {
-        "sources": s.sources,
-        "demo_sources": s.demo_sources,
-        "directions": sorted(analyses.DIRECTIONS),
-        "methods": ["planner", "baseline"],
-        "configured": {
-            "model": bool(s.llm_base_url and s.llm_model),
-            "planner": bool(s.planner_url),
-            "biocheck": bool(s.biocheck_url),
-            "mechevidence": bool(s.mechevidence_url),
-            "weknora": bool(s.weknora_url),
-        },
-        "limits": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
-        "monitor": {"enabled": s.monitor_enabled, "auto_analysis": s.auto_analysis},
-    }
+def redact_summaries(values: list[dict]) -> list[dict]:
+    """The analysis list carries each analysis's assessment: same rule as the detail."""
+    ids = [v["id"] for v in values if (v.get("result") or {}).get("assessment")]
+    if not ids:
+        return values
+    with db.session() as s:
+        rows = s.execute(
+            select(db.Evidence.analysis_id, db.Evidence.ref, db.Evidence.source).where(
+                db.Evidence.analysis_id.in_(ids)
+            )
+        ).all()
+    readable = readable_sources()
+    by_analysis = {}
+    for analysis_id, ref, source in rows:
+        by_analysis.setdefault(analysis_id, []).append({"ref": ref, "source": source})
+    for v in values:
+        hidden = hidden_refs(by_analysis.get(v["id"], []), readable)
+        if hidden:
+            v["result"] = dict(v["result"], assessment=blank(v["result"]["assessment"]), withheld=notice(hidden))
+    return values
+
+
+def redact_observation(row: dict, readable) -> dict:
+    reason = withheld(row["source"], readable)
+    return dict(row, title="", reason="", withheld=reason) if reason else row
+
+
+def redact_topics(values: list[dict]) -> list[dict]:
+    """Topics and their observations copy record titles and triage text: a topic created from a record
+    whose source cannot be read now shows no title; such records' titles, reasons and event details
+    (titles, object names) are withheld. Record ids, states and numbers stay."""
+    readable = readable_sources()
+    with db.session() as s:
+        created = dict(
+            s.execute(
+                select(db.Observation.topic_id, db.Observation.source)
+                .join(
+                    db.TopicEvent,
+                    (db.TopicEvent.topic_id == db.Observation.topic_id) & (db.TopicEvent.kind == "created"),
+                )
+                .where(db.Observation.topic_id.in_([v["id"] for v in values]))
+                .where(db.Observation.record_id == db.TopicEvent.detail["record"].as_string())
+            ).all()
+        )
+    out = []
+    for v in values:
+        v = copy.deepcopy(v)
+        reason = withheld(created[v["id"]], readable) if v["id"] in created else None
+        if reason or (readable is None):
+            v.update(title="（专题标题暂不显示）", summary="", withheld=reason or withheld("", None))
+        if "observations" in v:
+            sources = {o["record_id"]: o["source"] for o in v["observations"]}
+            v["observations"] = [redact_observation(o, readable) for o in v["observations"]]
+            for e in v.get("events", []):
+                record = e.get("record")
+                if record and withheld(sources.get(record, ""), readable):
+                    for key in ("title", "objects", "object", "metric", "scope", "unit", "quote"):
+                        if key in e:
+                            e[key] = [] if isinstance(e[key], list) else ""
+                    e["withheld"] = withheld(sources.get(record, ""), readable)
+        out.append(v)
+    return out
 
 
 class Ask(BaseModel):
@@ -315,7 +406,7 @@ def list_analyses(investigation_id: str | None = None, limit: int = 30):
         if investigation_id:
             query = query.where(db.Analysis.investigation_id == investigation_id)
         rows = list(s.scalars(query))
-    return [analyses.view(r) for r in rows]
+    return redact_summaries([analyses.view(r) for r in rows])
 
 
 @app.get("/api/analyses/{analysis_id}", dependencies=api)
@@ -343,7 +434,7 @@ def export(analysis_id: str):
         f"- 方法：{value['method']}　状态：{value['state']}　核验：{result.get('report_status', 'NOT_RUN')}",
         f"- 截止时间：{value['cutoff'] or '当前'}　模型调用：{result.get('usage', {}).get('llm_calls', 0)}",
         "",
-        result.get("draft") or "（没有生成报告）",
+        result.get("withheld") or result.get("draft") or "（没有生成报告）",
         "",
         "## 材料",
         "",
@@ -424,7 +515,7 @@ def topics(is_demo: bool = False):
                 select(db.Topic).where(db.Topic.is_demo == is_demo).order_by(db.Topic.last_activity_at.desc())
             )
         )
-    return [monitor.topic_view(t) for t in rows]
+    return redact_topics([monitor.topic_view(t) for t in rows])
 
 
 @app.get("/api/topics/{topic_id}", dependencies=api)
@@ -433,7 +524,7 @@ def topic(topic_id: str):
         row = s.get(db.Topic, topic_id)
     if row is None:
         raise analyses.NotFound(topic_id)
-    return monitor.topic_view(row, events=True)
+    return redact_topics([monitor.topic_view(row, events=True)])[0]
 
 
 class Tick(BaseModel):
@@ -459,17 +550,21 @@ def observations(is_demo: bool = False, limit: int = 50):
                 .limit(min(limit, 200))
             )
         )
+    readable = readable_sources()
     return [
-        {
-            "title": o.title,
-            "source": o.source,
-            "record_id": o.record_id,
-            "topic_id": o.topic_id,
-            "available_at": o.available_at.isoformat(),
-            "alert": o.alert,
-            "closure": o.closure,
-            "reason": o.reason,
-        }
+        redact_observation(
+            {
+                "title": o.title,
+                "source": o.source,
+                "record_id": o.record_id,
+                "topic_id": o.topic_id,
+                "available_at": o.available_at.isoformat(),
+                "alert": o.alert,
+                "closure": o.closure,
+                "reason": o.reason,
+            },
+            readable,
+        )
         for o in rows
     ]
 

@@ -213,6 +213,9 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(80), unique=True)
     role: Mapped[str] = mapped_column(String(20))  # viewer | analyst | admin
     credential_hash: Mapped[str] = mapped_column(String(200))  # scrypt$salt$hash
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # in every session token; a new credential or deactivation bumps it, so older sessions stop working
+    session_version: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
