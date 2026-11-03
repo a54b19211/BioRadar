@@ -521,7 +521,7 @@ def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeyp
                         available_at=start + timedelta(days=day),
                         topic_id=topic_id,
                         alert="normal",
-                        origin_group=origin,
+                        activity_key=origin,
                     )
                 )
 
@@ -535,7 +535,7 @@ def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeyp
         assert monitor.activity(session, s, topic, at, True) is False  # only 6 received days before day 7
         seen(8, 2)
         seen(8, 4, topic_id=topic.id)
-        seen(8, 2, topic_id=topic.id, origin="og-1")  # one origin reposted twice counts once
+        seen(8, 2, topic_id=topic.id, origin="record:x:original")  # reposts of one original count once
         session.flush()
         at = start + timedelta(days=8)
         assert monitor.activity(session, s, topic, at, True) is True  # 5 > mean 1 + 3 (all days equal)
@@ -544,3 +544,18 @@ def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeyp
         assert (event.detail["records"], event.detail["threshold"], len(event.detail["days"])) == (5, 4.0, 7)
         assert "2026-10-04" not in event.detail["days"]
         assert topic.pending_reason == "activity_anomaly"
+
+
+def test_activity_keys_keep_sources_apart_and_join_a_repost_to_its_original():
+    original = {"source": "a", "record_id": "R1", "relations": [], "origin_group": None}
+    repost = {
+        "source": "a",
+        "record_id": "R2",
+        "relations": [{"kind": "reposts", "target_record_id": "R1"}],
+        "origin_group": "opaque-7",
+    }
+    other_source = {"source": "b", "record_id": "R1", "relations": [], "origin_group": None}
+    grouped = {"source": "b", "record_id": "R9", "relations": [], "origin_group": "R1"}
+    keys = [monitor.activity_key(d) for d in (original, repost, other_source, grouped)]
+    assert keys[0] == keys[1]  # the repost is its original, whatever its own group is called
+    assert len({keys[0], keys[2], keys[3]}) == 3  # same id in another source, and a group named like an id
