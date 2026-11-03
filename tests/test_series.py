@@ -24,6 +24,8 @@ def test_periods_and_numbers_are_read_strictly():
     assert [series.grain(p) for p in periods] == ["Y", "Q", "H", "M", "R", "A"]
     assert series.quoted(12, "2026Q1有12条投运产线") and not series.quoted(2, "2026Q1有12条投运产线")
     assert series.quoted(4.1, "比例为4.1%") and not series.quoted(4, "比例为4.1%")
+    assert series.quoted(3, "8个哨点为3.0%") and series.quoted(1444, "已有1,444篇")
+    assert not series.quoted(1, "2026Q1有12条")  # the 1 of Q1 is not a value
 
 
 def row(id_, period, value, status, available, superseded=None):
