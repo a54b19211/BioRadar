@@ -58,6 +58,58 @@ def native_kind(record: dict):
     return kind, ("abstract" if raw.get("abstractText") else None)
 
 
+# Registry fields Fabric already extracted from a trial record, in reading order. Each is shown with the
+# JSON pointer it came from in the same fixed version, its value as stored (ACTUAL/ESTIMATED, false and
+# missing kept as they are), so a quote from this block points back to the record, not to a summary.
+REGISTRY_FIELDS = [
+    ("trial_id", "登记号"),
+    ("official_title", "正式题目"),
+    ("status", "状态"),
+    ("phase", "阶段"),
+    ("study_type", "研究类型"),
+    ("design_info", "设计"),
+    ("enrollment", "入组人数"),
+    ("enrollment_type", "入组人数类型"),
+    ("start_date", "开始日期"),
+    ("start_date_type", "开始日期类型"),
+    ("primary_completion_date", "主要完成日期"),
+    ("primary_completion_date_type", "主要完成日期类型"),
+    ("completion_date", "完成日期"),
+    ("completion_date_type", "完成日期类型"),
+    ("conditions", "疾病"),
+    ("interventions", "干预"),
+    ("arm_groups", "分组"),
+    ("lead_sponsor", "申办方"),
+    ("primary_outcomes", "主要终点（方案）"),
+    ("secondary_outcomes", "次要终点（方案）"),
+    ("has_results", "登记中有结果表"),
+    ("results_first_posted", "结果首次公布"),
+    ("results_participant_flow", "结果：受试者流程"),
+    ("results_baseline", "结果：基线"),
+    ("results_outcome_measures", "结果：终点数据"),
+    ("results_adverse_events", "结果：不良事件"),
+]
+REGISTRY_FIELD_CHARS = 3000  # one long results table must not push the protocol fields out
+
+
+def registry_text(record: dict) -> str:
+    """The trial's registry fields as lines "名称 field（JSON pointer）: value"; empty for other records."""
+    facts, locators = record.get("facts") or {}, record.get("field_locators") or {}
+    if record.get("record_kind") != "trial" or not facts:
+        return ""
+    lines = ["【登记字段：程序按原件 JSON 路径取出的值，同一固定版本】"]
+    for key, label in REGISTRY_FIELDS:
+        pointer = (locators.get(key) or {}).get("json_pointer", "")
+        if key not in facts:
+            value = "（原件无此字段）"
+        else:
+            value = json.dumps(facts[key], ensure_ascii=False, separators=(",", ":"))
+            if len(value) > REGISTRY_FIELD_CHARS:
+                value = value[:REGISTRY_FIELD_CHARS] + "…（截断）"
+        lines.append(f"{label} {key}（{pointer}）: {value}")
+    return "\n".join(lines)
+
+
 def document(record: dict) -> dict:
     """The few fields the radar uses. Version identity stays exactly as Fabric returned it.
 
@@ -76,7 +128,7 @@ def document(record: dict) -> dict:
         "is_demo": record["is_demo"],
         "title": record.get("title") or "",
         "url": record.get("source_url"),
-        "text": record.get("clean_text") or "",
+        "text": "\n\n".join(t for t in (record.get("clean_text") or "", registry_text(record)) if t),
         "published_at": _time(record.get("source_published_at")) or _time(record.get("event_time")),
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
