@@ -407,7 +407,7 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
                 at,
                 "series",
                 record=doc["record_id"],
-                **key,
+                **{("measure_kind" if k == "kind" else k): v for k, v in key.items()},
                 value=m.value,
                 period=row.period,
                 changes=found,
