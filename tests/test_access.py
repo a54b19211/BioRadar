@@ -1,6 +1,7 @@
 """T-14: people and roles, human reviews, and material from sources Fabric no longer lets us read."""
 
 import pytest
+from sqlalchemy import select
 from fastapi.testclient import TestClient
 
 from bioradar import app as api_module
@@ -139,7 +140,7 @@ def topic_analysis():
                 "alert": "important",
                 "judgments": [
                     {
-                        "question": "是否重要",
+                        "question": "撤权原文所说的聚集是否重要",
                         "conclusion": "据撤权原文判断重要",
                         "confidence": "possible",
                         "credibility": "medium",
@@ -320,7 +321,13 @@ def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
     assert [c["index"] for c in result["review"]["claims"]] == [1, 2]
     import json
 
+    with db.session() as s:  # a reviewer's note quoting the sentence (Codex r22)
+        user_id = s.scalar(select(db.User.id).where(db.User.name == "admin"))
+        s.add(db.Review(user_id=user_id, action="reject", analysis_id=analysis_id, sentence=2, note="撤权原文写错了"))
+    detail = admin.get(f"/api/analyses/{analysis_id}").json()
+    assert detail["reviews"][0]["action"] == "reject" and detail["reviews"][0]["note"] == ""
     for exit_ in (
+        json.dumps(admin.get(f"/api/reviews?analysis_id={analysis_id}").json(), ensure_ascii=False),
         json.dumps(detail, ensure_ascii=False),
         json.dumps(admin.get("/api/analyses").json(), ensure_ascii=False),
         admin.get(f"/api/analyses/{analysis_id}/export").text,

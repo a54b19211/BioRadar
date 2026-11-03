@@ -233,7 +233,8 @@ def withheld(source: str, readable: set[str] | None) -> str | None:
     return None if source in readable else "来源已撤权"
 
 
-# Enum-like fields kept when model-written text is withheld; every other string is blanked.
+# Enum-like fields kept when model-written text is withheld; every other string is blanked (also a
+# judgment's own question: the model writes it and may quote the material).
 KEEP = {
     "id",
     "ref",
@@ -249,7 +250,6 @@ KEEP = {
     "level",
     "stance",
     "kind",
-    "question",
     "grounds",
     "citations",
     "found",
@@ -304,26 +304,34 @@ def redact(value: dict) -> dict:
             for o in c.get("operands") or []:
                 if o.get("ref") in hidden:
                     o["quote"] = ""
+    for r in value.get("reviews") or []:  # a reviewer's note may quote the sentence it is about
+        r["note"] = ""
     return value
 
 
-def redact_summaries(values: list[dict]) -> list[dict]:
-    """The analysis list carries each analysis's assessment: same rule as the detail."""
-    ids = [v["id"] for v in values if (v.get("result") or {}).get("assessment")]
+def hidden_by_analysis(ids) -> dict:
+    """{analysis_id: {ref: reason}} for the given analyses that cite a source not readable now."""
     if not ids:
-        return values
+        return {}
     with db.session() as s:
         rows = s.execute(
             select(db.Evidence.analysis_id, db.Evidence.ref, db.Evidence.source).where(
-                db.Evidence.analysis_id.in_(ids)
+                db.Evidence.analysis_id.in_(list(ids))
             )
         ).all()
     readable = readable_sources()
     by_analysis = {}
     for analysis_id, ref, source in rows:
         by_analysis.setdefault(analysis_id, []).append({"ref": ref, "source": source})
+    found = {a: hidden_refs(refs, readable) for a, refs in by_analysis.items()}
+    return {a: hidden for a, hidden in found.items() if hidden}
+
+
+def redact_summaries(values: list[dict]) -> list[dict]:
+    """The analysis list carries each analysis's assessment: same rule as the detail."""
+    hidden_in = hidden_by_analysis(v["id"] for v in values if (v.get("result") or {}).get("assessment"))
     for v in values:
-        hidden = hidden_refs(by_analysis.get(v["id"], []), readable)
+        hidden = hidden_in.get(v["id"])
         if hidden:
             assessment = blank(v["result"]["assessment"])
             v["result"] = dict(v["result"], assessment=assessment, withheld=notice(hidden))
@@ -518,7 +526,10 @@ def add_review(body: ReviewIn, user: db.User = Depends(require("analyst"))):
 
 @app.get("/api/reviews", dependencies=api)
 def list_reviews(analysis_id: str | None = None, topic_id: str | None = None, limit: int = 50):
-    return analyses.reviews(analysis_id=analysis_id, topic_id=topic_id, limit=min(limit, 200))
+    rows = analyses.reviews(analysis_id=analysis_id, topic_id=topic_id, limit=min(limit, 200))
+    hidden_in = hidden_by_analysis({r["analysis_id"] for r in rows if r["analysis_id"]})
+    return [dict(r, note="", withheld=notice(hidden_in[r["analysis_id"]])) if r["analysis_id"] in hidden_in else r
+            for r in rows]
 
 
 @app.get("/api/investigations", dependencies=api)
