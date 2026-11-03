@@ -161,10 +161,12 @@ def test_a_round_that_dies_after_creating_the_analysis_does_not_create_another(m
 
     from bioradar import db
     from bioradar.config import settings
-    from bioradar.research import analyses
+
+    def killed(analysis_id):
+        raise RuntimeError("killed")
 
     monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
-    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: (_ for _ in ()).throw(RuntimeError("killed")))
+    monkeypatch.setattr(monitor.analyses, "dispatch", killed)
     s = settings()
     monkeypatch.setattr(s, "auto_analysis", True)
     fabric = FakeFabric([record("K1", "两家医院确认7例", "x", available=DAY.format(3))])
@@ -175,5 +177,4 @@ def test_a_round_that_dies_after_creating_the_analysis_does_not_create_another(m
     monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
     assert monitor.tick(is_demo=True, fabric=fabric)["analyses"] == []
     with db.session() as session:
-        assert session.scalar(select(func.count()).select_from(db.Analysis)) == 1
-    assert analyses  # queued row is left for analyses.recover()
+        assert session.scalar(select(func.count()).select_from(db.Analysis)) == 1  # analyses.recover() queues it
