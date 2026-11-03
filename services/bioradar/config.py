@@ -44,8 +44,8 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 180
 
     # Per-analysis limits.
-    max_steps: int = 24
-    max_reads: int = 16
+    max_steps: int = 30
+    max_reads: int = 20
     max_llm_calls: int = 60
     read_characters: int = 12000
 

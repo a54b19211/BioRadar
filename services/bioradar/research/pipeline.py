@@ -308,6 +308,7 @@ class Run:
             if (hit["source"], hit["record_id"]) == (source, record_id):
                 hit["checks"] = sorted(set(hit["checks"]) | set(checks))
                 hit["critical"] = hit["critical"] or critical
+                hit["found_by"] = hit.get("found_by", 1) + 1
                 return False
         self.p["hits"].append(
             {
@@ -317,6 +318,7 @@ class Run:
                 "checks": list(checks),
                 "critical": critical,
                 "read": False,
+                "found_by": 1,
             }
         )
         return True
@@ -384,6 +386,9 @@ class Run:
                     "args": {"record_id": hit["record_id"]},
                     "target_checks": hit["checks"],
                     "critical": hit["critical"],
+                    # A record that several different searches find is more likely on topic.
+                    # Only the planner uses this; the baseline keeps its fixed order.
+                    "scope_match": min(1.0, 0.4 + 0.3 * hit.get("found_by", 1)),
                 }
             )
         return result
