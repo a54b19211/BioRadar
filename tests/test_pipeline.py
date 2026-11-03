@@ -419,6 +419,41 @@ def test_a_draft_whose_check_failed_is_kept_unchecked_with_the_failure(monkeypat
     ]
 
 
+def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatch):
+    """Codex PHX r2: an open question names no place, so every place found in the records was blanked and
+    events had nothing to hang on. Plan-stage guesses still never get in this way."""
+    from bioradar.research.schemas import ReadFact
+
+    row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    run.p.update(objects=[], queries=[], actions=[], checks=[])
+    named = ReadFact(text="禾屿报告3例", quote="禾屿县本周报告3例发热伴皮疹", stance="supports", object="禾屿县")
+    guessed = ReadFact(text="病例增加", quote="本周报告3例", stance="supports", object="澜津市")
+    assert run.object_of(named, "E1") == "禾屿县" and run.object_of(guessed, "E2") == ""
+    assert run.p["found_objects"] == [{"name": "禾屿县", "ref": "E1", "quote": "禾屿县本周报告3例发热伴皮疹"}]
+    assert run.p["objects"] == []  # found objects do not narrow the question
+
+
+def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
+    """Codex PHX r2: two background-only terms from the first record took the last free places; terms from
+    the event records found later never got in, so the run depended on which record came first."""
+    row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    plan = [{"terms": [f"泛词{i}"], "checks": ["Q1"]} for i in range(10)]
+    run.p.update(queries=list(plan), actions=[{"kind": "search", "args": {"terms": ["泛词0"]}}], notes=[])
+    run.add_query(["芦川发热门诊"], ["Q1"], value=0, origin="read:E1")
+    run.add_query(["登记方法"], ["Q1"], value=0, origin="read:E1")
+    assert len(run.p["queries"]) == 12
+    run.add_query(["澜津"], ["Q1"], value=3, origin="object:E5")
+    run.add_query(["SIM-RX-26"], ["Q1"], value=2, origin="read:E5")
+    terms = [q["terms"][0] for q in run.p["queries"]]
+    assert "澜津" in terms and "SIM-RX-26" in terms
+    assert "芦川发热门诊" not in terms and "登记方法" not in terms and "泛词0" in terms  # run searches stay
+    run.add_query(["另一背景词"], ["Q1"], value=0, origin="read:E6")  # worth no more than what is there
+    assert "另一背景词" not in [q["terms"][0] for q in run.p["queries"]]
+    assert [n["code"] for n in run.p["notes"]].count("query_replaced") == 2
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 

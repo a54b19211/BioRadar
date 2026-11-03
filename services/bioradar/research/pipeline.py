@@ -26,6 +26,7 @@ DEMO_SETTING = (
 )
 MAX_PAGES = 3
 MAX_QUERIES = 12
+MAX_FOUND = 12  # objects found in read records, beyond those the question names
 PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
 REVISIONS = 2  # revise -> re-verify rounds; each only touches the sentences the last check flagged
 MAX_RETRIES = 6  # retries of empty searches; a fixed-order baseline must keep steps to read
@@ -866,6 +867,8 @@ class Run:
         if reading is None or not reading.relevant:
             return 0.0, ref
         before = {c["id"] for c in self.p["checks"] if c["status"] != "open"}
+        facts_before = len(self.p["facts"])
+        found_before_names = {o["name"] for o in self.p.get("found_objects", [])}
         flat = squash(text)
         for fact in reading.facts[:10]:
             if not fact.quote or squash(fact.quote) not in flat:
@@ -880,7 +883,7 @@ class Run:
                     "quote": fact.quote,
                     "checks": ids,
                     "stance": fact.stance,
-                    "object": fact.object if fact.object in self.p.get("objects", []) else "",
+                    "object": self.object_of(fact, ref),
                     "hypothesis": fact.hypothesis
                     if fact.hypothesis in {h["id"] for h in self.p.get("hypotheses", [])}
                     else "",
@@ -910,17 +913,59 @@ class Run:
             covered = {f.get("object") for f in decisive}
             if decisive and all(o in covered for o in check.get("objects", [])):
                 check["status"] = "answered"
+        open_ids = [c["id"] for c in self.p["checks"] if c["status"] != "answered"]
+        new_facts = self.p["facts"][facts_before:]
+        decisive = any(f["stance"] in {"supports", "refutes"} for f in new_facts)
+        # a newly found object is followed up by name (later updates of that event); then the reader's terms,
+        # worth more when this record said something decisive than when it was only background
+        for name in dict.fromkeys(
+            f["object"] for f in new_facts if f["object"] and f["object"] not in found_before_names
+            and f["object"] not in self.p.get("objects", [])
+        ):
+            self.add_query([name], hit["checks"] or open_ids, value=3, origin=f"object:{ref}")
         for terms in reading.new_terms[:2]:
-            terms = clean_terms(terms)
-            if (
-                terms
-                and len(self.p["queries"]) < MAX_QUERIES
-                and all(terms != q["terms"] for q in self.p["queries"])
-            ):
-                open_ids = [c["id"] for c in self.p["checks"] if c["status"] != "answered"]
-                self.p["queries"].append({"terms": terms, "checks": hit["checks"] or open_ids})
+            self.add_query(clean_terms(terms), hit["checks"] or open_ids, value=2 if decisive else 0,
+                           origin=f"read:{ref}")
         after = {c["id"] for c in self.p["checks"] if c["status"] != "open"}
         return min(1.0, len(after - before) / max(1, len(candidate["target_checks"]))), ref
+
+    def object_of(self, fact, ref):
+        """The fact's object: one the question names, or one the record itself names in the quoted words
+        (kept in found_objects with where it was found). Plan-stage guesses never get in this way; found
+        objects do not narrow the question or its checks, and are never merged with each other."""
+        name = " ".join((fact.object or "").split())[:80]
+        if not name:
+            return ""
+        if name in self.p.get("objects", []):
+            return name
+        found = self.p.setdefault("found_objects", [])
+        if any(o["name"] == name for o in found):
+            return name
+        if len(name) < 2 or squash(name) not in squash(fact.quote) or len(found) >= MAX_FOUND:
+            return ""
+        found.append({"name": name, "ref": ref, "quote": fact.quote[:120]})
+        return name
+
+    def add_query(self, terms, checks, *, value, origin):
+        """A bounded pool of searches. When it is full, a new search may take the place of one not run yet
+        that is worth less (plan terms 1, terms from a background-only record 0), so early background
+        records cannot fill the pool for good. Searches already run stay."""
+        if not terms or any(terms == q["terms"] for q in self.p["queries"]):
+            return
+        query = {"terms": terms, "checks": checks, "value": value, "origin": origin}
+        if len(self.p["queries"]) < MAX_QUERIES:
+            self.p["queries"].append(query)
+            return
+        ran = {tuple(a["args"].get("terms", ())) for a in self.p["actions"] if a["kind"] in {"search", "fetch"}}
+        waiting = [
+            (q.get("value", 1), i)
+            for i, q in enumerate(self.p["queries"])
+            if tuple(q["terms"]) not in ran and q.get("value", 1) < value
+        ]
+        if waiting:
+            _, i = min(waiting)
+            self.note("query_replaced", f"{' '.join(self.p['queries'][i]['terms'])} -> {' '.join(terms)}")
+            self.p["queries"][i] = query
 
     # ---- compute -------------------------------------------------------------------------------
 

@@ -59,7 +59,9 @@ class ReadFact(BaseModel):
         description="对相关待查问题：提供肯定依据/提供否定依据/提供限制条件/仅背景"
     )
     object: str = Field(
-        default="", description="这条事实说的是哪个对象（给出的对象名之一）；不涉及具体对象留空"
+        default="",
+        description="这条事实说的是哪个对象：给出的对象名之一，或材料原文里出现的具体地点、机构、事件名（原文写法）；"
+        "不涉及具体对象留空",
     )
     hypothesis: str = Field(default="", description="这条事实支持或反驳哪条假设（如H1）；无关留空")
     hypothesis_stance: Literal["supports", "refutes", "none"] = Field(
