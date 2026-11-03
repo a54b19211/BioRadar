@@ -100,7 +100,9 @@ def outcome_lines(value) -> list[str]:
     lines = []
     for m in (value or {}).get("outcomeMeasures", []) if isinstance(value, dict) else []:
         groups = {g.get("id"): g.get("title", g.get("id")) for g in m.get("groups", [])}
-        counts = {c.get("groupId"): c.get("value") for d in m.get("denoms", [])[:1] for c in d.get("counts", [])}
+        counts = {
+            c.get("groupId"): c.get("value") for d in m.get("denoms", [])[:1] for c in d.get("counts", [])
+        }
         parts = []
         for c in m.get("classes", []):
             for cat in c.get("categories", []):

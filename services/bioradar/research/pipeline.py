@@ -130,8 +130,8 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact.
     Every quote goes in first; the room left then widens each quote, shortest first, to its whole line
     (a registry field's title-only quote such as "Total Energy Expenditure" is useless without the values
-    on that line, Codex r40), and what is still left widens the quotes not yet widened (first 100 before and 900 after, since values follow their titles). Nothing quoted is dropped
-    for context (Codex r38)."""
+    on that line, Codex r40), and what is still left widens the quotes not yet widened (first 100 before
+    and 900 after, since values follow their titles). Nothing quoted is dropped for context (Codex r38)."""
     if len(text) <= limit:
         return text
     spans = []

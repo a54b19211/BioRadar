@@ -749,10 +749,21 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
     root = analyses.create(question="根？", direction="pipeline", is_demo=True, enqueue=False)
     with db.session() as s:
         s.get(db.Analysis, root.id).result = {"draft": "根稿[E1]。"}
-        s.add(db.Evidence(analysis_id=root.id, ref="E1", source="gone", record_id="r", version_id="v",
-                          title="t", text="x", meta={}))
-    child = analyses.create(question="追问？", direction="pipeline", is_demo=True, parent_id=root.id,
-                            enqueue=False)
+        s.add(
+            db.Evidence(
+                analysis_id=root.id,
+                ref="E1",
+                source="gone",
+                record_id="r",
+                version_id="v",
+                title="t",
+                text="x",
+                meta={},
+            )
+        )
+    child = analyses.create(
+        question="追问？", direction="pipeline", is_demo=True, parent_id=root.id, enqueue=False
+    )
     fabric = Listed(["gone"])
     run = Run(child, settings(), fabric=fabric)
     assert run.previous_report() is not None
@@ -761,8 +772,9 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
     # 25 rounds: only the root cites anything; the walk reaches it
     last = child
     for i in range(23):
-        last = analyses.create(question=f"第{i}轮？", direction="pipeline", is_demo=True, parent_id=last.id,
-                               enqueue=False)
+        last = analyses.create(
+            question=f"第{i}轮？", direction="pipeline", is_demo=True, parent_id=last.id, enqueue=False
+        )
     assert lineage_sources(last.id) == {"gone"}
     with db.session() as s:  # a loop is not followed forever and is not taken as "nothing upstream"
         s.get(db.Analysis, root.id).parent_id = last.id

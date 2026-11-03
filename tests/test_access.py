@@ -402,6 +402,12 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
             "completed",
             {"draft": "依上一轮：撤权原文城的病例在增加。", "report_status": "PASS"},
         )
+        # the plan wrote a check with a name from the earlier report (Codex r40)
+        row.progress = {
+            "checks": [
+                {"id": "Q1", "text": "撤权原文城的病例是否增加", "status": "open", "exploratory": ["撤权原文城"]}
+            ]
+        }
     fabric_sources["value"] = ["open_src"]
     api_module._readable.update(at=None, sources=None)
     detail = admin.get(f"/api/analyses/{again['id']}").json()
