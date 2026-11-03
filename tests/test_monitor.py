@@ -421,3 +421,52 @@ def test_a_queued_live_topic_analysis_waits_once_the_daily_budget_is_used(monkey
         session.add(db.LlmCall(stage="triage", service="radar", total_tokens=100))
     analyses.execute(row.id)
     assert analyses.get(row.id).state == "queued"
+
+
+def test_a_signal_picks_its_question_and_a_watched_signal_reopens_the_topic(monkeypatch):
+    from bioradar import db
+    from bioradar.config import settings
+    from bioradar.research import analyses
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        items = []
+        for r in payload["records"]:
+            known = 1 if payload["topics"] else None
+            watch = "W1" if "GMP" in r["title"] else ("W9" if "无关" in r["title"] else None)
+            items.append(
+                schemas.TriageItem(
+                    index=r["index"],
+                    topic=known,
+                    new_topic="" if known else "启衡新厂房",
+                    direction="business",
+                    alert="normal" if known else "important",
+                    signal="capacity",
+                    watch=watch,
+                )
+            )
+        call = {"stage": stage, "model": "f", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
+        return schemas.Triage(items=items), call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: None)
+    monkeypatch.setattr(settings(), "auto_analysis", True)
+    fabric = FakeFabric([record("S1", "启衡生物抗体原液厂房环评公示", "x", available=DAY.format(1))])
+    [first] = monitor.tick(is_demo=True, fabric=fabric)["analyses"]
+    assert analyses.get(first).input["question"].startswith("专题“启衡新厂房”出现产能或厂房信号")
+    with db.session() as session:
+        topic = session.scalars(select_topics()).one()
+        session.add(db.TopicEvent(topic_id=topic.id, at=topic.first_seen_at, kind="watch",
+                                  detail={"items": [{"id": "W1", "text": "厂房通过 GMP 检查"}]}))
+    fabric.docs += FakeFabric([record("S2", "无关新闻", "x", available=DAY.format(2))]).docs
+    monitor.tick(is_demo=True, fabric=fabric)
+    assert _topics()[0]["pending_reason"] is None  # W9 is not on the topic's list
+    fabric.docs += FakeFabric([record("S3", "启衡厂房通过GMP检查", "x", available=DAY.format(3))]).docs
+    assert monitor.tick(is_demo=True, fabric=fabric)["analyses"]  # W1 answered: a new analysis
+
+
+def select_topics():
+    from sqlalchemy import select
+
+    from bioradar import db
+
+    return select(db.Topic)

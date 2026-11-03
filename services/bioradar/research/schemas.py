@@ -30,7 +30,17 @@ class PlanMechanism(BaseModel):
     disease: str = ""
 
 
+class PlanHypothesis(BaseModel):
+    statement: str = Field(description="可检验的情报假设，一句话，不写成已证实")
+    alternatives: list[str] = Field(default_factory=list, description="竞争解释")
+    confirm: list[str] = Field(default_factory=list, description="出现就能支持它的后续信号")
+    refute: list[str] = Field(default_factory=list, description="出现就会推翻它的信号")
+
+
 class Plan(BaseModel):
+    hypotheses: list[PlanHypothesis] = Field(
+        default_factory=list, description="问题来自一条信号时的可检验假设，不超过3条；其他问题留空"
+    )
     objects: list[PlanObject] = Field(default_factory=list, description="问题点名的具体对象，每个一项")
     checks: list[PlanCheck]
     queries: list[PlanQuery]
@@ -51,6 +61,7 @@ class ReadFact(BaseModel):
     object: str = Field(
         default="", description="这条事实说的是哪个对象（给出的对象名之一）；不涉及具体对象留空"
     )
+    hypothesis: str = Field(default="", description="这条事实支持或反驳哪条假设（如H1，方向见stance）；无关留空")
 
 
 class Reading(BaseModel):
@@ -93,9 +104,16 @@ class Judgment(BaseModel):
     unproven: str = Field(default="", description="还没有证实的部分和最能区分的下一项证据")
 
 
+class HypothesisLevel(BaseModel):
+    id: str = Field(description="假设编号，如H1")
+    level: Literal["insufficient", "possible", "probable", "confirmed", "refuted"]
+    reason: str = Field(default="", description="依据已核验报告的一句话理由")
+
+
 class Assessment(BaseModel):
     alert: Literal["none", "normal", "important", "urgent"]
     judgments: list[Judgment] = Field(default_factory=list)
+    hypotheses: list[HypothesisLevel] = Field(default_factory=list, description="只给出现过的假设编号评级")
 
 
 class TriageItem(BaseModel):
@@ -106,6 +124,12 @@ class TriageItem(BaseModel):
         default="public_health", description="新专题的研究方向"
     )
     alert: Literal["none", "normal", "important", "urgent"]
+    signal: Literal[
+        "capacity", "hiring", "financing", "deal", "filing", "approval", "rejection",
+        "trial_start", "trial_result", "trial_stop", "publication", "policy", "outbreak", "safety", "other",
+    ] = Field(default="other", description="信号类型")
+    objects: list[PlanObject] = Field(default_factory=list, description="记录说到的具体对象")
+    watch: str | None = Field(default=None, description="归入已有专题时，命中该专题哪条待验证信号（如W2）")
     closure: bool = Field(default=False, description="这条记录宣布该事件已结案或可以停止跟踪")
     reason: str = ""
 

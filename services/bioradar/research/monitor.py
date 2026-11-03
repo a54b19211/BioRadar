@@ -140,9 +140,25 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, bool(more)
 
 
-def triage(s: Settings, docs, topics):
+def watches(session, topic_ids) -> dict:
+    """Each topic's current watch list (its latest watch event): {topic_id: [{id, text}]}."""
+    current = {}
+    for e in session.scalars(
+        select(db.TopicEvent)
+        .where(db.TopicEvent.topic_id.in_(list(topic_ids)), db.TopicEvent.kind == "watch")
+        .order_by(db.TopicEvent.id)
+    ):
+        current[e.topic_id] = e.detail.get("items", [])
+    return current
+
+
+def triage(s: Settings, docs, topics, watch=None):
+    watch = watch or {}
     payload = {
-        "topics": [{"index": i, "title": t.title, "state": t.state} for i, t in enumerate(topics, 1)],
+        "topics": [
+            {"index": i, "title": t.title, "state": t.state, "watch": watch.get(t.id, [])}
+            for i, t in enumerate(topics, 1)
+        ],
         "records": [
             {
                 "index": i,
@@ -199,7 +215,9 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                     .limit(30)
                 )
             )
-        decisions = triage(s, batch, topics)
+        with db.session() as session:
+            watch = watches(session, [t.id for t in topics])
+        decisions = triage(s, batch, topics, watch)
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
             flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
@@ -270,6 +288,10 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         owe(topic, f"alert_{alert}", at)
                 if item and item.closure:
                     topic.closed = True
+                hit = item.watch if item and item.watch in {w["id"] for w in watch.get(topic.id, [])} else None
+                if hit:
+                    wake[topic.id] = "watch_hit"
+                    owe(topic, "watch_hit", at)
                 event(
                     session,
                     topic,
@@ -278,6 +300,9 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                     record=doc["record_id"],
                     alert=alert,
                     closure=bool(item and item.closure),
+                    signal=item.signal if item else "other",
+                    objects=[o.name for o in item.objects] if item else [],
+                    watch=hit,
                 )
     return wake, True
 
@@ -353,8 +378,17 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                     .limit(8)
                 )
             )
+            last = session.scalar(
+                select(db.TopicEvent)
+                .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "observed")
+                .order_by(db.TopicEvent.id.desc())
+                .limit(1)
+            )
+            template = prompts.SIGNAL_QUESTIONS.get((last.detail if last else {}).get("signal", "other"))
             question = (
-                f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
+                template.format(title=topic.title) + f"（触发：{reason}）"
+                if template
+                else f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
                 "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
             )
             row = analyses.create(

@@ -146,6 +146,7 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
 class Run:
     def __init__(self, analysis: db.Analysis, settings: Settings, fabric: Fabric | None = None):
         self.id = analysis.id
+        self.row_investigation = analysis.investigation_id
         self.input = analysis.input
         self.p = dict(analysis.progress or {})
         self.stage = analysis.stage
@@ -274,7 +275,11 @@ class Run:
                 queries.append({"terms": root, "checks": required})
         if not queries:
             raise Failed("plan_without_queries")
+        hypotheses = [
+            {"id": f"H{n}", **h.model_dump()} for n, h in enumerate(plan.hypotheses[:3], 1) if h.statement.strip()
+        ]
         self.p.update(
+            hypotheses=hypotheses,
             objects=objects,
             checks=checks,
             queries=queries,
@@ -616,6 +621,7 @@ class Run:
                 "question": self.input["question"],
                 "material": material,
                 "objects": self.p.get("objects", []),
+                "hypotheses": [{"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])],
                 "checks": [
                     {
                         "id": c["id"],
@@ -649,6 +655,9 @@ class Run:
                     "checks": ids,
                     "stance": fact.stance,
                     "object": fact.object if fact.object in self.p.get("objects", []) else "",
+                    "hypothesis": fact.hypothesis
+                    if fact.hypothesis in {h["id"] for h in self.p.get("hypotheses", [])}
+                    else "",
                 }
             )
             if fact.stance == "context":
@@ -893,6 +902,21 @@ class Run:
         }
         if self.input.get("previous_report"):
             body["previous_report"] = self.input["previous_report"]
+        if self.p.get("hypotheses"):
+            # The hypotheses and the facts tagged to them go to BioCheck, which writes and checks the
+            # 「情报假设」 section; assess only grades what survived that check.
+            cited = {e["id"] for e in evidence}
+            body["hypotheses"] = [
+                dict(
+                    h,
+                    facts=[
+                        {"ref": f["ref"], "text": f["text"], "stance": f["stance"]}
+                        for f in self.p["facts"]
+                        if f.get("hypothesis") == h["id"] and f["ref"] in cited
+                    ],
+                )
+                for h in self.p["hypotheses"]
+            ]
         return body
 
     def service(self, operation, body):
@@ -955,6 +979,7 @@ class Run:
                 "judgments": self.p.get("judgments", []),
                 "report": report["draft"],
                 "report_status": report["status"],
+                "hypotheses": [{"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])],
                 "checks": [{k: c[k] for k in ("id", "text", "status", "evidence")} for c in self.p["checks"]],
                 "evidence": [
                     {
@@ -975,7 +1000,38 @@ class Run:
         cited = set(re.findall(r"\[(E\d+)\]", report["draft"]))
         for judgment in result.judgments:
             judgment.grounds = [g for g in judgment.grounds if g in cited]
+        known = {h["id"] for h in self.p.get("hypotheses", [])}
+        result.hypotheses = [h for h in result.hypotheses if h.id in known]
+        for h in result.hypotheses:
+            if h.level == "confirmed" and report["status"] != "PASS":
+                h.level = "probable"  # an unverified report cannot confirm anything
         self.p["assessment"] = result.model_dump()
+        self.watch()
+
+    def watch(self):
+        """A topic analysis leaves its hypotheses' confirming and refuting signals on the topic, so the
+        monitor can tell when a later record answers one (W1..; at most 5)."""
+        if not self.p.get("hypotheses"):
+            return
+        with db.session() as s:
+            topic_id = s.scalar(
+                select(db.Investigation.topic_id).where(db.Investigation.id == self.row_investigation)
+            )
+            if not topic_id:
+                return
+            items = [
+                {"id": "", "hypothesis": h["id"], "direction": direction, "text": text}
+                for h in self.p["hypotheses"]
+                for direction in ("confirm", "refute")
+                for text in h.get(direction, [])[:1]
+            ][:5]
+            for n, item in enumerate(items, 1):
+                item["id"] = f"W{n}"
+            s.add(
+                db.TopicEvent(
+                    topic_id=topic_id, at=db.now(), kind="watch", detail={"items": items, "analysis_id": self.id}
+                )
+            )
 
     # ---- result --------------------------------------------------------------------------------
 
