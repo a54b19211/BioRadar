@@ -654,6 +654,12 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
         )
         order = [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"]
         assert order == expected, method
+        # a resumed run has no texts in memory, only what progress kept: the order must not change
+        import json
+
+        again = Run(row, settings(), fabric=FakeFabric([]))
+        again.p = json.loads(json.dumps(run.p))
+        assert [c["args"]["record_id"] for c in again.candidates() if c["kind"] == "read"] == expected, method
 
 
 def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unread(monkeypatch):

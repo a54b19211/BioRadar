@@ -543,21 +543,34 @@ class Run:
         # plan's search terms found in the record's text, a cheap ordering feature, not relevance or truth.
         terms = list(dict.fromkeys(squash(t) for q in self.p["queries"] for t in q["terms"]))
 
-        def text(hit):
+        def sketch(hit):
+            """The few ordering features of a hit, kept in progress so a resumed run orders the same way
+            without the texts: which search terms its text contains, its length and opening (to spot an
+            exact copy of a text already read), its own time."""
             doc = self.docs.get((hit["source"], hit["record_id"]))
-            return squash((doc["title"] or "") + (doc["text"] or "")) if doc else ""
+            if doc is not None:
+                body = squash((doc["title"] or "") + (doc["text"] or ""))
+                known = hit.get("sketch", {}).get("matched", [])
+                hit["sketch"] = {
+                    "matched": sorted(set(known) | {t for t in terms if t in body}),
+                    "copy": f"{len(body)}:{body[:120]}",
+                    "when": doc.get("published_at") or doc.get("available_at"),
+                }
+            return hit.get("sketch") or {}
 
         def coverage(hit):
-            body = text(hit)
-            return sum(1 for t in terms if t in body) / len(terms) if body and terms else 0.0
+            matched = set(sketch(hit).get("matched", []))
+            return len(matched & set(terms)) / len(terms) if terms else 0.0
 
         def newest(hit):  # the record's own visible time; unknown sorts last
-            doc = self.docs.get((hit["source"], hit["record_id"]))
-            value = doc and (doc.get("published_at") or doc.get("available_at"))
+            value = sketch(hit).get("when")
             try:
                 return -datetime.fromisoformat(value).timestamp() if value else 0.0
             except (TypeError, ValueError):
                 return 0.0
+
+        def text(hit):
+            return sketch(hit).get("copy", "")
 
         read_texts = {text(h) for h in self.p["hits"] if h["read"]} - {""}
         unread = [h for h in self.p["hits"] if not h["read"]]
