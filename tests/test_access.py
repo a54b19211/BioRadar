@@ -405,12 +405,19 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
         # the plan wrote a check with a name from the earlier report (Codex r40)
         row.progress = {
             "checks": [
-                {"id": "Q1", "text": "撤权原文城的病例是否增加", "status": "open", "exploratory": ["撤权原文城"]}
+                {
+                    "id": "Q1",
+                    "text": "撤权原文城的病例是否增加",
+                    "status": "open",
+                    "exploratory": ["撤权原文城"],
+                }
             ]
         }
     fabric_sources["value"] = ["open_src"]
     api_module._readable.update(at=None, sources=None)
     detail = admin.get(f"/api/analyses/{again['id']}").json()
     assert detail["result"]["draft"] == "" and "上一轮" in detail["result"]["withheld"]
-    assert detail["progress"]["checks"][0]["text"] == "" and detail["progress"]["checks"][0]["exploratory"] == []
+    assert (
+        detail["progress"]["checks"][0]["text"] == "" and detail["progress"]["checks"][0]["exploratory"] == []
+    )
     assert "撤权原文" not in admin.get(f"/api/analyses/{again['id']}/export").text

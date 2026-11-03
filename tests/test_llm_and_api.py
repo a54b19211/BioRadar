@@ -303,5 +303,6 @@ def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
     text = document(dict(record, facts=dict(record["facts"], results_outcome_measures=measures)))["text"]
     assert (
         "终点 PRIMARY 「Total Energy Expenditure (TEE)」（kcal/day，MEAN/STANDARD_DEVIATION；"
-        "Leptin Repletion n=22，T3 Repletion n=9）: Initial Wt: Leptin Repletion 3131±500，T3 Repletion 2961±243"
+        "Leptin Repletion n=22，T3 Repletion n=9）: "
+        "Initial Wt: Leptin Repletion 3131±500，T3 Repletion 2961±243"
     ) in text
