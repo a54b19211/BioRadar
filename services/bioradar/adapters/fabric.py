@@ -92,32 +92,45 @@ REGISTRY_FIELDS = [
 REGISTRY_FIELD_CHARS = 3000  # one long results table must not push the protocol fields out
 
 
-def outcome_lines(value) -> list[str]:
-    """ClinicalTrials results (resultsSection/outcomeMeasuresModule) as one compact line per measure:
-    type, title, unit and statistic, then each class's group values with their spread and the group's
-    number analysed. The same numbers as the JSON, without its keys, so a measure fits beside the
-    protocol fields in a report's input (Codex r40: the means sat 835 characters into the JSON line)."""
+def _measurement(x: dict) -> str:
+    """One value with whatever the registry gave around it: spread, or lower/upper limits, as named."""
+    text = str(x.get("value"))
+    if x.get("spread") not in (None, ""):
+        text += f" (spread {x['spread']})"
+    if x.get("lowerLimit") not in (None, "") or x.get("upperLimit") not in (None, ""):
+        text += f" [{x.get('lowerLimit', '?')}, {x.get('upperLimit', '?')}]"
+    return text
+
+
+def outcome_lines(value, pointer="") -> list[str]:
+    """ClinicalTrials results (resultsSection/outcomeMeasuresModule) as one compact line per measure,
+    keeping the registry's own fields and words: type, title, time frame, unit, statistic (paramType),
+    dispersion type (SD, 95% CI, range ... as written), the analysed counts with their units, and each
+    class/category's group values with spread or lower/upper limits. Nothing is turned into "±" (Codex
+    r41: a 95% CI lost its limits and its week-24 time frame). The full JSON stays in the record."""
     lines = []
-    for m in (value or {}).get("outcomeMeasures", []) if isinstance(value, dict) else []:
+    for i, m in enumerate((value or {}).get("outcomeMeasures", []) if isinstance(value, dict) else []):
         groups = {g.get("id"): g.get("title", g.get("id")) for g in m.get("groups", [])}
-        counts = {
-            c.get("groupId"): c.get("value") for d in m.get("denoms", [])[:1] for c in d.get("counts", [])
-        }
+        denoms = [
+            f"{d.get('units', '')}: "
+            + "，".join(f"{groups.get(c.get('groupId'), c.get('groupId'))} {c.get('value')}" for c in d.get("counts", []))
+            for d in m.get("denoms", [])
+        ]
         parts = []
         for c in m.get("classes", []):
             for cat in c.get("categories", []):
                 values = "，".join(
-                    f"{groups.get(x.get('groupId'), x.get('groupId'))} {x.get('value')}"
-                    + (f"±{x['spread']}" if x.get("spread") else "")
+                    f"{groups.get(x.get('groupId'), x.get('groupId'))} {_measurement(x)}"
                     for x in cat.get("measurements", [])
                 )
                 label = "／".join(t for t in (c.get("title"), cat.get("title")) if t)
                 parts.append(f"{label}: {values}" if label else values)
-        n = "，".join(f"{groups.get(k, k)} n={v}" for k, v in counts.items())
+        head = "；".join(
+            f"{k} {m[k]}" for k in ("timeFrame", "unitOfMeasure", "paramType", "dispersionType") if m.get(k)
+        )
         lines.append(
-            f"终点 {m.get('type', '')} 「{m.get('title', '')}」（{m.get('unitOfMeasure', '')}，"
-            f"{m.get('paramType', '')}{'/' + m['dispersionType'] if m.get('dispersionType') else ''}；{n}）: "
-            + "；".join(parts)
+            f"终点 {m.get('type', '')} 「{m.get('title', '')}」（{pointer}/outcomeMeasures/{i}；{head}；"
+            f"分析数 {'；'.join(denoms) or '（原件无）'}）: " + ("；".join(parts) or "（原件无数值）")
         )
     return lines
 
@@ -132,6 +145,11 @@ def registry_text(record: dict) -> str:
         pointer = (locators.get(key) or {}).get("json_pointer", "")
         if key not in facts:
             value = "（原件无此字段）"
+        elif key == "results_outcome_measures":
+            # one compact line per measure below instead of the long JSON (kept in the record)
+            lines.append(f"{label} {key}（{pointer}）: 见下列各终点")
+            lines += [f"  {line}" for line in outcome_lines(facts[key], pointer)]
+            continue
         else:
             value = json.dumps(facts[key], ensure_ascii=False, separators=(",", ":"))
             if len(value) > REGISTRY_FIELD_CHARS:
@@ -141,8 +159,6 @@ def registry_text(record: dict) -> str:
                     + f"…（此字段共 {len(value)} 字符，这里只取前 {REGISTRY_FIELD_CHARS}）"
                 )
         lines.append(f"{label} {key}（{pointer}）: {value}")
-        if key == "results_outcome_measures" and key in facts:
-            lines += [f"  {line}" for line in outcome_lines(facts[key])]
     return "\n".join(lines)
 
 
