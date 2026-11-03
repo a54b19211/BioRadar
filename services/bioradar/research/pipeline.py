@@ -380,6 +380,7 @@ class Run:
         )
         for seed in self.input.get("seed_records", []):
             self.add_hit(seed["source"], seed["record_id"], seed.get("title", ""), required, critical=True)
+        self.graph(required)
         # A fixed material set: searches stay inside it, and a small set's records visible at the
         # cutoff are reading candidates.
         if self.scope and len(self.scope) <= FABRIC_PAGE:
@@ -395,6 +396,39 @@ class Run:
                 for doc in docs:
                     self.docs[(doc["source"], doc["record_id"])] = doc
                     self.add_hit(doc["source"], doc["record_id"], doc["title"], required, critical=True)
+
+    def graph(self, checks):
+        """T-20: the question's own objects looked up in Tang's reviewed graph (read only, through Fabric).
+        Graph records visible at the cutoff that mention the exact name are resolved; each candidate keeps
+        its identity status (unresolved stays unresolved) and the records it was read from become reading
+        candidates, re-read from Fabric at the cutoff like any other hit. Nothing is merged or inferred."""
+        if not self.s.graph_lookup:
+            return
+        found, seen = self.p.setdefault("graph", []), set()
+        for name in self.p["objects"][:3]:
+            entry = {"object": name, "graph_records": [], "candidates": [], "refs": []}
+            try:
+                records, _ = self.fabric.search(
+                    "reviewed_graph", [name], is_demo=self.input["is_demo"], cutoff=self.cutoff, limit=5
+                )
+                resolutions = [(r, self.fabric.graph_resolve(r, name, cutoff=self.cutoff)) for r in records]
+            except (FabricError, httpx.HTTPError) as exc:
+                self.note("graph_unavailable", f"{name}: {getattr(exc, 'code', type(exc).__name__)}")
+                continue
+            for record, resolution in resolutions:
+                entry["graph_records"].append(record["record_id"])
+                for node in resolution.get("candidates") or []:
+                    entry["candidates"].append(
+                        {"id": node.get("id"), "name": node.get("name"), "identity": node.get("identity_status")}
+                    )
+                    for ev in node.get("evidence") or []:
+                        key = (ev["source_id"], ev["source_record_id"])
+                        if ev["source_id"] not in self.input["sources"] or key in seen:
+                            continue
+                        seen.add(key)
+                        entry["refs"].append({"source": key[0], "record_id": key[1], "version_id": ev["version_id"]})
+                        self.add_hit(*key, f"图谱：{node.get('name')}", checks)
+            found.append(entry)
 
     @property
     def scope(self):

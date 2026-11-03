@@ -140,6 +140,21 @@ class Fabric:
         data = self._get("/api/history/records", params)
         return [document(item) for item in data["items"]], data.get("next_cursor")
 
+    def graph_resolve(self, doc, name, *, cutoff=None):
+        """Tang's reviewed graph (read only): entity candidates for an exact name in one graph record, each
+        with its identity status and the fixed record versions it was read from (node evidence)."""
+        return self._get(
+            f"/api/history/graph/{doc['version_id']}/resolve",
+            {
+                "source_id": doc["source"],
+                "source_record_id": doc["record_id"],
+                "is_demo": str(doc["is_demo"]).lower(),
+                "mode": HISTORY if cutoff else CURRENT,
+                "cutoff": (cutoff or datetime.now(UTC)).isoformat(),
+                "name": name,
+            },
+        )
+
     def changes(self, source, *, is_demo, after=0, limit=100):
         data = self._get(
             "/api/history/changes",

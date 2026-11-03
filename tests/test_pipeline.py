@@ -688,3 +688,43 @@ def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unre
     ]
     assert generate["source_updates"] and all(u["kind"] == "correction" for u in generate["source_updates"])
     assert all("origin_group" in e for e in generate["evidence"])
+
+
+def test_question_objects_found_in_the_reviewed_graph_bring_their_source_records_to_read(monkeypatch):
+    """T-20: the graph adds reading candidates with the entity's identity status kept; it decides nothing."""
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    graph_record = record("G1", "唐的所选文档当前图观测", "XQ-17 drug node", source="reviewed_graph")
+    fabric = FakeFabric(RECORDS + [graph_record])
+    asked = []
+
+    def graph_resolve(doc, name, *, cutoff=None):
+        asked.append((doc["record_id"], name))
+        evidence = {"source_id": "external_archive", "source_record_id": "N1", "version_id": "v" * 64}
+        node = {"id": "n1", "name": "XQ-17", "identity_status": "unresolved", "evidence": [evidence]}
+        return {"status": "resolved", "candidates": [node]}
+
+    fabric.graph_resolve = graph_resolve
+    base = fake_model([])
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "plan":
+            value.objects = [schemas.PlanObject(name="XQ-17")]
+        return value, call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    row = analyses.create(question="XQ-17 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
+    run = Run(row, settings().model_copy(update={"graph_lookup": True}), fabric=fabric)
+    run.run()
+    assert asked == [("G1", "XQ-17")]
+    assert run.p["graph"] == [
+        {
+            "object": "XQ-17",
+            "graph_records": ["G1"],
+            "candidates": [{"id": "n1", "name": "XQ-17", "identity": "unresolved"}],
+            "refs": [{"source": "external_archive", "record_id": "N1", "version_id": "v" * 64}],
+        }
+    ]
+    assert any(h["record_id"] == "N1" and h["title"] == "图谱：XQ-17" for h in run.p["hits"])
