@@ -210,6 +210,9 @@ def changes(rows, new_id):
     A value that arrives late or corrects an earlier one can change what every later point showed, so
     each later point is evaluated again and a `revised` entry says what it showed before and now.
     Each change names the rows it compares, so the topic event carries its provenance."""
+    new = next((r for r in rows if r["id"] == new_id), None)
+    if new is not None:  # a year is never compared with a quarter, whoever passes the rows in
+        rows = [r for r in rows if grain(r["period"]) == grain(new["period"])]
     series = points(rows)
     at = next((i for i, r in enumerate(series) if r["id"] == new_id), None)
     if at is None:

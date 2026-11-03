@@ -73,6 +73,11 @@ def test_a_stock_series_is_compared_not_summed_and_a_gap_breaks_the_trend():
     assert "streak_up" not in kinds(series.changes(gap, 3))  # Q2 is missing
 
 
+def test_a_year_is_not_compared_with_a_quarter():
+    rows = [row(1, "2026", 100, "operational", 1), row(2, "2026Q4", 25, "operational", 2)]
+    assert series.changes(rows, 2) == []  # not -75%
+
+
 def test_two_values_for_one_period_are_a_conflict_not_a_trend():
     rows = [row(1, "2026Q1", 1, "operational", 1), row(2, "2026Q2", 2, "operational", 2)]
     rows.append(row(3, "2026Q2", 3, "operational", 3))  # another source says 3 for the same Q2
