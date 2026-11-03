@@ -46,7 +46,8 @@ class Reading(BaseModel):
     facts: list[ReadFact] = Field(default_factory=list)
     new_terms: list[list[str]] = Field(default_factory=list, description="值得追查的新检索词组，每组1到3个词")
     answered: list[str] = Field(
-        default_factory=list, description="读完这篇后已经完整回答的待查问题编号（问题要求的每个对象、每个期间都有原文依据）"
+        default_factory=list,
+        description="读完这篇后已经完整回答的待查问题编号（问题要求的每个对象、每个期间都有原文依据）",
     )
 
 

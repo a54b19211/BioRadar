@@ -570,7 +570,9 @@ class Run:
                         "id": c["id"],
                         "text": c["text"],
                         "status": c["status"],
-                        "known": [f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]][-12:],
+                        "known": [
+                            f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]
+                        ][-12:],
                     }
                     for c in self.p["checks"]
                 ],
@@ -665,7 +667,12 @@ class Run:
                     "denominator": calc.denominator,
                     "operands": [
                         # The quote travels with the result so BioCheck can check it without the record.
-                        {"fact": o.fact, "value": o.value, "ref": facts[o.fact]["ref"], "quote": facts[o.fact]["quote"]}
+                        {
+                            "fact": o.fact,
+                            "value": o.value,
+                            "ref": facts[o.fact]["ref"],
+                            "quote": facts[o.fact]["quote"],
+                        }
                         for o in calc.operands
                     ],
                 }
