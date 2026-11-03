@@ -330,7 +330,9 @@ def test_a_next_page_in_current_mode_is_read_at_the_time_of_its_first_page(monke
     def decide(s, body):
         want = next(order, None)
         pick = next((i for i, c in enumerate(body["candidates"]) if c["kind"] == want), None)
-        return {"decision": "continue", "candidate": pick} if pick is not None else {"decision": "complete"}
+        if pick is None:
+            return {"decision": "complete", "candidate": None, "reason": "test"}
+        return {"decision": "continue", "candidate": pick, "reason": "test"}
 
     monkeypatch.setattr(services, "decide", decide)
     records = [record(f"P{i}", f"PFS 研究 {i}", "PFS 的结果") for i in range(15)]
