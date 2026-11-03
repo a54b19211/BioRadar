@@ -1,5 +1,7 @@
 """One analysis end to end with fake Fabric, model and services."""
 
+import re
+
 from conftest import FakeFabric, record
 from sqlalchemy import select
 
@@ -373,9 +375,22 @@ def test_hypotheses_go_through_biocheck_and_an_unverified_report_cannot_confirm(
     assert [(w["id"], w["direction"]) for w in watch.detail["items"]] == [("W1", "confirm"), ("W2", "refute")]
 
 
+def line_verifier(verdict_of):
+    """Fake BioCheck verify for the post-report check: one claim per line, verdict_of(line)."""
+
+    def biocheck(s, operation, body):
+        claims, at = [], 0
+        for line in body["draft"].split("\n"):
+            claims.append({"start": at, "verdict": verdict_of(line), "citations": re.findall(r"E\d+", line)})
+            at += len(line) + 1
+        return {"status": "REVIEW", "claims": claims, "llm_calls": []}
+
+    return biocheck
+
+
 def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
     """Nothing is confirmed after the report; probable needs a supported sentence in the
-    hypothesis's own paragraph; hypotheses the report does not write up are not graded."""
+    hypothesis's own paragraph and a reason BioCheck supports; unwritten hypotheses are not graded."""
     sentences = [
         ("公司于1980年成立[E5]。\n", "supported", ["E5"]),
         ("## 情报假设\n", "no_claim", []),
@@ -383,7 +398,9 @@ def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
         ("H2 待验证的假设：扩招为备货，招聘启事提到无菌灌装[E2]。\n", "insufficient", ["E2"]),
         ("H3 待验证的假设：年内投产，规划写明投产[E1]。", "supported", ["E1"]),
         ("另一记录显示已停建[E3]。\n", "supported", ["E3"]),
-        ("H4 待验证的假设：只是合同生产，目前没有材料。", "no_claim", []),
+        ("H4 待验证的假设：只是合同生产，目前没有材料。\n", "no_claim", []),
+        ("H6 待验证的假设：为海外订单备货。\n", "no_claim", []),
+        ("小结：以上均待后续信号检验[E5]。", "supported", ["E5"]),
     ]
     draft, claims = "", []
     for text, verdict, citations in sentences:
@@ -396,64 +413,84 @@ def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
     run.p.update(
         checks=[],
         judgments=[],
-        hypotheses=[{"id": h, "statement": h} for h in ("H1", "H2", "H3", "H4", "H5")],
+        hypotheses=[{"id": h, "statement": h} for h in ("H1", "H2", "H3", "H4", "H5", "H6")],
         facts=[
             {"ref": "E1", "hypothesis": "H1", "stance": "supports"},
             {"ref": "E5", "hypothesis": "H2", "stance": "supports"},  # verified, but not about H2
             {"ref": "E2", "hypothesis": "H2", "stance": "supports"},  # about H2, not verified
             {"ref": "E1", "hypothesis": "H3", "stance": "supports"},
             {"ref": "E3", "hypothesis": "H3", "stance": "refutes"},
+            {"ref": "E5", "hypothesis": "H6", "stance": "supports"},  # only in the closing line
         ],
         report={"status": "PASS", "draft": draft, "claims": claims},
     )
     graded = schemas.Assessment(
         alert="important",
-        hypotheses=[schemas.HypothesisLevel(id=h, level="confirmed") for h in ("H1", "H2", "H3", "H5")]
-        + [schemas.HypothesisLevel(id="H4", level="refuted")],
+        hypotheses=[
+            schemas.HypothesisLevel(id=h, level="confirmed", reason="厂房已开工")
+            for h in ("H1", "H2", "H3", "H5")
+        ]
+        + [
+            schemas.HypothesisLevel(id="H4", level="refuted", reason="厂房已开工"),
+            schemas.HypothesisLevel(id="H6", level="possible", reason="公司已为该药备产"),
+        ],
     )
     monkeypatch.setattr(run, "ask", lambda *a, **k: graded)
+    monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
+    monkeypatch.setattr(services, "biocheck", line_verifier(lambda line: "contradicted" if "备产" in line else "supported"))
     run.assess()
-    assert "已核验报告" in run.p["assessment"]["hypotheses"][0]["reason"]
-    assert [(h["id"], h["level"]) for h in run.p["assessment"]["hypotheses"]] == [
-        ("H1", "probable"),
-        ("H2", "possible"),
-        ("H3", "possible"),
-        ("H4", "possible"),
+    hypotheses = run.p["assessment"]["hypotheses"]
+    assert [(h["id"], h["level"], h["grounds"]) for h in hypotheses] == [
+        ("H1", "probable", ["E1"]),
+        ("H2", "possible", []),
+        ("H3", "possible", ["E1"]),
+        ("H4", "possible", []),
+        ("H6", "possible", []),
     ]
+    assert "已核验报告" in hypotheses[0]["reason"]
+    assert hypotheses[-1]["check"] == "contradicted" and "撤下" in hypotheses[-1]["reason"]
 
 
-def test_a_judgment_that_contradicts_the_evidence_is_flagged(monkeypatch):
+def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
     """after-C: the report said 18 vs 17 accepted and revenue up, the judgment said all fell."""
     row = analyses.create(question="衡简 H1 经营如何？", direction="business", is_demo=True, enqueue=False)
     run = Run(row, settings(), fabric=FakeFabric([]))
-    judgments = [
-        schemas.Judgment(
-            question=q,
-            conclusion=c,
-            confidence="probable",
-            credibility="high",
-            consequence="medium",
-            priority="medium",
-            grounds=["E2"],
-        ).model_dump()
-        for q, c in [("验收", "验收台数增加到18台"), ("收入", "验收、收入、回款均同比下降")]
-    ]
+    run.p.update(
+        checks=[],
+        judgments=[],
+        facts=[],
+        report={"status": "REVIEW", "draft": "验收18台，上年17台[E2]。", "claims": []},
+    )
+    graded = schemas.Assessment(
+        alert="important",
+        judgments=[
+            schemas.Judgment(
+                question=q,
+                conclusion=c,
+                confidence="probable",
+                credibility="high",
+                consequence="medium",
+                priority="medium",
+                grounds=["E2"],
+            )
+            for q, c in [("验收", "验收台数增加到18台"), ("收入", "验收、收入、回款均同比下降")]
+        ],
+    )
     drafts = []
 
     def biocheck(s, operation, body):
         drafts.append(body["draft"])
-        first, second = body["draft"].split("\n")
-        claims = [
-            {"start": 0, "verdict": "supported", "citations": ["E2"]},
-            {"start": len(first) + 1, "verdict": "contradicted", "citations": ["E2"]},
-        ]
-        return {"status": "FAIL", "claims": claims, "llm_calls": []}
+        return line_verifier(lambda line: "contradicted" if "下降" in line else "supported")(s, operation, body)
 
-    monkeypatch.setattr(services, "biocheck", biocheck)
+    monkeypatch.setattr(run, "ask", lambda *a, **k: graded)
     monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
-    run.check_judgments(judgments)
+    monkeypatch.setattr(services, "biocheck", biocheck)
+    run.assess()
     assert drafts == ["验收台数增加到18台[E2]。\n验收、收入、回款均同比下降[E2]。"]
+    judgments = run.p["assessment"]["judgments"]
     assert [(j["check"], j["confidence"]) for j in judgments] == [
         ("supported", "probable"),
         ("contradicted", "insufficient"),
     ]
+    assert "撤下" in judgments[1]["conclusion"]
+    assert any(n["code"] == "judgment_contradicted" and "下降" in n["detail"] for n in run.p["notes"])
