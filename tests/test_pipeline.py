@@ -695,12 +695,20 @@ def test_candidates_carry_what_they_are_expected_to_add():
     row = analyses.create(question="当前有哪些事件？", direction="public_health", is_demo=True, enqueue=False)
     run = Run(row, settings(), fabric=FakeFabric([]))
     hits = [
-        {"source": "external_archive", "record_id": r, "title": "", "checks": ["Q1"], "critical": False,
-         "read": False}
+        {
+            "source": "external_archive",
+            "record_id": r,
+            "title": "",
+            "checks": ["Q1"],
+            "critical": False,
+            "read": False,
+        }
         for r in ("e1", "e2", "e3", "bg")
     ]
-    run.docs = {("external_archive", r): {"title": "", "text": f"病例聚集{r}", "published_at": None}
-                for r in ("e1", "e2", "e3")}
+    run.docs = {
+        ("external_archive", r): {"title": "", "text": f"病例聚集{r}", "published_at": None}
+        for r in ("e1", "e2", "e3")
+    }
     run.docs[("external_archive", "bg")] = {"title": "", "text": "门诊登记说明", "published_at": None}
     run.p.update(
         queries=[
@@ -708,10 +716,16 @@ def test_candidates_carry_what_they_are_expected_to_add():
             {"terms": ["澜津市"], "checks": ["Q1"], "origin": "object:E3", "value": 3},
             {"terms": ["背景词"], "checks": ["Q1"], "origin": "read:E1", "value": 0},
         ],
-        hits=hits, actions=[], pages={}, objects=[], notes=[],
+        hits=hits,
+        actions=[],
+        pages={},
+        objects=[],
+        notes=[],
     )
-    impact = {(c["kind"], tuple(c["args"].get("terms", ())) or c["args"].get("record_id")): c.get("impact")
-              for c in run.candidates()}
+    impact = {
+        (c["kind"], tuple(c["args"].get("terms", ())) or c["args"].get("record_id")): c.get("impact")
+        for c in run.candidates()
+    }
     assert impact[("search", ("澜津市",))] == 1.0
     assert abs(impact[("search", ("病例",))] - 0.18) < 1e-9  # three usable records wait
     assert abs(impact[("search", ("背景词",))] - 0.06) < 1e-9  # background terms, and records wait
