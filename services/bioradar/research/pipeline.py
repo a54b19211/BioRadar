@@ -195,6 +195,9 @@ class Run:
             return None
         parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
         self.log([call])
+        if call["error"] == "output_invalid" and self.calls_left() > 0:  # one retry; it is usually a one-off
+            parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
+            self.log([call])
         if call["error"]:
             self.note(call["error"], f"{stage} {call.get('detail', '')}")
         return parsed
@@ -816,7 +819,13 @@ class Run:
             "research_scope": {
                 "checked": [
                     c["text"]
-                    + ("（已找到依据）" if c["status"] != "open" else "（已检索，未找到肯定或否定依据）")
+                    + (
+                        "（已找到依据）"
+                        if c["status"] != "open"
+                        else "（已找到部分依据，未答全）"
+                        if c["evidence"]
+                        else "（已检索，未找到肯定或否定依据）"
+                    )
                     for c in self.p["checks"]
                     if c["id"] in searched
                 ],
@@ -851,6 +860,7 @@ class Run:
                 if c["verdict"] == "contradicted"
                 or c.get("scope_span")
                 or (c["verdict"] == "insufficient" and c["citations"] and c["labels"])
+                or (c["verdict"] == "insufficient" and not c["citations"])
             ]
             if review["status"] != "PASS" and fixable and self.calls_left() > 2:
                 revised = self.service("revise", dict(body, draft=report["draft"], review=review))
