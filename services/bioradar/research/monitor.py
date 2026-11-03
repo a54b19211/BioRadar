@@ -447,7 +447,11 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
     reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
-    created = start_analyses(s, is_demo=is_demo, cutoff=cutoff, budget=budget) if s.auto_analysis and not paused else []
+    created = (
+        start_analyses(s, is_demo=is_demo, cutoff=cutoff, budget=budget)
+        if s.auto_analysis and not paused
+        else []
+    )
     return {
         "records": len(docs),
         "backlog": backlog,  # more new records are waiting in the feed than one round takes

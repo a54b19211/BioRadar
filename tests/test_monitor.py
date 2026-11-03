@@ -391,9 +391,20 @@ def test_a_retried_old_record_does_not_count_as_new(monkeypatch):
     fabric = FakeFabric([record("R0", "历史", "x", source="who_don")])
     monitor.tick(is_demo=False, fabric=fabric)
     with db.session() as session:
-        session.add(db.Observation(workspace_id="w", source="who_don", record_id="R0", version_id=fabric.docs[0]["version_id"],
-                                   is_demo=False, title="历史", available_at=datetime.fromisoformat(DAY.format(1)),
-                                   alert="none", closure=False, reason="triage_failed"))
+        session.add(
+            db.Observation(
+                workspace_id="w",
+                source="who_don",
+                record_id="R0",
+                version_id=fabric.docs[0]["version_id"],
+                is_demo=False,
+                title="历史",
+                available_at=datetime.fromisoformat(DAY.format(1)),
+                alert="none",
+                closure=False,
+                reason="triage_failed",
+            )
+        )
     assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1  # the retry
     with db.session() as session:
         assert session.get(db.Cursor, ("who_don", False)).last_new_at is None
