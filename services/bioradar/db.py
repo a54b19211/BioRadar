@@ -99,6 +99,7 @@ class LlmCall(Base):
     total_tokens: Mapped[int] = mapped_column(Integer, default=0)
     seconds: Mapped[float] = mapped_column(Float, default=0)
     error: Mapped[str | None] = mapped_column(String(100))
+    requests: Mapped[int] = mapped_column(Integer, default=1)  # HTTP requests behind it (format retry = 2)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

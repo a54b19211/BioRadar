@@ -152,7 +152,9 @@ class Run:
         self.fabric = fabric or Fabric(settings)
         self.docs = {}  # (source, record_id) -> document read in this process
         with db.session() as s:
-            self.calls_used = s.scalar(select(func.count()).where(db.LlmCall.analysis_id == self.id)) or 0
+            self.calls_used = (
+                s.scalar(select(func.sum(db.LlmCall.requests)).where(db.LlmCall.analysis_id == self.id)) or 0
+            )
 
     # ---- bookkeeping ---------------------------------------------------------------------------
 
@@ -183,9 +185,10 @@ class Run:
                         total_tokens=usage.get("total_tokens") or prompt + completion,
                         seconds=c.get("seconds") or 0,
                         error=c.get("error"),
+                        requests=c.get("requests") or 1,
                     )
                 )
-        self.calls_used += len(calls)
+        self.calls_used += sum(c.get("requests") or 1 for c in calls)
 
     def calls_left(self):
         return self.input["budget"]["max_llm_calls"] - self.calls_used
