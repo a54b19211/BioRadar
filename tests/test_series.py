@@ -51,9 +51,12 @@ def test_a_plan_repeated_each_quarter_is_not_growth_and_a_late_value_is_put_in_o
     assert kinds(series.changes(rows, 5)) == ["repeat"]
     rows.append(row(6, "2027Q1", 4, "operational", 6))
     assert kinds(series.changes(rows, 6)) == ["new_high", "step", "streak_up"]
-    # Q2 arrives late with a different value: the new point and its successor are both compared again
+    # Q2 arrives late with a different value: Q3 no longer reads as the same 2 lines moving to
+    # construction (it is now a step up from 1); later points are evaluated again and shown as revised
     late = series.changes(rows + [row(7, "2026Q2", 1, "planned", 7)], 7)
-    assert {(c["kind"], c["late"]) for c in late} >= {("step", False), ("step", True)}
+    assert [c["kind"] for c in late] == ["step", "revised"]
+    assert late[1] == {"kind": "revised", "rows": [3], "was": ["status_advance"], "now": ["step"]}
+    assert series.notable(late)  # a state change it had shown no longer holds
 
 
 def test_a_stock_series_is_compared_not_summed_and_a_missing_quarter_breaks_the_trend():

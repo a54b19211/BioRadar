@@ -419,7 +419,7 @@ def measure(session, s: Settings, doc, measures, topic, at, is_demo) -> bool:
                 changes=found,
                 algo=series.VERSION,
             )
-        notable = notable or any(c["kind"] in series.NOTABLE for c in found)
+        notable = notable or series.notable(found)
     return notable
 
 

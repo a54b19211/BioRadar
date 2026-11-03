@@ -96,60 +96,64 @@ def adjacent(points_):
     )
 
 
+def evaluate(series, i):
+    """What point i of an ordered series shows against the points before it."""
+    if i == 0:
+        return []
+    cur, prev = series[i], series[i - 1]
+    out = []
+    same_family = FAMILY.get(cur["status"]) and FAMILY.get(cur["status"]) == FAMILY.get(prev["status"])
+    if cur["value"] == prev["value"] and same_family and RANK[cur["status"]] > RANK[prev["status"]]:
+        out.append({"kind": "status_advance", "from": prev["status"], "to": cur["status"], "rows": [prev["id"], cur["id"]]})
+    elif cur["value"] != prev["value"]:
+        delta = cur["value"] - prev["value"]
+        step = {"kind": "step", "delta": delta, "rows": [prev["id"], cur["id"]]}
+        if prev["value"]:
+            step["ratio"] = round(delta / abs(prev["value"]), 4)
+        out.append(step)
+    before = [r["value"] for r in series[:i]]
+    if len(before) >= 2 and cur["value"] > max(before):
+        out.append({"kind": "new_high", "value": cur["value"], "previous_max": max(before), "rows": [cur["id"]]})
+    if len(before) >= 2 and cur["value"] < min(before):
+        out.append({"kind": "new_low", "value": cur["value"], "previous_min": min(before), "rows": [cur["id"]]})
+    tail = series[max(0, i - STREAK) : i + 1]
+    if len(tail) == STREAK + 1 and adjacent(tail):
+        steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
+        if all(d > 0 for d in steps):
+            out.append({"kind": "streak_up", "rows": [r["id"] for r in tail]})
+        elif all(d < 0 for d in steps):
+            out.append({"kind": "streak_down", "rows": [r["id"] for r in tail]})
+    return out
+
+
+def _summary(found):
+    return sorted((c["kind"], c.get("delta")) for c in found)
+
+
 def changes(rows, new_id):
     """What the row `new_id` changes in its series (rows: the whole visible series including it).
-    Each change names its kind and the rows it compares, so the topic event carries its provenance."""
+    A value that arrives late or corrects an earlier one can change what every later point showed, so
+    each later point is evaluated again and a `revised` entry says what it showed before and now.
+    Each change names the rows it compares, so the topic event carries its provenance."""
     series = points(rows)
     at = next((i for i, r in enumerate(series) if r["id"] == new_id), None)
     if at is None:
         return [{"kind": "repeat", "rows": [new_id]}]  # same period/value/status already known
-    out = []
-    for i in {at, at + 1} & set(range(1, len(series))):  # the new point, and its successor if it came late
-        cur, prev = series[i], series[i - 1]
-        late = i != at
-        same_family = FAMILY.get(cur["status"]) and FAMILY.get(cur["status"]) == FAMILY.get(prev["status"])
-        if cur["value"] == prev["value"] and same_family and RANK[cur["status"]] > RANK[prev["status"]]:
-            out.append(
-                {
-                    "kind": "status_advance",
-                    "from": prev["status"],
-                    "to": cur["status"],
-                    "rows": [prev["id"], cur["id"]],
-                    "late": late,
-                }
-            )
-        elif cur["value"] != prev["value"]:
-            delta = cur["value"] - prev["value"]
-            step = {"kind": "step", "delta": delta, "rows": [prev["id"], cur["id"]], "late": late}
-            if prev["value"]:
-                step["ratio"] = round(delta / abs(prev["value"]), 4)
-            out.append(step)
-        before = [r["value"] for r in series[:i]]
-        if len(before) >= 2 and cur["value"] > max(before):
-            out.append(
-                {
-                    "kind": "new_high",
-                    "value": cur["value"],
-                    "previous_max": max(before),
-                    "rows": [cur["id"]],
-                    "late": late,
-                }
-            )
-        if len(before) >= 2 and cur["value"] < min(before):
-            out.append(
-                {
-                    "kind": "new_low",
-                    "value": cur["value"],
-                    "previous_min": min(before),
-                    "rows": [cur["id"]],
-                    "late": late,
-                }
-            )
-        tail = series[max(0, i - STREAK) : i + 1]
-        if len(tail) == STREAK + 1 and adjacent(tail):
-            steps = [b["value"] - a["value"] for a, b in zip(tail, tail[1:])]
-            if all(d > 0 for d in steps):
-                out.append({"kind": "streak_up", "rows": [r["id"] for r in tail], "late": late})
-            elif all(d < 0 for d in steps):
-                out.append({"kind": "streak_down", "rows": [r["id"] for r in tail], "late": late})
+    out = evaluate(series, at)
+    earlier = points([r for r in rows if r["id"] != new_id])  # the series as it was without this row
+    was = {p["id"]: _summary(evaluate(earlier, k)) for k, p in enumerate(earlier)}
+    for j in range(at + 1, len(series)):
+        now = evaluate(series, j)
+        if _summary(now) != was.get(series[j]["id"], []):
+            before = sorted({k for k, _ in was.get(series[j]["id"], [])})
+            out.append({"kind": "revised", "rows": [series[j]["id"]], "was": before, "now": sorted({c["kind"] for c in now})})
     return out
+
+
+def notable(found):
+    """Whether these changes owe the topic an analysis: a new state, extreme or trend, or a revision
+    that makes or unmakes one."""
+    return any(
+        c["kind"] in NOTABLE or (c["kind"] == "revised" and NOTABLE & (set(c["was"]) | set(c["now"])))
+        for c in found
+    )
