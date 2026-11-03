@@ -132,3 +132,14 @@ def test_a_literature_record_without_document_evidence_keeps_its_own_publication
     assert epmc(["Review", "Journal Article"])["material_kind"] == "review"
     stated = epmc(["research-article"], {"material_kind": "news_report", "text_level": "full_text"})
     assert (stated["material_kind"], stated["text_level"]) == ("news_report", "full_text")  # Fabric wins
+
+
+def test_weknora_hits_point_back_to_fabric_only_with_a_fabric_identity():
+    import json
+
+    from bioradar.adapters.weknora import identity
+
+    locator = {"source_instance": "x", "source_id": "clinicaltrials", "source_record_id": "NCT07500001"}
+    assert identity({"metadata": {"raw_locator": json.dumps(locator)}}) == ("clinicaltrials", "NCT07500001")
+    assert identity({"metadata": {"source_id": "who_don", "source_record_id": "D1"}}) == ("who_don", "D1")
+    assert identity({"metadata": {"content": "---\nsource_site: chictr\n---"}}) is None  # crawler upload

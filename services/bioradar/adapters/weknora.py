@@ -2,20 +2,32 @@
 
 A hit is only a pointer: the text is re-read from Fabric at the fixed version."""
 
+import json
+
 import httpx
 
 from bioradar.config import Settings
 
 
 def identity(hit: dict) -> tuple[str, str] | None:
-    """(source_id, source_record_id) published by Fabric into the knowledge metadata, if present."""
+    """(source_id, source_record_id) published by Fabric into the knowledge metadata, if present.
+    The weknora-kdd bridge keeps it as a JSON string in raw_locator. Documents uploaded without a
+    Fabric identity (the old crawler knowledge base) have none and are skipped."""
     for holder in (
         hit.get("metadata"),
         hit.get("custom_metadata"),
         (hit.get("knowledge") or {}).get("metadata"),
     ):
-        if isinstance(holder, dict) and holder.get("source_id") and holder.get("source_record_id"):
+        if not isinstance(holder, dict):
+            continue
+        if holder.get("source_id") and holder.get("source_record_id"):
             return holder["source_id"], holder["source_record_id"]
+        try:
+            locator = json.loads(holder.get("raw_locator") or "{}")
+        except (TypeError, ValueError):
+            continue
+        if isinstance(locator, dict) and locator.get("source_id") and locator.get("source_record_id"):
+            return locator["source_id"], locator["source_record_id"]
     return None
 
 
