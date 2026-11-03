@@ -1518,6 +1518,7 @@ class Run:
         return body
 
     def service(self, operation, body):
+        self.upstream_still_readable()  # every BioCheck request carries the scope built from the earlier report
         body["max_llm_calls"] = max(1, self.calls_left() - 1)
         response = services.biocheck(self.s, operation, body)
         self.log(response.pop("llm_calls", []), "biocheck")

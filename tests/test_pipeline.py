@@ -946,6 +946,24 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
     old.p.pop("used_previous", None)
     with pytest.raises(Failed):
         old.report_input()
+    # Codex r44: revoked while BioCheck generated the draft: verify/revise are not sent with the same scope
+    fabric.listed = ["gone", "external_archive"]
+    writer = Run(analyses.get(child.id), settings(), fabric=fabric)
+    writer.stage = "report"
+    sent = []
+
+    def biocheck(s, operation, body):
+        sent.append(operation)
+        if operation == "generate":
+            fabric.listed = ["external_archive"]
+        return empty_report(s, operation, body)
+
+    monkeypatch.setattr(services, "biocheck", biocheck)
+    body = writer.report_input()
+    writer.report_input = lambda: dict(body, evidence=[{"ref": "E1"}])
+    with pytest.raises(Failed) as stopped:
+        writer.report()
+    assert stopped.value.code == "upstream_access_withdrawn" and sent == ["generate"]
 
 
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
