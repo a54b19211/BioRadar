@@ -66,6 +66,12 @@ def test_a_refusal_that_outlasts_the_pauses_is_reported(monkeypatch):
     assert parsed is None and call["error"] == "http_error:503" and call["requests"] == 4
 
 
+def test_a_200_without_choices_is_an_error_not_a_crash(monkeypatch):
+    monkeypatch.setattr(llm, "post", lambda s, body, call: None)
+    parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
+    assert parsed is None and call["error"] == "response_without_choices"
+
+
 def test_api_requires_login_and_validates_cutoff():
     client = TestClient(app)
     assert client.get("/api/options").status_code == 401

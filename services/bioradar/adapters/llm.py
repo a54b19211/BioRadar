@@ -98,6 +98,13 @@ def chat_json(
         except httpx.HTTPError as exc:
             call["error"] = f"http_error:{getattr(getattr(exc, 'response', None), 'status_code', '')}"
             break
+        except ValueError:
+            call["error"] = "response_not_json"
+            break
+        if not isinstance(data, dict) or not data.get("choices"):
+            # seen 2026-11-03: HTTP 200 with a null body; not resent, it may have been billed
+            call["error"] = "response_without_choices"
+            break
         choice = data["choices"][0]
         content = choice["message"].get("content") or ""
         call["finish_reason"] = choice.get("finish_reason")
