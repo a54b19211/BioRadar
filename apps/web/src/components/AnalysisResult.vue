@@ -34,6 +34,9 @@ const mechanismParts = computed(() =>
     <el-table :data="assessment.judgments">
       <el-table-column label="问题" prop="question" min-width="160" />
       <el-table-column label="结论" prop="conclusion" min-width="220" />
+      <el-table-column label="核验" width="100">
+        <template #default="{ row }"><StatusTag kind="judgmentCheck" :value="row.check" /></template>
+      </el-table-column>
       <el-table-column label="置信" width="90">
         <template #default="{ row }"><StatusTag kind="confidence" :value="row.confidence" /></template>
       </el-table-column>

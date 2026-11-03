@@ -181,9 +181,11 @@ def export(analysis_id: str):
     assessment = result.get("assessment") or {}
     if assessment.get("judgments"):
         lines += ["", "## 判断", ""]
+        checked = {"supported": "核验通过", "contradicted": "与原文矛盾", "unverified": "未核验通过"}
         for j in assessment["judgments"]:
             lines.append(
-                f"- {j['question']}：{j['conclusion']}（置信 {j['confidence']}，真实性 {j['credibility']}，"
+                f"- {j['question']}：{j['conclusion']}（{checked.get(j.get('check'), '未核验')}，"
+                f"置信 {j['confidence']}，真实性 {j['credibility']}，"
                 f"后果 {j['consequence']}，优先级 {j['priority']}）待证实：{j['unproven']}"
             )
     return "\n".join(lines)

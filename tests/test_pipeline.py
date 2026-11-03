@@ -131,11 +131,15 @@ def test_analysis_end_to_end(monkeypatch):
     assert generate["analysis_results"][0]["id"] == "A1"
     # Judgment grounds keep only refs the verified report actually cites.
     assert result["assessment"]["judgments"][0]["grounds"] == ["E2"]
+    # The conclusion itself goes back to BioCheck; with no supported sentence it is capped.
+    assert biocheck[-1][1]["draft"] == "有限人群内的重要进展[E2]。"
+    judgment = result["assessment"]["judgments"][0]
+    assert (judgment["check"], judgment["confidence"]) == ("unverified", "possible")
     # Structured stages run with thinking off (the default of chat_json).
     assert all(not options.get("thinking") for _, _, options in sent)
     assert (
-        result["usage"]["llm_calls"] == 1 + 2 + 1 + 1 + 2
-    )  # plan, two reads, calculate, assess, BioCheck x2
+        result["usage"]["llm_calls"] == 1 + 2 + 1 + 1 + 3
+    )  # plan, two reads, calculate, assess, BioCheck x3 (generate, verify, judgments)
     assert result["usage"]["requests"] == result["usage"]["llm_calls"] + 1
 
 
@@ -415,4 +419,36 @@ def test_hypothesis_grades_are_capped_by_verified_facts(monkeypatch):
         ("H2", "possible"),
         ("H3", "possible"),
         ("H4", "possible"),
+    ]
+
+
+def test_a_judgment_that_contradicts_the_evidence_is_flagged(monkeypatch):
+    """after-C: the report said 18 vs 17 accepted and revenue up, the judgment said all fell."""
+    row = analyses.create(question="衡简 H1 经营如何？", direction="business", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([]))
+    judgments = [
+        schemas.Judgment(
+            question=q, conclusion=c, confidence="probable", credibility="high",
+            consequence="medium", priority="medium", grounds=["E2"],
+        ).model_dump()
+        for q, c in [("验收", "验收台数增加到18台"), ("收入", "验收、收入、回款均同比下降")]
+    ]
+    drafts = []
+
+    def biocheck(s, operation, body):
+        drafts.append(body["draft"])
+        first, second = body["draft"].split("\n")
+        claims = [
+            {"start": 0, "verdict": "supported", "citations": ["E2"]},
+            {"start": len(first) + 1, "verdict": "contradicted", "citations": ["E2"]},
+        ]
+        return {"status": "FAIL", "claims": claims, "llm_calls": []}
+
+    monkeypatch.setattr(services, "biocheck", biocheck)
+    monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
+    run.check_judgments(judgments)
+    assert drafts == ["验收台数增加到18台[E2]。\n验收、收入、回款均同比下降[E2]。"]
+    assert [(j["check"], j["confidence"]) for j in judgments] == [
+        ("supported", "probable"),
+        ("contradicted", "insufficient"),
     ]

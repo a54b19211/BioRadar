@@ -37,6 +37,7 @@ export interface Judgment {
   priority: Level | "urgent"; // 核实优先级
   grounds: string[]; // evidence refs, e.g. "E2"
   unproven: string;
+  check?: "supported" | "contradicted" | "unverified"; // BioCheck on the conclusion; absent before T-13
 }
 
 export interface Check {

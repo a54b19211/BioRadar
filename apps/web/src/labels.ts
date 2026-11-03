@@ -38,6 +38,7 @@ const maps = {
     confirmed: "已证实",
   },
   level: { low: "低", medium: "中", high: "高", urgent: "紧急" },
+  judgmentCheck: { supported: "核验通过", contradicted: "与原文矛盾", unverified: "未核验通过" },
   checkStatus: { open: "未查清", answered: "已回答", conflict: "有冲突" },
   mechanismStatus: { not_run: "未运行", failed: "失败", completed: "已完成" },
   action: {
@@ -91,6 +92,9 @@ const colors: Record<string, TagType> = {
   NOT_RUN: "info",
   answered: "success",
   conflict: "danger",
+  supported: "success",
+  contradicted: "danger",
+  unverified: "warning",
   // alert, priority, confidence, topic state
   none: "info",
   normal: "info",

@@ -3,6 +3,7 @@
 Progress is saved after every stage and after every investigation action. A restarted job continues
 from the saved stage; a model call that was in flight when the worker died is sent again."""
 
+import bisect
 import re
 from datetime import datetime
 from decimal import Decimal
@@ -1053,8 +1054,44 @@ class Run:
             if cap != h.level:
                 h.reason = f"评估给 {h.level}，已核验报告只撑得住 {cap}"
                 h.level = cap
-        self.p["assessment"] = result.model_dump()
+        assessment = result.model_dump()
+        self.check_judgments(assessment["judgments"])
+        self.p["assessment"] = assessment
         self.watch()
+
+    def check_judgments(self, judgments):
+        """Judgments are written after the report, so BioCheck verifies each conclusion with its grounds
+        against the same evidence (one line per judgment). check: supported / contradicted /
+        unverified; a contradicted conclusion drops to insufficient, any other unsupported one to at
+        most possible. If BioCheck fails, nothing is verified."""
+        if not judgments:
+            return
+        lines, starts, at = [], [], 0
+        for j in judgments:
+            line = j["conclusion"].rstrip("。") + "".join(f"[{g}]" for g in j["grounds"]) + "。"
+            lines.append(line)
+            starts.append(at)
+            at += len(line) + 1
+        verdicts = [[] for _ in judgments]
+        try:
+            review = self.service("verify", dict(self.report_input(), draft="\n".join(lines)))
+            for c in review["claims"]:
+                n = bisect.bisect_right(starts, c["start"]) - 1
+                if n >= 0 and c["verdict"] != "no_claim":
+                    verdicts[n].append(c["verdict"])
+        except ServiceError as exc:
+            self.log(exc.calls, "biocheck")
+            self.note(f"judgments_biocheck_{exc.code}")
+        order = ["insufficient", "possible", "probable", "confirmed"]
+        for j, found in zip(judgments, verdicts):
+            if "contradicted" in found:
+                j["check"], cap = "contradicted", "insufficient"
+            elif found and all(v == "supported" for v in found):
+                j["check"], cap = "supported", j["confidence"]
+            else:
+                j["check"], cap = "unverified", "possible"
+            if order.index(j["confidence"]) > order.index(cap):
+                j["confidence"] = cap
 
     def watch(self):
         """A topic analysis leaves its hypotheses' confirming and refuting signals on the topic, so the
