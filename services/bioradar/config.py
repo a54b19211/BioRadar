@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     # Monitoring and topics.
     monitor_enabled: bool = False
     monitor_seconds: int = 30
+    monitor_max_records: int = 100  # per live round (about 10 triage calls); the rest waits in the feed
     auto_analysis: bool = False
     auto_analyses_per_hour: int = 6  # live monitoring only
     topic_cool_days: int = 7

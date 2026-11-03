@@ -36,33 +36,51 @@ def parse_time(value) -> datetime:
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
+def unseen(session, items):
+    """Items whose version has not been observed yet; a failed triage counts as not observed.
+    Only this page's versions are queried, so a round costs the same however long the history is."""
+    if not items:
+        return []
+    done = set(
+        session.scalars(
+            select(db.Observation.version_id).where(
+                db.Observation.version_id.in_([d["version_id"] for d in items]),
+                db.Observation.reason != "triage_failed",
+            )
+        )
+    )
+    return [d for d in items if d["version_id"] not in done]
+
+
 def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None):
-    """Live: the change feed after the saved cursor.
-    Replay: everything visible at the cutoff that was not observed yet."""
+    """Live: the change feed after the saved cursor, at most monitor_max_records per round; the rest
+    stays in the feed (backlog) and the cursor only moves past what this round takes.
+    Replay: everything visible at the cutoff that was not observed yet.
+    Returns (docs, cursor ends, backlog)."""
     sources = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
+    live = cutoff is None
+    room = s.monitor_max_records if live else None
     docs, ends = [], {}
     with db.session() as session:
-        rows = session.execute(
-            select(
-                db.Observation.source,
-                db.Observation.record_id,
-                db.Observation.version_id,
-                db.Observation.reason,
-            ).where(db.Observation.is_demo == is_demo)
-        ).all()
-        seen = {r.version_id for r in rows if r.reason != "triage_failed"}
         # Records whose triage call failed are triaged again (live mode: the change cursor moved on).
         failed = {}
-        for r in rows:
-            if r.reason == "triage_failed" and r.source in sources:  # same source set as this round
-                failed.setdefault(r.source, []).append(r.record_id)
+        for source, record_id in session.execute(
+            select(db.Observation.source, db.Observation.record_id)
+            .where(
+                db.Observation.is_demo == is_demo,
+                db.Observation.reason == "triage_failed",
+                db.Observation.source.in_(sources),  # same source set as this round
+            )
+            .limit(s.monitor_max_records)
+        ):
+            failed.setdefault(source, []).append(record_id)
         for source, ids in failed.items():
             items, _ = fabric.search(
                 source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids)
             )
-            docs += [d for d in items if d["version_id"] not in seen]
+            docs += unseen(session, items)
         for source in sources:
-            if cutoff is None:
+            if live:
                 cursor = session.get(db.Cursor, (source, is_demo))
                 if cursor is None:
                     # A real feed starts at its current end (legacy_documents alone holds 600k records);
@@ -71,9 +89,11 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                     cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
                     session.add(cursor)
                 at = cursor.after_seq
-                while True:
-                    items, after = fabric.changes(source, is_demo=is_demo, after=at)
-                    docs += [d for d in items if d["version_id"] not in seen]
+                while len(docs) < room:
+                    items, after = fabric.changes(
+                        source, is_demo=is_demo, after=at, limit=min(100, room - len(docs))
+                    )
+                    docs += unseen(session, items)
                     if after == at:
                         break
                     at = after
@@ -84,11 +104,12 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                     items, page = fabric.search(
                         source, (), is_demo=is_demo, cutoff=cutoff, cursor=page, limit=100
                     )
-                    docs += [d for d in items if d["version_id"] not in seen]
+                    docs += unseen(session, items)
                     if not page:
                         break
     unique = {d["version_id"]: d for d in docs}
-    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends
+    backlog = live and len(docs) >= room
+    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, backlog
 
 
 def triage(s: Settings, docs, topics):
@@ -324,7 +345,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     """One monitoring round. `clock` moves topic states during blank periods with no new records."""
     s = settings()
     fabric = fabric or Fabric(s)
-    docs, ends = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
+    docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
     reasons = observe(s, docs, is_demo=is_demo) if docs else {}
     with db.session() as session:  # a round that died before this line reads the same records again
         for source, at in ends.items():
@@ -333,7 +354,13 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     clock = clock or cutoff or latest or db.now()
     reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
     created = start_analyses(s, is_demo=is_demo, cutoff=cutoff) if s.auto_analysis else []
-    return {"records": len(docs), "clock": clock.isoformat(), "topics": reasons, "analyses": created}
+    return {
+        "records": len(docs),
+        "backlog": backlog,  # more new records are waiting in the feed than one round takes
+        "clock": clock.isoformat(),
+        "topics": reasons,
+        "analyses": created,
+    }
 
 
 def topic_view(topic: db.Topic, *, events=False) -> dict:

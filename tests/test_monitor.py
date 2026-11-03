@@ -217,5 +217,18 @@ def test_a_failed_triage_of_an_excluded_source_is_not_retried(monkeypatch):
             )
         )
     fabric = FakeFabric([record("L9", "旧文档", "x", source="legacy_documents", version="v-L9")])
-    docs, _ = monitor.new_documents(fabric, s, is_demo=False, cutoff=None)
+    docs, _, _ = monitor.new_documents(fabric, s, is_demo=False, cutoff=None)
     assert docs == []
+
+
+def test_a_flood_is_triaged_a_bounded_amount_per_round_without_loss(monkeypatch):
+    from bioradar.config import settings
+
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", triage_by_title(sent))
+    monkeypatch.setattr(settings(), "monitor_max_records", 100)
+    fabric = FakeFabric([record(f"F{i}", f"噪声{i}", "x", available=DAY.format(3)) for i in range(250)])
+    rounds = [monitor.tick(is_demo=True, fabric=fabric) for _ in range(4)]
+    assert [r["records"] for r in rounds] == [100, 100, 50, 0]
+    assert [r["backlog"] for r in rounds] == [True, True, False, False]
+    assert len(sent) == 25  # 250 records in batches of 10, each sent once
