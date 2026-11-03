@@ -1,5 +1,6 @@
 """Data-Fabric history API (徐子雯). The radar only reads fixed versions; it never writes Fabric tables."""
 
+import json
 import time
 import uuid
 from datetime import UTC, datetime
@@ -24,6 +25,31 @@ def _time(value):
 
 
 UNVERIFIED_KINDS = {"social_media", "repost"}
+NOT_RESEARCH = ("editorial", "letter", "comment", "news", "erratum", "retraction")
+RESEARCH = {"research-article", "journal article", "clinical trial", "randomized controlled trial", "case reports"}
+
+
+def native_kind(record: dict):
+    """(material kind, text level) from the source's own metadata, for literature records that come
+    without document_evidence. Europe PMC keeps its publication types in pubTypeList and the read text
+    is the abstract. Unknown stays None; nothing is promoted to full text."""
+    try:
+        raw = json.loads(record.get("raw_content") or "{}")
+    except (TypeError, ValueError):
+        return None, None
+    if not isinstance(raw, dict):
+        return None, None
+    types = [str(t).lower() for t in ((raw.get("pubTypeList") or {}).get("pubType") or [])]
+    kind = None
+    if any("review" in t for t in types):
+        kind = "review"
+    elif any(any(n in t for n in NOT_RESEARCH) for t in types):
+        kind = None
+    elif any("conference" in t or "meeting" in t for t in types):
+        kind = "conference_abstract"
+    elif any(t in RESEARCH for t in types):
+        kind = "primary_research"
+    return kind, ("abstract" if raw.get("abstractText") else None)
 
 
 def document(record: dict) -> dict:
@@ -34,7 +60,8 @@ def document(record: dict) -> dict:
     (deletion, official denial, moderation, access failure)."""
     proof = record.get("availability_proof") or {}
     evidence = record.get("document_evidence") or {}
-    kind = evidence.get("material_kind") or record.get("record_kind")
+    native, level = native_kind(record) if not evidence else (None, None)
+    kind = evidence.get("material_kind") or native or record.get("record_kind")
     independence = evidence.get("source_independence") or {}
     return {
         "source": record["source_id"],
@@ -47,7 +74,7 @@ def document(record: dict) -> dict:
         "published_at": _time(record.get("source_published_at")) or _time(record.get("event_time")),
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
-        "text_level": evidence.get("text_level"),
+        "text_level": evidence.get("text_level") or level,
         "verified": evidence.get("statement_status") != "unverified_report" and kind not in UNVERIFIED_KINDS,
         "relations": [
             {

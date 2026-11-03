@@ -105,3 +105,24 @@ def test_source_status_keeps_collection_state_new_records_and_publication_apart(
     assert rows["who_don"]["latest_published_at"] == "2026-10-19"
     assert rows["who_don"]["collection"]["state"] == "unknown"
     assert body["daily_auto_tokens"] == s.daily_auto_tokens
+
+
+def test_a_literature_record_without_document_evidence_keeps_its_own_publication_type():
+    import json
+
+    from bioradar.adapters.fabric import document
+
+    def epmc(types, evidence=None):
+        raw = {"pubTypeList": {"pubType": types}, "abstractText": "We performed ..."}
+        rec = {"source_id": "europe_pmc", "source_record_id": "MED:1", "version_id": "v", "is_demo": False,
+               "record_kind": "document", "raw_content": json.dumps(raw)}
+        if evidence:
+            rec["document_evidence"] = evidence
+        return document(rec)
+
+    research = epmc(["research-article", "Journal Article"])
+    assert (research["material_kind"], research["text_level"]) == ("primary_research", "abstract")
+    assert epmc(["Editorial", "Journal Article"])["material_kind"] == "document"  # not research
+    assert epmc(["Review", "Journal Article"])["material_kind"] == "review"
+    stated = epmc(["research-article"], {"material_kind": "news_report", "text_level": "full_text"})
+    assert (stated["material_kind"], stated["text_level"]) == ("news_report", "full_text")  # Fabric wins
