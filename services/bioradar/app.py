@@ -286,6 +286,12 @@ def usage():
             .limit(90)
         ).all()
     return [
-        {"day": str(day), "service": service, "calls": calls, "requests": int(requests or 0), "tokens": int(tokens or 0)}
+        {
+            "day": str(day),
+            "service": service,
+            "calls": calls,
+            "requests": int(requests or 0),
+            "tokens": int(tokens or 0),
+        }
         for day, service, calls, requests, tokens in rows
     ]
