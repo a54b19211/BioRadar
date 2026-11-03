@@ -40,7 +40,7 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     """Live: the change feed after the saved cursor.
     Replay: everything visible at the cutoff that was not observed yet."""
     sources = s.demo_sources if is_demo else s.sources
-    docs = []
+    docs, ends = [], {}
     with db.session() as session:
         rows = session.execute(
             select(
@@ -70,12 +70,14 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                     start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
                     cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
                     session.add(cursor)
+                at = cursor.after_seq
                 while True:
-                    items, after = fabric.changes(source, is_demo=is_demo, after=cursor.after_seq)
+                    items, after = fabric.changes(source, is_demo=is_demo, after=at)
                     docs += [d for d in items if d["version_id"] not in seen]
-                    if after == cursor.after_seq:
+                    if after == at:
                         break
-                    cursor.after_seq = after
+                    at = after
+                ends[source] = at  # saved by tick() only after these records were triaged
             else:
                 page = None
                 while True:
@@ -86,7 +88,7 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                     if not page:
                         break
     unique = {d["version_id"]: d for d in docs}
-    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"]))
+    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends
 
 
 def triage(s: Settings, docs, topics):
@@ -203,12 +205,14 @@ def observe(s: Settings, docs, *, is_demo: bool):
                         session, topic, "rising", at, reason="new_related_record", record=doc["record_id"]
                     )
                     wake[topic.id] = "awakened"
+                    owe(topic, "awakened", at)
                 topic.last_activity_at = max(parse_time(topic.last_activity_at), at)
                 topic.heat += WEIGHT[alert]
                 if ALERTS.index(alert) > ALERTS.index(topic.alert):
                     topic.alert = alert
                     if alert in {"important", "urgent"}:
                         wake[topic.id] = f"alert_{alert}"
+                        owe(topic, f"alert_{alert}", at)
                 if item and item.closure:
                     topic.closed = True
                 event(
@@ -221,6 +225,14 @@ def observe(s: Settings, docs, *, is_demo: bool):
                     closure=bool(item and item.closure),
                 )
     return wake
+
+
+def owe(topic, reason, at):
+    """Record, in the same transaction as the change, that this topic is owed an analysis."""
+    if topic.pending_reason is None:
+        topic.pending_reason, topic.pending_since = reason, at
+    elif reason not in topic.pending_reason.split("+"):
+        topic.pending_reason = (topic.pending_reason + "+" + reason)[:200]
 
 
 def set_state(session, topic, state, at, **detail):
@@ -241,6 +253,7 @@ def advance(s: Settings, clock: datetime, *, is_demo: bool):
             elif topic.state == "emerging" and (count >= 3 or topic.alert in {"important", "urgent"}):
                 set_state(session, topic, "rising", clock, reason="records_or_alert", records=count)
                 rising[topic.id] = "rising"
+                owe(topic, "rising", clock)
             elif topic.state == "rising" and idle >= timedelta(days=s.topic_cool_days):
                 set_state(session, topic, "cooling", clock, reason="no_new_records", idle_days=idle.days)
             elif topic.state == "cooling" and idle >= timedelta(days=s.topic_dormant_days):
@@ -248,22 +261,28 @@ def advance(s: Settings, clock: datetime, *, is_demo: bool):
     return rising
 
 
-def start_analyses(s: Settings, reasons: dict, *, cutoff: datetime | None):
-    """One automatic analysis per topic that started rising, awoke or raised its alert.
-    Live monitoring is capped per hour; replays are not."""
+def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
+    """One automatic analysis per topic that is owed one (started rising, awoke or raised its alert),
+    most urgent first. Live monitoring is capped per hour; what the cap holds back stays owed."""
     created = []
     live = cutoff is None
-    if live:
-        with db.session() as session:
-            recent = session.scalar(
-                select(func.count())
-                .select_from(db.Analysis)
-                .where(db.Analysis.trigger == "topic", db.Analysis.created_at > db.now() - timedelta(hours=1))
+    with db.session() as session:
+        owed = list(
+            session.scalars(
+                select(db.Topic).where(db.Topic.is_demo == is_demo, db.Topic.pending_reason.is_not(None))
             )
-    for topic_id, reason in reasons.items():
+        )
+        owed.sort(key=lambda t: (-ALERTS.index(t.alert), parse_time(t.pending_since)))
+        recent = session.scalar(
+            select(func.count())
+            .select_from(db.Analysis)
+            .where(db.Analysis.trigger == "topic", db.Analysis.created_at > db.now() - timedelta(hours=1))
+        )
+    for owed_topic in owed:
+        topic_id, reason = owed_topic.id, owed_topic.pending_reason
         if live and recent + len(created) >= s.auto_analyses_per_hour:
-            log.info("auto analysis skipped (hourly cap): topic %s %s", topic_id, reason)
-            continue
+            log.info("auto analysis held (hourly cap): %d topics still owed", len(owed) - len(created))
+            break
         with db.session() as session:
             topic = session.get(db.Topic, topic_id)
             records = list(
@@ -291,6 +310,7 @@ def start_analyses(s: Settings, reasons: dict, *, cutoff: datetime | None):
         with db.session() as session:
             topic = session.get(db.Topic, topic_id)
             topic.last_analysis_id = row.id
+            topic.pending_reason = topic.pending_since = None
             event(session, topic, cutoff or db.now(), "analysis", analysis_id=row.id, reason=reason)
         created.append(row.id)
     return created
@@ -300,12 +320,15 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     """One monitoring round. `clock` moves topic states during blank periods with no new records."""
     s = settings()
     fabric = fabric or Fabric(s)
-    docs = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
+    docs, ends = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
     reasons = observe(s, docs, is_demo=is_demo) if docs else {}
+    with db.session() as session:  # a round that died before this line reads the same records again
+        for source, at in ends.items():
+            session.get(db.Cursor, (source, is_demo)).after_seq = at
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
     reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
-    created = start_analyses(s, reasons, cutoff=cutoff) if s.auto_analysis else []
+    created = start_analyses(s, is_demo=is_demo, cutoff=cutoff) if s.auto_analysis else []
     return {"records": len(docs), "clock": clock.isoformat(), "topics": reasons, "analyses": created}
 
 
@@ -323,6 +346,7 @@ def topic_view(topic: db.Topic, *, events=False) -> dict:
         "first_seen_at": topic.first_seen_at.isoformat(),
         "last_activity_at": topic.last_activity_at.isoformat(),
         "last_analysis_id": topic.last_analysis_id,
+        "pending_reason": topic.pending_reason,
         "summary": topic.summary,
     }
     if events:

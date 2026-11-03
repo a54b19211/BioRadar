@@ -726,7 +726,9 @@ class Run:
                 "title": r.title,
                 "text": r.text,
                 **MECH_KIND[r.material_kind],
-                "text_level": MECH_LEVEL.get(r.meta.get("text_level"), "excerpt"),
+                "text_level": "excerpt"
+                if r.meta.get("window") == "selected"
+                else MECH_LEVEL.get(r.meta.get("text_level"), "excerpt"),
             }
             for r in self.evidence_rows()
             if r.ref in cited and r.material_kind in MECH_KIND
@@ -746,6 +748,7 @@ class Run:
                 },
             )
         except ServiceError as exc:
+            self.log(exc.calls, "mechevidence")
             self.note(f"mechevidence_{exc.code}")
             self.p["mechanism_result"] = {"status": "failed", "reason": exc.code}
             return
@@ -877,6 +880,7 @@ class Run:
                 report.update(draft=revised["draft"], revised=True, changed=revised["changed"])
                 review = self.service("verify", dict(body, draft=report["draft"]))
         except ServiceError as exc:
+            self.log(exc.calls, "biocheck")
             report["reason"] = f"biocheck_{exc.code}"
             self.note(report["reason"])
             return

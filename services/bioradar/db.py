@@ -120,6 +120,9 @@ class Topic(Base):
     last_activity_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     last_analysis_id: Mapped[str | None] = mapped_column(String(36))
     summary: Mapped[str] = mapped_column(Text, default="")
+    # An automatic analysis that is owed but not created yet (hourly cap, or the round died first).
+    pending_reason: Mapped[str | None] = mapped_column(String(200))
+    pending_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Observation(Base):

@@ -54,3 +54,22 @@ def test_api_requires_login_and_validates_cutoff():
         json={"question": "历史回放问题", "direction": "public_health", "cutoff": "2019-12-31T00:00:00"},
     )
     assert response.status_code == 422
+
+
+def test_a_failed_service_call_keeps_the_model_calls_it_paid_for(monkeypatch):
+    import httpx
+
+    from bioradar.adapters import services
+    from bioradar.config import settings
+
+    calls = [{"stage": "generate", "model": "m", "usage": {"total_tokens": 900}}]
+    response = httpx.Response(502, json={"error_code": "model_failed", "llm_calls": calls})
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: response)
+    s = settings()
+    monkeypatch.setattr(s, "biocheck_url", "http://biocheck.invalid")
+    try:
+        services.biocheck(s, "generate", {})
+    except services.ServiceError as exc:
+        assert exc.code == "model_failed" and exc.calls == calls
+    else:
+        raise AssertionError("expected ServiceError")

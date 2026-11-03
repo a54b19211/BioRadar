@@ -10,9 +10,10 @@ from bioradar.config import Settings
 
 
 class ServiceError(Exception):
-    def __init__(self, service: str, code: str, message: str = ""):
+    def __init__(self, service: str, code: str, message: str = "", calls=()):
         super().__init__(f"{service}: {code} {message}".strip())
         self.service, self.code = service, code
+        self.calls = list(calls)  # model calls the service made before failing; still billed
 
 
 def _post(service, url, token, path, body, timeout):
@@ -35,6 +36,7 @@ def _post(service, url, token, path, body, timeout):
             service,
             error.get("error_code") or f"http_{response.status_code}",
             str(error.get("message", ""))[:300],
+            error.get("llm_calls") or (),
         )
     return response.json()
 

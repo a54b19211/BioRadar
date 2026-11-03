@@ -118,3 +118,39 @@ def test_a_real_feed_is_monitored_from_its_current_end(monkeypatch):
     assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 0
     fabric.docs += FakeFabric([record("N1", "两家医院确认7例", "x", source="who_don")]).docs
     assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1
+
+
+def test_a_round_that_dies_before_triage_reads_the_same_records_again(monkeypatch):
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    fabric = FakeFabric([record("D1", "两家医院确认7例", "x", available=DAY.format(3))])
+    real = monitor.observe
+
+    def dies(*args, **kwargs):
+        raise RuntimeError("worker killed")
+
+    monkeypatch.setattr(monitor, "observe", dies)
+    try:
+        monitor.tick(is_demo=True, fabric=fabric)
+    except RuntimeError:
+        pass
+    monkeypatch.setattr(monitor, "observe", real)
+    assert monitor.tick(is_demo=True, fabric=fabric)["records"] == 1
+    assert monitor.tick(is_demo=True, fabric=fabric)["records"] == 0
+
+
+def test_an_analysis_held_back_by_the_hourly_cap_is_created_later_and_only_once(monkeypatch):
+    from bioradar.config import settings
+    from bioradar.research import analyses
+
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: None)
+    s = settings()
+    monkeypatch.setattr(s, "auto_analysis", True)
+    monkeypatch.setattr(s, "auto_analyses_per_hour", 0)
+    fabric = FakeFabric([record("P1", "两家医院确认7例", "x", available=DAY.format(3))])
+    assert monitor.tick(is_demo=True, fabric=fabric)["analyses"] == []
+    assert _topics()[0]["pending_reason"]
+    monkeypatch.setattr(s, "auto_analyses_per_hour", 6)
+    assert len(monitor.tick(is_demo=True, fabric=fabric)["analyses"]) == 1  # no new record needed
+    assert monitor.tick(is_demo=True, fabric=fabric)["analyses"] == []
+    assert _topics()[0]["pending_reason"] is None
