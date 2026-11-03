@@ -283,6 +283,8 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
         if live and recent + len(created) >= s.auto_analyses_per_hour:
             log.info("auto analysis held (hourly cap): %d topics still owed", len(owed) - len(created))
             break
+        # The new analysis and the cleared debt commit together; a round that dies before dispatch
+        # leaves a queued row that analyses.recover() picks up, never a second analysis.
         with db.session() as session:
             topic = session.get(db.Topic, topic_id)
             records = list(
@@ -293,25 +295,25 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None):
                     .limit(8)
                 )
             )
-        question = (
-            f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
-            "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
-        )
-        row = analyses.create(
-            question=question,
-            direction=topic.direction,
-            is_demo=topic.is_demo,
-            cutoff=cutoff.isoformat() if cutoff else None,
-            trigger="topic",
-            topic_id=topic.id,
-            parent_id=topic.last_analysis_id,
-            seed_records=[{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records],
-        )
-        with db.session() as session:
-            topic = session.get(db.Topic, topic_id)
+            question = (
+                f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
+                "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
+            )
+            row = analyses.create(
+                question=question,
+                direction=topic.direction,
+                is_demo=topic.is_demo,
+                cutoff=cutoff.isoformat() if cutoff else None,
+                trigger="topic",
+                topic_id=topic.id,
+                parent_id=topic.last_analysis_id,
+                seed_records=[{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records],
+                session=session,
+            )
             topic.last_analysis_id = row.id
             topic.pending_reason = topic.pending_since = None
             event(session, topic, cutoff or db.now(), "analysis", analysis_id=row.id, reason=reason)
+        analyses.dispatch(row.id)
         created.append(row.id)
     return created
 

@@ -3,6 +3,7 @@
 import hashlib
 import json
 import traceback
+from contextlib import nullcontext
 from datetime import datetime, timedelta
 
 from redis import Redis
@@ -48,7 +49,10 @@ def create(
     scope_record_ids=(),
     topic_id=None,
     enqueue=True,
+    session=None,
 ) -> db.Analysis:
+    """With `session`, the row is added to the caller's transaction and not queued: the caller
+    commits it together with its own changes and then calls dispatch()."""
     s = settings()
     if direction not in DIRECTIONS:
         raise InvalidInput("direction")
@@ -67,7 +71,9 @@ def create(
         "scope_record_ids": list(dict.fromkeys(scope_record_ids)),
         "budget": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
     }
-    with db.session() as session:
+    if session is not None:
+        enqueue = False
+    with nullcontext(session) if session is not None else db.session() as session:
         if investigation_id is None:
             investigation = db.Investigation(
                 workspace_id=s.workspace_id,
@@ -106,6 +112,7 @@ def create(
             state="queued",
         )
         session.add(row)
+        session.flush()
     if enqueue:
         dispatch(row.id)
     return row

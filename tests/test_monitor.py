@@ -154,3 +154,26 @@ def test_an_analysis_held_back_by_the_hourly_cap_is_created_later_and_only_once(
     assert len(monitor.tick(is_demo=True, fabric=fabric)["analyses"]) == 1  # no new record needed
     assert monitor.tick(is_demo=True, fabric=fabric)["analyses"] == []
     assert _topics()[0]["pending_reason"] is None
+
+
+def test_a_round_that_dies_after_creating_the_analysis_does_not_create_another(monkeypatch):
+    from sqlalchemy import func, select
+
+    from bioradar import db
+    from bioradar.config import settings
+    from bioradar.research import analyses
+
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: (_ for _ in ()).throw(RuntimeError("killed")))
+    s = settings()
+    monkeypatch.setattr(s, "auto_analysis", True)
+    fabric = FakeFabric([record("K1", "两家医院确认7例", "x", available=DAY.format(3))])
+    try:
+        monitor.tick(is_demo=True, fabric=fabric)  # analysis and cleared debt committed, then the process dies
+    except RuntimeError:
+        pass
+    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
+    assert monitor.tick(is_demo=True, fabric=fabric)["analyses"] == []
+    with db.session() as session:
+        assert session.scalar(select(func.count()).select_from(db.Analysis)) == 1
+    assert analyses  # queued row is left for analyses.recover()
