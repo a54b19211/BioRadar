@@ -919,13 +919,20 @@ class Run:
         # a newly found object is followed up by name (later updates of that event); then the reader's terms,
         # worth more when this record said something decisive than when it was only background
         for name in dict.fromkeys(
-            f["object"] for f in new_facts if f["object"] and f["object"] not in found_before_names
+            f["object"]
+            for f in new_facts
+            if f["object"]
+            and f["object"] not in found_before_names
             and f["object"] not in self.p.get("objects", [])
         ):
             self.add_query([name], hit["checks"] or open_ids, value=3, origin=f"object:{ref}")
         for terms in reading.new_terms[:2]:
-            self.add_query(clean_terms(terms), hit["checks"] or open_ids, value=2 if decisive else 0,
-                           origin=f"read:{ref}")
+            self.add_query(
+                clean_terms(terms),
+                hit["checks"] or open_ids,
+                value=2 if decisive else 0,
+                origin=f"read:{ref}",
+            )
         after = {c["id"] for c in self.p["checks"] if c["status"] != "open"}
         return min(1.0, len(after - before) / max(1, len(candidate["target_checks"]))), ref
 
@@ -956,7 +963,9 @@ class Run:
         if len(self.p["queries"]) < MAX_QUERIES:
             self.p["queries"].append(query)
             return
-        ran = {tuple(a["args"].get("terms", ())) for a in self.p["actions"] if a["kind"] in {"search", "fetch"}}
+        ran = {
+            tuple(a["args"].get("terms", ())) for a in self.p["actions"] if a["kind"] in {"search", "fetch"}
+        }
         waiting = [
             (q.get("value", 1), i)
             for i, q in enumerate(self.p["queries"])

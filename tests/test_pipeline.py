@@ -424,10 +424,14 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
     events had nothing to hang on. Plan-stage guesses still never get in this way."""
     from bioradar.research.schemas import ReadFact
 
-    row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False)
+    row = analyses.create(
+        question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False
+    )
     run = Run(row, settings(), fabric=FakeFabric([]))
     run.p.update(objects=[], queries=[], actions=[], checks=[])
-    named = ReadFact(text="禾屿报告3例", quote="禾屿县本周报告3例发热伴皮疹", stance="supports", object="禾屿县")
+    named = ReadFact(
+        text="禾屿报告3例", quote="禾屿县本周报告3例发热伴皮疹", stance="supports", object="禾屿县"
+    )
     guessed = ReadFact(text="病例增加", quote="本周报告3例", stance="supports", object="澜津市")
     assert run.object_of(named, "E1") == "禾屿县" and run.object_of(guessed, "E2") == ""
     assert run.p["found_objects"] == [{"name": "禾屿县", "ref": "E1", "quote": "禾屿县本周报告3例发热伴皮疹"}]
@@ -437,7 +441,9 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
 def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
     """Codex PHX r2: two background-only terms from the first record took the last free places; terms from
     the event records found later never got in, so the run depended on which record came first."""
-    row = analyses.create(question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False)
+    row = analyses.create(
+        question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False
+    )
     run = Run(row, settings(), fabric=FakeFabric([]))
     plan = [{"terms": [f"泛词{i}"], "checks": ["Q1"]} for i in range(10)]
     run.p.update(queries=list(plan), actions=[{"kind": "search", "args": {"terms": ["泛词0"]}}], notes=[])
