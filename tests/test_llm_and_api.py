@@ -21,7 +21,7 @@ def reply(content, finish="stop"):
 def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
     bodies = []
     replies = iter([reply('{"value": "x"}'), reply('{"value": 2}')])
-    monkeypatch.setattr(llm, "post", lambda s, body: bodies.append(body) or next(replies))
+    monkeypatch.setattr(llm, "post", lambda s, body, call: bodies.append(body) or next(replies))
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed.value == 2 and call["attempts"] == 2 and call["usage"]["total_tokens"] == 10
     assert "不合格" in bodies[1]["messages"][-1]["content"]
@@ -29,18 +29,41 @@ def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
 
 
 def test_empty_output_at_limit_is_reported_not_retried(monkeypatch):
-    monkeypatch.setattr(llm, "post", lambda s, body: reply("", "length"))
+    monkeypatch.setattr(llm, "post", lambda s, body, call: reply("", "length"))
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "output_empty_after_limit" and call["attempts"] == 1
 
 
 def test_timeout_is_not_resent(monkeypatch):
-    def slow(s, body):
+    def slow(s, body, call):
         raise httpx.ReadTimeout("slow")
 
     monkeypatch.setattr(llm, "post", slow)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "timeout" and call["attempts"] == 1
+
+
+def test_a_refused_request_is_resent_after_a_pause(monkeypatch):
+    """2026-11-03: DeepSeek answered 503 for ~25 minutes; each call failed on the first refusal."""
+    statuses, waits = iter([503, 429, 200]), []
+    request = httpx.Request("POST", "http://model.invalid/chat/completions")
+
+    def fake_post(url, **kwargs):
+        status = next(statuses)
+        return httpx.Response(status, json=reply('{"value": 3}') if status == 200 else {}, request=request)
+
+    monkeypatch.setattr(llm.httpx, "post", fake_post)
+    monkeypatch.setattr(llm.time, "sleep", waits.append)
+    parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
+    assert parsed.value == 3 and call["requests"] == 3 and waits == [5, 20]
+
+
+def test_a_refusal_that_outlasts_the_pauses_is_reported(monkeypatch):
+    request = httpx.Request("POST", "http://model.invalid/chat/completions")
+    monkeypatch.setattr(llm.httpx, "post", lambda url, **kwargs: httpx.Response(503, request=request))
+    monkeypatch.setattr(llm.time, "sleep", lambda seconds: None)
+    parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
+    assert parsed is None and call["error"] == "http_error:503" and call["requests"] == 4
 
 
 def test_api_requires_login_and_validates_cutoff():

@@ -32,13 +32,22 @@ def describe(model_cls: type[BaseModel]) -> str:
     return "\n".join(fields(schema))
 
 
-def post(settings: Settings, body: dict) -> dict:
-    response = httpx.post(
-        settings.llm_base_url.rstrip("/") + "/chat/completions",
-        headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-        json=body,
-        timeout=settings.llm_timeout_seconds,
-    )
+REFUSED = (429, 503)  # the provider turned the request away without running it, so a resend is safe
+BACKOFF = (5, 20, 60)  # seconds before each resend; seen 2026-11-03: DeepSeek 503 for ~25 minutes
+
+
+def post(settings: Settings, body: dict, call: dict) -> dict:
+    for wait in (*BACKOFF, None):
+        call["requests"] = call.get("requests", 0) + 1
+        response = httpx.post(
+            settings.llm_base_url.rstrip("/") + "/chat/completions",
+            headers={"Authorization": f"Bearer {settings.llm_api_key}"},
+            json=body,
+            timeout=settings.llm_timeout_seconds,
+        )
+        if response.status_code not in REFUSED or wait is None:
+            break
+        time.sleep(wait)
     response.raise_for_status()
     return response.json()
 
@@ -82,7 +91,7 @@ def chat_json(
             body["temperature"] = 0
         call["attempts"] = attempt + 1
         try:
-            data = post(settings, body)
+            data = post(settings, body, call)
         except httpx.TimeoutException:
             call["error"] = "timeout"  # not resent: the provider may have billed it
             break
