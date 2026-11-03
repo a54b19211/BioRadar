@@ -125,26 +125,31 @@ def adopt(text, terms, limit):
 
 
 def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
-    """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact."""
+    """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact.
+    When the windows do not fit, the context around each quote shrinks before any quote is dropped (a
+    trial's results table came after its status fields and never reached the writer, Codex r38)."""
     if len(text) <= limit:
         return text
-    spans = []
+    found = []
     for quote in quotes:
         # Quotes were checked with whitespace removed, so locate them the same way.
-        found = re.search(r"\s*".join(map(re.escape, squash(quote))), text) if squash(quote) else None
-        if found:
-            spans.append([max(0, found.start() - 400), min(len(text), found.end() + 400)])
-    spans.sort()
-    merged = []
-    for span in spans:
-        if merged and span[0] <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], span[1])
-        else:
-            merged.append(span)
+        hit = re.search(r"\s*".join(map(re.escape, squash(quote))), text) if squash(quote) else None
+        if hit:
+            found.append((hit.start(), hit.end()))
+    for context in (400, 150, 0):
+        spans = sorted([max(0, a - context), min(len(text), b + context)] for a, b in found)
+        merged = []
+        for span in spans:
+            if merged and span[0] <= merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], span[1])
+            else:
+                merged.append(span)
+        if sum(b - a for a, b in merged) <= limit:
+            break
     parts, size = [], 0
     for start, end in merged:
         if size + end - start > limit:
-            break
+            continue  # only quotes longer than everything left; the rest still go in
         parts.append(text[start:end])
         size += end - start
     return "\n…\n".join(parts) or text[:limit]

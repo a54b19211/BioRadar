@@ -640,6 +640,17 @@ def test_reads_tell_the_planner_what_they_found_apart_from_answering(monkeypatch
     assert all("evidence_gain" not in h for h in bodies[-1]["history"] if h["kind"] == "search")
 
 
+def test_the_report_input_keeps_every_quoted_fact_even_far_down_a_long_record():
+    """Codex r38: a trial's status fields filled the 4000 characters with context, the loop stopped, and
+    the results table the reader had quoted never reached BioCheck."""
+    from bioradar.research.pipeline import excerpt
+
+    quotes = [f"字段{i}的值是{i * 7}" for i in range(12)]
+    text = "".join("背景" * 400 + q for q in quotes)  # each quote 800 characters after the last
+    sent = excerpt(text, quotes, limit=4000)
+    assert all(q in sent for q in quotes) and len(sent) <= 4000 + 12 * 3
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
