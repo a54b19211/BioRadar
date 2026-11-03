@@ -419,6 +419,7 @@ def flag_corrections(session, docs, *, is_demo: bool) -> int:
                     owe(session.get(db.Topic, topic_id), "source_corrected", db.now())
     return flagged
 
+
 def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | None = None, fabric=None):
     """One monitoring round. `clock` moves topic states during blank periods with no new records.
     Live real monitoring pauses new triage and automatic analyses once today's automatic tokens reach
