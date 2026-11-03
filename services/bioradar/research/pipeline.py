@@ -185,6 +185,38 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
     return "\n…\n".join(parts) or text[:limit]
 
 
+
+# A trial registry's fields the writer gets whether or not a fact quoted them (Codex r41): what the trial
+# is now and its primary results. Each line names its JSON pointer in the same fixed version.
+REGISTRY_ESSENTIALS = ("status", "phase", "study_type", "enrollment", "enrollment_type", "start_date",
+                       "primary_completion_date", "primary_completion_date_type", "completion_date",
+                       "has_results")
+ESSENTIALS_SHARE = 0.6  # of the record's report characters; the rest is for the quoted passages
+
+
+def report_text(text, quotes, limit=EXCERPT_CHARACTERS):
+    """A record's report input: for a trial registry record its essential fields and primary end points
+    first (dropped from the end, with a note naming what was left out, when they do not fit), then the
+    quoted passages in what is left; any other record goes to excerpt() unchanged."""
+    if "【登记字段：" not in text or len(text) <= limit:
+        return excerpt(text, quotes, limit)
+    keys = tuple(f" {k}（" for k in REGISTRY_ESSENTIALS)
+    lines = text.split("\n")
+    wanted = [ln for ln in lines if any(k in ln for k in keys) or ln.startswith("  终点 PRIMARY")]
+    kept, left_out, size = [], [], 0
+    for ln in wanted:
+        if size + len(ln) + 1 <= limit * ESSENTIALS_SHARE:
+            kept.append(ln)
+            size += len(ln) + 1
+        else:
+            left_out.append(ln.split("（")[0].strip())
+    if left_out:
+        kept.append(f"（写稿输入放不下、未提供：{'、'.join(left_out)}；原件里有）")
+    head = "\n".join(kept)
+    rest = "\n".join(ln for ln in lines if ln not in kept)
+    return head + "\n…\n" + excerpt(rest, quotes, max(0, limit - len(head)))
+
+
 LINEAGE_DEPTH = 500  # rounds followed back; a longer, looping or broken chain counts as unknown
 
 
@@ -1313,7 +1345,7 @@ class Run:
                 "published_at": r.published_at,
                 "source_kind": source_kind(r.material_kind, r.source),
                 "verified": r.verified,
-                "text": excerpt(r.text, quotes.get(r.ref, [])),
+                "text": report_text(r.text, quotes.get(r.ref, [])),
                 # Fabric's explicit same-origin group; absent means independence is unknown, not proven
                 "origin_group": (r.meta or {}).get("origin_group"),
             }

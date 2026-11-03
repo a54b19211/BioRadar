@@ -833,6 +833,25 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
     assert not [c for c in run.candidates() if c["args"].get("browse")]  # small sets are listed at plan
 
 
+def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted_them():
+    """Codex r41: the reader never quoted the phase, so the writer wrote that the phase was not given."""
+    from bioradar.research.pipeline import report_text
+
+    lines = ["Brief summary.", "【登记字段：程序按原件 JSON 路径取出的值，同一固定版本】",
+             '阶段 phase（/protocolSection/designModule/phases）: ["PHASE3"]',
+             '状态 status（/protocolSection/statusModule/overallStatus）: "COMPLETED"',
+             "入组人数 enrollment（/protocolSection/designModule/enrollmentInfo/count）: 31",
+             "长字段 eligibility（/protocolSection/eligibilityModule）: " + "条件" * 2000]
+    lines += [f"  终点 PRIMARY 「终点{i}」（…）: 组A {i}0 (spread 5)" + "，组B 1" * 60 for i in range(6)]
+    text = "\n".join(lines)
+    sent = report_text(text, ["Brief summary."])
+    assert '"PHASE3"' in sent and '"COMPLETED"' in sent and ": 31" in sent
+    assert "「终点0」" in sent and "写稿输入放不下、未提供：" in sent  # the rest is named, not silently cut
+    assert "Brief summary." in sent and "条件条件条件" not in sent[:200]
+    assert report_text("普通材料" * 2000, ["普通材料"]) == __import__(
+        "bioradar.research.pipeline", fromlist=["excerpt"]).excerpt("普通材料" * 2000, ["普通材料"])
+
+
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.research.pipeline import excerpt
 
