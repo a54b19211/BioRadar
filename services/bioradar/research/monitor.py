@@ -39,6 +39,10 @@ def parse_time(value) -> datetime:
 
 
 STOPPED = {"TERMINATED", "SUSPENDED", "WITHDRAWN"}
+# 需要模型、但这一轮没有做成分诊的记录：triage_failed（模型调用失败）和 triage_deferred（当日自动额度
+# 用完，v3 3.7：额度只暂停模型阶段）。两者都是待办，由重试路径在之后的轮次补做；游标照常前进。
+DEFERRED = "triage_deferred"
+RETRYABLE = ("triage_failed", DEFERRED)
 ATTACHMENT_MAX_ATTEMPTS = 3  # Fabric db.derived_text.MAX_ATTEMPTS
 NEW_REGISTRATION_DAYS = 30
 RECENT_UPDATE_DAYS = 7
@@ -137,6 +141,42 @@ def settle_attachments(docs, *, is_demo: bool):
             )
 
 
+def defer(docs, *, is_demo: bool) -> int:
+    """记下需要模型但这一轮没分诊的记录（triage_deferred）：之后由重试路径补做。已有观测的不动。"""
+    s = settings()
+    added = 0
+    with db.session() as session:
+        have = set(
+            session.scalars(
+                select(db.Observation.version_id).where(
+                    db.Observation.version_id.in_([d["version_id"] for d in docs])
+                )
+            )
+        )
+        for doc in docs:
+            if doc["version_id"] in have:
+                continue
+            session.add(
+                db.Observation(
+                    workspace_id=s.workspace_id,
+                    source=doc["source"],
+                    record_id=doc["record_id"],
+                    version_id=doc["version_id"],
+                    is_demo=is_demo,
+                    title=doc["title"],
+                    available_at=parse_time(doc["available_at"]),
+                    topic_id=None,
+                    alert="none",
+                    closure=False,
+                    activity_key=None,
+                    reason=DEFERRED,
+                )
+            )
+            have.add(doc["version_id"])
+            added += 1
+    return added
+
+
 def unseen(session, items):
     """Items whose version has not been observed yet; a failed triage counts as not observed.
     Only this page's versions are queried, so a round costs the same however long the history is."""
@@ -146,14 +186,14 @@ def unseen(session, items):
         session.scalars(
             select(db.Observation.version_id).where(
                 db.Observation.version_id.in_([d["version_id"] for d in items]),
-                db.Observation.reason != "triage_failed",
+                db.Observation.reason.not_in(RETRYABLE),
             )
         )
     )
     return [d for d in items if d["version_id"] not in done]
 
 
-def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None):
+def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None, retry: bool = True):
     """Live: the change feed after the saved cursor, at most monitor_max_records per round; the rest
     stays in the feed (backlog) and the cursor only moves past what this round takes. After failed
     retries, the remaining room is split evenly across sources, starting from a different source each
@@ -166,17 +206,19 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     room = s.monitor_max_records
     docs, ends, more = [], {}, set()
     with db.session() as session:
-        # Records whose triage call failed are triaged again (live mode: the change cursor moved on),
-        # using at most a quarter of the round.
+        # Records still owed a triage (the call failed, or the daily automatic budget deferred it) are read
+        # again (live mode: the change cursor moved on), using at most half of the round. Not while the
+        # budget is used up: they would only be deferred again.
         failed = {}
         for source, record_id in session.execute(
             select(db.Observation.source, db.Observation.record_id)
             .where(
                 db.Observation.is_demo == is_demo,
-                db.Observation.reason == "triage_failed",
+                db.Observation.reason.in_(RETRYABLE),
                 db.Observation.source.in_(sources),  # same source set as this round
             )
-            .limit(max(1, room // 4))
+            .order_by(db.Observation.id)
+            .limit(max(1, room // 2) if retry else 0)
         ):
             failed.setdefault(source, []).append(record_id)
         for source, ids in failed.items():
@@ -380,7 +422,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                 session.execute(
                     delete(db.Observation).where(
                         db.Observation.version_id == doc["version_id"],
-                        db.Observation.reason == "triage_failed",
+                        db.Observation.reason.in_(RETRYABLE),
                     )
                 )
                 session.add(
@@ -845,11 +887,8 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     fabric = fabric or Fabric(s)
     budget = cutoff is None and not is_demo  # live real monitoring only
     paused = budget and analyses.over_auto_budget()
-    if paused:
-        log.info("monitor paused: daily_auto_tokens reached")
-        docs, ends, backlog = [], {}, True
-    else:
-        docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
+    # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
+    docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
     routed = {}
     for d in docs:
         reason = route(d)
@@ -858,10 +897,20 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     settle_attachments(docs, is_demo=is_demo)
     if len(triage_docs) < len(docs):
         log.info("monitor routing %s", routed)
-    reasons, whole = observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
+    if paused:
+        log.info("monitor: daily_auto_tokens reached; model triage deferred, program routing continues")
+        reasons, whole = {}, False
+    else:
+        reasons, whole = (
+            observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
+        )
     if not whole:
-        # stopped mid-round: keep the cursors, the next round re-reads and skips what was triaged
-        paused, ends, backlog = True, {}, True
+        # the budget ran out before or during triage: what was not triaged is owed, durably, and the
+        # cursors move on (the retry path triages it once the budget allows)
+        paused = True
+        deferred = defer(triage_docs, is_demo=is_demo)
+        if deferred:
+            routed[DEFERRED] = deferred
     fresh = {d["source"] for d in docs if not d.get("retry")}  # a retried old record is not new
     with db.session() as session:  # a round that died before this line reads the same records again
         for source, at in ends.items():

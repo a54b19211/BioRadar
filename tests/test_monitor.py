@@ -258,6 +258,8 @@ def test_a_flooding_source_does_not_starve_a_quiet_one(monkeypatch):
 
 
 def test_live_monitoring_pauses_at_the_daily_automatic_token_ceiling(monkeypatch):
+    from sqlalchemy import select
+
     from bioradar import db
     from bioradar.config import settings
 
@@ -272,9 +274,21 @@ def test_live_monitoring_pauses_at_the_daily_automatic_token_ceiling(monkeypatch
         session.add(db.LlmCall(stage="triage", service="radar", total_tokens=1000))
     fabric.docs += FakeFabric([record("P1", "两家医院确认7例", "x", source="who_don")]).docs
     paused = monitor.tick(is_demo=False, fabric=fabric)
-    assert paused["paused"] == "daily_auto_tokens" and paused["records"] == 0 and sent == []
+    # v3 3.7: the budget pauses the model only; the record is read and owed a triage, durably
+    assert paused["paused"] == "daily_auto_tokens" and paused["records"] == 1 and sent == []
+    assert paused["routed"]["triage_deferred"] == 1
+    with db.session() as session:
+        assert session.scalar(select(db.Observation.reason).where(db.Observation.record_id == "P1")) == (
+            "triage_deferred"
+        )
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 0  # no retry while still over budget
     monkeypatch.setattr(s, "daily_auto_tokens", 10**9)
-    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1  # the record waited in the feed
+    assert monitor.tick(is_demo=False, fabric=fabric)["records"] == 1  # the owed triage, by the retry path
+    with db.session() as session:
+        assert session.scalar(select(db.Observation.reason).where(db.Observation.record_id == "P1")) not in (
+            "triage_deferred",
+            "triage_failed",
+        )
 
 
 def test_a_correction_marks_the_analyses_that_cited_the_old_record(monkeypatch):
@@ -377,7 +391,9 @@ def test_the_daily_ceiling_is_checked_before_every_batch_and_every_new_analysis(
     assert len(sent) == 1 and first["paused"] and first["analyses"] == []  # one batch crossed the line
     monkeypatch.setattr(s, "daily_auto_tokens", 10**9)
     rest = monitor.tick(is_demo=False, fabric=fabric)
-    assert rest["records"] == 20  # the cursor did not move past them; the first 10 are not redone
+    assert (
+        rest["records"] == 20
+    )  # the 20 deferred ones come back by the retry path; the first 10 are not redone
     with db.session() as session:
         assert session.scalar(select(func.count()).select_from(db.Observation)) == 30
 
