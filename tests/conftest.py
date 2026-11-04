@@ -92,6 +92,12 @@ class FakeFabric:
         page = found[start : start + limit]
         return page, (str(start + limit) if start + limit < len(found) else None)
 
+    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None):
+        self.calls.append(("read_versions", source, tuple(refs)))
+        wanted = {v for _, v in refs}
+        found = [d for d in self.docs if d["source"] == source and d["version_id"] in wanted]
+        return found, sorted(wanted - {d["version_id"] for d in found})
+
     def head(self, source, *, is_demo):
         return max([0] + [d["seq"] for d in self.docs if d["source"] == source])
 

@@ -13,6 +13,10 @@ CURRENT = "current"
 HISTORY = "public_history_reconstruction"
 
 
+# Fabric answers for a fixed version that cannot be read with this permission, scope and cutoff
+NOT_VISIBLE = {"version_not_found", "observation_basis_not_visible", "graph_evidence_not_visible"}
+
+
 class FabricError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -319,6 +323,35 @@ class Fabric:
         self.attach_registry_changes(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         self.attach_attachment_text(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         return docs, data.get("next_cursor")
+
+    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None):
+        """Fixed versions [(record_id, version_id)] → (documents, versions no longer readable). Used where the
+        radar owes work on one particular version (a deferred or failed triage): reading the record again
+        would return its current head instead, and the owed version would never be done (Codex r62)."""
+        mode = HISTORY if cutoff else CURRENT
+        at = (cutoff or now or datetime.now(UTC)).isoformat()
+        docs, missing = [], []
+        for record_id, version_id in refs:
+            try:
+                item = self._get(
+                    f"/api/history/versions/{version_id}",
+                    {
+                        "source_id": source,
+                        "source_record_id": record_id,
+                        "is_demo": str(is_demo).lower(),
+                        "mode": mode,
+                        "cutoff": at,
+                    },
+                )
+            except FabricError as error:
+                if error.code not in NOT_VISIBLE:
+                    raise  # transient (503, network): the owed work stays owed and is retried next round
+                missing.append(version_id)  # revoked, withdrawn from view, or not visible at this cutoff
+                continue
+            docs.append(document(item))
+        self.attach_registry_changes(docs, is_demo=is_demo, mode=mode, cutoff=at)
+        self.attach_attachment_text(docs, is_demo=is_demo, mode=mode, cutoff=at)
+        return docs, missing
 
     def registry_changes(self, source, version_ids, *, is_demo, mode, cutoff):
         """Fabric's registry diff of each version against its previous version: {version_id: {state, ...}}."""

@@ -209,9 +209,11 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
         # Records still owed a triage (the call failed, or the daily automatic budget deferred it) are read
         # again (live mode: the change cursor moved on), using at most half of the round. Not while the
         # budget is used up: they would only be deferred again.
+        # Owed work is on one fixed version: read that version, not the record's current head (Codex r62:
+        # an older deferred version read by record id never got done and blocked the queue head).
         failed = {}
-        for source, record_id in session.execute(
-            select(db.Observation.source, db.Observation.record_id)
+        for source, record_id, version_id in session.execute(
+            select(db.Observation.source, db.Observation.record_id, db.Observation.version_id)
             .where(
                 db.Observation.is_demo == is_demo,
                 db.Observation.reason.in_(RETRYABLE),
@@ -220,12 +222,22 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
             .order_by(db.Observation.id)
             .limit(max(1, room // 2) if retry else 0)
         ):
-            failed.setdefault(source, []).append(record_id)
-        for source, ids in failed.items():
-            items, _ = fabric.search(
-                source, (), is_demo=is_demo, cutoff=cutoff, record_ids=ids, limit=len(ids)
-            )
+            failed.setdefault(source, []).append((record_id, version_id))
+        for source, refs in failed.items():
+            items, missing = fabric.read_versions(source, refs, is_demo=is_demo, cutoff=cutoff)
             docs += [dict(d, retry=True) for d in unseen(session, items)]
+            if missing:
+                # the owed version can no longer be read (revoked, or not visible): a recorded gap, so it
+                # stops occupying the queue; not a triage result
+                for obs in session.scalars(
+                    select(db.Observation).where(
+                        db.Observation.source == source,
+                        db.Observation.is_demo == is_demo,
+                        db.Observation.version_id.in_(missing),
+                        db.Observation.reason.in_(RETRYABLE),
+                    )
+                ):
+                    obs.reason = "triage_unavailable: 固定版本已不可读（撤权或不可见），未分诊"
         if not live:
             for source in sources:
                 page = None
