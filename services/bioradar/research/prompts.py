@@ -89,6 +89,7 @@ TRIAGE = (
 - alert：none=噪声或无关；normal=值得记录；important=需要尽快核实跟进；urgent=可能有重大后果且需要立即行动。
 - 匿名截图、转发、标题升级等未核实信息不能单独定为urgent，除非有可核查的具体细节且后果严重；删帖或无法访问不能证明真假。
 - closure：记录明确宣布该事件已结案、查明为常见病或可以停止跟踪时为true。
+- 记录开头的【与上一版相比的登记变化】是程序逐字段比对同一登记号两个固定版本的结果，可以直接作为“登记发生了什么变化”的依据；但登记状态改为终止/暂停/撤回、日期推迟、入组人数变化，本身不等于药物失败、疗效或安全结论，除非登记写明了原因（whyStopped）或结果。按登记写的如实定 signal（终止填 trial_stop，结果公布填 trial_result），不要推断原因。
 - signal：这条记录是哪类信号（capacity 产能/厂房、hiring 招聘、financing 融资、deal 并购授权、filing 申报受理、approval 批准、rejection 不批准/CRL、trial_start/trial_result/trial_stop 试验开始/结果/终止、publication 论文、policy 政策、outbreak 疫情、safety 安全事件、other 其他）。
 - objects：记录说到的具体对象（公司、药物、靶点、适应症、试验、地点、事件）。
 - watch：归入的已有专题有 watch 列表时，这条记录正好是其中某条待验证信号（证实或证伪）就填它的编号，否则留空。

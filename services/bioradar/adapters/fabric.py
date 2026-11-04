@@ -165,6 +165,34 @@ def registry_text(record: dict) -> str:
     return "\n".join(lines)
 
 
+# Sources whose versions Fabric's processing layer diffs field by field against the previous version.
+REGISTRY_DIFF_SOURCES = {"clinicaltrials"}
+REGISTRY_CHANGE_LINES = 12
+
+
+def registry_change_block(diff: dict, version_id: str) -> str:
+    """Fabric's field-by-field registry diff against the previous fixed version, as lines at the top of the
+    text: which field, its JSON pointer, old value -> new value. Both version ids are named, so a quote from
+    this block points back to the two records. Material changes first; it restates the registry only."""
+    if diff.get("state") != "processed" or not diff.get("changes"):
+        return ""
+    changes = sorted(diff["changes"], key=lambda c: (not c.get("material"), c.get("field") or ""))
+    lines = [
+        "【与上一版相比的登记变化：程序逐字段比对两个固定版本（上一版 "
+        + str(diff.get("from_version_id") or "?")[:16]
+        + "，本版 "
+        + version_id[:16]
+        + "），只复述登记值；登记状态改变不等于药物失败、疗效或安全结论】"
+    ]
+    for c in changes[:REGISTRY_CHANGE_LINES]:
+        lines.append(
+            ("· " if c.get("material") else "· （小修订）") + str(c.get("description") or c.get("field"))
+        )
+    if len(changes) > REGISTRY_CHANGE_LINES:
+        lines.append(f"……另有 {len(changes) - REGISTRY_CHANGE_LINES} 处字段变化，见两版原件")
+    return "\n".join(lines)
+
+
 def document(record: dict) -> dict:
     """The few fields the radar uses. Version identity stays exactly as Fabric returned it.
 
@@ -206,6 +234,15 @@ def document(record: dict) -> dict:
             for e in evidence.get("information_events", [])
         ],
         "seq": record.get("published_seq"),
+        # a trial's own registry dates and status, for routing first adoptions (None for other records)
+        "registry": {
+            "status": (record.get("facts") or {}).get("status"),
+            "results_first_posted": (record.get("facts") or {}).get("results_first_posted"),
+            "updated_at": _time(record.get("source_updated_at")),
+        }
+        if record.get("record_kind") == "trial"
+        else None,
+        "registry_diff": None,  # filled by Fabric.attach_registry_changes for REGISTRY_DIFF_SOURCES
     }
 
 
@@ -256,7 +293,53 @@ class Fabric:
         if cursor:
             params["cursor"] = cursor
         data = self._get("/api/history/records", params)
-        return [document(item) for item in data["items"]], data.get("next_cursor")
+        docs = [document(item) for item in data["items"]]
+        self.attach_registry_changes(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
+        return docs, data.get("next_cursor")
+
+    def registry_changes(self, source, version_ids, *, is_demo, mode, cutoff):
+        """Fabric's registry diff of each version against its previous version: {version_id: {state, ...}}."""
+        data = self._get(
+            "/api/history/registry-changes",
+            {
+                "source_id": source,
+                "is_demo": str(is_demo).lower(),
+                "mode": mode,
+                "cutoff": cutoff,
+                "version_ids": list(version_ids),
+            },
+        )
+        return data.get("versions") or {}
+
+    def attach_registry_changes(self, docs, *, is_demo, mode, cutoff):
+        """Put each trial version's diff against the previous version on the document: `registry_diff`, a
+        block at the top of the text, and one event per material change. When Fabric cannot answer (an
+        older Fabric without the endpoint, a timeout) the documents stay exactly as before, marked
+        unavailable, so reading never fails because of the diff."""
+        by_source = {}
+        for d in docs:
+            if d["source"] in REGISTRY_DIFF_SOURCES:
+                by_source.setdefault(d["source"], []).append(d)
+        for source, group in by_source.items():
+            for start in range(0, len(group), 100):
+                page = group[start : start + 100]
+                try:
+                    found = self.registry_changes(
+                        source, [d["version_id"] for d in page], is_demo=is_demo, mode=mode, cutoff=cutoff
+                    )
+                except (FabricError, httpx.HTTPError):
+                    found = {}
+                for d in page:
+                    diff = found.get(d["version_id"]) or {"state": "unavailable"}
+                    d["registry_diff"] = diff
+                    block = registry_change_block(diff, d["version_id"])
+                    if block:
+                        d["text"] = block + "\n\n" + d["text"]
+                        d["events"] = list(d["events"]) + [
+                            {"kind": "registry_change", "description": c.get("description") or c["field"]}
+                            for c in diff.get("changes", [])
+                            if c.get("material")
+                        ]
 
     def graph_resolve(self, doc, name, *, cutoff=None):
         """Tang's reviewed graph (read only): entity candidates for an exact name in one graph record, each
@@ -279,6 +362,9 @@ class Fabric:
             {"source_id": source, "is_demo": str(is_demo).lower(), "after": after, "limit": limit},
         )
         items = [document(item) for item in data["items"]]
+        self.attach_registry_changes(
+            items, is_demo=is_demo, mode=CURRENT, cutoff=datetime.now(UTC).isoformat()
+        )
         return items, max([after] + [item["seq"] or 0 for item in items])
 
     def head(self, source, *, is_demo):

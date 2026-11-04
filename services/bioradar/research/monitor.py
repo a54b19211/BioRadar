@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, literal, select
 
 from bioradar import db
 from bioradar.adapters import llm
-from bioradar.adapters.fabric import Fabric
+from bioradar.adapters.fabric import REGISTRY_DIFF_SOURCES, Fabric
 from bioradar.config import Settings, settings
 from bioradar.research import analyses, prompts, schemas, series
 
@@ -36,6 +36,46 @@ def parse_time(value) -> datetime:
         return datetime.fromisoformat(text + "-28").replace(tzinfo=UTC)
     parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+STOPPED = {"TERMINATED", "SUSPENDED", "WITHDRAWN"}
+NEW_REGISTRATION_DAYS = 30
+RECENT_UPDATE_DAYS = 7
+
+
+def route(doc) -> str | None:
+    """Whether a record goes to model triage (None) or is settled by the program (the reason).
+
+    Trial registries are settled by Fabric's field-by-field diff against the previous version: a version
+    whose changes are all minor (contact or site list edits, wording, a start date moved) needs no model.
+    A first adoption has no previous version to compare with; it is triaged only when the registry itself
+    says it is new or just changed in a way worth checking (first posted within 30 days; updated within 7
+    days and stopped, or results first posted within 30 days). The rest is inventory the collector is
+    catching up on, not news. Anything the diff could not answer (older Fabric, not processed, not paired)
+    goes to triage as before, and a retried triage is never re-routed."""
+    if doc["source"] not in REGISTRY_DIFF_SOURCES or doc.get("retry"):
+        return None
+    diff = doc.get("registry_diff") or {}
+    if diff.get("state") == "processed":
+        return None if diff.get("material_count") else "registry_minor_change"
+    if diff.get("state") != "first_adoption":
+        return None
+    at = parse_time(doc["available_at"])
+    reg = doc.get("registry") or {}
+
+    def within(value, days):
+        try:
+            return value is not None and at - parse_time(value) <= timedelta(days=days)
+        except ValueError:
+            return False
+
+    if within(doc.get("published_at"), NEW_REGISTRATION_DAYS):
+        return None
+    if within(reg.get("updated_at"), RECENT_UPDATE_DAYS) and (
+        reg.get("status") in STOPPED or within(reg.get("results_first_posted"), NEW_REGISTRATION_DAYS)
+    ):
+        return None
+    return "inventory_first_adoption"
 
 
 def unseen(session, items):
@@ -751,7 +791,14 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         docs, ends, backlog = [], {}, True
     else:
         docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff)
-    reasons, whole = observe(s, docs, is_demo=is_demo, budget=budget) if docs else ({}, True)
+    routed = {}
+    for d in docs:
+        reason = route(d)
+        routed[reason or "triage"] = routed.get(reason or "triage", 0) + 1
+    triage_docs = [d for d in docs if route(d) is None]
+    if len(triage_docs) < len(docs):
+        log.info("monitor routing %s", routed)
+    reasons, whole = observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
     if not whole:
         # stopped mid-round: keep the cursors, the next round re-reads and skips what was triaged
         paused, ends, backlog = True, {}, True
@@ -772,6 +819,8 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     )
     return {
         "records": len(docs),
+        # how many records went to model triage and how many the program settled, by reason
+        "routed": routed,
         "backlog": backlog,  # more new records are waiting in the feed than one round takes
         "paused": "daily_auto_tokens" if paused else None,
         "clock": clock.isoformat(),
