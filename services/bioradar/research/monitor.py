@@ -39,6 +39,7 @@ def parse_time(value) -> datetime:
 
 
 STOPPED = {"TERMINATED", "SUSPENDED", "WITHDRAWN"}
+ATTACHMENT_MAX_ATTEMPTS = 3  # Fabric db.derived_text.MAX_ATTEMPTS
 NEW_REGISTRATION_DAYS = 30
 RECENT_UPDATE_DAYS = 7
 
@@ -52,7 +53,20 @@ def route(doc) -> str | None:
     says it is new or just changed in a way worth checking (first posted within 30 days; updated within 7
     days and stopped, or results first posted within 30 days). The rest is inventory the collector is
     catching up on, not news. Anything the diff could not answer (older Fabric, not processed, not paired)
-    goes to triage as before, and a retried triage is never re-routed."""
+    goes to triage as before, and a retried triage is never re-routed.
+
+    Attachment versions (v3 3.3a): triaged only with their parsed text. Not parsed yet (or Fabric unable to
+    say) -> attachment_pending, kept for the retry path; parsing finally failed or the format is unsupported
+    -> attachment_unparsed, recorded as a gap. An attachment is never triaged with an empty text."""
+    if doc.get("role") == "attachment":
+        state = doc.get("attachment_text") or {}
+        if state.get("status") == "parsed" and (doc.get("text") or "").strip():
+            return None
+        if state.get("status") == "unsupported" or (
+            state.get("status") == "failed" and (state.get("attempt") or 0) >= ATTACHMENT_MAX_ATTEMPTS
+        ):
+            return "attachment_unparsed"
+        return "attachment_pending"
     if doc["source"] not in REGISTRY_DIFF_SOURCES or doc.get("retry"):
         return None
     diff = doc.get("registry_diff") or {}
@@ -76,6 +90,51 @@ def route(doc) -> str | None:
     ):
         return None
     return "inventory_first_adoption"
+
+
+def settle_attachments(docs, *, is_demo: bool):
+    """Attachments routed away from triage. Pending: an observation marked triage_failed, so the retry path
+    reads it again until Fabric has parsed it. Unparsed: a recorded gap (alert none) replacing that mark."""
+    s = settings()
+    with db.session() as session:
+        for doc in docs:
+            reason = route(doc)
+            if reason not in {"attachment_pending", "attachment_unparsed"}:
+                continue
+            existing = session.scalar(
+                select(db.Observation).where(db.Observation.version_id == doc["version_id"])
+            )
+            if reason == "attachment_pending":
+                if existing is not None:
+                    continue
+                text = "triage_failed"
+            else:
+                state = doc.get("attachment_text") or {}
+                text = (
+                    f"附件未能解析（{state.get('error') or state.get('status')}）："
+                    "附件内容没有进入分析，不表示附件为空"
+                )
+                if existing is not None:
+                    if existing.reason != "triage_failed":
+                        continue
+                    session.delete(existing)
+                    session.flush()
+            session.add(
+                db.Observation(
+                    workspace_id=s.workspace_id,
+                    source=doc["source"],
+                    record_id=doc["record_id"],
+                    version_id=doc["version_id"],
+                    is_demo=is_demo,
+                    title=doc["title"],
+                    available_at=parse_time(doc["available_at"]),
+                    topic_id=None,
+                    alert="none",
+                    closure=False,
+                    activity_key=None,
+                    reason=text,
+                )
+            )
 
 
 def unseen(session, items):
@@ -796,6 +855,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         reason = route(d)
         routed[reason or "triage"] = routed.get(reason or "triage", 0) + 1
     triage_docs = [d for d in docs if route(d) is None]
+    settle_attachments(docs, is_demo=is_demo)
     if len(triage_docs) < len(docs):
         log.info("monitor routing %s", routed)
     reasons, whole = observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)

@@ -165,6 +165,22 @@ def registry_text(record: dict) -> str:
     return "\n".join(lines)
 
 
+# Sources whose attachment versions get their text from Fabric's processing layer (/derived-text).
+ATTACHMENT_SOURCES = {"nmpa", "cde", "chictr"}
+
+
+def attachment_block(doc: dict, found: dict) -> str:
+    """The parsed text of an attachment, headed by what it is and where it came from, so a quote points back
+    to the attachment version and its page."""
+    return (
+        f"【附件正文：{doc['title']}（附件版本 {doc['version_id'][:16]}，"
+        f"所属页面 {doc.get('parent_record_id') or '?'}；"
+        f"由 {found.get('parse_method') or '?'} 从原件解析，表格和扫描件的识别可能有误，以原件为准）】"
+        + "\n\n"
+        + (found.get("text") or "")
+    )
+
+
 # Sources whose versions Fabric's processing layer diffs field by field against the previous version.
 REGISTRY_DIFF_SOURCES = {"clinicaltrials"}
 REGISTRY_CHANGE_LINES = 12
@@ -243,6 +259,10 @@ def document(record: dict) -> dict:
         if record.get("record_kind") == "trial"
         else None,
         "registry_diff": None,  # filled by Fabric.attach_registry_changes for REGISTRY_DIFF_SOURCES
+        # an attachment version (Fabric legacy_site_crawler): its text comes from the processing layer
+        "role": (record.get("facts") or {}).get("role"),
+        "parent_record_id": (record.get("facts") or {}).get("parent_record_id"),
+        "attachment_text": None,  # filled by Fabric.attach_attachment_text
     }
 
 
@@ -295,6 +315,7 @@ class Fabric:
         data = self._get("/api/history/records", params)
         docs = [document(item) for item in data["items"]]
         self.attach_registry_changes(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
+        self.attach_attachment_text(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         return docs, data.get("next_cursor")
 
     def registry_changes(self, source, version_ids, *, is_demo, mode, cutoff):
@@ -310,6 +331,43 @@ class Fabric:
             },
         )
         return data.get("versions") or {}
+
+    def derived_text(self, source, version_ids, *, is_demo, mode, cutoff):
+        """Fabric's processing-layer text of each version (attachments):
+        {version_id: {state, status, text, ...}}."""
+        data = self._get(
+            "/api/history/derived-text",
+            {
+                "source_id": source,
+                "is_demo": str(is_demo).lower(),
+                "mode": mode,
+                "cutoff": cutoff,
+                "version_ids": list(version_ids),
+            },
+        )
+        return data.get("versions") or {}
+
+    def attach_attachment_text(self, docs, *, is_demo, mode, cutoff):
+        """Give each attachment version its parsed text. Not parsed yet, failed, or Fabric unable to answer:
+        the text stays empty and `attachment_text` says why; the monitor decides what to do with it."""
+        by_source = {}
+        for d in docs:
+            if d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment":
+                by_source.setdefault(d["source"], []).append(d)
+        for source, group in by_source.items():
+            for start in range(0, len(group), 100):
+                page = group[start : start + 100]
+                try:
+                    found = self.derived_text(
+                        source, [d["version_id"] for d in page], is_demo=is_demo, mode=mode, cutoff=cutoff
+                    )
+                except (FabricError, httpx.HTTPError):
+                    found = {}
+                for d in page:
+                    state = found.get(d["version_id"]) or {"state": "unavailable"}
+                    d["attachment_text"] = {k: v for k, v in state.items() if k != "text"}
+                    if state.get("status") == "parsed" and (state.get("text") or "").strip():
+                        d["text"] = attachment_block(d, state)
 
     def attach_registry_changes(self, docs, *, is_demo, mode, cutoff):
         """Put each trial version's diff against the previous version on the document: `registry_diff`, a
@@ -362,9 +420,9 @@ class Fabric:
             {"source_id": source, "is_demo": str(is_demo).lower(), "after": after, "limit": limit},
         )
         items = [document(item) for item in data["items"]]
-        self.attach_registry_changes(
-            items, is_demo=is_demo, mode=CURRENT, cutoff=datetime.now(UTC).isoformat()
-        )
+        now = datetime.now(UTC).isoformat()
+        self.attach_registry_changes(items, is_demo=is_demo, mode=CURRENT, cutoff=now)
+        self.attach_attachment_text(items, is_demo=is_demo, mode=CURRENT, cutoff=now)
         return items, max([after] + [item["seq"] or 0 for item in items])
 
     def head(self, source, *, is_demo):
