@@ -130,3 +130,19 @@ def test_block_is_empty_for_first_adoption_and_caps_lines():
     many = processed(*[dict(SITES, field=f"f{i}", description=f"d{i}") for i in range(20)])
     block = registry_change_block(many, V2)
     assert "另有 8 处字段变化" in block
+
+
+def test_change_block_names_both_full_versions_and_is_marked_as_derived():
+    """Codex r58 #3: the block is a program-derived comparison of two versions, not the record's own text;
+    the document carries the full inputs so the evidence record can point back to both versions."""
+    fabric, _ = fabric_answering({V2: processed(STATUS, SITES)})
+    [doc], _ = fabric.search("clinicaltrials", (), is_demo=False)
+    head = doc["text"].split("\n", 1)[0]
+    assert V1 in head and V2 in head and "派生说明，不是本版原文" in head
+    [derived] = doc["derived"]
+    assert (
+        derived["kind"] == "registry_diff"
+        and derived["from_version_id"] == V1
+        and derived["to_version_id"] == V2
+    )
+    assert {f["field"] for f in derived["fields"]} == {"status", "locations"}

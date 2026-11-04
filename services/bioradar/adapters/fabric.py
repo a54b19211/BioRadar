@@ -194,11 +194,10 @@ def registry_change_block(diff: dict, version_id: str) -> str:
         return ""
     changes = sorted(diff["changes"], key=lambda c: (not c.get("material"), c.get("field") or ""))
     lines = [
-        "【与上一版相比的登记变化：程序逐字段比对两个固定版本（上一版 "
-        + str(diff.get("from_version_id") or "?")[:16]
-        + "，本版 "
-        + version_id[:16]
-        + "），只复述登记值；登记状态改变不等于药物失败、疗效或安全结论】"
+        "【与上一版相比的登记变化：这是程序比对两个固定版本得出的派生说明，不是本版原文"
+        + f"（上一版 {diff.get('from_version_id') or '?'}，本版 {version_id}，"
+        + f"处理器 {diff.get('processor_version') or '?'}）。只复述登记值；登记状态改变不等于药物失败、"
+        + "疗效或安全结论；要确认具体内容，读两版原件】"
     ]
     for c in changes[:REGISTRY_CHANGE_LINES]:
         lines.append(
@@ -263,6 +262,9 @@ def document(record: dict) -> dict:
         "role": (record.get("facts") or {}).get("role"),
         "parent_record_id": (record.get("facts") or {}).get("parent_record_id"),
         "attachment_text": None,  # filled by Fabric.attach_attachment_text
+        # program-derived text put into this document (registry diff block, parsed attachment text), with what
+        # it was derived from, so the evidence record can point back to the inputs (Codex r58/r59)
+        "derived": [],
     }
 
 
@@ -330,7 +332,10 @@ class Fabric:
                 "version_ids": list(version_ids),
             },
         )
-        return data.get("versions") or {}
+        versions = data.get("versions") or {}
+        for value in versions.values():
+            value.setdefault("processor_version", data.get("processor_version"))
+        return versions
 
     def derived_text(self, source, version_ids, *, is_demo, mode, cutoff):
         """Fabric's processing-layer text of each version (attachments):
@@ -345,7 +350,10 @@ class Fabric:
                 "version_ids": list(version_ids),
             },
         )
-        return data.get("versions") or {}
+        versions = data.get("versions") or {}
+        for value in versions.values():
+            value.setdefault("processor_version", data.get("processor_version"))
+        return versions
 
     def attach_attachment_text(self, docs, *, is_demo, mode, cutoff):
         """Give each attachment version its parsed text. Not parsed yet, failed, or Fabric unable to answer:
@@ -368,6 +376,17 @@ class Fabric:
                     d["attachment_text"] = {k: v for k, v in state.items() if k != "text"}
                     if state.get("status") == "parsed" and (state.get("text") or "").strip():
                         d["text"] = attachment_block(d, state)
+                        d["derived"] = list(d.get("derived") or []) + [
+                            {
+                                "kind": "attachment_text",
+                                "attachment_version_id": d["version_id"],
+                                "processor_version": state.get("processor_version"),
+                                "text_sha256": state.get("text_sha256"),
+                                "parse_method": state.get("parse_method"),
+                                "locator_kind": state.get("locator_kind"),
+                                "attachment_of": state.get("attachment_of") or [],
+                            }
+                        ]
 
     def attach_registry_changes(self, docs, *, is_demo, mode, cutoff):
         """Put each trial version's diff against the previous version on the document: `registry_diff`, a
@@ -393,6 +412,22 @@ class Fabric:
                     block = registry_change_block(diff, d["version_id"])
                     if block:
                         d["text"] = block + "\n\n" + d["text"]
+                        d["derived"] = list(d.get("derived") or []) + [
+                            {
+                                "kind": "registry_diff",
+                                "processor_version": diff.get("processor_version"),
+                                "from_version_id": diff.get("from_version_id"),
+                                "to_version_id": d["version_id"],
+                                "block_chars": len(block),
+                                "fields": [
+                                    {
+                                        k: c.get(k)
+                                        for k in ("field", "json_pointer", "change_kind", "material")
+                                    }
+                                    for c in diff.get("changes", [])
+                                ],
+                            }
+                        ]
                         d["events"] = list(d["events"]) + [
                             {"kind": "registry_change", "description": c.get("description") or c["field"]}
                             for c in diff.get("changes", [])

@@ -1068,6 +1068,10 @@ class Run:
                         "relations": doc["relations"],
                         "origin_group": doc["origin_group"],
                         "events": doc["events"],
+                        # program-derived parts of the text and their inputs (both registry
+                        # versions; the attachment's parse artifact and parent versions). A quote
+                        # found only there quotes a derived comparison, not the source record.
+                        "derived": doc.get("derived") or [],
                     },
                 )
             )
