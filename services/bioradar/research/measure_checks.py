@@ -28,6 +28,7 @@ from bioradar.material import of
 
 CHECKER, CONTRACT = ec.CHECKER_V7, ec.CONTRACT_V2
 PRODUCER = {"name": "bioradar.triage", "version": "measure.v2"}
+TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan, T-31)
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
 PARKED = timedelta(
@@ -279,10 +280,13 @@ def build(candidate, text):
 # ---- triage side -------------------------------------------------------------------------------------------
 
 
-def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False):
+def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False, window=None):
     """Candidates (and their check tasks) for the measures of one triaged record. Returns how many.
+    window (start, end): the characters the model actually read; a quote is located only inside them - its
+    offset there tells a repeated sentence apart, and a quote the model cannot have read is not built.
     overlap: the item is a continuation window (T-31), which repeats part of the window before it: a measure
-    at a place, value and metric already enqueued is that statement found again, not a second reading."""
+    of the same artifact (processor, text hash) at the same span, value and metric is that statement found
+    again, not a second reading. Nothing is reused across cleaned artifacts."""
     material = of(doc)
     text = material.text
     made = 0
@@ -290,8 +294,18 @@ def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False):
         m = measure.model_dump()
         status, reason, part, q = "pending", None, None, None
         hits = [x.start() for x in re.finditer(re.escape(m["quote"]), text)] if m["quote"] else []
+        anywhere = bool(hits)
+        if window is not None:
+            hits = [h for h in hits if window[0] <= h and h + len(m["quote"]) <= window[1]]
         if len(hits) != 1:
-            status, reason = "not_built", "quote_not_in_text" if not hits else "quote_in_several_places"
+            status = "not_built"
+            reason = (
+                "quote_in_several_places"
+                if hits
+                else "quote_not_in_window"
+                if anywhere and window is not None
+                else "quote_not_in_text"
+            )
         else:
             part, off = material.at(hits[0])
             last, last_off = material.at(hits[0] + len(m["quote"]) - 1)
@@ -310,8 +324,11 @@ def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False):
                 )
             )
         )
-        if any(c.measure == m for c in earlier):
-            continue  # this version's measure was enqueued before (a retried triage)
+        artifact = ((part or {}).get("processor_version"), (part or {}).get("text_sha256"))
+        same = [c for c in earlier if (c.processor_version, c.text_sha256) == artifact]
+        here = q or (None, None)
+        if any(c.measure == m and (c.quote_start, c.quote_end) == here for c in same):
+            continue  # this artifact's measure at this place was enqueued before (a retried triage)
         if (
             overlap
             and q
@@ -320,7 +337,7 @@ def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False):
                 and c.quote_end == q[1]
                 and c.measure.get("value_text") == m["value_text"]
                 and c.measure.get("metric_text") == m["metric_text"]
-                for c in earlier
+                for c in same
             )
         ):
             continue  # the same statement found again (T-31: a window overlapping the one that found it)
@@ -883,11 +900,13 @@ def legacy_backlog(session, s):
     return n
 
 
-def reextract(s, fabric, *, is_demo, triage, limit=10):
+def reextract(s, fabric, *, is_demo, triage, limit=10, plan=None):
     """Re-read up to `limit` owed versions from Fabric and triage them for their measures only (no
     observation,
     topic or alert side effects): the measures found become ordinary candidates and are checked as any other.
-    A version no longer readable is marked reextract_failed with the reason. Returns how many were done."""
+    A version no longer readable is marked reextract_failed with the reason. Returns how many were done.
+    plan(session, s, doc, topic, direction, at, is_demo): the reading plan of the version re-read (T-31),
+    so its windows after the first are owed like any triaged version's."""
     with db.session() as session:
         owed = list(
             session.scalars(
@@ -923,9 +942,11 @@ def reextract(s, fabric, *, is_demo, triage, limit=10):
                 if attempts >= MAX_ATTEMPTS:
                     row.status = "reextract_failed"
                 continue
-            enqueue(
-                session, s, docs[0], item, None, _utc(c.observed_at), is_demo
-            )  # zero measures settle it too
+            enqueue(  # zero measures settle it too; triage read the first window only
+                session, s, docs[0], item, None, _utc(c.observed_at), is_demo, window=(0, TRIAGE_WINDOW)
+            )
+            if plan:
+                plan(session, s, docs[0], None, item.direction, _utc(c.observed_at), is_demo)
             row.status, row.reason = "reextracted", "stored_before_checking"
         done += 1
     return done

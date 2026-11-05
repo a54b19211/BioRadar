@@ -18,7 +18,7 @@ from sqlalchemy import func, select, text
 from bioradar import db
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
-from bioradar.research import analyses, monitor
+from bioradar.research import analyses, continuation, monitor
 
 app = FastAPI(title="BioRadar", version="1.0.0")
 COOKIE = "bioradar_session"
@@ -680,6 +680,40 @@ def investigations(limit: int = 30):
         }
         for r in rows
     ]
+
+
+@app.get("/api/measure-coverage", dependencies=api)
+def measure_coverage(
+    is_demo: bool = False, version_id: str | None = None, state: str | None = None, limit: int = 100
+):
+    """T-31, read-only: per fixed version of this workspace, what of its cleaned text a model read, what is
+    unread and why (pending, budget spent, paused - permission withdrawn, failed, capped, skipped), and the
+    plans by state. Read is not "every fact extracted"."""
+    s = settings()
+    where = (db.RecordRead.workspace_id == s.workspace_id, db.RecordRead.is_demo == is_demo)
+    with db.session() as session:
+        q = select(db.RecordRead).where(*where)
+        if version_id:
+            q = q.where(db.RecordRead.version_id == version_id)
+        if state:
+            q = q.where(db.RecordRead.state == state)
+        rows = list(session.scalars(q.order_by(db.RecordRead.id.desc()).limit(max(1, min(limit, 500)))))
+        items = [
+            {
+                **continuation.coverage(session, r),
+                "source": r.source,
+                "record_id": r.record_id,
+                "processor_version": r.processor_version,
+                "text_sha256": r.text_sha256,
+            }
+            for r in rows
+        ]
+        by_state = dict(
+            session.execute(
+                select(db.RecordRead.state, func.count()).where(*where).group_by(db.RecordRead.state)
+            ).all()
+        )
+    return {"is_demo": is_demo, "plans_by_state": by_state, "items": items}
 
 
 @app.get("/api/topics", dependencies=api)

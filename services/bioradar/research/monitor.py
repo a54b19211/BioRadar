@@ -501,7 +501,9 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                     )
                 )
                 # measures become candidates; only the check worker turns a checked one into a series point
-                measure_checks.enqueue(session, s, doc, item, topic, at, is_demo)
+                measure_checks.enqueue(
+                    session, s, doc, item, topic, at, is_demo, window=(0, TRIAGE_CHARACTERS)
+                )
                 if item:  # its first window was read: the windows after it are owed (T-31)
                     continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
                 if topic is None:
@@ -1019,7 +1021,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
             observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
         )
     if not paused:  # a re-extraction is a model call: it waits while the token budget is spent
-        measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage)
+        measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage, plan=continuation.plan)
     with db.session() as session:  # plans paused by a withdrawn permission read on once it is back
         continuation.periodic_resume(session, fabric, is_demo, db.now())
     if not paused:  # continuation windows are model calls too (T-31)

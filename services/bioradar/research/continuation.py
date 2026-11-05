@@ -9,8 +9,14 @@ limit), budget_spent (the model budget ran out - read in a later round), source_
 withdrawn - the plan pauses), failed_final (bounded retries spent), skipped_no_digit (only when
 configured: no digit, so no written number to extract).
 
-The measures found go to measure_checks.enqueue, which locates each quote in the WHOLE artifact text, so a
-sentence crossing a window border lands at one place; one found again in an overlap is not enqueued twice."""
+Windows after the first end at a real boundary (paragraph or table row, else sentence) and start at one
+inside the overlap; heading and table header go along as context with their own offsets, never as window
+text. The measures found go to measure_checks.enqueue with the window that was read: a quote is located
+only inside it (its offset in the artifact disambiguates a repeated sentence), and one found again in an
+overlap - same artifact (processor, text hash), same span, value and metric - is enqueued once. A sentence
+longer than the overlap that crosses a border is in no window whole: it is not extracted (the tests say so).
+Skipped windows (only when configured) count as unread. read_until is the contiguous front of windows read;
+coverage is the union of what was read. Read is not "every fact extracted"."""
 
 import re
 import uuid
@@ -25,22 +31,61 @@ from bioradar.config import Settings
 from bioradar.material import Material, of
 from bioradar.research import analyses, measure_checks, prompts, schemas
 
-WINDOW = 1500  # monitor.TRIAGE_CHARACTERS is this: window 0 is the triage window
+WINDOW = measure_checks.TRIAGE_WINDOW  # = monitor.TRIAGE_CHARACTERS: window 0 is the triage window
 LEASE = timedelta(minutes=2)
 MAX_ATTEMPTS = 3
 RETRY = timedelta(minutes=5)
 TO_READ = ("pending", "failed", "budget_spent")
-READ = ("sent", "skipped_no_digit")
+READ = ("sent",)  # a skipped window is not read
 DIGIT = re.compile(r"[0-9０-９]")
 BUDGET_ERRORS = ("request_budget", "http_error:429", "http_error:503")
 
 
-def window_starts(n, overlap):
-    step = WINDOW - overlap
-    starts = [0]
-    while starts[-1] + WINDOW < n:
-        starts.append(starts[-1] + step)
-    return starts
+SENTENCE_END = "。！？!?；;"
+
+
+def _is_cut(text, p, line_only):
+    """Whether position p (between text[p-1] and text[p]) is a boundary."""
+    c = text[p - 1]
+    if c == "\n":
+        return True
+    if line_only:
+        return False
+    return c in SENTENCE_END or (c == "." and (p == len(text) or text[p] in " \n"))
+
+
+def _cut_end(text, lo, hi):
+    """The last boundary in (lo, hi]: a line end first, else a sentence end; hi when there is none."""
+    for line_only in (True, False):
+        for p in range(hi, lo, -1):
+            if _is_cut(text, p, line_only):
+                return p
+    return hi
+
+
+def _cut_start(text, lo, hi):
+    """The first boundary in [lo, hi): a line start first, else a sentence start; lo when there is none."""
+    for line_only in (True, False):
+        for p in range(max(lo, 1), hi):
+            if _is_cut(text, p, line_only):
+                return p
+    return lo
+
+
+def windows_of(text, overlap):
+    """[(start, end)]: window 0 is [0, WINDOW) as triage read it; each later one starts at a boundary inside
+    the last `overlap` characters of the one before and ends at the last boundary of its WINDOW characters
+    (keeping at least two thirds of them)."""
+    n = len(text)
+    out = [(0, min(WINDOW, n))]
+    while out[-1][1] < n:
+        a_prev, b_prev = out[-1]
+        a = _cut_start(text, max(b_prev - overlap, a_prev + 1), b_prev)
+        b = min(a + WINDOW, n)
+        if b < n:
+            b = _cut_end(text, a + WINDOW * 2 // 3, b)
+        out.append((a, b))
+    return out
 
 
 def _clean_part(material: Material):
@@ -92,8 +137,8 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
         session.add(read)
         session.flush()
         return read
-    starts = window_starts(n, s.continuation_overlap_chars)
-    read.windows_total = len(starts)
+    spans = windows_of(material.text, s.continuation_overlap_chars)
+    read.windows_total = len(spans)
     read.read_until = min(WINDOW, n)
     session.add(read)
     session.flush()
@@ -103,14 +148,14 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
         .order_by(db.MaterialRead.id.desc())
         .limit(1)
     )
-    for k, a in enumerate(starts):
+    for k, (a, b) in enumerate(spans):
         state = "sent" if k == 0 else "pending" if k <= s.continuation_max_windows else "capped"
         session.add(
             db.RecordReadWindow(
                 read_id=read.id,
                 window_index=k,
                 start_char=a,
-                end_char=min(a + WINDOW, n),
+                end_char=b,
                 state=state,
                 attempts=0,
                 next_at=db.now(),
@@ -130,13 +175,13 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
 
 
 def _claim(is_demo, now, taken, per_round, per_call):
-    """Up to per_call windows, round-robin over the plans in arrival order (each plan's lowest windows
-    first), no plan more than per_round windows this round - a long table does not starve the records after
-    it."""
+    """Up to per_call windows, round-robin over the sources and, inside a source, over its plans in arrival
+    order (each plan's lowest windows first); no plan more than per_round windows this round - a long table
+    or a busy source does not starve the others."""
     token = uuid.uuid4().hex
     with db.session() as session:
         rows = session.execute(
-            select(db.RecordReadWindow, db.RecordRead.created_at)
+            select(db.RecordReadWindow, db.RecordRead.source)
             .join(db.RecordRead, db.RecordRead.id == db.RecordReadWindow.read_id)
             .where(
                 db.RecordRead.is_demo == is_demo,
@@ -149,20 +194,23 @@ def _claim(is_demo, now, taken, per_round, per_call):
             .limit(500)
             .with_for_update(skip_locked=True)
         ).all()
-        groups = {}
-        for w, _ in rows:
-            groups.setdefault(w.read_id, []).append(w)
+        by_source = {}  # source -> {read_id: [windows]}, both in arrival order
+        for w, source in rows:
+            by_source.setdefault(source, {}).setdefault(w.read_id, []).append(w)
         picked = []
         while len(picked) < per_call:
             moved = False
-            for rid, ws in groups.items():
+            for plans in by_source.values():
                 if len(picked) >= per_call:
                     break
-                if taken.get(rid, 0) >= per_round or not ws:
-                    continue
-                picked.append(ws.pop(0))
-                taken[rid] = taken.get(rid, 0) + 1
-                moved = True
+                for rid in list(plans):
+                    if taken.get(rid, 0) >= per_round or not plans[rid]:
+                        continue
+                    picked.append(plans[rid].pop(0))
+                    taken[rid] = taken.get(rid, 0) + 1
+                    plans[rid] = plans.pop(rid)  # this source's next pick is its next plan
+                    moved = True
+                    break
             if not moved:
                 break
         for w in picked:
@@ -218,11 +266,11 @@ def _readback(fabric, read, now):
 
 
 def _heading(text, a):
-    """The nearest markdown heading line that starts before a (the window's section), or ""."""
-    best = ""
+    """The nearest markdown heading before a, with its offset in the artifact (context, not window text)."""
+    best = None
     for m in re.finditer(r"(?m)^#{1,6} [^\n]*", text[:a]):
-        best = m.group(0)
-    return best[:200]
+        best = {"at": m.start(), "text": m.group(0)[:200]}
+    return best
 
 
 def run(s: Settings, fabric, *, is_demo, budget=False, now=None):
@@ -268,6 +316,7 @@ def _read(s, fabric, keys, token, now):
                 _attempt(session, w, why)
                 continue
             text = texts[w.read_id]
+            # an explicit saving, never "no data": a skipped window stays unread in the coverage
             if s.continuation_skip_no_digit and not DIGIT.search(text[w.start_char : w.end_char]):
                 w.state, w.lease_token, w.lease_until = "skipped_no_digit", None, None
                 _attempt(session, w, "skipped_no_digit")
@@ -371,6 +420,7 @@ def _read(s, fabric, keys, token, now):
                 measure_checks._utc(read.observed_at),
                 read.is_demo,
                 overlap=True,
+                window=(a, b),
             )
             w.state = "sent"
             sent += 1
@@ -389,11 +439,12 @@ def _read(s, fabric, keys, token, now):
 
 
 def _table_header(material, a, b):
+    """The header of the table the window starts in, with its offset (context, not window text)."""
     found = material.table_header(a, b)
-    if not found:
-        return ""
+    if not found or not found[0]:
+        return None
     spans, _whole = found
-    return "".join(material.text[x:y] for x, y in spans)[:600]
+    return {"at": spans[0][0], "text": "".join(material.text[x:y] for x, y in spans)[:600]}
 
 
 def _settle(session, read):
@@ -408,16 +459,20 @@ def _settle(session, read):
         )
     )
     states = {w.state for w in ws}
-    until = 0
+    until = 0  # the contiguous front: a failed window before a read one is a hole, not read
     for w in ws:
         if w.state not in READ:
             break
         until = w.end_char
     read.read_until = until
     if states <= set(READ):
-        read.state = "complete"
+        read.state, read.reason = "complete", None
     elif not states & set(TO_READ):
-        read.state = "capped" if "capped" in states else "failed"
+        if "failed_final" in states:
+            read.state, read.reason = "failed", "retries_spent"
+        else:  # capped and / or skipped windows: text not read, said so
+            read.state = "capped"
+            read.reason = "+".join(x for x in ("capped", "skipped_no_digit") if x in states)
     read.updated_at = db.now()
 
 
@@ -438,9 +493,39 @@ def resume(session, read_id):
     return True
 
 
+def extend(session, read_id, windows):
+    """Read on past the cap: the next `windows` capped windows (lowest first) become owed again - an explicit
+    continuation or a later budget; nothing beyond the cap is ever dropped. Returns how many were reopened."""
+    read = session.get(db.RecordRead, read_id)
+    if read is None or read.state not in ("capped", "reading"):
+        return 0
+    capped = list(
+        session.scalars(
+            select(db.RecordReadWindow)
+            .where(db.RecordReadWindow.read_id == read_id, db.RecordReadWindow.state == "capped")
+            .order_by(db.RecordReadWindow.window_index)
+            .limit(windows)
+        )
+    )
+    for w in capped:
+        w.state, w.next_at = "pending", db.now()
+    if capped:
+        read.state, read.reason = "reading", None
+        _settle(session, read)
+    return len(capped)
+
+
 def coverage(session, read):
-    """Characters of the artifact by what happened to them: read by a model, skipped (no digit), not read."""
+    """Characters of the artifact by what happened to them: read by a model (union, overlaps once), skipped
+    (no digit - unread), not read; and how many read windows gave no measure (read, nothing extracted)."""
     ws = list(session.scalars(select(db.RecordReadWindow).where(db.RecordReadWindow.read_id == read.id)))
+    empty = session.scalars(
+        select(db.RecordReadAttempt.window_index).where(
+            db.RecordReadAttempt.read_id == read.id,
+            db.RecordReadAttempt.outcome == "sent",
+            db.RecordReadAttempt.measures_found == 0,
+        )
+    ).all()
 
     def union(states):
         spans = sorted((w.start_char, w.end_char) for w in ws if w.state in states)
@@ -453,15 +538,30 @@ def coverage(session, read):
         return total
 
     model_read = union(("sent",))
-    covered = union(READ)
+    skipped = union(("sent", "skipped_no_digit")) - model_read  # skipped and not read by another window
     return {
         "version_id": read.version_id,
         "state": read.state,
         "reason": read.reason,
         "total_chars": read.total_chars,
         "model_read_chars": model_read if read.state != "not_planned" else read.read_until,
-        "skipped_no_digit_chars": covered - model_read,
-        "unread_chars": read.total_chars - (covered if read.state != "not_planned" else read.read_until),
+        "skipped_no_digit_chars": skipped,  # part of unread_chars
+        "unread_chars": read.total_chars - (model_read if read.state != "not_planned" else read.read_until),
+        "windows_read_without_measures": len(set(empty)),
+        # unread characters by why (a character in several unread windows counts under each of them)
+        "unread_by_reason": {
+            st: union(("sent", st)) - model_read
+            for st in (
+                "pending",
+                "budget_spent",
+                "source_unreadable",
+                "failed",
+                "failed_final",
+                "capped",
+                "skipped_no_digit",
+            )
+            if any(w.state == st for w in ws)
+        },
         "read_until": read.read_until,
         "windows": {st: sum(1 for w in ws if w.state == st) for st in sorted({w.state for w in ws})},
     }

@@ -472,8 +472,41 @@ def test_an_effective_plan_heading_reaches_the_checker(monkeypatch):
 
 
 def test_a_context_beyond_the_contract_limit_stays_pending(monkeypatch):
+    """The value is 20,000 characters into its section: triage cannot have read it, the continuation window
+    that reads it finds it (T-31) - and its context is past the contract's limit, so it is not built."""
     text = "# 建设计划\n\n" + "背景资料。" * 4100 + "\n\n" + TEXT
-    _, calls = one(monkeypatch, [measure()], text=text)
+    s = monitor.settings()
+    for name, value in (
+        ("continuation_max_windows", 40),
+        ("continuation_per_round", 40),
+        ("continuation_calls_per_round", 20),
+    ):
+        monkeypatch.setattr(s, name, value)
+    calls = []
+    post = biocheck_fake(calls=calls)
+    monkeypatch.setattr(services, "biocheck_v2", lambda s_, body: post(body))
+
+    def chat_json(settings_, stage, system, payload, model_cls, **options):
+        call = {
+            "stage": stage,
+            "model": "fake",
+            "finish_reason": "stop",
+            "usage": {},
+            "seconds": 0,
+            "error": None,
+        }
+        if stage == "extract":
+            items = [
+                schemas.ExtractItem(
+                    index=w["index"], measures=[measure()] if measure().quote in w["text"] else []
+                )
+                for w in payload["windows"]
+            ]
+            return schemas.Extraction(items=items), call
+        return schemas.Triage(items=[schemas.TriageItem(index=1, alert="normal", measures=[])]), call
+
+    monkeypatch.setattr(llm, "chat_json", chat_json)
+    monitor.tick(is_demo=True, fabric=FakeFabric([record("R1", text, text)], clean=True))
     assert calls == [] and [(c.status, c.reason) for c in rows(db.MeasurementCandidate)] == [
         ("not_built", "context_over_20000_characters")
     ]
