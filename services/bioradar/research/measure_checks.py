@@ -27,10 +27,11 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of
 
-# measure.v3 / checker v8: written numbers, whole-number tokens and the unit in the bound metric phrase
-# are read with extraction_normalize.v1, the functions BioCheck v8 uses (v7 / measure.v2: frozen baseline)
-CHECKER, CONTRACT = ec.CHECKER_V8, ec.CONTRACT_V2
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v3"}
+# measure.v4 / checker v9: written numbers and whole-number tokens as in measure.v3; a period literal is
+# located only as the whole written period, a unit in the bound metric phrase only as its head counting noun -
+# extraction_normalize.v2, the functions BioCheck v9 uses (measure.v3 / v8 and measure.v2 / v7: as released)
+CHECKER, CONTRACT = ec.CHECKER_V9, ec.CONTRACT_V2
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v4"}
 TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan, T-31)
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
@@ -166,17 +167,26 @@ def locate(text, q0, q1, m):
         if at is None:
             return None, f"{name}_literal_not_located"
         spans[name] = (at, at + len(literal))
+    if "period" in spans and not norm.period_span_whole(text, *spans["period"]):
+        # "2018" of "In January 2018" or "Since 2018" is part of another period (extraction_normalize.v2)
+        return None, "period_literal_not_the_whole_period"
     unit = m.get("unit_text") or ""
     if unit:
         v_end = spans["value"][1]
         hit = re.match(r"\s*" + MODIFIERS, text[v_end : v_end + 80], re.IGNORECASE)
         off = hit.end() if text[v_end + hit.end() :].startswith(unit) else None
         if off is not None:
-            spans["unit"] = (v_end + off, v_end + off + len(unit))
-        elif "metric" in spans:  # a word of the metric phrase bound to the value (extraction_normalize.v1)
+            u = v_end + off
+            m0, m1 = spans.get("metric", (0, 0))
+            if m0 <= u < u + len(unit) <= m1 and not norm.unit_head(text, v_end, u, u + len(unit), m0, m1):
+                # right after the value but a word of the metric phrase that is not its head counting noun
+                # ("close" of "23 close contacts"): not the unit (extraction_normalize.v2)
+                return None, "unit_literal_not_at_the_value"
+            spans["unit"] = (u, u + len(unit))
+        elif "metric" in spans:  # the head counting noun of the bound metric phrase (extraction_normalize.v2)
             m0, m1 = spans["metric"]
             u = text.find(unit, m0, m1)
-            if u < 0 or not norm.unit_bound(text, v_end, u, u + len(unit), m0, m1):
+            if u < 0 or not norm.unit_head(text, v_end, u, u + len(unit), m0, m1):
                 return None, "unit_literal_not_at_the_value"
             spans["unit"] = (u, u + len(unit))
         else:

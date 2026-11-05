@@ -9,8 +9,9 @@ from bioradar.research import schemas
 
 
 def test_the_producer_and_checker_versions():
-    assert mc.CHECKER == ec.CHECKER_V8 == "biocheck.extraction_rules.v8"
-    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v3"}
+    # measure.v3 / v8 on its own commit (8d1412b); from measure.v4 / v9 on, normalize v2 (test_measure_v4)
+    assert mc.CHECKER == ec.CHECKER_V9 == "biocheck.extraction_rules.v9"
+    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v4"}
 
 
 @pytest.mark.parametrize(
