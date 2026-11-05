@@ -360,7 +360,7 @@ class Fabric:
             "rerank": (execution.get("rerank") or {}).get("state"),
             "recall": [
                 {
-                    "scope": item.get("source_scope"),
+                    "scopes": item.get("source_scopes"),
                     **{
                         k: (item.get("execution") or {}).get(k)
                         for k in ("keyword", "vector", "embedding", "degraded", "degraded_reasons")

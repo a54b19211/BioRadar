@@ -202,7 +202,7 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
         execution = {
             "candidates": 3, "verified": 1, "returned": 1, "insufficient": True,
             "rerank": {"state": "succeeded"},
-            "recall": [{"source_scope": "public_health", "execution": {"keyword": "succeeded", "vector": "succeeded",
+            "recall": [{"source_scopes": ["public_health", "research"], "execution": {"keyword": "succeeded", "vector": "succeeded",
                                                                        "degraded": False}}],
         }
         return httpx.Response(200, json={"results": [result], "execution": execution,
@@ -221,7 +221,7 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
     assert hits == [{"source": "who_don", "record_id": "D1", "version_id": "v-visible", "score": 0.8,
                      "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}]}]
     assert summary["excluded"] == {"not_visible_at_cutoff": 2} and summary["insufficient"] is True
-    assert summary["recall"] == [{"scope": "public_health", "keyword": "succeeded", "vector": "succeeded",
+    assert summary["recall"] == [{"scopes": ["public_health", "research"], "keyword": "succeeded", "vector": "succeeded",
                                   "embedding": None, "degraded": False, "degraded_reasons": None}]
     assert fabric.requests["search"] == {"n": 1, "errors": 0}
 

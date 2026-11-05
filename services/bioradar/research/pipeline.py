@@ -976,7 +976,7 @@ class Run:
             self.p.setdefault("weknora", []).append({"terms": terms, **summary})
             for scope in summary["recall"]:
                 if scope.get("degraded"):
-                    self.note("weknora_scope", f"{scope['scope']}: degraded")
+                    self.note("weknora_scope", f"{','.join(scope['scopes'] or [])}: degraded")
             # each hit is already the version visible at this cutoff: read exactly that version
             refs = {}
             for hit in hits:
