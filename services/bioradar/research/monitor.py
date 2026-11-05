@@ -356,7 +356,30 @@ def triage(s: Settings, docs, topics, watch=None, known=None):
             for i, (d, w) in enumerate(zip(docs, windows), 1)
         ],
     }
-    result, call = llm.chat_json(s, "triage", prompts.TRIAGE, payload, schemas.Triage)
+    # each record's window, recorded with its binding before it goes out (v3 6.1); settled after the call
+    with db.session() as session:
+        rows = [
+            db.material_read(
+                w,
+                stage="triage",
+                service="radar",
+                ref=f"R{i}",
+                source=d["source"],
+                record_id=d["record_id"],
+                version_id=d["version_id"],
+            )
+            for i, (d, w) in enumerate(zip(docs, windows), 1)
+        ]
+        session.add_all(rows)
+        session.flush()
+        ids = [r.id for r in rows]
+    try:
+        result, call = llm.chat_json(s, "triage", prompts.TRIAGE, payload, schemas.Triage)
+    except BaseException:
+        with db.session() as session:
+            for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
+                r.status = "failed"
+        raise
     with db.session() as session:
         u = call["usage"]
         row = db.LlmCall(
@@ -372,20 +395,8 @@ def triage(s: Settings, docs, topics, watch=None, known=None):
         )
         session.add(row)
         session.flush()
-        # each record's window as sent in this call, with its binding (v3 6.1)
-        for i, (d, w) in enumerate(zip(docs, windows), 1):
-            session.add(
-                db.material_read(
-                    w,
-                    stage="triage",
-                    service="radar",
-                    ref=f"R{i}",
-                    source=d["source"],
-                    record_id=d["record_id"],
-                    version_id=d["version_id"],
-                    llm_call_id=row.id,
-                )
-            )
+        for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
+            r.llm_call_id, r.status = row.id, "sent"
     items = {item.index: item for item in (result.items if result else []) if 1 <= item.index <= len(docs)}
     return [items.get(i) for i in range(1, len(docs) + 1)]
 

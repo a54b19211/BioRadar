@@ -181,6 +181,14 @@ def test_a_literature_record_without_document_evidence_keeps_its_own_publication
     assert (stated["material_kind"], stated["text_level"]) == ("news_report", "full_text")  # Fabric wins
 
 
+ARTIFACT = {
+    "artifact_key": "datafabric.clean_text.v8:" + "a" * 64,
+    "processor_version": "datafabric.clean_text.v8",
+    "text_sha256": "a" * 64,
+    "handover": True,
+}
+
+
 def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
     """v3 3.6: the radar never calls the bridge; Fabric recalls through WeKnora and verifies each hit at the
     cutoff, returning the version visible then, the fixed text and why others were excluded."""
@@ -197,7 +205,7 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
         result = {
             "source_id": "who_don", "source_record_id": "D1", "version_id": "v-visible", "is_demo": True,
             "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}], "rerank_score": 0.8,
-            "indexed_as": {"version_id": "v-first"},
+            "indexed_as": {"version_id": "v-first"}, "start": 10, "end": 17, "artifact": ARTIFACT,
         }
         execution = {
             "candidates": 3, "verified": 1, "returned": 1, "insufficient": True,
@@ -219,7 +227,8 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
     assert body["mode"] == "public_history_reconstruction" and body["cutoff"] == cutoff.isoformat()
     assert body["scopes"] == ["public_health", "research"] and body["is_demo"] is True
     assert hits == [{"source": "who_don", "record_id": "D1", "version_id": "v-visible", "score": 0.8,
-                     "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}]}]
+                     "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}], "range": [10, 17],
+                     "artifact": ARTIFACT}]  # the hit keeps the artifact it was verified against
     assert summary["excluded"] == {"not_visible_at_cutoff": 2} and summary["insufficient"] is True
     assert summary["recall"] == [{"scopes": ["public_health", "research"], "keyword": "succeeded", "vector": "succeeded",
                                   "embedding": None, "degraded": False, "degraded_reasons": None}]
@@ -287,7 +296,10 @@ def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
     # not processed yet: the version's own text stays, marked
     other = document(dict(record, version_id="w" * 64))
     fabric.complete([other], is_demo=False, mode="current", cutoff=datetime.now(UTC).isoformat())
-    assert other["text"] == "Brief summary." and other["clean_text_state"] == "unavailable"
+    assert other["clean_text_state"] == "unavailable" and other["text_level"] == "uncleaned_projection"
+    notice = "【清洗层正文不可用（unavailable）：以下是该版本自带的投影正文，未经清洗，可能不完整】"
+    assert other["text"] == notice + "\n\nBrief summary."
+    assert other["material"].segments[0][1] is None  # the notice is a fixed template, the text a bound part
 
 
 def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resumed_run():
@@ -316,3 +328,71 @@ def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resum
     resumed.save()
     assert resumed.p["fabric_requests"] == {"records": {"n": 2, "errors": 1}}
     assert all(set(c) == {"n", "errors"} for c in resumed.p["fabric_requests"].values())
+
+
+def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
+    """Codex 470: a semantic hit names the cleaned artifact it was verified against (processor version and
+    full-text hash, an earlier processor's during a handover). Reading asks Fabric for exactly that one and
+    binds it with Fabric's locators; an artifact that is not there any more is said so, never replaced by the
+    current one, and the projection text read instead is not counted as cleaned or full text."""
+    import hashlib
+    import json
+
+    import pytest
+
+    from bioradar.adapters.fabric import Fabric
+    from bioradar.material import Material, MaterialError, reread, restore
+
+    v = "v" * 64
+    old_text = "旧处理器正文 status: COMPLETED\n第二段"
+    old = {"processor_version": "datafabric.clean_text.v8", "status": "parsed", "text": old_text,
+           "text_sha256": hashlib.sha256(old_text.encode()).hexdigest(),
+           "segments": [
+               {"start": 0, "end": 7, "kind": "field", "source": {"json_pointer": "/briefSummary"}},
+               {"start": 7, "end": len(old_text), "kind": "field", "source": {"json_pointer": "/status"}},
+           ]}
+    asked = []
+
+    def handler(request):
+        path, params = request.url.path, request.url.params
+        if path.startswith("/api/history/versions/"):
+            return httpx.Response(200, json={
+                "source_id": "clinicaltrials", "source_record_id": "NCT1", "version_id": v, "is_demo": True,
+                "raw_sha256": "r" * 64, "record_kind": "trial", "title": "T", "clean_text": "投影正文",
+                "parser_version": "p1", "facts": {}})
+        if path.endswith("/clean-text"):
+            asked.append(params.get("processor_version"))
+            named = params.get("processor_version")
+            versions = {v: {"state": "processed", "clean": old}} if named == old["processor_version"] else {}
+            return httpx.Response(200, json={"versions": versions})
+        if path.endswith("/registry-changes"):
+            return httpx.Response(200, json={"versions": {}})
+        return httpx.Response(404, json={"detail": {"code": "version_not_found"}})
+
+    fabric = Fabric(settings(), client=httpx.Client(base_url="http://fabric.invalid",
+                                                    transport=httpx.MockTransport(handler)))
+    wanted = {"processor_version": old["processor_version"], "text_sha256": old["text_sha256"]}
+    docs, _ = fabric.read_versions("clinicaltrials", [("NCT1", v)], is_demo=True, artifacts={v: wanted})
+    doc = docs[0]
+    assert asked == ["datafabric.clean_text.v8"]  # the hit's processor, not the current one
+    assert doc["text"] == old_text
+    assert (doc["clean_text_state"], doc["clean_text_choice"]) == ("processed", "search_hit")
+    p = doc["material"].parts()[0]
+    assert (p["processor_version"], p["raw_sha256"]) == (old["processor_version"], "r" * 64)
+    assert p["text_sha256"] == old["text_sha256"]
+    # a window names Fabric's locators of what it covers, and keeps them through storage and a further cut
+    window = doc["material"].slice(9, len(old_text))
+    stored = json.loads(json.dumps(window.binding(), ensure_ascii=False))
+    assert [loc["source"]["json_pointer"] for loc in stored["segments"][0]["locators"]] == ["/status"]
+    again = restore(window.text, stored).slice(0, 3).binding()
+    assert again["segments"][0]["locators"] == stored["segments"][0]["locators"]
+    assert reread(stored, fabric.part_texts) == window.text
+    # the artifact the hit named changed (another hash): not read in its place, and not counted as cleaned
+    docs, _ = fabric.read_versions("clinicaltrials", [("NCT1", v)], is_demo=True,
+                                   artifacts={v: dict(wanted, text_sha256="0" * 64)})
+    assert docs[0]["text"].endswith("投影正文") and "artifact_changed" in docs[0]["text"]
+    assert docs[0]["clean_text_state"] == "artifact_changed"
+    assert docs[0]["text_level"] == "uncleaned_projection"
+    # text without known provenance never reads back as if it were bound
+    with pytest.raises(MaterialError):
+        reread(Material.unbound("旧证据", "read_before_binding").binding(), fabric.part_texts)

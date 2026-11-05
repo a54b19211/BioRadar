@@ -60,7 +60,10 @@ def test_parsed_attachment_text_becomes_the_document_text_with_its_parent_named(
     fabric, sent = fabric_with(PARSED)
     [doc], _ = fabric.search("nmpa", (), is_demo=False)
     assert doc["role"] == "attachment" and doc["parent_record_id"] == PARENT
-    assert doc["text"].startswith("【附件正文：") and "注销药品注册证书目录" in doc["text"]
+    assert doc["text"].startswith("【附件正文（附件版本") and "注销药品注册证书目录" in doc["text"]
+    # the heading is a fixed template with identifiers only; the attachment text is a bound part (v3 6.1)
+    heading, body = doc["material"].segments[0], doc["material"].segments[1]
+    assert heading[1] is None and doc["title"] not in heading[0] and body[1]["kind"] == "clean_text"
     assert PARENT in doc["text"]
     assert route(doc) is None
     assert "/api/history/derived-text" in sent

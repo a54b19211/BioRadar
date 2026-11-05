@@ -69,9 +69,10 @@ ATTACHMENT_SOURCES = {"nmpa", "cde", "chictr"}
 
 def attachment_heading(doc: dict, found: dict) -> str:
     """The line put above an attachment's parsed text: what it is and where it came from, so a quote points
-    back to the attachment version and its page."""
+    back to the attachment version and its page. A fixed template filled with identifiers and the parse
+    method only, never source text: it is a literal segment of what a model reads (v3 6.1)."""
     return (
-        f"【附件正文：{doc['title']}（附件版本 {doc['version_id'][:16]}，"
+        f"【附件正文（附件版本 {doc['version_id'][:16]}，"
         f"所属页面 {doc.get('parent_record_id') or '?'}；"
         f"由 {found.get('parse_method') or '?'} 从原件解析，表格和扫描件的识别可能有误，以原件为准）】\n\n"
     )
@@ -84,9 +85,24 @@ def part(doc: dict, kind: str, **identity) -> dict:
         "source": doc["source"],
         "record_id": doc["record_id"],
         "version_id": doc["version_id"],
+        "raw_sha256": doc.get("raw_sha256"),
         "is_demo": doc["is_demo"],
         **identity,
     }
+
+
+def locators(clean: dict) -> list:
+    """Fabric's locators of a cleaned text: each segment's range with where it points in the original."""
+    return [
+        {"start": s["start"], "end": s["end"], **{k: v for k, v in s.items() if k not in ("start", "end")}}
+        for s in clean.get("segments") or []
+        if isinstance(s, dict) and "start" in s and "end" in s
+    ]
+
+
+# Put above a version's own projection text when the cleaning layer's text is not there (Codex r85): a fixed
+# template filled with the state code only.
+UNCLEANED = "【清洗层正文不可用（{state}）：以下是该版本自带的投影正文，未经清洗，可能不完整】\n\n"
 
 
 # Sources whose versions Fabric's processing layer diffs field by field against the previous version.
@@ -144,6 +160,7 @@ def document(record: dict) -> dict:
         "source": record["source_id"],
         "record_id": record["source_record_id"],
         "version_id": record["version_id"],
+        "raw_sha256": record.get("raw_sha256"),
         "is_demo": record["is_demo"],
         "title": record.get("title") or "",
         "url": record.get("source_url"),
@@ -185,8 +202,11 @@ def document(record: dict) -> dict:
         # program-derived text put into this document (registry diff block, parsed attachment text), with what
         # it was derived from, so the evidence record can point back to the inputs (Codex r58/r59)
         "derived": [],
-        # what the cleaning layer gave for this version (Fabric.attach_clean_text): processed, or why not
+        # what the cleaning layer gave for this version (Fabric.attach_clean_text): processed, or why not;
+        # and which of its texts was chosen: the current processor's, or the artifact a search hit named
         "clean_text_state": None,
+        "clean_text_choice": None,
+        "artifact_wanted": None,  # set by read_versions for a search hit: {processor_version, text_sha256}
     }
     # Until the cleaning layer's text is attached, the text is the version's own projection text. `material`
     # is the text with where each character came from (bioradar.material); `text` is always material.text.
@@ -275,6 +295,10 @@ class Fabric:
                 "score": r.get("rerank_score", r.get("recall_score")),
                 "text": r["text"],
                 "locators": r.get("locators") or [],
+                "range": [r.get("start"), r.get("end")],
+                # the fixed artifact the hit was verified against (processor version, full-text sha256; during
+                # a processor handover an earlier processor's): reading must read exactly that one
+                "artifact": r.get("artifact") or {},
             }
             for r in data.get("results") or []
         ]
@@ -319,10 +343,12 @@ class Fabric:
         self.complete(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         return docs, data.get("next_cursor")
 
-    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None):
+    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None, artifacts=None):
         """Fixed versions [(record_id, version_id)] → (documents, versions no longer readable). Used where the
         radar owes work on one particular version (a deferred or failed triage): reading the record again
-        would return its current head instead, and the owed version would never be done (Codex r62)."""
+        would return its current head instead, and the owed version would never be done (Codex r62).
+        artifacts {version_id: {processor_version, text_sha256}}: read that cleaned artifact of the version
+        (a search hit's), not whatever the current processor made of it."""
         mode = HISTORY if cutoff else CURRENT
         at = (cutoff or now or datetime.now(UTC)).isoformat()
         docs, missing = [], []
@@ -343,7 +369,9 @@ class Fabric:
                     raise  # transient (503, network): the owed work stays owed and is retried next round
                 missing.append(version_id)  # revoked, withdrawn from view, or not visible at this cutoff
                 continue
-            docs.append(document(item))
+            doc = document(item)
+            doc["artifact_wanted"] = (artifacts or {}).get(version_id) or None
+            docs.append(doc)
         self.complete(docs, is_demo=is_demo, mode=mode, cutoff=at)
         return docs, missing
 
@@ -406,45 +434,69 @@ class Fabric:
 
     def attach_clean_text(self, docs, *, is_demo, mode, cutoff):
         """The text a model reads is the cleaning layer's text of the version (v3 3.3; for a trial the summary
-        and every registry field, untruncated). Not processed yet, or Fabric unable to answer: the version's
-        own projection text stays and `clean_text_state` says why, so the analysis can say what it read.
-        Attachment versions get their parsed text from attach_attachment_text."""
-        by_source = {}
+        and every registry field, untruncated): the artifact a search hit named when there is one (exactly
+        that processor and text hash, never a newer one in its place), otherwise the current processor's. Not
+        processed, or not that artifact any more: the version's own projection text stays, `clean_text_state`
+        says why and the text level says it is not cleaned text (Codex 470: never counted as cleaned or as
+        full text). Attachment versions get their parsed text from attach_attachment_text unless a hit named
+        their artifact."""
+        groups = {}
         for d in docs:
-            if not (d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment"):
-                by_source.setdefault(d["source"], []).append(d)
-        for source, group in by_source.items():
+            wanted = d.get("artifact_wanted") or {}
+            if d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment" and not wanted:
+                continue
+            groups.setdefault((d["source"], wanted.get("processor_version")), []).append(d)
+        for (source, processor), group in groups.items():
             for start in range(0, len(group), 100):
                 page = group[start : start + 100]
                 try:
                     found = self.clean_texts(
-                        source, [d["version_id"] for d in page], is_demo=is_demo, mode=mode, cutoff=cutoff
+                        source,
+                        [d["version_id"] for d in page],
+                        is_demo=is_demo,
+                        mode=mode,
+                        cutoff=cutoff,
+                        processor_version=processor,
                     )
                 except (FabricError, httpx.HTTPError):
                     found = {}
                 for d in page:
                     entry = found.get(d["version_id"]) or {"state": "unavailable"}
                     clean = entry.get("clean") or {}
+                    wanted = d.get("artifact_wanted") or {}
+                    if wanted and clean and clean.get("text_sha256") != wanted.get("text_sha256"):
+                        clean = {"status": "artifact_changed"}
                     if clean.get("status") == "parsed" and (clean.get("text") or "").strip():
-                        d["material"] = Material.part(
-                            clean["text"], part(d, "clean_text", processor_version=clean["processor_version"])
+                        body = Material.part(
+                            clean["text"],
+                            part(d, "clean_text", processor_version=clean["processor_version"]),
+                            locators(clean),
                         )
+                        is_attachment = d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment"
+                        method = {"parse_method": clean.get("basis")}
+                        heading = attachment_heading(d, method) if is_attachment else ""
+                        d["material"] = Material.literal(heading) + body
                         d["text"] = d["material"].text
                         d["clean_text_state"] = "processed"
+                        d["clean_text_choice"] = "search_hit" if wanted else "current"
                     else:
-                        d["clean_text_state"] = clean.get("status") or entry.get("state") or "unavailable"
+                        state = clean.get("status") or entry.get("state") or "unavailable"
+                        d["clean_text_state"], d["text_level"] = state, "uncleaned_projection"
+                        # said inside the text: each receiver (triage, reader, BioCheck, MechEvidence) gets it
+                        d["material"] = Material.literal(UNCLEANED.format(state=state)) + d["material"]
+                        d["text"] = d["material"].text
 
     def part_texts(self, parts):
-        """Read back the full text of each bound part (bioradar.material.reread): {part_key: text}, at the
-        bound identity — the clean text of the bound processor version, the projection text of the bound
-        parser,
-        the registry diff of the bound processor rendered by the bound renderer. A part Fabric no longer gives
-        (revoked, withdrawn, another processor's output only) is left out; reread reports it."""
+        """Read back the full text of each bound part (bioradar.material.reread): {part_key: text}, at
+        the bound identity: the clean text of the bound processor version, the projection text of the
+        bound parser, the registry diff of the bound processor rendered by the bound renderer. A part
+        Fabric no longer gives (revoked, withdrawn, another processor's output only), or one bound to
+        nothing (unbound), is left out; reread reports it."""
         now = datetime.now(UTC).isoformat()
         out = {}
         for p in parts:
             key = part_key(p)
-            if key in out:
+            if key in out or p.get("kind") not in ("clean_text", "projection_text", "registry_diff"):
                 continue
             common = {"is_demo": p["is_demo"], "mode": CURRENT, "cutoff": now}
             try:
@@ -500,11 +552,14 @@ class Fabric:
                 for d in page:
                     state = found.get(d["version_id"]) or {"state": "unavailable"}
                     d["attachment_text"] = {k: v for k, v in state.items() if k != "text"}
-                    if state.get("status") == "parsed" and (state.get("text") or "").strip():
+                    if d.get("clean_text_choice") == "search_hit":
+                        pass  # a search hit named this attachment's artifact: attach_clean_text read it
+                    elif state.get("status") == "parsed" and (state.get("text") or "").strip():
                         # the parsed text is the attachment version's clean text in Fabric's processing layer
                         d["material"] = Material.literal(attachment_heading(d, state)) + Material.part(
                             state["text"],
                             part(d, "clean_text", processor_version=state.get("processor_version")),
+                            locators(state),
                         )
                         d["text"] = d["material"].text
                         d["clean_text_state"] = "processed"

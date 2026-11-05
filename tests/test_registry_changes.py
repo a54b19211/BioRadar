@@ -94,7 +94,9 @@ def test_older_fabric_without_the_endpoint_leaves_reading_unchanged():
     fabric, _ = fabric_answering(status=404)
     [doc], _ = fabric.search("clinicaltrials", (), is_demo=False)
     assert doc["registry_diff"] == {"state": "unavailable"}
-    assert doc["text"] == document(trial())["text"]
+    # no diff block; the older Fabric gives no cleaned text either, and the text says so (Codex r85)
+    assert doc["text"].endswith(document(trial())["text"])
+    assert "清洗层正文不可用（unavailable）" in doc["text"]
     assert route(doc) is None  # unknown: triaged as before
 
 

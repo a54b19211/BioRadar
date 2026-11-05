@@ -105,10 +105,13 @@ class LlmCall(Base):
 
 
 class MaterialRead(Base):
-    """One record's text as actually sent to a model or a service (v3 6.1): stage, receiver, the material's
-    sha256 and its binding — every segment's part (fixed version, processor or parser version, renderer),
-    range and hash, or the literal radar text (bioradar.material). The text itself is not stored again: the
-    evidence row keeps it, and reread() rebuilds it from the parts."""
+    """One record's text as sent to a model or a service (v3 6.1): stage, receiver, the material's sha256 and
+    its binding — every segment's part (fixed version, raw hash, processor or parser version, renderer),
+    range, hash and Fabric locators, or the literal radar text (bioradar.material). Append-only: each attempt
+    is its own row (attempt 1, 2 ... per analysis, stage and ref), never replaced, with its status: prepared
+    (recorded before the call), sent (the model call was made or the service answered), not_sent (no call:
+    budget) or failed (the call raised). A prepared row left behind by a worker that died says the material
+    may have gone out. The text itself is not stored again: reread() rebuilds it from the parts."""
 
     __tablename__ = "material_reads"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -117,6 +120,8 @@ class MaterialRead(Base):
     stage: Mapped[str] = mapped_column(String(30))  # triage | read | report | mechanism
     service: Mapped[str] = mapped_column(String(30))  # radar | biocheck | mechevidence
     ref: Mapped[str] = mapped_column(String(20))  # E1 ... in an analysis, R1 ... in a triage batch
+    attempt: Mapped[int] = mapped_column(Integer, default=1)
+    status: Mapped[str] = mapped_column(String(20), default="prepared")  # prepared | sent | not_sent | failed
     source: Mapped[str] = mapped_column(String(80))
     record_id: Mapped[str] = mapped_column(String(400))
     version_id: Mapped[str] = mapped_column(String(128))

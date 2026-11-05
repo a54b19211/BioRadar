@@ -19,6 +19,8 @@ def upgrade():
         sa.Column("stage", sa.String(30), nullable=False),
         sa.Column("service", sa.String(30), nullable=False),
         sa.Column("ref", sa.String(20), nullable=False),
+        sa.Column("attempt", sa.Integer, nullable=False),
+        sa.Column("status", sa.String(20), nullable=False),
         sa.Column("source", sa.String(80), nullable=False),
         sa.Column("record_id", sa.String(400), nullable=False),
         sa.Column("version_id", sa.String(128), nullable=False),
@@ -26,6 +28,7 @@ def upgrade():
         sa.Column("chars", sa.Integer, nullable=False),
         sa.Column("binding", JSONB, nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.UniqueConstraint("analysis_id", "llm_call_id", "stage", "ref", "attempt"),
     )
 
 

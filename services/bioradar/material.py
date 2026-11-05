@@ -28,22 +28,31 @@ class MaterialError(Exception):
 
 
 class Material:
-    """Segments [(text, part or None, start)]: part None is literal radar text; otherwise text is
-    part_text[start:start + len(text)] of the part named by the identity dict."""
+    """Segments [(text, part or None, start)]: part None is literal radar text (fixed templates and separators
+    only, never source text); otherwise text is part_text[start:start + len(text)] of the part named by the
+    identity dict. `locators` keeps, per part, Fabric's locators of that part's text (segments with their
+    ranges, e.g. the JSON pointer of a registry field); a binding names those that overlap each slice."""
 
-    def __init__(self, segments=()):
+    def __init__(self, segments=(), locators=None):
         self.segments = []
+        self.locators = {key: list(value) for key, value in (locators or {}).items()}
         for text, part, start in segments:
             self._add(text, part, start)
 
     @classmethod
-    def part(cls, text: str, identity: dict) -> "Material":
+    def part(cls, text: str, identity: dict, locators=()) -> "Material":
         """A whole part. The identity names it exactly; its text_sha256 is the hash of this text."""
-        return cls([(text, {**identity, "text_sha256": sha256(text)}, 0)])
+        part = {**identity, "text_sha256": sha256(text)}
+        return cls([(text, part, 0)], {part_key(part): [dict(loc) for loc in locators]})
 
     @classmethod
     def literal(cls, text: str) -> "Material":
         return cls([(text, None, 0)])
+
+    @classmethod
+    def unbound(cls, text: str, reason: str) -> "Material":
+        """Text whose source is not known (read before bindings existed): bound to nothing; reread fails."""
+        return cls.part(text, {"kind": "unbound", "reason": reason})
 
     def _add(self, text, part, start):
         if not text:
@@ -58,6 +67,11 @@ class Material:
                 return
         self.segments.append((text, part, start))
 
+    def _merge(self, other):
+        for key, value in other.locators.items():
+            mine = self.locators.setdefault(key, [])
+            mine += [loc for loc in value if loc not in mine]
+
     @property
     def text(self) -> str:
         return "".join(text for text, _, _ in self.segments)
@@ -66,11 +80,13 @@ class Material:
         return sum(len(text) for text, _, _ in self.segments)
 
     def __add__(self, other: "Material") -> "Material":
-        return Material(self.segments + other.segments)
+        out = Material(self.segments + other.segments, self.locators)
+        out._merge(other)
+        return out
 
     def slice(self, a: int, b: int) -> "Material":
         """The characters [a, b) of this material, each keeping where it came from."""
-        out, pos = Material(), 0
+        out, pos = Material(locators=self.locators), 0
         for text, part, start in self.segments:
             lo, hi = max(a, pos), min(b, pos + len(text))
             if lo < hi:
@@ -88,6 +104,7 @@ class Material:
                 out._add(separator, None, 0)
             for segment in item.segments:
                 out._add(*segment)
+            out._merge(item)
         return out
 
     def parts(self):
@@ -99,22 +116,28 @@ class Material:
         return seen
 
     def binding(self) -> dict:
-        return {
-            "sha256": sha256(self.text),
-            "chars": len(self),
-            "segments": [
-                {"literal": text}
-                if part is None
-                else {"part": part, "start": start, "end": start + len(text), "sha256": sha256(text)}
-                for text, part, start in self.segments
-            ],
-        }
+        segments = []
+        for text, part, start in self.segments:
+            if part is None:
+                segments.append({"literal": text})
+                continue
+            end = start + len(text)
+            segment = {"part": part, "start": start, "end": end, "sha256": sha256(text)}
+            locators = [
+                loc
+                for loc in self.locators.get(part_key(part), [])
+                if loc["start"] < end and loc["end"] > start
+            ]
+            if locators:
+                segment["locators"] = locators
+            segments.append(segment)
+        return {"sha256": sha256(self.text), "chars": len(self), "segments": segments}
 
 
 def of(doc: dict) -> Material:
     """A document's material (bioradar.adapters.fabric.document builds it); a document put together without
-    one, e.g. a test fixture, is literal text and claims no provenance."""
-    return doc.get("material") or Material.literal(doc.get("text") or "")
+    one, e.g. a test fixture, is unbound text and claims no provenance."""
+    return doc.get("material") or Material.unbound(doc.get("text") or "", "no_material")
 
 
 def restore(text: str, binding: dict) -> Material:
@@ -133,6 +156,8 @@ def restore(text: str, binding: dict) -> Material:
         if text[pos : pos + len(piece)] != piece:
             raise MaterialError("material_changed", "a literal does not match its binding")
         out._add(piece, part, start)
+        if part is not None and segment.get("locators"):
+            out._merge(Material(locators={part_key(part): segment["locators"]}))
         pos += len(piece)
     if pos != len(text):
         raise MaterialError("material_changed", "the binding does not cover the text")

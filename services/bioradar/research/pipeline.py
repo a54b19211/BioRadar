@@ -6,6 +6,7 @@ from the saved stage; a model call that was in flight when the worker died is se
 import bisect
 import json
 import re
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 
@@ -1026,13 +1027,16 @@ class Run:
                     self.note("weknora_scope", f"{','.join(scope['scopes'] or [])}: degraded")
             # each hit is already the version visible at this cutoff: read exactly that version
             refs = {}
+            artifacts = {}
             for hit in hits:
                 if hit["source"] in self.input["sources"]:
                     refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
+                    # read exactly the cleaned artifact the hit was verified against (Codex 470)
+                    artifacts[hit["version_id"]] = hit.get("artifact") or None
             docs = []
             for src, pairs in refs.items():
                 found, missing = self.fabric.read_versions(
-                    src, list(pairs), is_demo=self.input["is_demo"], cutoff=self.cutoff
+                    src, list(pairs), is_demo=self.input["is_demo"], cutoff=self.cutoff, artifacts=artifacts
                 )
                 for version_id in missing:  # revoked or withdrawn between the search and the read
                     self.note("weknora_version_unreadable", f"{src}: {version_id[:12]}")
@@ -1100,6 +1104,9 @@ class Run:
         terms = [t for q in self.p["queries"] if set(q["checks"]) & set(hit["checks"]) for t in q["terms"]]
         material, window = adopt(of(doc), terms, self.s.read_characters)
         text = material.text
+        if doc.get("clean_text_state") not in (None, "processed"):
+            # not the cleaning layer's text: read, but said so and never counted as cleaned or full text
+            self.note("clean_text_unprocessed", f"{source}: {record_id} ({doc['clean_text_state']})")
         ref = f"E{len(self.p['refs']) + 1}"
         self.p["refs"][ref] = f"{source}|{record_id}"
         with db.session() as s:
@@ -1134,6 +1141,7 @@ class Run:
                         # cleaning layer's text was read or, not processed yet, the version's own text
                         "material_read_id": read_id,
                         "clean_text_state": doc.get("clean_text_state"),
+                        "clean_text_choice": doc.get("clean_text_choice"),
                     },
                 )
             )
@@ -1163,32 +1171,33 @@ class Run:
             "events": doc["events"],
             "text": text,
         }
-        reading = self.ask(
-            "read",
-            prompts.READ,
-            {
-                "question": self.asked,
-                "material": material,
-                "objects": self.p.get("objects", []),
-                "hypotheses": [
-                    {"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])
-                ],
-                "checks": [
-                    {
-                        "id": c["id"],
-                        "text": c["text"],
-                        "status": c["status"],
-                        "objects": c.get("objects", []),
-                        "exploratory": c.get("exploratory", []),
-                        "known": [
-                            f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]
-                        ][-12:],
-                    }
-                    for c in self.p["checks"]
-                ],
-            },
-            schemas.Reading,
-        )
+        with self.outbound([read_id], model=True):
+            reading = self.ask(
+                "read",
+                prompts.READ,
+                {
+                    "question": self.asked,
+                    "material": material,
+                    "objects": self.p.get("objects", []),
+                    "hypotheses": [
+                        {"id": h["id"], "statement": h["statement"]} for h in self.p.get("hypotheses", [])
+                    ],
+                    "checks": [
+                        {
+                            "id": c["id"],
+                            "text": c["text"],
+                            "status": c["status"],
+                            "objects": c.get("objects", []),
+                            "exploratory": c.get("exploratory", []),
+                            "known": [
+                                f"{f['ref']}: {f['text']}" for f in self.p["facts"] if c["id"] in f["checks"]
+                            ][-12:],
+                        }
+                        for c in self.p["checks"]
+                    ],
+                },
+                schemas.Reading,
+            )
         if reading is None or not reading.relevant:
             return 0.0, ref
         before = {c["id"] for c in self.p["checks"] if c["status"] != "open"}
@@ -1403,10 +1412,11 @@ class Run:
             )
 
     def sent(self, session, stage, service, ref, origin, material):
-        """Record one record's material as it goes to a model or service (v3 6.1); returns the row id. A stage
-        repeated after a restart replaces its row for that ref. origin: a document or an evidence row."""
-        session.execute(
-            delete(db.MaterialRead).where(
+        """Record one record's material as it is about to go to a model or service (v3 6.1): a new row, status
+        prepared, the next attempt for this stage and ref; returns its id. Earlier attempts stay as they are
+        (Codex r85: a retry never erases what an earlier attempt sent). origin: a document or evidence row."""
+        attempt = session.scalar(
+            select(func.coalesce(func.max(db.MaterialRead.attempt), 0)).where(
                 db.MaterialRead.analysis_id == self.id,
                 db.MaterialRead.stage == stage,
                 db.MaterialRead.ref == ref,
@@ -1422,29 +1432,52 @@ class Run:
             record_id=get("record_id"),
             version_id=get("version_id"),
             analysis_id=self.id,
+            attempt=attempt + 1,
         )
         session.add(row)
         session.flush()
         return row.id
 
+    def mark(self, ids, status):
+        """Settle prepared outbound rows; a row once sent stays sent (the same report input goes to several
+        BioCheck requests)."""
+        if ids:
+            with db.session() as s:
+                for row in s.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
+                    if row.status != "sent":
+                        row.status = status
+
+    @contextmanager
+    def outbound(self, ids, *, model=False):
+        """Around one outbound call: failed if it raises; otherwise sent, or for a model call not_sent when no
+        call was made (no budget left)."""
+        before = self.calls_used
+        try:
+            yield
+        except BaseException:
+            self.mark(ids, "failed")
+            raise
+        self.mark(ids, "not_sent" if model and self.calls_used == before else "sent")
+
     def material_of(self, row):
         """An evidence row's text with its binding restored; evidence read before bindings existed is
-        literal text (no provenance claimed)."""
+        unbound text: it claims no provenance and does not read back."""
         read_id = (row.meta or {}).get("material_read_id")
         if read_id is None:
-            return Material.literal(row.text)
+            return Material.unbound(row.text, "read_before_binding")
         with db.session() as s:
             return restore(row.text, s.get(db.MaterialRead, read_id).binding)
 
     def send_rows(self, stage, service, rows, window=lambda m, r: m):
-        """{ref: text} of evidence rows as sent to `service` at `stage`, each recorded with its binding."""
-        out = {}
+        """({ref: text}, row ids) of evidence rows about to go to `service` at `stage`, each recorded with its
+        binding (status prepared until the call settles it)."""
+        out, ids = {}, []
         with db.session() as s:
             for r in rows:
                 material = window(self.material_of(r), r)
-                self.sent(s, stage, service, r.ref, r, material)
+                ids.append(self.sent(s, stage, service, r.ref, r, material))
                 out[r.ref] = material.text
-        return out
+        return out, ids
 
     def mechanism(self):
         target = self.p.get("mechanism")
@@ -1459,7 +1492,7 @@ class Run:
             self.p["mechanism_result"] = {"status": "not_run", "reason": "no_research_material"}
             return
         self.upstream_still_readable()
-        texts = self.send_rows("mechanism", "mechevidence", rows)
+        texts, sent_ids = self.send_rows("mechanism", "mechevidence", rows)
         materials = [
             {
                 "id": r.ref,
@@ -1473,16 +1506,17 @@ class Run:
             for r in rows
         ]
         try:
-            response = services.mechevidence(
-                self.s,
-                {
-                    "question": self.asked,
-                    "mechanism": target["statement"],
-                    "scope": {k: target.get(k, "") for k in ("species", "system", "disease")},
-                    "max_llm_calls": max(1, min(10, self.calls_left() - 4)),
-                    "materials": materials,
-                },
-            )
+            with self.outbound(sent_ids):
+                response = services.mechevidence(
+                    self.s,
+                    {
+                        "question": self.asked,
+                        "mechanism": target["statement"],
+                        "scope": {k: target.get(k, "") for k in ("species", "system", "disease")},
+                        "max_llm_calls": max(1, min(10, self.calls_left() - 4)),
+                        "materials": materials,
+                    },
+                )
         except ServiceError as exc:
             self.log(exc.calls, "mechevidence")
             self.note(f"mechevidence_{exc.code}")
@@ -1504,7 +1538,9 @@ class Run:
         related = {r["to"] for r in self.p["relations"]} | {r["from"] for r in self.p["relations"]}
         sent = [r for r in rows if r.ref in quotes or r.record_id in related]
         # the writer and every BioCheck check get this window of each record, recorded with its binding
-        texts = self.send_rows("report", "biocheck", sent, lambda m, r: report_text(m, quotes.get(r.ref, [])))
+        texts, self.report_material = self.send_rows(
+            "report", "biocheck", sent, lambda m, r: report_text(m, quotes.get(r.ref, []))
+        )
         evidence = [
             {
                 "id": r.ref,
@@ -1641,7 +1677,8 @@ class Run:
     def service(self, operation, body):
         self.upstream_still_readable()  # every BioCheck request carries the scope built from earlier work
         body["max_llm_calls"] = max(1, self.calls_left() - 1)
-        response = services.biocheck(self.s, operation, body)
+        with self.outbound(getattr(self, "report_material", []) if "evidence" in body else []):
+            response = services.biocheck(self.s, operation, body)
         self.log(response.pop("llm_calls", []), "biocheck")
         return response
 

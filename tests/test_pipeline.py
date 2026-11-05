@@ -157,6 +157,10 @@ def test_analysis_end_to_end(monkeypatch):
         assert e.meta["material_read_id"] == by_ref[("read", e.ref)].id
         assert by_ref[("read", e.ref)].sha256 == __import__("hashlib").sha256(e.text.encode()).hexdigest()
     sent_texts = {e["id"]: e["text"] for e in generate["evidence"]}
+    # every record was read once; its report window went to BioCheck twice (the report, then the check of
+    # the conclusions), each send its own record
+    assert {(r.stage, r.attempt, r.status) for r in reads} == {
+        ("read", 1, "sent"), ("report", 1, "sent"), ("report", 2, "sent")}
     for r in reads:
         resolve = lambda parts: {part_key(q): texts[q["version_id"]] for q in parts}  # noqa: E731
         text = reread(r.binding, resolve)
@@ -1539,3 +1543,66 @@ def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_rea
     assert rows["mechanism"].binding == rows["read"].binding == material.binding()
     resolve = lambda parts: {part_key(q): doc["text"] for q in parts}  # noqa: E731
     assert reread(rows["mechanism"].binding, resolve) == bodies[0]["materials"][0]["text"] == material.text
+
+
+def test_every_outbound_attempt_keeps_its_own_record_and_status():
+    """Codex r85: a read sent and then repeated after a restart is two records, not one rewritten; each says
+    whether it went out (sent), was not sent (no model budget) or failed, and a sent one stays sent."""
+    import pytest
+
+    from bioradar.material import of
+
+    row = analyses.create(question="重试？", direction="pipeline", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=None)
+    doc = FakeFabric(RECORDS).docs[0]
+    with db.session() as s:
+        first = run.sent(s, "read", "radar", "E1", doc, of(doc))
+    with run.outbound([first]):
+        pass  # the service answered
+    with db.session() as s:
+        second = run.sent(s, "read", "radar", "E1", doc, of(doc))  # the worker died; the same read again
+        third = run.sent(s, "report", "biocheck", "E1", doc, of(doc))
+    with run.outbound([second], model=True):
+        pass  # no model call was made
+    with pytest.raises(RuntimeError), run.outbound([third]):
+        raise RuntimeError("biocheck down")
+    run.mark([first], "failed")  # a later failure does not undo what was already sent
+    with db.session() as s:
+        rows = list(s.scalars(select(db.MaterialRead).where(db.MaterialRead.analysis_id == run.id)))
+    assert sorted((r.stage, r.attempt, r.status) for r in rows) == [
+        ("read", 1, "sent"),
+        ("read", 2, "not_sent"),
+        ("report", 1, "failed"),
+    ]
+    assert rows[0].binding == rows[1].binding
+
+
+def test_text_the_cleaning_layer_did_not_produce_says_so_to_every_receiver(monkeypatch):
+    """Codex r85: when Fabric's cleaned text is not there the version's own text is read, but the reader and
+    BioCheck receive it with the notice in the text (a fixed template, bound as such), and the analysis notes
+    it; the text level is not full text."""
+    from bioradar.adapters.fabric import UNCLEANED
+    from bioradar.material import Material
+
+    sent, biocheck = [], []
+    monkeypatch.setattr(llm, "chat_json", fake_model(sent))
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", lambda s, op, body: biocheck.append(body) or (
+        {"draft": "同一试验更正后PFS的HR为0.69[E1]。", "llm_calls": []} if op == "generate"
+        else {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": []}))
+    fabric = FakeFabric(RECORDS)
+    for d in fabric.docs:  # what Fabric.attach_clean_text does when the cleaning layer has nothing
+        d["material"] = Material.literal(UNCLEANED.format(state="failed")) + d["material"]
+        d["text"], d["clean_text_state"] = d["material"].text, "failed"
+        d["text_level"] = "uncleaned_projection"
+    row = analyses.create(question="XQ-17 的PFS结果现在应怎样判断？", direction="pipeline", is_demo=True,
+                          enqueue=False)
+    result = Run(row, settings(), fabric=fabric).run()
+    notice = UNCLEANED.format(state="failed").strip()
+    reads = [p["material"]["text"] for _, p, _ in sent if isinstance(p, dict) and "material" in p]
+    assert reads and all(t.startswith(notice) for t in reads)
+    assert biocheck and all(notice in e["text"] for e in biocheck[0]["evidence"])
+    assert "clean_text_unprocessed" in [n["code"] for n in result["notes"]]
+    with db.session() as s:
+        evidence = list(s.scalars(select(db.Evidence).where(db.Evidence.analysis_id == row.id)))
+    assert evidence and all(e.meta["text_level"] == "uncleaned_projection" for e in evidence)
