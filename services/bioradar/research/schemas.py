@@ -193,5 +193,18 @@ class TriageItem(BaseModel):
     reason: str = ""
 
 
+class ExtractItem(BaseModel):
+    index: int = Field(description="窗口序号，从1开始")
+    measures: list[Measure] = Field(
+        default_factory=list, description="这个窗口原文里的数值，最多3个；没有就空列表"
+    )
+
+
+class Extraction(BaseModel):
+    """T-31: the measures of each continuation window (every window gets one item)."""
+
+    items: list[ExtractItem]
+
+
 class Triage(BaseModel):
     items: list[TriageItem]

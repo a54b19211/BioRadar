@@ -63,6 +63,18 @@ class Settings(BaseSettings):
     # Soft ceiling on today's automatic work (live triage + topic analyses); manual questions are exempt.
     # In-flight work may overshoot by one triage batch and the analyses already running.
     daily_auto_tokens: int = 3_000_000
+    # T-31 continuation reading: the windows after a record's first (triage) window, for measures only.
+    continuation_enabled: bool = True
+    continuation_overlap_chars: int = 300  # each window repeats this much of the previous one
+    continuation_per_round: int = (
+        2  # windows of one record per round (fair: a long table does not starve others)
+    )
+    continuation_max_windows: int = (
+        12  # windows of one record in all; beyond that the plan is capped, said so
+    )
+    continuation_windows_per_call: int = 4
+    continuation_calls_per_round: int = 5
+    continuation_skip_no_digit: bool = False  # True: a window with no digit is skipped (and counted as such)
     quiet_hours: int = 72  # no new record for this long, and no collection status: "待核"
     topic_cool_days: int = 7
     topic_dormant_days: int = 21

@@ -18,14 +18,14 @@ from bioradar.adapters import llm
 from bioradar.adapters.fabric import NOT_VISIBLE, REGISTRY_DIFF_SOURCES, Fabric, FabricError, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
-from bioradar.research import analyses, measure_checks, prompts, schemas, series
+from bioradar.research import analyses, continuation, measure_checks, prompts, schemas, series
 
 log = logging.getLogger("bioradar")
 _turn = 0  # rotates which monitored source is read first in a live round
 ALERTS = ["none", "normal", "important", "urgent"]
 WEIGHT = {"none": 0, "normal": 1, "important": 2, "urgent": 3}
 BATCH = 10
-TRIAGE_CHARACTERS = 1500  # of each record's text, per triage call
+TRIAGE_CHARACTERS = continuation.WINDOW  # of each record's text, per triage call; the rest: continuation
 
 
 def parse_time(value) -> datetime:
@@ -502,6 +502,8 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                 )
                 # measures become candidates; only the check worker turns a checked one into a series point
                 measure_checks.enqueue(session, s, doc, item, topic, at, is_demo)
+                if item:  # its first window was read: the windows after it are owed (T-31)
+                    continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
                 if topic is None:
                     continue
                 if topic.state in {"cooling", "dormant"} and not (item and item.closure):
@@ -1018,6 +1020,10 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         )
     if not paused:  # a re-extraction is a model call: it waits while the token budget is spent
         measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage)
+    with db.session() as session:  # plans paused by a withdrawn permission read on once it is back
+        continuation.periodic_resume(session, fabric, is_demo, db.now())
+    if not paused:  # continuation windows are model calls too (T-31)
+        continuation.run(s, fabric, is_demo=is_demo, budget=budget)
     for topic_id, reason in measure_checks.run(s, fabric, is_demo=is_demo, adopt=adopt).items():
         reasons.setdefault(topic_id, reason)
     if not whole:

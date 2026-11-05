@@ -99,6 +99,18 @@ def test_a_correction_counts_from_when_it_was_visible_and_revises_every_later_po
 
 def fake_triage(by_title, payloads, *, topic_title=""):
     def chat_json(settings_, stage, system, payload, model_cls, **options):
+        if stage == "extract":  # T-31 continuation windows: this stand-in states no further measures
+            call = {
+                "stage": stage,
+                "model": "fake",
+                "finish_reason": "stop",
+                "usage": {},
+                "seconds": 0,
+                "error": None,
+            }
+            return schemas.Extraction(
+                items=[schemas.ExtractItem(index=w["index"]) for w in payload["windows"]]
+            ), call
         payloads.append(payload)
         items = []
         for r in payload["records"]:

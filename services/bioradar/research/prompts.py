@@ -95,3 +95,17 @@ TRIAGE = (
 - watch：归入的已有专题有 watch 列表时，这条记录正好是其中某条待验证信号（证实或证伪）就填它的编号，否则留空。
 - measures：记录原文明确给出的、能跨期比较的数值（产线或产能、批准或受理数量、病例数、阳性率、流感样病例比例等），每条记录最多3个，无关记录也要填。所有 *_text 都逐字照抄原文里的那个词，不改写、不换同义词、不缩写，原文没写就留空；程序据此回原文核对，核对不过的数不会进入序列。object_text 是谁的数（机构、公司、疾病），metric_text 是数的是什么，连同限定语一起抄（如“批准注册医疗器械产品”“suspected cases of anthrax in humans”）。value_text 是 quote 里写出的那个数，unit_text 是紧跟它的单位。period_text 抄期间原文，period 写规范形式（2026-04、2026Q2、2026H1、2026、2022-09/2023-01），period_type 区分截至时点 point 和期间内 interval；原文没写期间就都留空，不要用发布日期补。scope_text 是原文写出的范围或口径。kind 区分 stock 存量、flow 当期新增、cumulative 累计、rate 比例，不能混用；疑似、确诊、就诊人次和人数是不同指标。约、超过、至少写在数旁时用 qualifier 标出；计划、预计的数用 modality 标 planned / projected。status 写计划/在建/投运或报告/确认。原文没给出具体数就不填，不要估算或换算。"""
 )
+
+
+# T-31: the windows after a record's first one, for measures only - the same measure rules as triage.
+_MEASURE_RULES = next(line for line in TRIAGE.splitlines() if line.startswith("- measures："))
+EXTRACT = (
+    BASE
+    + """
+下面是若干条已分诊记录的后续正文窗口（每条记录的开头已读过，这里是之后的内容）。每个窗口只做一件事：找出窗口原文明确给出的数值。
+- 每个窗口都返回一项，index 对应窗口序号；窗口里没有就返回空的 measures。
+- 窗口之间有重叠：同一句话在两个窗口都出现时，只在包含整句的那个窗口里填（程序也会去重）。
+- title 是记录标题，heading 是窗口之前最近的标题，table_header 是窗口所在表格的表头：只作上下文，不是窗口原文；quote 和所有 *_text 都必须逐字取自窗口的 text。
+"""
+    + _MEASURE_RULES.replace("每条记录最多3个，无关记录也要填。", "每个窗口最多3个。")
+)

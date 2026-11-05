@@ -279,8 +279,10 @@ def build(candidate, text):
 # ---- triage side -------------------------------------------------------------------------------------------
 
 
-def enqueue(session, s, doc, item, topic, at, is_demo):
-    """Candidates (and their check tasks) for the measures of one triaged record. Returns how many."""
+def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False):
+    """Candidates (and their check tasks) for the measures of one triaged record. Returns how many.
+    overlap: the item is a continuation window (T-31), which repeats part of the window before it: a measure
+    at a place, value and metric already enqueued is that statement found again, not a second reading."""
     material = of(doc)
     text = material.text
     made = 0
@@ -299,15 +301,29 @@ def enqueue(session, s, doc, item, topic, at, is_demo):
                 status, reason = "not_built", "not_a_clean_artifact"
             else:
                 q = (off, off + len(m["quote"]))
-        earlier = session.scalars(
-            select(db.MeasurementCandidate).where(
-                db.MeasurementCandidate.version_id == doc["version_id"],
-                db.MeasurementCandidate.workspace_id == s.workspace_id,
-                db.MeasurementCandidate.is_demo == is_demo,
+        earlier = list(
+            session.scalars(
+                select(db.MeasurementCandidate).where(
+                    db.MeasurementCandidate.version_id == doc["version_id"],
+                    db.MeasurementCandidate.workspace_id == s.workspace_id,
+                    db.MeasurementCandidate.is_demo == is_demo,
+                )
             )
         )
         if any(c.measure == m for c in earlier):
             continue  # this version's measure was enqueued before (a retried triage)
+        if (
+            overlap
+            and q
+            and any(
+                c.quote_start == q[0]
+                and c.quote_end == q[1]
+                and c.measure.get("value_text") == m["value_text"]
+                and c.measure.get("metric_text") == m["metric_text"]
+                for c in earlier
+            )
+        ):
+            continue  # the same statement found again (T-31: a window overlapping the one that found it)
         candidate = db.MeasurementCandidate(
             workspace_id=s.workspace_id,
             is_demo=is_demo,

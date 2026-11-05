@@ -309,6 +309,70 @@ class MeasurementCheckTask(Base):
     error: Mapped[dict | None] = mapped_column(Json)
 
 
+class RecordRead(Base):
+    """T-31: the reading plan of one fixed version's cleaned artifact: its windows, how far it was read
+    and why it stopped. state: reading | complete | capped | paused_unreadable | failed | not_planned
+    (reason says why: a composite material or not a cleaned artifact - then only the triage window was
+    read)."""
+
+    __tablename__ = "record_reads"
+    __table_args__ = (UniqueConstraint("workspace_id", "is_demo", "version_id"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    source: Mapped[str] = mapped_column(String(80))
+    record_id: Mapped[str] = mapped_column(String(400))
+    version_id: Mapped[str] = mapped_column(String(128), index=True)
+    title: Mapped[str] = mapped_column(Text, default="")
+    part: Mapped[dict] = mapped_column(Json)  # the artifact's identity (bioradar.material part, no text hash)
+    processor_version: Mapped[str | None] = mapped_column(String(120))
+    text_sha256: Mapped[str | None] = mapped_column(String(64))
+    total_chars: Mapped[int] = mapped_column(Integer)
+    window_chars: Mapped[int] = mapped_column(Integer)
+    overlap_chars: Mapped[int] = mapped_column(Integer)
+    windows_total: Mapped[int] = mapped_column(Integer, default=0)
+    state: Mapped[str] = mapped_column(String(30), default="reading")
+    reason: Mapped[str | None] = mapped_column(String(120))
+    read_until: Mapped[int] = mapped_column(Integer, default=0)
+    topic_id: Mapped[str | None] = mapped_column(String(36))
+    direction: Mapped[str] = mapped_column(String(30), default="public_health")
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    relations: Mapped[list] = mapped_column(Json, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class RecordReadWindow(Base):
+    """One window of a plan, leased. state: sent | pending | failed | failed_final | budget_spent |
+    source_unreadable | skipped_no_digit | capped."""
+
+    __tablename__ = "record_read_windows"
+    read_id: Mapped[int] = mapped_column(ForeignKey("record_reads.id"), primary_key=True)
+    window_index: Mapped[int] = mapped_column(Integer, primary_key=True)
+    start_char: Mapped[int] = mapped_column(Integer)
+    end_char: Mapped[int] = mapped_column(Integer)
+    state: Mapped[str] = mapped_column(String(30))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class RecordReadAttempt(Base):
+    """Append-only: what happened to a window each time it was handled (its material_read and model call)."""
+
+    __tablename__ = "record_read_attempts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    read_id: Mapped[int] = mapped_column(ForeignKey("record_reads.id"), index=True)
+    window_index: Mapped[int] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(60))
+    material_read_id: Mapped[int | None] = mapped_column(Integer)
+    llm_call_id: Mapped[int | None] = mapped_column(Integer)
+    measures_found: Mapped[int | None] = mapped_column(Integer)
+    measures_enqueued: Mapped[int | None] = mapped_column(Integer)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class MeasurementCheck(Base):
     """One check of one candidate, append-only: the full request and response, the checker, the outcome and
     the gate's decision and reason (series only when consistent and the stored values read back equal)."""
