@@ -356,7 +356,11 @@ def backfill(session, s):
     n = 0
     for c in session.scalars(
         select(db.MeasurementCandidate).where(
-            db.MeasurementCandidate.status != "not_built", db.MeasurementCandidate.id.not_in(have)
+            # placeholders of a re-extraction and items never built are not measures to check
+            db.MeasurementCandidate.status.not_in(
+                ("not_built", "reextract", "reextracted", "reextract_failed")
+            ),
+            db.MeasurementCandidate.id.not_in(have),
         )
     ):
         session.add(
@@ -778,7 +782,9 @@ def refresh_bindings(s, fabric, *, is_demo):
     back
     now. A point whose artifact is unreadable or changed leaves the effective view at once (an appended
     unchecked check); one readable again with the same artifact is checked again by the worker this round.
-    A Fabric failure changes nothing (unknown is neither readable nor revoked). Returns {state: count}."""
+    When Fabric cannot answer, the permission is unknown: the point leaves the effective view too (a
+    binding_unknown check, not a revocation) and comes back only through a fresh authoritative readback and
+    check. Returns {state: count}."""
     with db.session() as session:
         rows = _latest_checks(session, is_demo)
         for cand, check in rows:
@@ -790,12 +796,14 @@ def refresh_bindings(s, fabric, *, is_demo):
         for cand, check in rows:
             state = states.get(cand.id, "fabric_unavailable")
             counts[state] = counts.get(state, 0) + 1
-            if state == "fabric_unavailable":
-                continue
             live = session.get(db.MeasurementCandidate, cand.id)
             if check.gate == "series" and state != "readable":
-                _append(session, live, status="unchecked", gate="candidate", error=state)
-            elif check.error_code in ("source_unreadable", "artifact_changed") and state == "readable":
+                error = "binding_unknown" if state == "fabric_unavailable" else state
+                _append(session, live, status="unchecked", gate="candidate", error=error)
+            elif (
+                check.error_code in ("source_unreadable", "artifact_changed", "binding_unknown")
+                and state == "readable"
+            ):
                 task = session.get(db.MeasurementCheckTask, (cand.id, CHECKER))
                 if task is not None and task.state not in ("queued",):
                     task.state, task.next_check_at, task.attempts = "queued", db.now(), 0
@@ -888,29 +896,52 @@ def reextract(s, fabric, *, is_demo, triage, limit=10):
         decisions = triage(s, docs, [], {}, [])
         with db.session() as session:
             row = session.get(db.MeasurementCandidate, c.id)
+            item = decisions[0] if decisions else None
+            if item is None:  # triage gave no result for the record: the debt stays, retried a bounded number
+                attempts = int(row.measure.get("attempts", 0)) + 1
+                row.measure = {**row.measure, "attempts": attempts}
+                row.reason = "triage_failed"
+                if attempts >= MAX_ATTEMPTS:
+                    row.status = "reextract_failed"
+                continue
             enqueue(
-                session, s, docs[0], decisions[0] if decisions else None, None, _utc(c.observed_at), is_demo
-            )
-            row.status = "reextracted"
+                session, s, docs[0], item, None, _utc(c.observed_at), is_demo
+            )  # zero measures settle it too
+            row.status, row.reason = "reextracted", "stored_before_checking"
         done += 1
     return done
 
 
 def series_points(session, ids):
-    """The structured, read-only record of points an analysis is told about: each effective point with its
-    exact value and the check that admitted it. The planner reads this; nothing it answers can change it."""
+    """The structured, read-only record of the points an analysis rests on, as they stand now: each with its
+    exact value, whether it is in the effective series (current) and its latest check under the current
+    checker. The planner reads this; nothing it answers can change it."""
     keep = is_effective(session, ids)
     out = []
-    for m in session.scalars(
-        select(db.Measurement).where(db.Measurement.id.in_(sorted(keep))).order_by(db.Measurement.period_end)
-    ):
-        check = session.get(db.MeasurementCheck, m.check_id)
+    points = (
+        select(db.Measurement)
+        .where(db.Measurement.id.in_(sorted(set(ids))))
+        .order_by(db.Measurement.period_end)
+    )
+    for m in session.scalars(points):
+        check = None
+        if m.candidate_id:
+            check = session.scalar(
+                select(db.MeasurementCheck)
+                .where(
+                    db.MeasurementCheck.candidate_id == m.candidate_id,
+                    db.MeasurementCheck.checker_version == CHECKER,
+                )
+                .order_by(db.MeasurementCheck.id.desc())
+                .limit(1)
+            )
         out.append(
             {
                 "measurement_id": m.id,
+                "current": m.id in keep,
                 "object": m.object,
                 "metric": m.metric,
-                "value": m.value_text,
+                "value": m.value_text or "",
                 "unit": m.unit,
                 "period": m.period,
                 "period_type": m.period_type,

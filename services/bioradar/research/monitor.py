@@ -566,10 +566,11 @@ def adopt(session, s: Settings, cand, final, check_id):
     same = dict(key, workspace_id=s.workspace_id, is_demo=cand.is_demo)
     existing = session.scalar(select(db.Measurement).filter_by(candidate_id=cand.id))
     if existing is not None:
-        return (
-            None,
-            [],
-        )  # checked again (revalidation, checker upgrade): the point stands, nothing new to compute
+        # checked again (recovery, checker upgrade): the point stands and now cites its current check; its
+        # stored
+        # values are compared with this check's final values again; nothing new to compute for the series
+        existing.check_id = check_id
+        return existing, []
     if session.scalar(
         select(db.Measurement.id).filter_by(version_id=cand.version_id, period=period_text, **key)
     ):
@@ -690,7 +691,8 @@ def adopt(session, s: Settings, cand, final, check_id):
 
 
 def series_basis_points(session, topic_id) -> list:
-    """The structured record of the points series_basis states (effective ones only, with their checks)."""
+    """The structured record of the points the latest series event used, each with whether it is current and
+    its latest check (series_basis states them only when all are current)."""
     last = session.scalar(
         select(db.TopicEvent)
         .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
@@ -698,9 +700,7 @@ def series_basis_points(session, topic_id) -> list:
         .limit(1)
     )
     used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])})
-    if not used or measure_checks.is_effective(session, used) != set(used):
-        return []
-    return measure_checks.series_points(session, used)
+    return measure_checks.series_points(session, used) if used else []  # current or not, with its state
 
 
 def series_basis(session, topic_id) -> str:

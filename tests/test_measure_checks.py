@@ -6,6 +6,7 @@ stand-in answers all-match unless a test alters it; test_real_chain_* use the re
 real matrix clauses when BIORADAR_TEST_BIOCHECK_SRC names a BioCheck checkout (skipped, never passed,
 otherwise)."""
 
+import copy
 import json
 import os
 import re
@@ -17,7 +18,7 @@ from pathlib import Path
 import extraction_contract as ec
 import pytest
 from conftest import FakeFabric, biocheck_fake, record
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from test_series import fake_triage
 
 from bioradar import db
@@ -589,7 +590,8 @@ def test_an_analysis_records_each_point_with_the_check_that_admitted_it(monkeypa
     fabric.revoked.add(point.version_id)
     monitor.tick(is_demo=True, fabric=fabric)
     with db.session() as s:
-        assert measure_checks.series_points(s, [point.id]) == []
+        [gone] = measure_checks.series_points(s, [point.id])
+    assert gone["current"] is False and gone["extraction_check"]["reason"] == "source_unreadable"
 
 
 def test_nothing_the_planner_or_an_analysis_answers_can_write_a_point_or_a_check():
@@ -603,3 +605,294 @@ def test_nothing_the_planner_or_an_analysis_answers_can_write_a_point_or_a_check
     for module in (pipeline, analyses):
         source = inspect.getsource(module)
         assert not re.search(r"db\.Measurement(Candidate|Check|CheckTask)?\b", source), module.__name__
+
+
+# ---- the planner reads the series state and cannot promote anything (Codex DECISION, behaviour) ------------
+
+
+def analysis_run(monkeypatch, point_ids, answer):
+    """One real analysis Run over the points' recorded state; the planner stand-in gives `answer` (a confident
+    stop or a verification read) and records every decide request it receives."""
+    from test_pipeline import RECORDS, fake_model
+
+    from bioradar.research import analyses
+    from bioradar.research.pipeline import Run
+
+    decided = []
+
+    def decide(s, body):
+        decided.append(copy.deepcopy(body))
+        return answer(body)
+
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", decide)
+    monkeypatch.setattr(
+        services,
+        "biocheck",
+        lambda s, op, body: (
+            {"draft": "x[E1]。", "llm_calls": []}
+            if op == "generate"
+            else {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": []}
+        ),
+    )
+    with db.session() as s:
+        recorded = measure_checks.series_points(s, point_ids)
+    row = analyses.create(
+        question="国家药监局批准注册医疗器械产品数现在应怎样判断？",
+        direction="pipeline",
+        is_demo=True,
+        enqueue=False,
+        series_points=recorded,
+    )
+    try:
+        Run(row, monitor.settings(), fabric=FakeFabric(RECORDS)).run()
+    except Exception:  # noqa: BLE001 - how the report ends is not this test's subject; the decide inputs are
+        pass
+    assert decided, "the planner was never asked"
+    return decided
+
+
+def state():
+    with db.session() as s:
+        return (
+            [(m.id, m.check_id, m.value_text, m.superseded_by) for m in s.scalars(select(db.Measurement))],
+            [(c.id, c.status) for c in s.scalars(select(db.MeasurementCandidate))],
+            s.scalar(select(func.count()).select_from(db.MeasurementCheck)),
+            effective_ids(),
+        )
+
+
+def confident(body):
+    return {"decision": "complete", "candidate": None, "reason": "high_confidence_adopt", "scores": []}
+
+
+def test_the_planner_receives_the_current_state_of_each_value(monkeypatch):
+    fabric, _ = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    decided = analysis_run(monkeypatch, [point.id], confident)
+    [sent] = decided[0]["series"]
+    assert sent["current"] is True and sent["value"] == "318" and sent["record_id"] == point.record_id
+    assert (
+        sent["extraction_check"]["gate"] == "series"
+        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V7
+    )
+
+
+def test_a_confident_planner_cannot_promote_a_revoked_value(monkeypatch):
+    fabric, _ = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    fabric.revoked.add(point.version_id)
+    monitor.tick(is_demo=True, fabric=fabric)
+    before = state()
+    assert before[3] == []
+    decided = analysis_run(monkeypatch, [point.id], confident)
+    [sent] = decided[0]["series"]
+    assert sent["current"] is False and sent["extraction_check"]["reason"] == "source_unreadable"
+    assert state() == before  # no point, candidate, check or effective view changed by the planner's answer
+    with db.session() as s:
+        topic = s.scalars(select(db.Topic)).first()
+        monitor.event(
+            s,
+            topic,
+            datetime(2026, 5, 8, tzinfo=UTC),
+            "series",
+            object="国家药监局",
+            metric="m",
+            changes=[{"kind": "step", "rows": [point.id]}],
+        )
+        assert monitor.series_basis(s, topic.id) == ""  # no deterministic report basis from it
+
+
+def test_a_confident_planner_cannot_promote_an_unchecked_candidate(monkeypatch):
+    def unchecked(body, response):
+        response["items"][0].update(
+            status="unchecked", fields={**response["items"][0]["fields"], "scope": {"result": "unsupported"}}
+        )
+        return response
+
+    one(monkeypatch, [measure()], post=biocheck_fake(unchecked))
+    before = state()
+    assert before[0] == [] and before[3] == []
+    analysis_run(monkeypatch, [], confident)
+    assert state() == before
+
+
+PLANNER = os.environ.get("BIORADAR_TEST_PLANNER_URL")
+real_planner = pytest.mark.skipif(
+    not PLANNER, reason="BIORADAR_TEST_PLANNER_URL (a running query-planner) is not set"
+)
+
+
+@real_planner
+def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
+    """Radar's own decide requests over HTTP to a running query-planner (no stand-in): accepted with the
+    series
+    state; the same request plus a read of the revoked value's record is answered as a verification read."""
+    from test_pipeline import RECORDS, fake_model
+
+    from bioradar.research import analyses
+    from bioradar.research.pipeline import Run
+
+    fabric, _ = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    fabric.revoked.add(point.version_id)
+    monitor.tick(is_demo=True, fabric=fabric)
+    before = state()
+    settings_ = monitor.settings().model_copy(
+        update={"planner_url": PLANNER, "planner_token": os.environ["BIORADAR_TEST_PLANNER_TOKEN"]}
+    )
+    sent, answers = [], []
+    real = services.decide
+
+    def spy(s, body):
+        sent.append(copy.deepcopy(body))
+        answers.append(real(s, body))  # the real HTTP call
+        return answers[-1]
+
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", spy)
+    monkeypatch.setattr(
+        services,
+        "biocheck",
+        lambda s, op, body: (
+            {"draft": "x[E1]。", "llm_calls": []}
+            if op == "generate"
+            else {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": []}
+        ),
+    )
+    with db.session() as s:
+        recorded = measure_checks.series_points(s, [point.id])
+    row = analyses.create(
+        question="XQ-17 的PFS结果现在应怎样判断？",
+        direction="pipeline",
+        is_demo=True,
+        enqueue=False,
+        series_points=recorded,
+    )
+    Run(row, settings_, fabric=FakeFabric(RECORDS)).run()
+    assert (
+        sent and answers and all(a["decision"] in ("continue", "complete", "insufficient") for a in answers)
+    )
+    assert sent[0]["series"][0]["current"] is False
+    body = copy.deepcopy(sent[0])
+    body["candidates"].append(
+        {
+            "kind": "read",
+            "source": point.source,
+            "cost": 1,
+            "target_checks": [],
+            "args": {"record_id": point.record_id},
+        }
+    )
+    answer = real(settings_, body)
+    assert answer["reason"] == "verify_series_value" and answer["candidate"] == len(body["candidates"]) - 1
+    assert state() == before  # the planner's answers changed no point, candidate, check or effective view
+
+
+# ---- Codex r138: unknown authorization, failed re-extraction, the current check cited everywhere -----------
+
+
+def test_an_unknown_authorization_takes_a_point_out_until_it_is_read_back_and_checked(monkeypatch):
+    from bioradar.adapters.fabric import FabricError
+
+    fabric, calls = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    real = fabric.clean_texts
+
+    def down(*a, **k):
+        raise FabricError("unavailable", "temporary")
+
+    monkeypatch.setattr(fabric, "clean_texts", down)
+    monitor.tick(is_demo=True, fabric=fabric)
+    assert effective_ids() == [] and rows(db.MeasurementCheck)[-1].error_code == "binding_unknown"
+    assert not any(c.error_code == "source_unreadable" for c in rows(db.MeasurementCheck))  # not a revocation
+    monkeypatch.setattr(fabric, "clean_texts", real)
+    n = len(calls)
+    monitor.tick(is_demo=True, fabric=fabric)
+    assert effective_ids() == [point.id] and len(calls) == n + 1  # back only through a new check
+
+
+def test_a_failed_re_extraction_keeps_its_debt_and_is_retried_a_bounded_number(monkeypatch):
+    fabric = FakeFabric([record("R0", TEXT, TEXT, available="2026-05-08T08:00:00+08:00")], clean=True)
+    doc = fabric.docs[0]
+    with db.session() as s:
+        s.add(
+            db.Measurement(
+                workspace_id=monitor.settings().workspace_id,
+                is_demo=True,
+                object="x",
+                metric="m",
+                value=1,
+                period_start=datetime(2026, 4, 1, tzinfo=UTC),
+                period_end=datetime(2026, 4, 30, tzinfo=UTC),
+                source=doc["source"],
+                record_id="R0",
+                version_id=doc["version_id"],
+                quote="1",
+                available_at=datetime(2026, 5, 8, tzinfo=UTC),
+            )
+        )
+        measure_checks.legacy_backlog(s, monitor.settings())
+    for i in range(1, measure_checks.MAX_ATTEMPTS + 1):
+        measure_checks.reextract(monitor.settings(), fabric, is_demo=True, triage=lambda *a: [None])
+        [debt] = rows(db.MeasurementCandidate)
+        assert (debt.reason, debt.measure["attempts"]) == ("triage_failed", i)
+        assert debt.status == ("reextract_failed" if i == measure_checks.MAX_ATTEMPTS else "reextract")
+    with db.session() as s:
+        assert measure_checks.backfill(s, monitor.settings()) == 0  # a placeholder is never sent to BioCheck
+    assert rows(db.MeasurementCheckTask) == []
+
+
+def test_a_re_extraction_finding_no_measure_settles_its_debt(monkeypatch):
+    fabric = FakeFabric([record("R0", TEXT, TEXT, available="2026-05-08T08:00:00+08:00")], clean=True)
+    doc = fabric.docs[0]
+    with db.session() as s:
+        s.add(
+            db.Measurement(
+                workspace_id=monitor.settings().workspace_id,
+                is_demo=True,
+                object="x",
+                metric="m",
+                value=1,
+                period_start=datetime(2026, 4, 1, tzinfo=UTC),
+                period_end=datetime(2026, 4, 30, tzinfo=UTC),
+                source=doc["source"],
+                record_id="R0",
+                version_id=doc["version_id"],
+                quote="1",
+                available_at=datetime(2026, 5, 8, tzinfo=UTC),
+            )
+        )
+        measure_checks.legacy_backlog(s, monitor.settings())
+    measure_checks.reextract(
+        monitor.settings(),
+        fabric,
+        is_demo=True,
+        triage=lambda *a: [schemas.TriageItem(index=1, alert="none", measures=[])],
+    )
+    assert [c.status for c in rows(db.MeasurementCandidate)] == ["reextracted"]
+
+
+def test_after_an_upgrade_every_reader_cites_the_current_check(monkeypatch):
+    fabric, _ = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    first = point.check_id
+    v8 = "biocheck.extraction_rules.v8"
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V7])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V7])
+    monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V2)
+    monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
+    monkeypatch.setattr(measure_checks, "CHECKER", v8)
+    post = biocheck_fake(lambda body, response: dict(response, checker_version=v8))
+    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monitor.tick(is_demo=True, fabric=fabric)
+    [now] = rows(db.Measurement)
+    with db.session() as s:
+        cited = s.get(db.MeasurementCheck, now.check_id)
+        [shown] = measure_checks.series_points(s, [now.id])
+    assert now.check_id != first and cited.checker_version == v8
+    assert (
+        shown["extraction_check"]["check_id"] == now.check_id
+        and shown["extraction_check"]["checker_version"] == v8
+    )
+    assert effective_ids() == [now.id]

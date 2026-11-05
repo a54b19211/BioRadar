@@ -19,7 +19,7 @@ from bioradar.adapters.fabric import Fabric, FabricError, noticed
 from bioradar.adapters.services import ServiceError
 from bioradar.config import Settings
 from bioradar.material import Material, of, restore
-from bioradar.research import compute, prompts, schemas
+from bioradar.research import compute, measure_checks, prompts, schemas
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 DEMO_SETTING = (
@@ -1033,6 +1033,30 @@ class Run:
             for a in self.p["actions"]
         ]
 
+    def series_state(self):
+        """The series values this analysis rests on (recorded when it was created), each with its quality
+        state as of now: a value revoked or re-checked during the run reaches the planner as it stands. Read
+        only - the planner may choose to re-read a value's record, it cannot admit a value to a series."""
+        recorded = [p["measurement_id"] for p in self.input.get("series_points") or []][:64]
+        if not recorded:
+            return []
+        with db.session() as session:
+            points = measure_checks.series_points(session, recorded)
+        keys = ("source", "record_id", "version_id", "object", "metric", "value", "unit", "period")
+        return [
+            {k: str(p.get(k) or "") for k in keys}
+            | {
+                "current": bool(p["current"]),
+                "extraction_check": {
+                    k: p["extraction_check"][k]
+                    for k in ("status", "gate", "checker_version", "check_id", "reason")
+                }
+                if p.get("extraction_check")
+                else None,
+            }
+            for p in points
+        ]
+
     def investigate(self):
         budget = self.input["budget"]
         while True:
@@ -1049,6 +1073,8 @@ class Run:
                     "reads_left": max(0, budget["max_reads"] - reads),
                 },
                 "policy": self.input["method"],
+                # T-29 P3: the series values the question rests on, quality state re-read now (read only)
+                "series": self.series_state(),
             }
             self.upstream_still_readable()
             try:
