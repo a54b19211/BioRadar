@@ -627,9 +627,13 @@ def adopt(session, s: Settings, cand, final, check_id):
     )
     session.add(row)
     session.flush()
+    # a correction Fabric states is about the fact, not a comparison: it withdraws the corrected point in
+    # whatever domain that point is (T-24, Codex 695); only the comparison stays within one domain
+    undomained = {k: v for k, v in key.items() if k not in ("domain_basis", "domain_id")}
+    crossed = []
     for source, record_id, version_id in cand.corrects or []:
         query = measure_checks.effective(
-            session, s, cand.is_demo, source=source, record_id=record_id, period=row.period, **key
+            session, s, cand.is_demo, source=source, record_id=record_id, period=row.period, **undomained
         )
         if version_id:
             query = query.filter_by(version_id=version_id)
@@ -638,10 +642,32 @@ def adopt(session, s: Settings, cand, final, check_id):
             # is not a correction of the first one, so the two stand as a conflict from now on
             if old.superseded_by is None and old.id != row.id:
                 old.superseded_by = row.id
+                if (old.domain_basis, old.domain_id) != (domain_basis, domain_id):
+                    crossed.append(old)
+    owed = []
+    for topic_id in sorted({o.domain_id for o in crossed if o.domain_basis == "topic"}):
+        # the old point's topic loses it to a record placed elsewhere: whether the new point may stand in for
+        # it there is not decided by the program - the topic is routed with the reason
+        old_topic = session.get(db.Topic, topic_id)
+        if old_topic is None:
+            continue
+        event(
+            session,
+            old_topic,
+            at,
+            "correction",
+            record=cand.record_id,
+            reason="cross_domain_correction",
+            withdrawn=[o.id for o in crossed if o.domain_id == topic_id],
+            by=row.id,
+            by_domain=[domain_basis, domain_id],
+        )
+        owe(old_topic, "cross_domain_correction", at)
+        owed.append(old_topic.id)
     if domain_basis == "unknown":
         # stored and effective, but not comparable: no difference, trend or conflict is computed from a point
         # whose domain is not known, and no topic is opened from it (T-24)
-        return row, []
+        return row, owed
     grain = series.grain(row.period)
     rows = [
         {
@@ -659,6 +685,19 @@ def adopt(session, s: Settings, cand, final, check_id):
         )
         if series.grain(r.period) == grain  # a year is not compared with a quarter
     ]
+    # a point withdrawn by a correction outside this domain leaves the series from when that correction was
+    # visible (a correction inside the domain is handled by series.points, which also reports what it revised)
+    inside = {r["id"] for r in rows}
+    outside = {r["superseded_by"] for r in rows if r["superseded_by"] and r["superseded_by"] not in inside}
+    if outside:
+        seen = {
+            i
+            for i, available in session.execute(
+                select(db.Measurement.id, db.Measurement.available_at).where(db.Measurement.id.in_(outside))
+            )
+            if measure_checks._utc(available) <= at
+        }
+        rows = [r for r in rows if r["superseded_by"] not in seen]
     if row.id not in {r["id"] for r in rows}:  # the new point counts once its check is the latest (it is)
         rows.append(
             {
@@ -674,7 +713,6 @@ def adopt(session, s: Settings, cand, final, check_id):
         )
     found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
     holder = session.get(db.Topic, domain_id)
-    owed = []
     if holder is not None and found:
         event(
             session,
@@ -747,6 +785,34 @@ def series_basis(session, topic_id) -> str:
         f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
         "这只是待核实的线索，请回原文核对数值、口径和期间。"
     )
+
+
+def correction_basis(session, topic_id, since) -> str:
+    """Corrections Fabric stated for this topic's points that were placed in another topic (T-24
+    cross-domain):
+    the old value no longer counts here; whether the new value belongs to this topic is for the analysis."""
+    rows = session.scalars(
+        select(db.TopicEvent)
+        .where(
+            db.TopicEvent.topic_id == topic_id,
+            db.TopicEvent.kind == "correction",
+            db.TopicEvent.at >= since,
+        )
+        .order_by(db.TopicEvent.id)
+        .limit(10)
+    )
+    lines = []
+    for e in rows:
+        d = e.detail
+        old = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(d["withdrawn"])))
+        new = session.get(db.Measurement, d["by"])
+        olds = "、".join(f"{m.period} {m.value_text}{m.unit}（记录 {m.record_id}）" for m in old)
+        value = f"{new.value_text}{new.unit}" if new else "?"
+        lines.append(
+            f"记录 {d['record']} 更正了本专题的 {olds}，更正后的值 {value} 被归到另一个领域，"
+            "程序没有用它替代：旧值已不再计入本专题的序列，请核实更正是否适用于本专题。"
+        )
+    return ("\n跨专题更正，请逐条核实：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
 
 
 BASELINE_DAYS = 7
@@ -918,6 +984,8 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 points = series_basis_points(session, topic_id)
             if "analyst_review" in reason.split("+"):
                 question += review_basis(session, topic_id, owed_topic.pending_since)
+            if "cross_domain_correction" in reason.split("+"):
+                question += correction_basis(session, topic_id, owed_topic.pending_since)
             row = analyses.create(
                 question=question,
                 direction=topic.direction,

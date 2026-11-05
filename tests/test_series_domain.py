@@ -122,3 +122,38 @@ def test_a_correction_replaces_within_the_domain_and_an_unknown_domain_computes_
     assert topics == {} and events == []
     assert {r: b for r, (_, b, _, _) in points.items()} == {"U1": "unknown", "U2": "unknown", "U3": "unknown"}
     assert points["U2"][2] == points["U3"][3]  # the correction is applied; still nothing is compared
+
+
+def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its_topic(monkeypatch):
+    """Codex 695/696: Fabric's correction is a fact-validity boundary - the old value stops counting in its
+    own topic from when the correction is visible; that topic is told why, nothing is adopted across."""
+    topics, points, events = run(
+        monkeypatch,
+        [
+            ("A1", "炭疽", 1, 10, ()),
+            ("C1", "更正通报", 1, 8, [("corrects", "A1")]),
+            ("A2", "炭疽", 2, 30, ()),
+            ("A3", "炭疽", 3, 33, ()),
+        ],
+    )
+    assert points["A1"][2] == points["C1"][3]  # withdrawn by C1
+    assert points["C1"][:2] == ("更正通报", "topic") and points["A2"][:2] == ("炭疽", "topic")
+    by_record = {r: k for t, r, k in events}
+    assert "step" not in by_record.get("A2", [])  # 30 is not compared with the withdrawn 10, nor with 8
+    assert "step" in by_record["A3"]  # 30 -> 33 within the topic still counts
+    with db.session() as s:
+        anthrax = s.scalars(select(db.Topic).where(db.Topic.title == "炭疽")).one()
+        [corr] = s.scalars(
+            select(db.TopicEvent).where(
+                db.TopicEvent.topic_id == anthrax.id, db.TopicEvent.kind == "correction"
+            )
+        )
+        assert corr.detail["reason"] == "cross_domain_correction" and corr.detail["record"] == "C1"
+        assert corr.detail["withdrawn"] == [points["A1"][3]] and corr.detail["by"] == points["C1"][3]
+        assert "cross_domain_correction" in (anthrax.pending_reason or "").split("+")
+    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
+    monitor.start_analyses(monitor.settings(), is_demo=True, cutoff=None)
+    with db.session() as s:
+        analysis = s.get(db.Analysis, s.get(db.Topic, anthrax.id).last_analysis_id)
+        question = analysis.input["question"]
+    assert "跨专题更正" in question and "记录 C1" in question and "10例" in question
