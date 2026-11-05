@@ -978,3 +978,43 @@ def test_an_analysis_reads_back_only_its_own_values(monkeypatch):
     run.series_state()
     read = [c for c in fabric.calls if c[0] == "clean_texts"]
     assert read == [("clean_texts", first.source, (first.version_id,))]  # one bounded read, not all points
+
+
+# ---- found by P4 (E2): a revoked source is a revocation, and it stops only its own feed
+
+
+def test_a_source_fabric_no_longer_serves_reads_as_revoked(monkeypatch):
+    from bioradar.adapters.fabric import FabricError
+
+    fabric, _ = one(monkeypatch, [measure()])
+
+    def revoked(*a, **k):
+        raise FabricError("source_not_available", "该来源当前不可读取")
+
+    monkeypatch.setattr(fabric, "clean_texts", revoked)
+    monitor.tick(is_demo=True, fabric=fabric)
+    assert effective_ids() == [] and rows(db.MeasurementCheck)[-1].error_code == "source_unreadable"
+
+
+def test_one_unreadable_source_does_not_stop_the_round(monkeypatch):
+    from bioradar.adapters.fabric import FabricError
+
+    fabric, _ = one(monkeypatch, [measure()])
+    monkeypatch.setattr(monitor.settings(), "demo_sources", ["external_archive", "pubmed"])
+    text = "2026年5月，国家药监局共批准注册医疗器械产品300个。"
+    fabric.docs += FakeFabric(
+        [record("P1", text, text, source="pubmed", available="2026-06-08T08:00:00+08:00")], clean=True
+    ).docs
+    real = fabric.changes
+
+    def changes(source, **kw):
+        if source == "external_archive":
+            raise FabricError("source_not_available", "该来源当前不可读取")
+        return real(source, **kw)
+
+    monkeypatch.setattr(fabric, "changes", changes)
+    monkeypatch.setattr(llm, "chat_json", fake_triage({text: ([], "normal")}, [], topic_title="批准"))
+    result = monitor.tick(is_demo=True, fabric=fabric)
+    assert result["records"] == 1
+    with db.session() as s:
+        assert [o.record_id for o in s.scalars(select(db.Observation)) if o.source == "pubmed"] == ["P1"]

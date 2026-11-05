@@ -15,7 +15,13 @@ HISTORY = "public_history_reconstruction"
 
 
 # Fabric answers for a fixed version that cannot be read with this permission, scope and cutoff
-NOT_VISIBLE = {"version_not_found", "observation_basis_not_visible", "graph_evidence_not_visible"}
+# (source_not_available: the source as a whole is not readable for this reader now - a revocation, T-29 P4)
+NOT_VISIBLE = {
+    "version_not_found",
+    "observation_basis_not_visible",
+    "graph_evidence_not_visible",
+    "source_not_available",
+}
 
 
 class FabricError(Exception):

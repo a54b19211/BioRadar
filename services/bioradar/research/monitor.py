@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, literal, select
 
 from bioradar import db
 from bioradar.adapters import llm
-from bioradar.adapters.fabric import REGISTRY_DIFF_SOURCES, Fabric, noticed
+from bioradar.adapters.fabric import NOT_VISIBLE, REGISTRY_DIFF_SOURCES, Fabric, FabricError, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
 from bioradar.research import analyses, measure_checks, prompts, schemas, series
@@ -256,10 +256,17 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                 if cursor is None:
                     # A real feed starts at its current end (legacy_documents alone holds 600k records);
                     # history is for replays. Demo feeds are scenario data and start at 0.
-                    start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
+                    try:
+                        start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
+                    except FabricError as exc:
+                        if exc.code not in NOT_VISIBLE:
+                            raise
+                        log.info("monitor: %s not readable now (%s), skipped this round", source, exc.code)
+                        continue  # no cursor yet: it starts at the end once the source is readable
                     cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
                     session.add(cursor)
                 ends[source] = cursor.after_seq
+            sources = [x for x in sources if x in ends]
 
             scanned = len(docs)
 
@@ -269,9 +276,17 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
                 got = 0
                 while got < limit:
                     at = ends[source]
-                    items, after = fabric.changes(
-                        source, is_demo=is_demo, after=at, limit=min(100, limit - got)
-                    )
+                    try:
+                        items, after = fabric.changes(
+                            source, is_demo=is_demo, after=at, limit=min(100, limit - got)
+                        )
+                    except FabricError as exc:
+                        if exc.code not in NOT_VISIBLE:
+                            raise
+                        # this source is not readable now (revoked): its cursor stays, the other feeds go on
+                        log.info("monitor: %s not readable now (%s), skipped this round", source, exc.code)
+                        more.discard(source)
+                        return
                     docs.extend(unseen(session, items))
                     got += len(items)
                     scanned += len(items)
