@@ -305,13 +305,14 @@ def build(candidate, text):
 # ---- triage side -------------------------------------------------------------------------------------------
 
 
-def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False, window=None):
+def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False, window=None, material_read_id=None):
     """Candidates (and their check tasks) for the measures of one triaged record. Returns how many.
     window (start, end): the characters the model actually read; a quote is located only inside them - its
     offset there tells a repeated sentence apart, and a quote the model cannot have read is not built.
     overlap: the item is a continuation window (T-31), which repeats part of the window before it: a measure
     of the same artifact (processor, text hash) at the same span, value and metric is that statement found
-    again, not a second reading. Nothing is reused across cleaned artifacts."""
+    again, not a second reading. Nothing is reused across cleaned artifacts.
+    material_read_id: the material_read of the window the measures were read from (its call and attempt)."""
     material = of(doc)
     text = material.text
     made = 0
@@ -383,6 +384,7 @@ def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False, window=
             topic_id=topic.id if topic else None,
             direction=item.direction,
             observed_at=at,
+            material_read_id=material_read_id,
             corrects=[
                 [r.get("target_source", doc["source"]), r["target_record_id"], r.get("target_version_id")]
                 for r in doc.get("relations") or []

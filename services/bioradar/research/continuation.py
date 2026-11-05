@@ -334,40 +334,50 @@ def _read(s, fabric, keys, token, now):
     if not windows:
         return 0
     slices = [m.slice(a, b) for _, _, m, a, b in windows]
+    contexts = [_contexts(m, a, b) for _, _, m, a, b in windows]
     payload = {
         "windows": [
             {
                 "index": i,
                 "title": reads[rid].title,
                 "position": f"{a}-{b} / {len(m)}",
-                "heading": _heading(m.text, a),
-                "table_header": _table_header(m, a, b),
+                # context, sent as recorded below: the text of each bound slice, with its display offset
+                **{name: ({"at": at, "text": c.text} if c else None) for name, (at, c) in ctx.items()},
                 "text": sl.text,
             }
-            for i, ((_, rid, m, a, b), sl) in enumerate(zip(windows, slices), 1)
+            for i, ((_, rid, m, a, b), sl, ctx) in enumerate(zip(windows, slices, contexts), 1)
         ]
     }
     with db.session() as session:
-        mrows = [
-            db.material_read(
-                sl,
+
+        def sent(material, ref, rid):
+            return db.material_read(
+                material,
                 stage="extract",
                 service="radar",
-                ref=f"W{i}",
+                ref=ref,
                 source=reads[rid].source,
                 record_id=reads[rid].record_id,
                 version_id=reads[rid].version_id,
             )
-            for i, ((_, rid, _, _, _), sl) in enumerate(zip(windows, slices), 1)
+
+        mrows = [sent(sl, f"W{i}", rid) for i, ((_, rid, _, _, _), sl) in enumerate(zip(windows, slices), 1)]
+        # each context of a window is its own send of the same call: W{i}.heading, W{i}.table_header ...
+        crows = [
+            sent(c, f"W{i}.{name}", rid)
+            for i, ((_, rid, _, _, _), ctx) in enumerate(zip(windows, contexts), 1)
+            for name, (_, c) in ctx.items()
+            if c is not None
         ]
-        session.add_all(mrows)
+        session.add_all(mrows + crows)
         session.flush()
         mids = [r.id for r in mrows]
+        all_ids = mids + [r.id for r in crows]
     try:
         result, call = llm.chat_json(s, "extract", prompts.EXTRACT, payload, schemas.Extraction)
     except BaseException:
         with db.session() as session:
-            for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(mids))):
+            for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(all_ids))):
                 r.status = "failed"
         raise
     items = {it.index: it for it in (result.items if result else []) if 1 <= it.index <= len(windows)}
@@ -388,7 +398,7 @@ def _read(s, fabric, keys, token, now):
         )
         session.add(llm_row)
         session.flush()
-        for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(mids))):
+        for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(all_ids))):
             r.llm_call_id, r.status = llm_row.id, "sent" if result else "failed"
         for i, ((key, rid, material, a, b), mid) in enumerate(zip(windows, mids), 1):
             w = _own(session, key, token, done)
@@ -428,6 +438,7 @@ def _read(s, fabric, keys, token, now):
                 read.is_demo,
                 overlap=True,
                 window=(a, b),
+                material_read_id=mid,
             )
             w.state = "sent"
             sent += 1
@@ -443,6 +454,35 @@ def _read(s, fabric, keys, token, now):
         for read in {session.get(db.RecordRead, rid) for _, rid, _, _, _ in windows}:
             _settle(session, read)
     return sent
+
+
+CAPTION = re.compile(r"\s*(?:Table|TABLE)\s+\d+|\s*表\s*\d+")
+
+
+def _contexts(material, a, b):
+    """The context of window [a, b) as bound slices, each with its display offset: the nearest heading before
+    it, and - when the window starts inside a table's rows - that table's header and the "Table N" / "表N"
+    caption line right above the table (B r2). {name: (at, Material) or (None, None)}."""
+    out = {"heading": (None, None), "table_header": (None, None), "table_title": (None, None)}
+    h = _heading(material.text, a)
+    if h:
+        out["heading"] = (h["at"], material.slice(h["at"], h["at"] + len(h["text"])))
+    found = material.table_header(a, b)
+    if found and found[0]:
+        spans, _whole = found
+        header = Material.join("", [material.slice(x, y) for x, y in spans])
+        out["table_header"] = (spans[0][0], header.slice(0, 600))
+        text = material.text
+        end = text.rfind("\n", 0, spans[0][0])  # the line break before the header row
+        while end > 0:
+            start = text.rfind("\n", 0, end) + 1
+            line = text[start:end]
+            if line.strip():
+                if CAPTION.match(line):
+                    out["table_title"] = (start, material.slice(start, min(end, start + 300)))
+                break  # only the first non-empty line above the table can be its caption
+            end = start - 1
+    return out
 
 
 def _table_header(material, a, b):

@@ -325,6 +325,9 @@ class MeasurementCandidate(Base):
     direction: Mapped[str | None] = mapped_column(
         String(30)
     )  # triage's direction, for a topic a series opens
+    # the material_read of the window this candidate was read from (and so its model call and attempt): the
+    # sources a measure cites are looked up in that send only, never in another send of the same text (B r2)
+    material_read_id: Mapped[int | None] = mapped_column(ForeignKey("material_reads.id"), index=True)
     corrects: Mapped[list | None] = mapped_column(
         Json
     )  # [(source, record_id, version_id)] the record corrects

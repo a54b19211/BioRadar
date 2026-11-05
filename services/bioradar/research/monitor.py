@@ -350,7 +350,9 @@ def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40)
     return [dict(zip(("object", "metric", "unit", "kind", "scope"), r)) for r in rows]
 
 
-def triage(s: Settings, docs, topics, watch=None, known=None):
+def triage(s: Settings, docs, topics, watch=None, known=None, reads=None):
+    """One triage call for a batch of records. reads: when given, a list filled with the material_read id of
+    each record's window, in order - the send each candidate was read from (B r2)."""
     watch = watch or {}
     # what the model reads of each record, with the notice when it is not the cleaned text
     windows = [noticed(of(d).slice(0, TRIAGE_CHARACTERS), d.get("clean_text_state")) for d in docs]
@@ -390,6 +392,8 @@ def triage(s: Settings, docs, topics, watch=None, known=None):
         session.add_all(rows)
         session.flush()
         ids = [r.id for r in rows]
+    if reads is not None:
+        reads.extend(ids)
     try:
         result, call = llm.chat_json(s, "triage", prompts.TRIAGE, payload, schemas.Triage)
     except BaseException:
@@ -444,12 +448,13 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
         with db.session() as session:
             watch = watches(session, [t.id for t in topics])
             known = known_series(session, s, is_demo, max(parse_time(d["available_at"]) for d in batch))
-        decisions = triage(s, batch, topics, watch, known)
+        reads = []
+        decisions = triage(s, batch, topics, watch, known, reads=reads)
         with db.session() as session:
             topics = [session.get(db.Topic, t.id) for t in topics]
             flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
             touched = {}  # topic id -> latest record time in this batch, for the activity baseline
-            for doc, item in zip(batch, decisions):
+            for n, (doc, item) in enumerate(zip(batch, decisions)):
                 at = parse_time(doc["available_at"])
                 alert = item.alert if item else "none"
                 topic = None
@@ -502,7 +507,15 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                 )
                 # measures become candidates; only the check worker turns a checked one into a series point
                 measure_checks.enqueue(
-                    session, s, doc, item, topic, at, is_demo, window=(0, TRIAGE_CHARACTERS)
+                    session,
+                    s,
+                    doc,
+                    item,
+                    topic,
+                    at,
+                    is_demo,
+                    window=(0, TRIAGE_CHARACTERS),
+                    material_read_id=reads[n] if n < len(reads) else None,
                 )
                 if item:  # its first window was read: the windows after it are owed (T-31)
                     continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
