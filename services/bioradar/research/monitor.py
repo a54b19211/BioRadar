@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, literal, select
 
 from bioradar import db
 from bioradar.adapters import llm
-from bioradar.adapters.fabric import REGISTRY_DIFF_SOURCES, Fabric
+from bioradar.adapters.fabric import REGISTRY_DIFF_SOURCES, Fabric, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
 from bioradar.research import analyses, prompts, schemas, series
@@ -336,7 +336,8 @@ def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40)
 
 def triage(s: Settings, docs, topics, watch=None, known=None):
     watch = watch or {}
-    windows = [of(d).slice(0, TRIAGE_CHARACTERS) for d in docs]  # what the model reads of each record
+    # what the model reads of each record, with the notice when it is not the cleaned text
+    windows = [noticed(of(d).slice(0, TRIAGE_CHARACTERS), d.get("clean_text_state")) for d in docs]
     payload = {
         "series": known or [],
         "topics": [

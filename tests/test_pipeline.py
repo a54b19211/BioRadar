@@ -1606,3 +1606,23 @@ def test_text_the_cleaning_layer_did_not_produce_says_so_to_every_receiver(monke
     with db.session() as s:
         evidence = list(s.scalars(select(db.Evidence).where(db.Evidence.analysis_id == row.id)))
     assert evidence and all(e.meta["text_level"] == "uncleaned_projection" for e in evidence)
+
+
+def test_the_notice_heads_every_window_of_a_long_uncleaned_record():
+    """Codex 478: a long uncleaned text cut to the paragraphs that matter, then to the quoted passage for the
+    report, loses its first line; the notice is put back on every window sent, once."""
+    from bioradar.adapters.fabric import UNCLEANED, noticed
+    from bioradar.material import Material
+    from bioradar.research.pipeline import adopt, report_text
+
+    notice = UNCLEANED.format(state="failed")
+    lines = ["无关段落" * 50] * 100 + ["关键结果 HR为0.69"]
+    body = Material.part("\n".join(lines), {"kind": "projection_text"})
+    record = Material.literal(notice) + body
+    read, window = adopt(record, ["关键"], 2000)
+    assert window == "selected" and not read.text.startswith(notice)  # the cut alone would drop it
+    sent = noticed(read, "failed")
+    assert sent.text.startswith(notice) and "HR为0.69" in sent.text
+    report = noticed(report_text(sent, ["HR为0.69"], 300), "failed")
+    assert report.text.startswith(notice) and "HR为0.69" in report.text
+    assert noticed(report, "failed").text.count(notice) == 1 and noticed(read, "processed") is read

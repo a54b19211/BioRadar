@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, select
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.adapters.fabric import Fabric, FabricError
+from bioradar.adapters.fabric import Fabric, FabricError, noticed
 from bioradar.adapters.services import ServiceError
 from bioradar.config import Settings
 from bioradar.material import Material, of, restore
@@ -1103,6 +1103,7 @@ class Run:
             doc = found[0]
         terms = [t for q in self.p["queries"] if set(q["checks"]) & set(hit["checks"]) for t in q["terms"]]
         material, window = adopt(of(doc), terms, self.s.read_characters)
+        material = noticed(material, doc.get("clean_text_state"))
         text = material.text
         if doc.get("clean_text_state") not in (None, "processed"):
             # not the cleaning layer's text: read, but said so and never counted as cleaned or full text
@@ -1474,7 +1475,7 @@ class Run:
         out, ids = {}, []
         with db.session() as s:
             for r in rows:
-                material = window(self.material_of(r), r)
+                material = noticed(window(self.material_of(r), r), (r.meta or {}).get("clean_text_state"))
                 ids.append(self.sent(s, stage, service, r.ref, r, material))
                 out[r.ref] = material.text
         return out, ids

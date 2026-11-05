@@ -105,6 +105,15 @@ def locators(clean: dict) -> list:
 UNCLEANED = "【清洗层正文不可用（{state}）：以下是该版本自带的投影正文，未经清洗，可能不完整】\n\n"
 
 
+def noticed(window, state):
+    """A window as sent: when the version's cleaned text was not there, the notice heads the window itself,
+    whatever part of the text it kept (a long text cut to paragraphs or quotes loses its first line)."""
+    if state in (None, "processed"):
+        return window
+    notice = UNCLEANED.format(state=state)
+    return window if window.text.startswith(notice) else Material.literal(notice) + window
+
+
 # Sources whose versions Fabric's processing layer diffs field by field against the previous version.
 REGISTRY_DIFF_SOURCES = {"clinicaltrials"}
 REGISTRY_CHANGE_LINES = 12
