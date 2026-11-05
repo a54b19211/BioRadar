@@ -3,12 +3,16 @@ in. Known different domains are never compared; an unknown domain is kept, effec
 
 from datetime import timedelta
 
+import pytest
 from conftest import FakeFabric, biocheck_fake, record
 from sqlalchemy import select
 
 from bioradar import db
 from bioradar.adapters import llm, services
 from bioradar.research import measure_checks, monitor, schemas
+
+# the series kernel: families and dimensions count as proven here (the real gate: test_complete_domain)
+pytestmark = pytest.mark.usefixtures("dims_verified")
 
 CALL = {"stage": "triage", "model": "fake", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
 
@@ -192,15 +196,11 @@ def test_every_series_point_says_whether_it_may_be_compared_now(monkeypatch):
         }
         assert {
             p["comparability"]["version"] for p in measure_checks.series_points(s, [points["A2"][3]])
-        } == {"series_domain.v1"}
+        } == {"series_domain.v2"}
     assert got == {
-        "A1": (
-            True,
-            "not_comparable",
-            ["withdrawn_by_correction", "cross_domain_correction", "needs_subject"],
-        ),
-        "C1": (True, "provisional", ["cross_domain_correction", "needs_subject"]),
-        "A2": (True, "provisional", ["needs_subject"]),
+        "A1": (True, "not_comparable", ["withdrawn_by_correction", "cross_domain_correction"]),
+        "C1": (True, "comparable", ["cross_domain_correction"]),
+        "A2": (True, "comparable", []),
         "U1": (True, "not_comparable", ["domain_unknown"]),
     }  # all four are checked (current); only the second layer tells them apart
 
@@ -223,9 +223,8 @@ def test_a_retraction_withdraws_the_point_from_when_it_is_seen_with_no_replaceme
         assert (rc.relation, rc.target_record_id, rc.by_record_id) == ("retracts", "A1", "X1")
         a1 = points["A1"][3]
         assert measure_checks.series_points(s, [a1])[0]["comparability"]["reasons"] == [
-            "withdrawn_by_correction",
-            "needs_subject",
+            "withdrawn_by_correction"
         ]
         before = rc.visible_at - timedelta(seconds=1)
-        assert measure_checks.series_points(s, [a1], before)[0]["comparability"]["state"] == "provisional"
+        assert measure_checks.series_points(s, [a1], before)[0]["comparability"]["state"] == "comparable"
         assert monitor.record_corrections(s, monitor.settings(), [], is_demo=True) == 0

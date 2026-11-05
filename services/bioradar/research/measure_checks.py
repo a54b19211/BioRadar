@@ -32,7 +32,9 @@ from bioradar.material import of, tables_of
 # such as - extraction_normalize.v3, the functions BioCheck v10 uses (measure.v4 / v9 and
 # earlier: as released)
 CHECKER, CONTRACT = ec.CHECKER_V10, ec.CONTRACT_V2
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v6"}
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v7"}
+# measure.v7 (T-24 complete domain): the measure also names its metric family and the dimensions the record
+# states; a point is compared automatically only in a complete, proven group (research/domain.py)
 # measure.v6 (B r2): a measure may cite the source of its period / object / scope / denominator literal - the
 # quote, the window, or a context the window sent; it is looked up there only, in the candidate's own send
 SOURCE_FIELDS = ("period", "object", "scope", "denominator")
@@ -1092,7 +1094,7 @@ def reextract(s, fabric, *, is_demo, triage, limit=10, plan=None):
     return done
 
 
-COMPARABILITY = "series_domain.v1"
+COMPARABILITY = "series_domain.v2"
 
 
 def withdrawn(session, ids, at=None):
@@ -1151,12 +1153,13 @@ def comparability(session, m, at=None):
         )
     ):
         reasons.append("cross_domain_correction")
-    if m.domain_basis == "topic":
-        reasons.append("needs_subject")
-    blocked = {"domain_unknown", "withdrawn_by_correction"} & set(reasons)
+    gaps = list(m.dims_reasons or [])  # the family and required dimensions not proven (series_domain.v2)
+    reasons += gaps
+    blocked = {"domain_unknown", "withdrawn_by_correction"} & set(reasons) or gaps
     return {
         "version": COMPARABILITY,
-        "state": "not_comparable" if blocked else "provisional",
+        "state": "not_comparable" if blocked else "comparable",
+        "family": m.family,
         "domain_basis": m.domain_basis,
         "domain_id": m.domain_id,
         "reasons": reasons,

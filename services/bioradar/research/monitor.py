@@ -19,7 +19,7 @@ from bioradar.adapters import llm
 from bioradar.adapters.fabric import NOT_VISIBLE, REGISTRY_DIFF_SOURCES, Fabric, FabricError, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
-from bioradar.research import analyses, continuation, measure_checks, prompts, schemas, series
+from bioradar.research import analyses, continuation, domain, measure_checks, prompts, schemas, series
 
 log = logging.getLogger("bioradar")
 _turn = 0  # rotates which monitored source is read first in a live round
@@ -590,6 +590,10 @@ def adopt(session, s: Settings, cand, final, check_id):
         return None, []
     # the comparable domain (T-24): the topic the record was placed in; without one the domain is unknown
     domain_basis, domain_id = ("topic", cand.topic_id) if cand.topic_id else ("unknown", None)
+    # and the complete domain (r2): family and required dimensions, proven or not, from this point's check
+    gate = domain.series_gate(
+        cand.measure, final, session.get(db.MeasurementCheck, check_id) if check_id else None
+    )
     key = dict(
         object=final["object"][:200],
         metric=final["metric"][:200],
@@ -601,20 +605,24 @@ def adopt(session, s: Settings, cand, final, check_id):
         period_precision=period["precision"],
         domain_basis=domain_basis,
         domain_id=domain_id,
+        family=gate["family"][:30],
+        dims_key=gate["dims_key"],
     )
     same = dict(key, workspace_id=s.workspace_id, is_demo=cand.is_demo)
+    domainless = ("domain_basis", "domain_id", "family", "dims_key")
     existing = session.scalar(select(db.Measurement).filter_by(candidate_id=cand.id))
     if existing is not None:
         # checked again (recovery, checker upgrade): the point stands and now cites its current check; its
         # stored
         # values are compared with this check's final values again; nothing new to compute for the series
         existing.check_id = check_id
+        existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"]  # as this check proves them
         return existing, []
     if session.scalar(
         select(db.Measurement.id).filter_by(
             version_id=cand.version_id,
             period=period_text,
-            **{k: v for k, v in key.items() if k not in ("domain_basis", "domain_id")},
+            **{k: v for k, v in key.items() if k not in domainless},
         )
     ):
         return None, []  # the same point of this version from another candidate (a retried triage)
@@ -638,12 +646,14 @@ def adopt(session, s: Settings, cand, final, check_id):
         topic_id=cand.topic_id,
         candidate_id=cand.id,
         check_id=check_id,
+        dims=gate["dims"],
+        dims_reasons=gate["reasons"],
     )
     session.add(row)
     session.flush()
     # a correction Fabric states is about the fact, not a comparison: it withdraws the corrected point in
     # whatever domain that point is (T-24, Codex 695); only the comparison stays within one domain
-    undomained = {k: v for k, v in key.items() if k not in ("domain_basis", "domain_id")}
+    undomained = {k: v for k, v in key.items() if k not in domainless}
     crossed = []
     for source, record_id, version_id in cand.corrects or []:
         query = measure_checks.effective(
@@ -683,6 +693,10 @@ def adopt(session, s: Settings, cand, final, check_id):
     if domain_basis == "unknown":
         # stored and effective, but not comparable: no difference, trend or conflict is computed from a point
         # whose domain is not known, and no topic is opened from it (T-24)
+        return row, owed
+    if gate["reasons"]:
+        # not a complete, proven domain (family or a required dimension unknown or unchecked): stored and
+        # effective, a lead for investigation with its gaps - nothing is computed from it (Codex 725)
         return row, owed
     grain = series.grain(row.period)
     rows = [
@@ -795,8 +809,8 @@ def series_basis(session, topic_id, at=None) -> str:
         )
     )
     states = [measure_checks.comparability(session, r, at) for r in rows]
-    if any(c["state"] != "provisional" for c in states):
-        return ""  # a point it used was withdrawn since (or has no domain): not a current conclusion
+    if any(c["state"] != "comparable" for c in states):
+        return ""  # a point it used is no longer comparable (withdrawn, gaps): not a current conclusion
     points = "；".join(
         f"{r.period or '当时'} {r.value_text or format(r.value, 'g')}{r.unit}"
         f"（{r.status}，记录 {r.record_id}，"
@@ -807,7 +821,7 @@ def series_basis(session, topic_id, at=None) -> str:
     found = "、".join(sorted({c["kind"] for c in d["changes"]}))
     return (
         f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
-        "比较只在本专题内进行，各点的疾病、产品、队列和统计口径尚未逐条核实。"
+        f"比较组：{rows[0].family}，必要维度（病种、人群、日期口径等）均已核实或由已核字段承担。"
         "这只是待核实的线索，请回原文核对数值、口径和期间。"
     )
 

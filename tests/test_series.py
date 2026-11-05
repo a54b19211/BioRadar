@@ -2,12 +2,16 @@
 
 from datetime import UTC, datetime
 
+import pytest
 from conftest import FakeFabric, biocheck_fake, record
 from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters import llm, services
 from bioradar.research import measure_checks, monitor, schemas, series
+
+# the series kernel: families and dimensions count as proven here (the real gate: test_complete_domain)
+pytestmark = pytest.mark.usefixtures("dims_verified")
 
 
 def test_periods_and_numbers_are_read_strictly():

@@ -122,6 +122,32 @@ class Assessment(BaseModel):
     hypotheses: list[HypothesisLevel] = Field(default_factory=list, description="只给出现过的假设编号评级")
 
 
+class Dim(BaseModel):
+    """One dimension of the business domain a value belongs to, as the record writes it (T-24)."""
+
+    kind: Literal[
+        "disease",
+        "population",
+        "date_basis",
+        "indication",
+        "product_or_class",
+        "milestone_definition",
+        "entity",
+        "stage",
+    ] = Field(
+        description="维度：disease 病种/病原，population 人群或队列，"
+        "date_basis 日期口径（按报告日/发病日…），indication 适应症，product_or_class 产品或类别，"
+        "milestone_definition 里程碑定义，entity 企业或资产，"
+        "stage 阶段（计划/在建/投运/实际产出）"
+    )
+    text: str = Field(
+        description="原文写法，逐字；原文没写就不要列这一项（不要猜，不要用专题名称或发布者代替）"
+    )
+    source: Literal["quote", "window", "heading", "table_header", "table_title"] = Field(
+        default="quote", description="text 抄自哪里，只能是这次实际给你的材料"
+    )
+
+
 class Measure(BaseModel):
     """One measured value as the record states it (T-24 / T-29 P3). Each *_text is copied verbatim from the
     record and only used to find where it is written; the value checked and stored is the final one: the
@@ -159,6 +185,16 @@ class Measure(BaseModel):
         "other"
     )
     quote: str = Field(description="含这个数值的连续原文，逐字复制，不超过120字")
+    family: Literal["case_count", "milestone_count", "capacity", "efficacy", ""] = Field(
+        default="",
+        description="指标族：case_count 病例/公共卫生计数，milestone_count 注册/管线里程碑计数，"
+        "capacity 产业产能，efficacy 研究疗效/临床终点；都不是就留空",
+    )
+    dims: list[Dim] = Field(
+        default_factory=list,
+        max_length=6,
+        description="这个数值所属的病种、人群、日期口径等，原文写明的才列，每种最多一项",
+    )
     sources: dict[
         Literal["period", "object", "scope", "denominator"],
         Literal["quote", "window", "heading", "table_header", "table_title"],

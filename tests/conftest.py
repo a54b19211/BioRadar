@@ -181,3 +181,29 @@ def biocheck_fake(answer=None, calls=None):
         return answer(body, response) if answer else response
 
     return post
+
+
+@pytest.fixture
+def dims_verified(monkeypatch):
+    """Series-kernel tests: every point's metric family and required dimensions count as proven (a stand-in
+    until checker v11 checks dimensions; the real gate is tested in test_complete_domain.py, Codex 730)."""
+    from bioradar.research import domain
+
+    monkeypatch.setattr(
+        domain,
+        "series_gate",
+        lambda measure, final, check: {
+            "family": "verified",
+            "dims": [],
+            "dims_key": "verified|",
+            "reasons": [],
+        },
+    )
+
+
+@pytest.fixture(autouse=True)
+def _dims_verified_by_switch(request):
+    """BIORADAR_TEST_DIMS_VERIFIED=1 runs every test with proven dimensions (e.g. the series kernel of probes
+    written before the complete-domain gate); without it the real gate applies."""
+    if os.environ.get("BIORADAR_TEST_DIMS_VERIFIED") == "1":
+        request.getfixturevalue("dims_verified")

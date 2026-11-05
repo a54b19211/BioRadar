@@ -269,6 +269,12 @@ class Measurement(Base):
     # domain_id is the topic the record was placed in; "unknown": nothing is computed from the point
     domain_basis: Mapped[str] = mapped_column(String(20), default="unknown")
     domain_id: Mapped[str | None] = mapped_column(String(64))
+    # the complete domain (T-24 r2): the metric family, each required dimension with its state and proof, the
+    # group key they make, and the gaps that keep the point out of automatic comparison (empty = comparable)
+    family: Mapped[str] = mapped_column(String(30), default="")
+    dims: Mapped[list] = mapped_column(Json, default=list)
+    dims_key: Mapped[str] = mapped_column(String(400), default="")
+    dims_reasons: Mapped[list] = mapped_column(Json, default=lambda: ["family_not_determined"])
     value: Mapped[float] = mapped_column(Float)
     numerator: Mapped[float | None] = mapped_column(Float)  # a rate's parts, when the quote states them
     denominator: Mapped[float | None] = mapped_column(Float)

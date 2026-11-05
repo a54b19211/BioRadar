@@ -265,7 +265,7 @@ def test_a_checker_upgrade_takes_points_out_until_the_new_checker_confirms_them(
     assert effective_ids() == [point.id] and len(rows(db.Measurement)) == 1
 
 
-def test_a_series_event_whose_point_left_the_view_is_no_current_conclusion(monkeypatch):
+def test_a_series_event_whose_point_left_the_view_is_no_current_conclusion(monkeypatch, dims_verified):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
     with db.session() as s:
@@ -824,7 +824,7 @@ def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
     )
     assert sent[0]["series"][0]["current"] is False
     # the second layer reaches the planner too (T-24); a planner without the field refuses the body (422)
-    assert sent[0]["series"][0]["comparability"]["version"] == "series_domain.v1"
+    assert sent[0]["series"][0]["comparability"]["version"] == "series_domain.v2"
     body = copy.deepcopy(sent[0])
     body["candidates"].append(
         {
