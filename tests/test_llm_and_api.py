@@ -18,6 +18,16 @@ def reply(content, finish="stop"):
     }
 
 
+def test_local_vllm_gets_the_per_call_thinking_switch_its_template_reads(monkeypatch):
+    bodies = []
+    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: bodies.append(body) or reply('{"value": 1}'))
+    local = settings().model_copy(update={"llm_provider": "vllm"})
+    llm.chat_json(local, "t", "sys", {}, Answer)
+    llm.chat_json(local, "t", "sys", {}, Answer, thinking=True)
+    assert bodies[0]["chat_template_kwargs"] == {"enable_thinking": False} and "thinking" not in bodies[0]
+    assert bodies[1]["chat_template_kwargs"] == {"enable_thinking": True}
+
+
 def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
     bodies = []
     replies = iter([reply('{"value": "x"}'), reply('{"value": 2}')])

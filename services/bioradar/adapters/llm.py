@@ -91,6 +91,9 @@ def chat_json(
         }
         if settings.llm_provider == "deepseek":
             body["thinking"] = {"type": "enabled" if thinking else "disabled"}
+        elif settings.llm_provider == "vllm":
+            # local vLLM serving Qwen: the same per-call switch, as its chat template reads it
+            body["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
         if not thinking:
             body["temperature"] = 0
         if max_requests and call.get("requests", 0) >= max_requests:
