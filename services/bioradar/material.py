@@ -15,10 +15,54 @@ and the whole, so a stored excerpt is never taken on its own word."""
 
 import hashlib
 import json
+import re
 
 
 def sha256(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+_TABLE_RULE = re.compile(r"^\|?\s*:?-{3,}")
+
+
+def tables_of(text: str) -> list:
+    """The markdown tables of a part's text, in its own offsets: each table's header (its first row and the
+    separator row under it, with the newline after them) and its data rows [start, end). Rows run while lines
+    start with "|"; a row followed by a separator row starts a new table, so two tables written back to back
+    never share a header."""
+    lines, pos = [], 0
+    for line in text.split("\n"):
+        lines.append((pos, pos + len(line), line))
+        pos += len(line) + 1
+
+    def heads(i):
+        return (
+            i + 1 < len(lines)
+            and lines[i][2].startswith("|")
+            and lines[i + 1][2].startswith("|")
+            and bool(_TABLE_RULE.match(lines[i + 1][2].strip()))
+        )
+
+    out, i = [], 0
+    while i < len(lines):
+        if not heads(i):
+            i += 1
+            continue
+        header_start, header_end = lines[i][0], min(lines[i + 1][1] + 1, len(text))
+        j = i + 2
+        while j < len(lines) and lines[j][2].startswith("|") and not heads(j):
+            j += 1
+        if j > i + 2:
+            out.append(
+                {
+                    "header_start": header_start,
+                    "header_end": header_end,
+                    "start": header_end,
+                    "end": lines[j - 1][1],
+                }
+            )
+        i = j
+    return out
 
 
 class MaterialError(Exception):
@@ -33,9 +77,11 @@ class Material:
     identity dict. `locators` keeps, per part, Fabric's locators of that part's text (segments with their
     ranges, e.g. the JSON pointer of a registry field); a binding names those that overlap each slice."""
 
-    def __init__(self, segments=(), locators=None):
+    def __init__(self, segments=(), locators=None, tables=None):
         self.segments = []
         self.locators = {key: list(value) for key, value in (locators or {}).items()}
+        # per part: its markdown tables (tables_of), so a cut window still knows each row's table header
+        self.tables = {key: list(value) for key, value in (tables or {}).items()}
         for text, part, start in segments:
             self._add(text, part, start)
 
@@ -43,7 +89,12 @@ class Material:
     def part(cls, text: str, identity: dict, locators=()) -> "Material":
         """A whole part. The identity names it exactly; its text_sha256 is the hash of this text."""
         part = {**identity, "text_sha256": sha256(text)}
-        return cls([(text, part, 0)], {part_key(part): [dict(loc) for loc in locators]})
+        tables = tables_of(text) if "|" in text else []
+        return cls(
+            [(text, part, 0)],
+            {part_key(part): [dict(loc) for loc in locators]},
+            {part_key(part): tables} if tables else None,
+        )
 
     @classmethod
     def literal(cls, text: str) -> "Material":
@@ -71,6 +122,9 @@ class Material:
         for key, value in other.locators.items():
             mine = self.locators.setdefault(key, [])
             mine += [loc for loc in value if loc not in mine]
+        for key, value in other.tables.items():
+            mine = self.tables.setdefault(key, [])
+            mine += [t for t in value if t not in mine]
 
     @property
     def text(self) -> str:
@@ -80,13 +134,13 @@ class Material:
         return sum(len(text) for text, _, _ in self.segments)
 
     def __add__(self, other: "Material") -> "Material":
-        out = Material(self.segments + other.segments, self.locators)
+        out = Material(self.segments + other.segments, self.locators, self.tables)
         out._merge(other)
         return out
 
     def slice(self, a: int, b: int) -> "Material":
         """The characters [a, b) of this material, each keeping where it came from."""
-        out, pos = Material(locators=self.locators), 0
+        out, pos = Material(locators=self.locators, tables=self.tables), 0
         for text, part, start in self.segments:
             lo, hi = max(a, pos), min(b, pos + len(text))
             if lo < hi:
@@ -106,6 +160,38 @@ class Material:
                 out._add(*segment)
             out._merge(item)
         return out
+
+    def at(self, pos: int):
+        """(part, offset in that part) of the display character at pos; (None, None) for literal text."""
+        at = 0
+        for text, part, start in self.segments:
+            if at <= pos < at + len(text):
+                return (part, start + pos - at) if part is not None else (None, None)
+            at += len(text)
+        return None, None
+
+    def spans_of(self, part: dict, a: int, b: int) -> list:
+        """The display spans [x, y) that hold the part's characters [a, b) in this material, in order."""
+        out, at = [], 0
+        for text, p, start in self.segments:
+            if p is not None and p == part:
+                lo, hi = max(a, start), min(b, start + len(text))
+                if lo < hi:
+                    out.append((at + lo - start, at + hi - start))
+            at += len(text)
+        return out
+
+    def table_header(self, a: int, b: int):
+        """For a display span starting inside a table's data rows: (display spans of that table's header in
+        this material, whether the whole header is there). None when the span is not in a table's rows."""
+        part, offset = self.at(a)
+        if part is None:
+            return None
+        for t in self.tables.get(part_key(part), []):
+            if t["start"] <= offset < t["end"]:
+                spans = self.spans_of(part, t["header_start"], t["header_end"])
+                return spans, sum(y - x for x, y in spans) == t["header_end"] - t["header_start"]
+        return None
 
     def parts(self):
         """The distinct parts this material draws on, in order of first use."""
@@ -130,6 +216,11 @@ class Material:
             ]
             if locators:
                 segment["locators"] = locators
+            tables = [
+                t for t in self.tables.get(part_key(part), []) if t["header_start"] < end and t["end"] > start
+            ]
+            if tables:
+                segment["tables"] = tables
             segments.append(segment)
         return {"sha256": sha256(self.text), "chars": len(self), "segments": segments}
 
@@ -158,6 +249,8 @@ def restore(text: str, binding: dict) -> Material:
         out._add(piece, part, start)
         if part is not None and segment.get("locators"):
             out._merge(Material(locators={part_key(part): segment["locators"]}))
+        if part is not None and segment.get("tables"):
+            out._merge(Material(tables={part_key(part): segment["tables"]}))
         pos += len(piece)
     if pos != len(text):
         raise MaterialError("material_changed", "the binding does not cover the text")

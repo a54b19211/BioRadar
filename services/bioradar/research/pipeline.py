@@ -114,26 +114,104 @@ def squash(text):
     return re.sub(r"\s+", "", text or "")
 
 
-def adopt(material, terms, limit):
-    """Whole text when short; otherwise the paragraphs that mention the search terms, in original order.
-    Material in, Material out (bioradar.material): every paragraph kept keeps where it came from."""
+# Said at the head of a window that holds table rows without their table's header (Codex 524): a fixed
+# template with the count only. Those values must not be read by column name.
+TABLE_HEADER_OMITTED = (
+    "【表头未提供（table_header_omitted）：本窗口有 {n} 处表格行没有带上所在表格的表头（列名），"
+    "这些行的数值不能按列名解读】\n"
+)
+_OMITTED = re.compile(r"^【表头未提供（table_header_omitted）：本窗口有 (\d+) 处")
+
+
+def table_header_omitted(text):
+    """How many table rows of a window went without their header (0 when the window does not say so)."""
+    m = _OMITTED.match(text or "")
+    return int(m.group(1)) if m else 0
+
+
+def with_omitted(window, omitted):
+    return Material.literal(TABLE_HEADER_OMITTED.format(n=omitted)) + window if omitted else window
+
+
+def hit_spans(material, positions):
+    """Display spans of a verified search hit's passage in this material (Codex 524): by the hit's bound
+    identity - version, processor version and artifact hash - and its range in that artifact, mapped through
+    the part's segments (a heading or notice before the text only shifts the display). Without a range, the
+    hit text stands in only if it occurs exactly once. Returns (spans, unresolved reasons)."""
+    spans, unresolved = [], []
+    for p in positions:
+        start, end = (p.get("range") or [None, None])[:2]
+        if start is not None and end is not None and p.get("text_sha256"):
+            part = next(
+                (
+                    q
+                    for q in material.parts()
+                    if q.get("kind") == "clean_text"
+                    and q.get("version_id") == p["version_id"]
+                    and q.get("processor_version") == p.get("processor_version")
+                    and q.get("text_sha256") == p["text_sha256"]
+                ),
+                None,
+            )
+            found = material.spans_of(part, start, end) if part else []
+            if found:
+                spans += found
+            else:
+                unresolved.append("hit_artifact_not_in_material")
+            continue
+        words = (p.get("text") or "").split()
+        matches = list(re.finditer(r"\s*".join(map(re.escape, words)), material.text)) if words else []
+        if len(matches) == 1:
+            spans.append(matches[0].span())
+        else:
+            unresolved.append("hit_position_ambiguous" if matches else "hit_position_not_found")
+    return spans, unresolved
+
+
+def adopt(material, terms, limit, hits=()):
+    """Whole text when short; otherwise the lines of the verified search hits first (`hits`: display spans,
+    see hit_spans), then the lines that mention the search terms, in original order. A table row comes with
+    its table's header rows - real slices of the same part (Material.table_header), counted in the budget; a
+    row kept without them (no room, or not in this material) is said at the head of the window
+    (TABLE_HEADER_OMITTED). Material in, Material out: every line kept keeps where it came from."""
     text = material.text
     if len(text) <= limit:
         return material, "full"
     paragraphs = [m.span() for m in re.finditer(r"[^\n]+", text) if m.group().strip()]
-    ranked = sorted(
-        range(len(paragraphs)), key=lambda i: (-sum(text[slice(*paragraphs[i])].count(t) for t in terms), i)
+    must = list(dict.fromkeys(i for a, b in hits for i, (x, y) in enumerate(paragraphs) if x < b and y > a))
+    rest = sorted(
+        (i for i in range(len(paragraphs)) if i not in set(must)),
+        key=lambda i: (-sum(text[slice(*paragraphs[i])].count(t) for t in terms), i),
     )
-    keep, size = set(), 0
-    for i in ranked:
-        length = paragraphs[i][1] - paragraphs[i][0]
-        if size + length > limit:
-            continue
-        keep.add(i)
-        size += length + 2
+    keep, headers, size, omitted = [], [], 0, 0
+    for i in must + rest:
+        a, b = paragraphs[i]
+        if any(x <= a and b <= y for x, y in headers):
+            continue  # a header line already taken with its table
+        found = material.table_header(a, b)
+        header = [s for s in found[0] if s not in headers] if found and found[1] else []
+        cost = b - a + 2 + sum(y - x + 2 for x, y in header)
+        if size + cost <= limit:
+            keep.append((a, b))
+            headers += header
+            size += cost
+            omitted += bool(found and not found[1])
+        elif i in must and size + b - a + 2 <= limit:
+            keep.append((a, b))  # the hit's own line stays; its header did not fit
+            size += b - a + 2
+            omitted += bool(found)
     if not keep:
         return material.slice(0, limit), "selected"
-    return Material.join("\n…\n", [material.slice(*paragraphs[i]) for i in sorted(keep)]), "selected"
+    spans = sorted(set(keep) | set(headers))
+    merged = []
+    for a, b in spans:
+        if merged and a <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], b)
+        else:
+            merged.append([a, b])
+    return with_omitted(
+        Material.join("\n…\n", [material.slice(a, b) for a, b in merged]), omitted
+    ), "selected"
 
 
 def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
@@ -153,9 +231,13 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
         if hit:
             spans.append([hit.start(), hit.end()])
 
+    # a quoted table row needs its table's header (Codex 524): real slices of the same part, taken right
+    # after the quotes and before any widening; one that does not fit or is not in this material is said
+    fixed, omitted = [], 0
+
     def merged(windows):
         out = []
-        for a, b in sorted(windows):
+        for a, b in sorted([list(w) for w in windows] + [list(f) for f in fixed]):
             if out and a <= out[-1][1]:
                 out[-1][1] = max(out[-1][1], b)
             else:
@@ -171,6 +253,15 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
 
     windows = [list(s) for s in spans]
     widened = set()
+    for a, b in spans:
+        found = material.table_header(a, b)
+        if not found:
+            continue
+        header = [list(s) for s in found[0] if list(s) not in fixed]
+        if found[1] and size(windows + header) <= limit:
+            fixed += header
+        elif not found[1] or header:
+            omitted += 1
 
     def widen(i, a, b):  # never narrower than what window i already has
         return windows[:i] + [[min(a, windows[i][0]), max(b, windows[i][1])]] + windows[i + 1 :]
@@ -195,7 +286,7 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
                 windows, _ = trial, widened.add(i)
     if not windows:
         return material.slice(0, limit)
-    return Material.join("\n…\n", [material.slice(a, b) for a, b in merged(windows)])
+    return with_omitted(Material.join("\n…\n", [material.slice(a, b) for a, b in merged(windows)]), omitted)
 
 
 # A trial registry's fields the writer gets whether or not a fact quoted them (Codex r41): what the trial
@@ -1028,11 +1119,25 @@ class Run:
             # each hit is already the version visible at this cutoff: read exactly that version
             refs = {}
             artifacts = {}
+            positions = self.p.setdefault("hit_positions", {})
             for hit in hits:
                 if hit["source"] in self.input["sources"]:
                     refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
                     # read exactly the cleaned artifact the hit was verified against (Codex 470)
                     artifacts[hit["version_id"]] = hit.get("artifact") or None
+                    # where in that artifact the hit is: the read window takes that passage first (Codex 524)
+                    art = hit.get("artifact") or {}
+                    place = {
+                        "version_id": hit["version_id"],
+                        "processor_version": art.get("processor_version"),
+                        "text_sha256": art.get("text_sha256"),
+                        "range": hit.get("range"),
+                    }
+                    if None in (hit.get("range") or [None, None])[:2]:
+                        place["text"] = (hit.get("text") or "")[:2000]
+                    kept = positions.setdefault(f"{hit['source']}|{hit['record_id']}", [])
+                    if place not in kept and len(kept) < 5:
+                        kept.append(place)
             docs = []
             for src, pairs in refs.items():
                 found, missing = self.fabric.read_versions(
@@ -1102,7 +1207,18 @@ class Run:
                 raise FabricError("record_not_visible", record_id)
             doc = found[0]
         terms = [t for q in self.p["queries"] if set(q["checks"]) & set(hit["checks"]) for t in q["terms"]]
-        material, window = adopt(of(doc), terms, self.s.read_characters)
+        places = [
+            p
+            for p in self.p.get("hit_positions", {}).get(f"{source}|{record_id}", [])
+            if p["version_id"] == doc["version_id"]
+        ]
+        spans, unresolved = hit_spans(of(doc), places)
+        for reason in dict.fromkeys(unresolved):
+            self.note(reason, f"{source}: {record_id}")
+        material, window = adopt(of(doc), terms, self.s.read_characters, hits=spans)
+        omitted = table_header_omitted(material.text)
+        if omitted:
+            self.note("table_header_omitted", f"{source}: {record_id}")
         material = noticed(material, doc.get("clean_text_state"))
         text = material.text
         if doc.get("clean_text_state") not in (None, "processed"):
@@ -1141,6 +1257,8 @@ class Run:
                         # the material_reads row binding this text to its parts (v3 6.1), and whether the
                         # cleaning layer's text was read or, not processed yet, the version's own text
                         "material_read_id": read_id,
+                        # table rows kept without their column header (said in the text too, Codex 524)
+                        "table_header_omitted": omitted,
                         "clean_text_state": doc.get("clean_text_state"),
                         "clean_text_choice": doc.get("clean_text_choice"),
                     },
