@@ -670,6 +670,8 @@ def adopt(session, s: Settings, cand, final, check_id):
             at,
             "correction",
             record=cand.record_id,
+            by_source=cand.source,
+            by_version_id=cand.version_id,
             reason="cross_domain_correction",
             withdrawn=[o.id for o in crossed if o.domain_id == topic_id],
             by=row.id,
@@ -758,9 +760,10 @@ def adopt(session, s: Settings, cand, final, check_id):
 
 def series_basis_points(session, topic_id, at=None) -> list:
     """The structured record of the points the latest series event used, each with whether it is current and
-    its latest check (series_basis states them only when all are current)."""
+    its latest check (series_basis states them only when all are current). As of `at` (a cutoff): the latest
+    series event visible then, never one computed later (Codex r167)."""
     last = session.scalar(
-        select(db.TopicEvent)
+        visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
         .order_by(db.TopicEvent.id.desc())
         .limit(1)
@@ -771,9 +774,10 @@ def series_basis_points(session, topic_id, at=None) -> list:
 
 def series_basis(session, topic_id, at=None) -> str:
     """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
-    and records, so the investigation starts from what the program found instead of searching blind."""
+    and records, so the investigation starts from what the program found instead of searching blind. As of
+    `at` (a cutoff): the latest series event visible then (Codex r167)."""
     last = session.scalar(
-        select(db.TopicEvent)
+        visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
         .order_by(db.TopicEvent.id.desc())
         .limit(1)
@@ -807,34 +811,77 @@ def series_basis(session, topic_id, at=None) -> str:
     )
 
 
-def correction_basis(session, topic_id, since) -> str:
-    """Corrections Fabric stated for this topic's points that were placed in another topic (T-24
-    cross-domain):
-    the old value no longer counts here; whether the new value belongs to this topic is for the analysis."""
+def visible(query, column, at):
+    """The query limited to what was visible at the cutoff `at` (None: now)."""
+    return query if at is None else query.where(column <= at)
+
+
+def correction_events(session, topic_id, since, at=None, limit=10):
+    """The correction events of a topic since it was owed, as of the cutoff: one per correcting record version
+    (bounded), oldest first."""
     rows = session.scalars(
-        select(db.TopicEvent)
+        visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(
             db.TopicEvent.topic_id == topic_id,
             db.TopicEvent.kind == "correction",
             db.TopicEvent.at >= since,
         )
         .order_by(db.TopicEvent.id)
-        .limit(10)
     )
-    lines = []
+    out, seen = [], set()
     for e in rows:
         d = e.detail
-        if d.get("reason") != "cross_domain_correction":
-            continue  # a source_correction event: the record was corrected, no replacement placed elsewhere
+        key = (d.get("by_source"), d["record"], d.get("by_version_id"), d.get("reason"))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(e)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def correction_seeds(session, topic_id, since, at=None):
+    """The correcting records themselves, as sources the analysis must read (Codex r167): a correction that
+    withdrew a point is named even when its replacement never passed checking."""
+    seeds, seen = [], set()
+    for e in correction_events(session, topic_id, since, at):
+        d = e.detail
+        key = (d.get("by_source"), d["record"])
+        if d.get("by_source") and key not in seen:
+            seen.add(key)
+            kind = "撤回通知" if d.get("relation") == "retracts" else "更正通知"
+            seeds.append({"source": d["by_source"], "record_id": d["record"], "title": kind})
+    return seeds
+
+
+def correction_basis(session, topic_id, since, at=None) -> str:
+    """The corrections Fabric stated for this topic's points, as of the cutoff (T-24, Codex r166/r167): which
+    notice withdrew which values - whether or not a replacement passed checking - and, when the replacement
+    was placed in another topic, that the program did not use it here. The notices are seeds of the
+    analysis."""
+    lines = []
+    for e in correction_events(session, topic_id, since, at):
+        d = e.detail
         old = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(d["withdrawn"])))
-        new = session.get(db.Measurement, d["by"])
         olds = "、".join(f"{m.period} {m.value_text}{m.unit}（记录 {m.record_id}）" for m in old)
-        value = f"{new.value_text}{new.unit}" if new else "?"
-        lines.append(
-            f"记录 {d['record']} 更正了本专题的 {olds}，更正后的值 {value} 被归到另一个领域，"
-            "程序没有用它替代：旧值已不再计入本专题的序列，请核实更正是否适用于本专题。"
+        notice = f"记录 {d['record']}" + (
+            f"（{d['by_source']}，版本 {d['by_version_id']}）" if d.get("by_source") else ""
         )
-    return ("\n跨专题更正，请逐条核实：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
+        if d.get("reason") == "cross_domain_correction":
+            new = session.get(db.Measurement, d["by"])
+            value = f"{new.value_text}{new.unit}" if new else "?"
+            lines.append(
+                f"{notice} 的更正值 {value} 被归到另一个领域，程序没有用它替代本专题的 {olds}，"
+                "请核实更正是否适用于本专题。"
+            )
+        else:
+            verb = "撤回" if d.get("relation") == "retracts" else "更正"
+            lines.append(
+                f"{notice} {verb}了本专题的 {olds}：旧值已不再计入本专题的序列；"
+                "更正后的数值是否已核实、是否属于本专题，请读这份通知核实。"
+            )
+    return ("\n来源更正，请逐条核实：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
 
 
 BASELINE_DAYS = 7
@@ -981,14 +1028,14 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             topic = session.get(db.Topic, topic_id)
             records = list(
                 session.scalars(
-                    select(db.Observation)
+                    visible(select(db.Observation), db.Observation.available_at, cutoff)
                     .where(db.Observation.topic_id == topic_id)
                     .order_by(db.Observation.available_at.desc())
                     .limit(8)
                 )
             )
             last = session.scalar(
-                select(db.TopicEvent)
+                visible(select(db.TopicEvent), db.TopicEvent.at, cutoff)
                 .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "observed")
                 .order_by(db.TopicEvent.id.desc())
                 .limit(1)
@@ -1006,8 +1053,16 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 points = series_basis_points(session, topic_id, cutoff)
             if "analyst_review" in reason.split("+"):
                 question += review_basis(session, topic_id, owed_topic.pending_since)
-            if "cross_domain_correction" in reason.split("+"):
-                question += correction_basis(session, topic_id, owed_topic.pending_since)
+            seeds = [{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records]
+            if {"cross_domain_correction", "source_corrected"} & set(reason.split("+")):
+                since = owed_topic.pending_since
+                question += correction_basis(session, topic_id, since, cutoff)
+                named = {(x["source"], x["record_id"]) for x in seeds}
+                seeds += [
+                    x
+                    for x in correction_seeds(session, topic_id, since, cutoff)
+                    if (x["source"], x["record_id"]) not in named
+                ]
             row = analyses.create(
                 question=question,
                 direction=topic.direction,
@@ -1016,9 +1071,7 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 trigger="topic",
                 topic_id=topic.id,
                 parent_id=topic.last_analysis_id,
-                seed_records=[
-                    {"source": r.source, "record_id": r.record_id, "title": r.title} for r in records
-                ],
+                seed_records=seeds,
                 series_points=points,
                 session=session,
             )
@@ -1085,6 +1138,8 @@ def record_corrections(session, s: Settings, docs, *, is_demo: bool) -> int:
                     at,
                     "correction",
                     record=doc["record_id"],
+                    by_source=doc["source"],
+                    by_version_id=doc["version_id"],
                     reason="source_correction",
                     relation=r["kind"],
                     withdrawn=sorted(ids),

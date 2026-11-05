@@ -165,7 +165,11 @@ def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its
     with db.session() as s:
         analysis = s.get(db.Analysis, s.get(db.Topic, anthrax.id).last_analysis_id)
         question = analysis.input["question"]
-    assert "跨专题更正" in question and "记录 C1" in question and "10例" in question
+        seeds = analysis.input["seed_records"]
+    assert (
+        "来源更正" in question and "记录 C1" in question and "10例" in question and "另一个领域" in question
+    )
+    assert [x["record_id"] for x in seeds].count("C1") == 1  # the notice is a source to read, named once
 
 
 def test_every_series_point_says_whether_it_may_be_compared_now(monkeypatch):
