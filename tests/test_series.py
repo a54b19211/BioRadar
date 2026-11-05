@@ -320,8 +320,11 @@ WEEKS = [
 ]
 
 
-def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(monkeypatch):
-    """Each weekly report alone is unremarkable (alert none, no topic); the three-week rise is the signal."""
+def test_a_rise_across_records_of_unknown_domain_is_kept_but_not_computed(monkeypatch):
+    """Each weekly report alone is unremarkable (alert none, no topic). Until T-24 the three-week rise
+    opened a topic named after object and metric; that grouped every topic-less point by name, which r160
+    rules out as a business identity. The points are kept, effective and pending a domain; no change, event
+    or topic."""
     checked(monkeypatch)
     payloads = []
     by_title = {title: (measures, "none") for _, _, title, measures in WEEKS}
@@ -332,23 +335,13 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
         topics = list(s.scalars(select(db.Topic)))
         events = list(s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "series")))
         rows = list(s.scalars(select(db.Measurement).order_by(db.Measurement.id)))
-    assert [t.title for t in topics] == ["澜津·流感样病例比例（5个哨点）"]
-    # the three weekly records now belong to the topic, which also makes it rise
-    assert "series_change" in topics[0].pending_reason.split("+") and topics[0].direction == "public_health"
-    assert [[c["kind"] for c in e.detail["changes"]] for e in events] == [["step", "new_high", "streak_up"]]
-    assert len(rows) == 5 and {r.scope for r in rows} == {
-        "5个哨点",
-        "8个哨点",
-        "",
-    }  # all kept, none compared across
-    # the analysis it starts reads the three weekly reports and is told what the program computed
+    assert topics == [] and events == []
+    assert len(rows) == 5 and {r.scope for r in rows} == {"5个哨点", "8个哨点", ""}
+    assert {(r.domain_basis, r.domain_id, r.topic_id) for r in rows} == {("unknown", None, None)}
+    with db.session() as s:  # all five stay effective points, pending a known domain
+        assert len(list(s.scalars(measure_checks.effective(s, monitor.settings(), True)))) == 5
     monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
-    [analysis_id] = monitor.start_analyses(monitor.settings(), is_demo=True, cutoff=None)
-    with db.session() as s:
-        analysis = s.get(db.Analysis, analysis_id)
-    assert sorted(r["record_id"] for r in analysis.input["seed_records"]) == ["H1", "H2", "H3"]
-    question = analysis.input["question"]
-    assert "4.1%" in question and "5.2%" in question and "streak_up" in question
+    assert monitor.start_analyses(monitor.settings(), is_demo=True, cutoff=None) == []
 
 
 def point(name, when, checked_=True):

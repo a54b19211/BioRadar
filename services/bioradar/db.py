@@ -209,6 +209,7 @@ class Measurement(Base):
             "period_type",
             "period_precision",
         ),
+        Index("ix_measurements_domain", "workspace_id", "is_demo", "domain_basis", "domain_id"),
         Index(
             "ix_measurements_series",
             "workspace_id",
@@ -232,6 +233,10 @@ class Measurement(Base):
     # stock (level at a date) | flow (added in the period) | cumulative | rate | other: never compared across
     kind: Mapped[str] = mapped_column(String(20), default="other")
     scope: Mapped[str] = mapped_column(String(200), default="")  # coverage / population, e.g. 5个哨点
+    # the domain the point belongs to (T-24): only points of one known domain are one series. basis "topic":
+    # domain_id is the topic the record was placed in; "unknown": nothing is computed from the point
+    domain_basis: Mapped[str] = mapped_column(String(20), default="unknown")
+    domain_id: Mapped[str | None] = mapped_column(String(64))
     value: Mapped[float] = mapped_column(Float)
     numerator: Mapped[float | None] = mapped_column(Float)  # a rate's parts, when the quote states them
     denominator: Mapped[float | None] = mapped_column(Float)

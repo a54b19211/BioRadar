@@ -563,8 +563,10 @@ def period_bounds(period, at):
 def adopt(session, s: Settings, cand, final, check_id):
     """Store one checked point (T-24 series logic over the effective view) and compare it with its series as
     visible at the record's time. A correction of an earlier record (of the named version, when Fabric names
-    one) replaces that record's value for the same series and period. A notable change in a series no topic
-    follows yet opens one. Writes a `series` topic event per change.
+    one) replaces that record's value for the same series and period. A series is one key in one comparable
+    domain (T-24): the topic the record was placed in. A point of unknown domain (no topic) is stored and
+    effective but nothing is computed from it, and no topic is opened from it - a shared object/metric name is
+    not a business identity. Writes a `series` topic event per change.
     Returns (point or None, topic ids owed)."""
     at = measure_checks._utc(cand.observed_at)
     period = final["period"]
@@ -572,6 +574,8 @@ def adopt(session, s: Settings, cand, final, check_id):
     bounds = period_bounds(period, at)
     if bounds is None:
         return None, []
+    # the comparable domain (T-24): the topic the record was placed in; without one the domain is unknown
+    domain_basis, domain_id = ("topic", cand.topic_id) if cand.topic_id else ("unknown", None)
     key = dict(
         object=final["object"][:200],
         metric=final["metric"][:200],
@@ -581,6 +585,8 @@ def adopt(session, s: Settings, cand, final, check_id):
         scope_mode=final["scope_mode"],
         period_type=period["type"],
         period_precision=period["precision"],
+        domain_basis=domain_basis,
+        domain_id=domain_id,
     )
     same = dict(key, workspace_id=s.workspace_id, is_demo=cand.is_demo)
     existing = session.scalar(select(db.Measurement).filter_by(candidate_id=cand.id))
@@ -591,7 +597,11 @@ def adopt(session, s: Settings, cand, final, check_id):
         existing.check_id = check_id
         return existing, []
     if session.scalar(
-        select(db.Measurement.id).filter_by(version_id=cand.version_id, period=period_text, **key)
+        select(db.Measurement.id).filter_by(
+            version_id=cand.version_id,
+            period=period_text,
+            **{k: v for k, v in key.items() if k not in ("domain_basis", "domain_id")},
+        )
     ):
         return None, []  # the same point of this version from another candidate (a retried triage)
     m = cand.measure
@@ -628,6 +638,10 @@ def adopt(session, s: Settings, cand, final, check_id):
             # is not a correction of the first one, so the two stand as a conflict from now on
             if old.superseded_by is None and old.id != row.id:
                 old.superseded_by = row.id
+    if domain_basis == "unknown":
+        # stored and effective, but not comparable: no difference, trend or conflict is computed from a point
+        # whose domain is not known, and no topic is opened from it (T-24)
+        return row, []
     grain = series.grain(row.period)
     rows = [
         {
@@ -659,27 +673,8 @@ def adopt(session, s: Settings, cand, final, check_id):
             }
         )
     found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
-    holder = session.get(db.Topic, cand.topic_id) if cand.topic_id else None
+    holder = session.get(db.Topic, domain_id)
     owed = []
-    if holder is None and series.notable(found):
-        title = f"{key['object']}·{key['metric']}" + (f"（{key['scope']}）" if key["scope"] else "")
-        holder = session.scalar(
-            select(db.Topic).where(db.Topic.title == title[:200], db.Topic.is_demo == cand.is_demo)
-        )
-        if holder is None:
-            holder = db.Topic(
-                workspace_id=s.workspace_id,
-                title=title[:200],
-                direction=cand.direction or "public_health",
-                is_demo=cand.is_demo,
-                first_seen_at=at,
-                last_activity_at=at,
-                alert="normal",
-            )
-            session.add(holder)
-            session.flush()
-            event(session, holder, at, "created", record=cand.record_id, title=title, from_series=True)
-        row.topic_id = holder.id
     if holder is not None and found:
         event(
             session,
