@@ -977,10 +977,50 @@ def reextract(s, fabric, *, is_demo, triage, limit=10, plan=None):
     return done
 
 
+COMPARABILITY = "series_domain.v1"
+
+
+def comparability(session, m):
+    """Whether point m may be compared with the others of its series now (T-24), apart from whether its
+    extraction is checked: "provisional" - one known domain, the topic its record was placed in, the business
+    subject (disease, product, cohort, counting basis) not yet checked; "not_comparable" - of no known domain,
+    or withdrawn by a correction. cross_domain_correction marks a correction across topics, on the withdrawn
+    point and on the point that corrected it - the old topic is routed, nothing is adopted across."""
+    reasons = []
+    if m.domain_basis != "topic":
+        reasons.append("domain_unknown")
+    if m.superseded_by is not None:
+        reasons.append("withdrawn_by_correction")
+        by = session.get(db.Measurement, m.superseded_by)
+        if by is not None and (by.domain_basis, by.domain_id) != (m.domain_basis, m.domain_id):
+            reasons.append("cross_domain_correction")
+    elif session.scalar(
+        select(db.Measurement.id)
+        .where(
+            db.Measurement.superseded_by == m.id,
+            (db.Measurement.domain_basis != m.domain_basis)
+            | (db.Measurement.domain_id.is_distinct_from(m.domain_id)),
+        )
+        .limit(1)
+    ):
+        reasons.append("cross_domain_correction")
+    if m.domain_basis == "topic":
+        reasons.append("needs_subject")
+    blocked = {"domain_unknown", "withdrawn_by_correction"} & set(reasons)
+    return {
+        "version": COMPARABILITY,
+        "state": "not_comparable" if blocked else "provisional",
+        "domain_basis": m.domain_basis,
+        "domain_id": m.domain_id,
+        "reasons": reasons,
+    }
+
+
 def series_points(session, ids):
     """The structured, read-only record of the points an analysis rests on, as they stand now: each with its
-    exact value, whether it is in the effective series (current) and its latest check under the current
-    checker. The planner reads this; nothing it answers can change it."""
+    exact value, whether it is in the effective series (current: its extraction is checked), its latest check
+    under the current checker, and - a layer apart - whether it may be compared now (comparability, T-24).
+    The planner reads this; nothing it answers can change it."""
     keep = is_effective(session, ids)
     out = []
     points = (
@@ -1017,6 +1057,7 @@ def series_points(session, ids):
                 "record_id": m.record_id,
                 "version_id": m.version_id,
                 "extraction_check": describe(check) if check else None,
+                "comparability": comparability(session, m),
             }
         )
     return out

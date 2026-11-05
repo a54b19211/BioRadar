@@ -770,9 +770,14 @@ def series_basis(session, topic_id) -> str:
     used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
     if not used or measure_checks.is_effective(session, used) != set(used):
         return ""  # a point it used is no longer checked and readable: not a current conclusion
-    rows = session.scalars(
-        select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
+    rows = list(
+        session.scalars(
+            select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
+        )
     )
+    states = [measure_checks.comparability(session, r) for r in rows]
+    if any(c["state"] != "provisional" for c in states):
+        return ""  # a point it used was withdrawn since (or has no domain): not a current conclusion
     points = "；".join(
         f"{r.period or '当时'} {r.value_text or format(r.value, 'g')}{r.unit}"
         f"（{r.status}，记录 {r.record_id}，"
@@ -783,6 +788,7 @@ def series_basis(session, topic_id) -> str:
     found = "、".join(sorted({c["kind"] for c in d["changes"]}))
     return (
         f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
+        "比较只在本专题内进行，各点的疾病、产品、队列和统计口径尚未逐条核实。"
         "这只是待核实的线索，请回原文核对数值、口径和期间。"
     )
 

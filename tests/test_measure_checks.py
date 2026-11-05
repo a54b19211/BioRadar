@@ -823,6 +823,8 @@ def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
         sent and answers and all(a["decision"] in ("continue", "complete", "insufficient") for a in answers)
     )
     assert sent[0]["series"][0]["current"] is False
+    # the second layer reaches the planner too (T-24); a planner without the field refuses the body (422)
+    assert sent[0]["series"][0]["comparability"]["version"] == "series_domain.v1"
     body = copy.deepcopy(sent[0])
     body["candidates"].append(
         {

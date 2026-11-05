@@ -6,7 +6,7 @@ from sqlalchemy import select
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.research import monitor, schemas
+from bioradar.research import measure_checks, monitor, schemas
 
 CALL = {"stage": "triage", "model": "fake", "finish_reason": "stop", "usage": {}, "seconds": 0, "error": None}
 
@@ -157,3 +157,36 @@ def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its
         analysis = s.get(db.Analysis, s.get(db.Topic, anthrax.id).last_analysis_id)
         question = analysis.input["question"]
     assert "跨专题更正" in question and "记录 C1" in question and "10例" in question
+
+
+def test_every_series_point_says_whether_it_may_be_compared_now(monkeypatch):
+    """Codex 695/696: comparability is a layer apart from the extraction check (current) -
+    series_points and so
+    the planner and the analysis see it; unknown domain and withdrawn points are not comparable."""
+    topics, points, events = run(
+        monkeypatch,
+        [
+            ("A1", "炭疽", 1, 10, ()),
+            ("C1", "更正通报", 1, 8, [("corrects", "A1")]),
+            ("A2", "炭疽", 2, 30, ()),
+            ("U1", "", 3, 5, ()),
+        ],
+    )
+    with db.session() as s:
+        got = {
+            p["record_id"]: (p["current"], p["comparability"]["state"], p["comparability"]["reasons"])
+            for p in measure_checks.series_points(s, [v[3] for v in points.values()])
+        }
+        assert {
+            p["comparability"]["version"] for p in measure_checks.series_points(s, [points["A2"][3]])
+        } == {"series_domain.v1"}
+    assert got == {
+        "A1": (
+            True,
+            "not_comparable",
+            ["withdrawn_by_correction", "cross_domain_correction", "needs_subject"],
+        ),
+        "C1": (True, "provisional", ["cross_domain_correction", "needs_subject"]),
+        "A2": (True, "provisional", ["needs_subject"]),
+        "U1": (True, "not_comparable", ["domain_unknown"]),
+    }  # all four are checked (current); only the second layer tells them apart

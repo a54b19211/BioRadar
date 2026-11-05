@@ -1058,6 +1058,8 @@ class Run:
                 }
                 if p.get("extraction_check")
                 else None,
+                # a layer apart from the check: whether the value may be compared now (T-24)
+                "comparability": p["comparability"],
             }
             for p in points
         ]
