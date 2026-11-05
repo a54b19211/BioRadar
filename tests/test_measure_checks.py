@@ -1,7 +1,7 @@
-"""T-29 P3: a measure becomes a series point only through its own check (contract v2 / checker v5).
+"""T-29 P3: a measure becomes a series point only through its own check (contract v2 / checker v6).
 
 The gate, the Fabric readback (binding and permission, before the call and again before adoption), the
-append-only checks, lossless storage and the effective view (checker upgrade, revocation, recovery). The v5
+append-only checks, lossless storage and the effective view (checker upgrade, revocation, recovery). The v6
 stand-in answers all-match unless a test alters it; test_real_chain_* use the real BioCheck rules over the
 real matrix clauses when BIORADAR_TEST_BIOCHECK_SRC names a BioCheck checkout (skipped, never passed,
 otherwise)."""
@@ -15,7 +15,7 @@ from pathlib import Path
 
 import extraction_contract as ec
 import pytest
-from conftest import FakeFabric, biocheck_v5, record
+from conftest import FakeFabric, biocheck_v6, record
 from sqlalchemy import select, update
 from test_series import fake_triage
 
@@ -44,9 +44,9 @@ def measure(**over):
 
 
 def one(monkeypatch, measures, *, text=TEXT, post=None, rid="R1", day="2026-05-08"):
-    """One record triaged with `measures`; the check worker answers with `post` (default all-match v5)."""
+    """One record triaged with `measures`; the check worker answers with `post` (default all-match v6)."""
     calls = []
-    post = post or biocheck_v5(calls=calls)
+    post = post or biocheck_v6(calls=calls)
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
     monkeypatch.setattr(llm, "chat_json", fake_triage({text: (measures, "normal")}, [], topic_title="批准"))
     fabric = FakeFabric([record(rid, text, text, available=day + "T08:00:00+08:00")], clean=True)
@@ -86,7 +86,7 @@ def test_a_consistent_exact_actual_answer_is_stored_as_checked_and_reads_back_eq
     assert (check.gate, check.status, check.checker_version, point.check_id) == (
         "series",
         "consistent",
-        ec.CHECKER_V5,
+        ec.CHECKER_V6,
         check.id,
     )
     body = calls[0]
@@ -150,7 +150,7 @@ def test_anything_but_consistent_stays_a_candidate(monkeypatch, change, reason):
         change(response)
         return response
 
-    one(monkeypatch, [measure()], post=biocheck_v5(answer))
+    one(monkeypatch, [measure()], post=biocheck_v6(answer))
     assert rows(db.Measurement) == []
     assert [(c.gate, c.gate_reason) for c in rows(db.MeasurementCheck)] == [("candidate", reason)]
 
@@ -169,7 +169,7 @@ def test_an_invalid_answer_is_unchecked_and_retried(monkeypatch):
         response["items"][0]["fields"].pop("modality")
         return response
 
-    one(monkeypatch, [measure()], post=biocheck_v5(answer))
+    one(monkeypatch, [measure()], post=biocheck_v6(answer))
     assert rows(db.Measurement) == []
     assert [c.error_code for c in rows(db.MeasurementCheck)] == ["invalid_response"]
     [task] = rows(db.MeasurementCheckTask)
@@ -184,7 +184,7 @@ def test_a_service_failure_is_unchecked_then_checked_on_retry(monkeypatch):
     assert rows(db.Measurement) == [] and [c.error_code for c in rows(db.MeasurementCheck)] == [
         "service_unavailable"
     ]
-    post = biocheck_v5()
+    post = biocheck_v6()
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
     due_now()
     monitor.tick(is_demo=True, fabric=fabric)
@@ -196,7 +196,7 @@ def test_a_service_failure_is_unchecked_then_checked_on_retry(monkeypatch):
 
 def test_a_changed_artifact_is_never_sent(monkeypatch):
     calls = []
-    post = biocheck_v5(calls=calls)
+    post = biocheck_v6(calls=calls)
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
     monkeypatch.setattr(
         llm, "chat_json", fake_triage({TEXT: ([measure()], "normal")}, [], topic_title="批准")
@@ -215,7 +215,7 @@ def test_permission_withdrawn_during_the_call_is_not_adopted(monkeypatch):
         holder["fabric"].revoked.add(body["subject"]["version_id"])
         return response
 
-    post = biocheck_v5(answer)
+    post = biocheck_v6(answer)
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
     monkeypatch.setattr(
         llm, "chat_json", fake_triage({TEXT: ([measure()], "normal")}, [], topic_title="批准")
@@ -249,16 +249,16 @@ def test_revocation_and_recovery_move_a_point_out_of_and_back_into_the_effective
 def test_a_checker_upgrade_takes_points_out_until_the_new_checker_confirms_them(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
-    v6 = "biocheck.extraction_rules.v6"
-    monkeypatch.setitem(ec.KIND_RESULTS, v6, ec.KIND_RESULTS[ec.CHECKER_V5])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v6, ec.NO_LOCATION_RESULTS[ec.CHECKER_V5])
-    monkeypatch.setitem(ec.CONTRACT_OF, v6, ec.CONTRACT_V2)
+    v7 = "biocheck.extraction_rules.v7"  # a hypothetical next checker
+    monkeypatch.setitem(ec.KIND_RESULTS, v7, ec.KIND_RESULTS[ec.CHECKER_V6])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v7, ec.NO_LOCATION_RESULTS[ec.CHECKER_V6])
+    monkeypatch.setitem(ec.CONTRACT_OF, v7, ec.CONTRACT_V2)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
-    monkeypatch.setattr(measure_checks, "CHECKER", v6)
-    assert effective_ids() == []  # no v6 check yet: not current
+    monkeypatch.setattr(measure_checks, "CHECKER", v7)
+    assert effective_ids() == []  # no v7 check yet: not current
     with db.session() as s:
         assert measure_checks.backfill(s, monitor.settings()) == 1
-    post = biocheck_v5(lambda body, response: dict(response, checker_version=v6))
+    post = biocheck_v6(lambda body, response: dict(response, checker_version=v7))
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
     monitor.tick(is_demo=True, fabric=fabric)
     assert effective_ids() == [point.id] and len(rows(db.Measurement)) == 1
@@ -341,7 +341,7 @@ def test_not_buildable_measures_are_candidates_with_the_reason(monkeypatch):
     assert rows(db.Measurement) == []
 
 
-# ---- the real chain: Radar -> real BioCheck v5 rules over real matrix clauses ------------------------------
+# ---- the real chain: Radar -> real BioCheck v6 rules over real matrix clauses ------------------------------
 
 SRC = os.environ.get("BIORADAR_TEST_BIOCHECK_SRC")
 PYTHON = os.environ.get("BIORADAR_TEST_BIOCHECK_PYTHON") or sys.executable

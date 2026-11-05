@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from conftest import FakeFabric, biocheck_v5, record
+from conftest import FakeFabric, biocheck_v6, record
 from sqlalchemy import func, select
 
 from bioradar import db
@@ -129,7 +129,7 @@ def fake_triage(by_title, payloads, *, topic_title=""):
 def feed(records):
     """Add the records one per round (clean artifacts); yields the feed before each round so a test can
     adjust a
-    record. Each round's check worker answers with the v5 stand-in."""
+    record. Each round's check worker answers with the v6 stand-in."""
     fabric = FakeFabric([], clean=True)
     for rid, day, title, relations in records:
         available = day + "T08:00:00+08:00"
@@ -141,7 +141,7 @@ def feed(records):
 
 
 def checked(monkeypatch):
-    post = biocheck_v5()
+    post = biocheck_v6()
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
 
 
@@ -340,7 +340,7 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
 
 
 def point(name, when, checked_=True):
-    """A stored point, with (or without) the candidate and v5 check that make it effective."""
+    """A stored point, with (or without) the candidate and v6 check that make it effective."""
     with db.session() as s:
         cand = db.MeasurementCandidate(
             workspace_id=monitor.settings().workspace_id,

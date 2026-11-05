@@ -48,7 +48,7 @@ make bootstrap          # 安装 Python 依赖
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-测量核对要用共享契约包 `extraction-contract`（和 Fabric 共用，这里固定 1.2.0：契约 v2、checker v5）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
+测量核对要用共享契约包 `extraction-contract`（和 Fabric 共用，这里固定 1.3.0：契约 v2、checker v6）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
 
 ```sh
 cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复现的 wheel，构建时会校验哈希
@@ -123,7 +123,7 @@ make check              # = make test + make lint + make web-check
 
 改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
 
-测量核对（T-29 P3）的真实链路测试会走真实的 BioCheck v5 规则，需要一个 BioCheck 检出：
+测量核对（T-29 P3）的真实链路测试会走真实的 BioCheck v6 规则，需要一个 BioCheck 检出：
 `BIORADAR_TEST_BIOCHECK_SRC=../BioCheck BIORADAR_TEST_BIOCHECK_PYTHON=../BioCheck/.venv/bin/python make test`。不设这两个变量时，这些测试显示为跳过，不会算作通过。
 
 ## 验收实验

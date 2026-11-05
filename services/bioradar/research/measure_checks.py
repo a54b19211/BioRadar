@@ -4,7 +4,7 @@ triage -> enqueue(): a candidate per measure, bound to the fixed clean artifact 
 material binding), with its literal texts and final values, and a check task for the current checker.
 run(): each due task re-reads that artifact from Fabric (fixed version + processor, hash recomputed, read
 permission now), locates every literal in it (never guessed), sends one contract-v2 request to BioCheck
-(checker v5) outside any transaction, judges the answer with the shared extraction-contract verdict, appends
+(checker v6) outside any transaction, judges the answer with the shared extraction-contract verdict, appends
 the check, and only a consistent item whose values are exact and actual is handed to `adopt` (the series
 logic); a stored point must read back equal to what was checked. Everything else stays a candidate.
 effective(): the measurements whose candidate's latest check under the current checker put them in the
@@ -26,7 +26,7 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of
 
-CHECKER, CONTRACT = ec.CHECKER_V5, ec.CONTRACT_V2
+CHECKER, CONTRACT = ec.CHECKER_V6, ec.CONTRACT_V2
 PRODUCER = {"name": "bioradar.triage", "version": "measure.v2"}
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
