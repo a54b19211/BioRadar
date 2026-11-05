@@ -958,16 +958,17 @@ def owe(topic, reason, at):
         topic.pending_reason, topic.pending_since = reason, at
     elif reason not in topic.pending_reason.split("+"):
         topic.pending_reason = (topic.pending_reason + "+" + reason)[:200]
-    else:
-        return
+    # every occurrence is dated, also of a reason already owed: an answer at a cutoff between two occurrences
+    # must not settle the later one (Codex r169)
     session = object_session(topic)
     if session is not None:
         event(session, topic, at, "owed", reason=reason)
 
 
 def owed_at(session, topic, cutoff):
-    """(reasons visible at the cutoff, [(reason, at)] owed only later) of the topic's current debt. A reason
-    without its dated event (owed before they were kept) cannot be placed in time: it is neither."""
+    """(reasons owed by the cutoff, [(reason, at)] occurrences after it) of the topic's current debt - one
+    reason may be both (owed before and again after). A reason without any dated event (owed before they were
+    kept) cannot be placed in time: it is neither."""
     reasons = (topic.pending_reason or "").split("+")
     # the current debt: owed since the topic's last analysis cleared the one before
     last = session.scalar(
@@ -975,7 +976,7 @@ def owed_at(session, topic, cutoff):
             db.TopicEvent.topic_id == topic.id, db.TopicEvent.kind == "analysis"
         )
     )
-    seen = {}
+    seen = {}  # reason -> every dated occurrence of the current debt
     for e in session.scalars(
         select(db.TopicEvent)
         .where(
@@ -987,9 +988,9 @@ def owed_at(session, topic, cutoff):
     ):
         r = e.detail.get("reason")
         if r in reasons:
-            seen.setdefault(r, e.at)
-    shown = [r for r in reasons if r in seen and parse_time(seen[r]) <= cutoff]
-    later = [(r, seen[r]) for r in reasons if r in seen and parse_time(seen[r]) > cutoff]
+            seen.setdefault(r, []).append(e.at)
+    shown = [r for r in reasons if any(parse_time(at) <= cutoff for at in seen.get(r, []))]
+    later = [(r, at) for r in reasons for at in seen.get(r, []) if parse_time(at) > cutoff]
     return shown, later
 
 
@@ -1124,9 +1125,9 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 session=session,
             )
             topic.last_analysis_id = row.id
-            unplaced = [
-                r for r in (topic.pending_reason or "").split("+") if r and r not in reason.split("+")
-            ]
+            asked = reason.split("+")
+            unplaced = [r for r in (topic.pending_reason or "").split("+") if r and r not in asked]
+            unplaced += [r for r, _ in later if r not in unplaced]  # occurrences after the cutoff stay owed
             if cutoff is not None and unplaced:
                 # later reasons (and any that cannot be placed in time) are still owed, from their own time
                 times = [parse_time(at) for r, at in later]

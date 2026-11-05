@@ -124,3 +124,21 @@ def test_a_correction_notice_is_read_as_the_version_that_corrected(monkeypatch):
     with db.session() as s:
         read = [e.version_id for e in s.scalars(select(db.Evidence).where(db.Evidence.record_id == "C1"))]
     assert V_OLD in read  # the version that corrected, not only the head
+
+
+def test_a_fixed_version_read_accepts_only_exactly_the_named_version():
+    from bioradar.adapters.fabric import fixed_version_is
+
+    doc = {
+        "source": "s",
+        "record_id": "C1",
+        "version_id": V_OLD,
+        "is_demo": True,
+        "available_at": "2026-06-02T08:00:00+08:00",
+    }
+    assert fixed_version_is(doc, "s", "C1", V_OLD, True, day(3))
+    assert not fixed_version_is(doc, "s", "C1", V_NEW, True, day(3))  # another version
+    assert not fixed_version_is(doc, "s", "C2", V_OLD, True, day(3))  # another record
+    assert not fixed_version_is(doc, "t", "C1", V_OLD, True, day(3))  # another source
+    assert not fixed_version_is(doc, "s", "C1", V_OLD, False, day(3))  # the other demo kind
+    assert not fixed_version_is(doc, "s", "C1", V_OLD, True, day(1))  # not visible at that cutoff

@@ -15,7 +15,7 @@ from sqlalchemy import delete, func, select
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.adapters.fabric import Fabric, FabricError, noticed
+from bioradar.adapters.fabric import Fabric, FabricError, fixed_version_is, noticed
 from bioradar.adapters.services import ServiceError
 from bioradar.config import Settings
 from bioradar.material import Material, of, restore
@@ -1261,6 +1261,11 @@ class Run:
             )
             if not found:
                 raise FabricError("record_not_visible", f"{record_id}@{pinned[:12]}")
+            if len(found) != 1 or not fixed_version_is(
+                found[0], source, record_id, pinned, self.input["is_demo"], self.cutoff
+            ):
+                # verified here too: whatever reader served it, only the named version is that version
+                raise FabricError("fixed_version_mismatch", f"{record_id}@{pinned[:12]}")
             doc = self.docs[doc_key(hit)] = found[0]
         if doc is None:
             found, _ = self.fabric.search(

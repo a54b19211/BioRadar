@@ -233,6 +233,20 @@ def document(record: dict) -> dict:
     return doc
 
 
+def fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff=None) -> bool:
+    """Whether a document returned for a fixed-version read is exactly what was named: the same source,
+    record, version and demo kind, visible at the cutoff (Codex r169)."""
+    if (doc.get("source"), doc.get("record_id"), doc.get("version_id")) != (source, record_id, version_id):
+        return False
+    if "is_demo" in doc and bool(doc["is_demo"]) != bool(is_demo):
+        return False
+    if cutoff is not None and doc.get("available_at"):
+        at = datetime.fromisoformat(str(doc["available_at"]).replace("Z", "+00:00"))
+        if at > (cutoff if isinstance(cutoff, datetime) else datetime.fromisoformat(str(cutoff))):
+            return False
+    return True
+
+
 class Fabric:
     def __init__(self, settings: Settings, client: httpx.Client | None = None):
         self.settings = settings
@@ -385,6 +399,9 @@ class Fabric:
                 missing.append(version_id)  # revoked, withdrawn from view, or not visible at this cutoff
                 continue
             doc = document(item)
+            if not fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff):
+                # the read named one version: anything else is never that version's text (Codex r169)
+                raise FabricError("version_identity_mismatch", f"{record_id}@{version_id[:12]}")
             doc["artifact_wanted"] = (artifacts or {}).get(version_id) or None
             docs.append(doc)
         self.complete(docs, is_demo=is_demo, mode=mode, cutoff=at)
