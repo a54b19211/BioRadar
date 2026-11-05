@@ -123,18 +123,37 @@ class Assessment(BaseModel):
 
 
 class Measure(BaseModel):
-    object: str = Field(description="对象，原文写法，具体到项目或基地；series 里已有时沿用")
-    metric: str = Field(description="指标名；series 里已有同义指标时沿用原名")
-    value: float = Field(description="原文里的数，必须出现在 quote 中")
-    unit: str = ""
+    """One measured value as the record states it (T-24 / T-29 P3). Each *_text is copied verbatim from the
+    record and only used to find where it is written; the value checked and stored is the final one: the
+    number written in value_text, the period in its normalized form, object / metric / scope as written (no
+    synonyms). A measure enters a series only after BioCheck confirms every field at its place."""
+
+    object_text: str = Field(default="", description="对象原文写法（逐字，原文里的那个词），没写就留空")
+    metric_text: str = Field(
+        description="指标原文写法（逐字），包括限定语，如“suspected cases of anthrax in humans”"
+    )
+    value_text: str = Field(description="数值原文写法（逐字，如“1,444”“26”），必须出现在 quote 里")
+    unit_text: str = Field(default="", description="紧跟数值的单位原文（个、件、例、%、cases），没有就留空")
+    period_text: str = Field(
+        default="", description="期间原文写法（逐字，如“2026年4月”“截至2023年12月”），没写就留空"
+    )
+    period: str = Field(
+        default="",
+        description="期间规范写法：2026-04、2026Q2、2026H1、2026、2026-04-15、2022-09/2023-01、2020-01-22/2020-02-11；没写留空",
+    )
+    period_type: Literal["point", "interval", ""] = Field(
+        default="", description="point 截至某时点 / interval 某期间内；没写期间留空"
+    )
+    scope_text: str = Field(default="", description="统计口径或覆盖范围原文（逐字），没写就留空")
+    denominator_text: str = Field(default="", description="比例的分母原文（逐字），原文写出时才填")
     kind: Literal["stock", "flow", "cumulative", "rate", "other"] = Field(
         default="other", description="stock 某时点的存量/flow 当期新增/cumulative 累计/rate 比例"
     )
-    scope: str = Field(default="", description="统计口径或覆盖范围，如“5个哨点”“全公司”")
-    numerator: float | None = Field(default=None, description="比例的分子，原文写出时才填")
-    denominator: float | None = Field(default=None, description="比例的分母，原文写出时才填")
-    period: str = Field(
-        default="", description="2026Q2、2026H1、2026-09、2026-09-28 或 起/止；只说目前就留空"
+    qualifier: Literal["exact", "approximate", "at_least", "at_most", "more_than", "less_than"] = Field(
+        default="exact", description="约、近、超过、至少等写在数值旁时如实标出"
+    )
+    modality: Literal["actual", "planned", "projected"] = Field(
+        default="actual", description="原文说的是实际发生，还是计划、预计"
     )
     status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = (
         "other"

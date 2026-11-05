@@ -93,5 +93,5 @@ TRIAGE = (
 - signal：这条记录是哪类信号（capacity 产能/厂房、hiring 招聘、financing 融资、deal 并购授权、filing 申报受理、approval 批准、rejection 不批准/CRL、trial_start/trial_result/trial_stop 试验开始/结果/终止、publication 论文、policy 政策、outbreak 疫情、safety 安全事件、other 其他）。
 - objects：记录说到的具体对象（公司、药物、靶点、适应症、试验、地点、事件）。
 - watch：归入的已有专题有 watch 列表时，这条记录正好是其中某条待验证信号（证实或证伪）就填它的编号，否则留空。
-- measures：记录原文明确给出的、能跨期比较的数值（产线或产能、厂房在建/投运、招聘人数、销售额、病例数、阳性率、流感样病例比例等），每条记录最多3个，无关记录也要填。series 列出已经在跟踪的对象、指标、单位、类型和口径，含义相同的必须沿用，不要另起名字。object 具体到项目或基地。kind 区分 stock 存量、flow 当期新增、cumulative 累计、rate 比例，不能混用；疑似、抗体阳性、确诊、就诊人次和人数是不同指标。value 必须是 quote 里写出的那个数；比例在原文同时写了分子和分母时填 numerator、denominator。status 写计划/在建/投运或报告/确认；同一个数只是被重复提起也照样填，程序会去重。原文没给出具体数就不填，不要估算、换算或补期间。"""
+- measures：记录原文明确给出的、能跨期比较的数值（产线或产能、批准或受理数量、病例数、阳性率、流感样病例比例等），每条记录最多3个，无关记录也要填。所有 *_text 都逐字照抄原文里的那个词，不改写、不换同义词、不缩写，原文没写就留空；程序据此回原文核对，核对不过的数不会进入序列。object_text 是谁的数（机构、公司、疾病），metric_text 是数的是什么，连同限定语一起抄（如“批准注册医疗器械产品”“suspected cases of anthrax in humans”）。value_text 是 quote 里写出的那个数，unit_text 是紧跟它的单位。period_text 抄期间原文，period 写规范形式（2026-04、2026Q2、2026H1、2026、2022-09/2023-01），period_type 区分截至时点 point 和期间内 interval；原文没写期间就都留空，不要用发布日期补。scope_text 是原文写出的范围或口径。kind 区分 stock 存量、flow 当期新增、cumulative 累计、rate 比例，不能混用；疑似、确诊、就诊人次和人数是不同指标。约、超过、至少写在数旁时用 qualifier 标出；计划、预计的数用 modality 标 planned / projected。status 写计划/在建/投运或报告/确认。原文没给出具体数就不填，不要估算或换算。"""
 )

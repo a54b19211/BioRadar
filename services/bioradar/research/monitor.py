@@ -8,8 +8,8 @@ historical replay behaves the same way as live monitoring:
   cooling / dormant --(a new related record)--> rising again (an awakening)"""
 
 import logging
-import re
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import delete, func, literal, select
 
@@ -18,7 +18,7 @@ from bioradar.adapters import llm
 from bioradar.adapters.fabric import REGISTRY_DIFF_SOURCES, Fabric, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
-from bioradar.research import analyses, prompts, schemas, series
+from bioradar.research import analyses, measure_checks, prompts, schemas, series
 
 log = logging.getLogger("bioradar")
 _turn = 0  # rotates which monitored source is read first in a live round
@@ -326,6 +326,7 @@ def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40)
             db.Measurement.workspace_id == s.workspace_id,
             db.Measurement.is_demo == is_demo,
             db.Measurement.available_at <= clock,
+            measure_checks.effective_clause(),  # unchecked, old-checker or unreadable points are not shown
         )
         .group_by(*KEY)
         .order_by(func.max(db.Measurement.available_at).desc())
@@ -484,9 +485,8 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                         else "triage_failed",
                     )
                 )
-                for owed in measure(session, s, doc, item, topic, at, is_demo, topics):
-                    wake[owed.id] = "series_change"
-                    owe(owed, "series_change", at)
+                # measures become candidates; only the check worker turns a checked one into a series point
+                measure_checks.enqueue(session, s, doc, item, topic, at, is_demo)
                 if topic is None:
                     continue
                 if topic.state in {"cooling", "dormant"} and not (item and item.closure):
@@ -532,132 +532,161 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
     return wake, True
 
 
-def measure(session, s: Settings, doc, item, topic, at, is_demo, topics) -> list:
-    """Store the quoted measures of one record and compare each with its series as visible at `at`.
-    A correction of an earlier record (of the named version, when Fabric names one) replaces that record's
-    value for the same series and period. A notable change in a series that no topic follows yet opens one
-    for the series, so values that mean nothing alone still lead to an investigation once they add up.
-    Writes a `series` topic event per change; returns the topics owed an analysis."""
-    text = re.sub(r"\s+", "", (doc["title"] or "") + (doc["text"] or ""))
-    corrected = [
-        (r.get("target_source", doc["source"]), r["target_record_id"], r.get("target_version_id"))
-        for r in doc["relations"]
-        if r["kind"] == "corrects"
+def period_bounds(period, at):
+    """(start, end) of a checked period: a month range spans whole months; otherwise series.period_bounds."""
+    if period.get("start") and period["precision"] == "month":
+        (y1, m1), (y2, m2) = (map(int, period["start"].split("-")), map(int, period["end"].split("-")))
+        return datetime(y1, m1, 1, tzinfo=UTC), series._month_end(y2, m2)
+    text = period.get("value") or f"{period['start']}/{period['end']}"
+    return series.period_bounds(text, at)
+
+
+def adopt(session, s: Settings, cand, final, check_id):
+    """Store one checked point (T-24 series logic over the effective view) and compare it with its series as
+    visible at the record's time. A correction of an earlier record (of the named version, when Fabric names
+    one) replaces that record's value for the same series and period. A notable change in a series no topic
+    follows yet opens one. Writes a `series` topic event per change.
+    Returns (point or None, topic ids owed)."""
+    at = measure_checks._utc(cand.observed_at)
+    period = final["period"]
+    period_text = period.get("value") or f"{period['start']}/{period['end']}"
+    bounds = period_bounds(period, at)
+    if bounds is None:
+        return None, []
+    key = dict(
+        object=final["object"][:200],
+        metric=final["metric"][:200],
+        unit=final["unit"][:50],
+        kind=final["measure_kind"],
+        scope=final["scope"][:200],
+        scope_mode=final["scope_mode"],
+        period_type=period["type"],
+        period_precision=period["precision"],
+    )
+    same = dict(key, workspace_id=s.workspace_id, is_demo=cand.is_demo)
+    existing = session.scalar(select(db.Measurement).filter_by(candidate_id=cand.id))
+    if existing is not None:
+        return (
+            None,
+            [],
+        )  # checked again (revalidation, checker upgrade): the point stands, nothing new to compute
+    if session.scalar(
+        select(db.Measurement.id).filter_by(version_id=cand.version_id, period=period_text, **key)
+    ):
+        return None, []  # the same point of this version from another candidate (a retried triage)
+    m = cand.measure
+    row = db.Measurement(
+        **same,
+        value=float(Decimal(final["value"])),
+        value_text=final["value"],
+        numerator=None,  # contract v2 checks no numerator: never stored with a checked point
+        denominator=float(Decimal(final["denominator"])) if final["denominator"] else None,
+        denominator_text=final["denominator"],
+        period=period_text,
+        period_start=bounds[0],
+        period_end=bounds[1],
+        status=m.get("status") or "other",
+        source=cand.source,
+        record_id=cand.record_id,
+        version_id=cand.version_id,
+        quote=m["quote"][:300],
+        available_at=at,
+        topic_id=cand.topic_id,
+        candidate_id=cand.id,
+        check_id=check_id,
+    )
+    session.add(row)
+    session.flush()
+    for source, record_id, version_id in cand.corrects or []:
+        query = measure_checks.effective(
+            session, s, cand.is_demo, source=source, record_id=record_id, period=row.period, **key
+        )
+        if version_id:
+            query = query.filter_by(version_id=version_id)
+        for old in session.scalars(query):
+            # a replacement already in force keeps its date: a second notice correcting the same value
+            # is not a correction of the first one, so the two stand as a conflict from now on
+            if old.superseded_by is None and old.id != row.id:
+                old.superseded_by = row.id
+    grain = series.grain(row.period)
+    rows = [
+        {
+            "id": r.id,
+            "value": r.value,
+            "status": r.status,
+            "period": r.period,
+            "period_start": r.period_start,
+            "period_end": r.period_end,
+            "available_at": r.available_at,
+            "superseded_by": r.superseded_by,
+        }
+        for r in session.scalars(
+            measure_checks.effective(session, s, cand.is_demo, **key).where(db.Measurement.available_at <= at)
+        )
+        if series.grain(r.period) == grain  # a year is not compared with a quarter
     ]
-    owed = []
-    for m in item.measures[:3] if item else []:
-        quote = re.sub(r"\s+", "", m.quote)
-        bounds = series.period_bounds(m.period, at)
-        if not quote or quote not in text or not series.quoted(m.value, quote) or bounds is None:
-            log.info("measure dropped: %s %s %g", doc["record_id"], m.metric, m.value)
-            continue
-        key = dict(
-            object=m.object.strip()[:200],
-            metric=m.metric.strip()[:200],
-            unit=m.unit.strip()[:50],
-            kind=m.kind,
-            scope=m.scope.strip()[:200],
-        )
-        same = dict(key, workspace_id=s.workspace_id, is_demo=is_demo)
-        if session.scalar(
-            select(db.Measurement.id).filter_by(version_id=doc["version_id"], period=m.period.strip(), **key)
-        ):
-            continue  # this version was measured before (a retried triage)
-        row = db.Measurement(
-            **same,
-            value=m.value,
-            # a rate's parts are kept only when the quote states them too
-            numerator=m.numerator if m.numerator is not None and series.quoted(m.numerator, quote) else None,
-            denominator=m.denominator
-            if m.denominator is not None and series.quoted(m.denominator, quote)
-            else None,
-            period=m.period.strip()[:40],
-            period_start=bounds[0],
-            period_end=bounds[1],
-            status=m.status,
-            source=doc["source"],
-            record_id=doc["record_id"],
-            version_id=doc["version_id"],
-            quote=m.quote[:300],
-            available_at=at,
-            topic_id=topic.id if topic else None,
-        )
-        session.add(row)
-        session.flush()
-        for source, record_id, version_id in corrected:
-            query = select(db.Measurement).filter_by(
-                source=source, record_id=record_id, period=row.period, **same
-            )
-            if version_id:
-                query = query.filter_by(version_id=version_id)
-            for old in session.scalars(query):
-                # a replacement already in force keeps its date: a second notice correcting the same value
-                # is not a correction of the first one, so the two stand as a conflict from now on
-                if old.superseded_by is None:
-                    old.superseded_by = row.id
-        grain = series.grain(row.period)
-        rows = [
+    if row.id not in {r["id"] for r in rows}:  # the new point counts once its check is the latest (it is)
+        rows.append(
             {
-                "id": r.id,
-                "value": r.value,
-                "status": r.status,
-                "period": r.period,
-                "period_start": r.period_start,
-                "period_end": r.period_end,
-                "available_at": r.available_at,
-                "superseded_by": r.superseded_by,
+                "id": row.id,
+                "value": row.value,
+                "status": row.status,
+                "period": row.period,
+                "period_start": row.period_start,
+                "period_end": row.period_end,
+                "available_at": at,
+                "superseded_by": None,
             }
-            for r in session.scalars(
-                select(db.Measurement).filter_by(**same).where(db.Measurement.available_at <= at)
+        )
+    found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
+    holder = session.get(db.Topic, cand.topic_id) if cand.topic_id else None
+    owed = []
+    if holder is None and series.notable(found):
+        title = f"{key['object']}·{key['metric']}" + (f"（{key['scope']}）" if key["scope"] else "")
+        holder = session.scalar(
+            select(db.Topic).where(db.Topic.title == title[:200], db.Topic.is_demo == cand.is_demo)
+        )
+        if holder is None:
+            holder = db.Topic(
+                workspace_id=s.workspace_id,
+                title=title[:200],
+                direction=cand.direction or "public_health",
+                is_demo=cand.is_demo,
+                first_seen_at=at,
+                last_activity_at=at,
+                alert="normal",
             )
-            if series.grain(r.period) == grain  # a year is not compared with a quarter
-        ]
-        found = [c for c in series.changes(rows, row.id) if c["kind"] != "repeat"]
-        holder = topic
-        if holder is None and series.notable(found):
-            title = f"{key['object']}·{key['metric']}" + (f"（{key['scope']}）" if key["scope"] else "")
-            holder = next((t for t in topics if t.title == title[:200]), None)
-            if holder is None:
-                holder = db.Topic(
-                    workspace_id=s.workspace_id,
-                    title=title[:200],
-                    direction=item.direction,
-                    is_demo=is_demo,
-                    first_seen_at=at,
-                    last_activity_at=at,
-                    alert="normal",
-                )
-                session.add(holder)
-                session.flush()
-                topics.append(holder)
-                event(session, holder, at, "created", record=doc["record_id"], title=title, from_series=True)
-            row.topic_id = holder.id
-        if holder is not None and found:
-            event(
-                session,
-                holder,
-                at,
-                "series",
-                record=doc["record_id"],
-                **{("measure_kind" if k == "kind" else k): v for k, v in key.items()},
-                value=m.value,
-                period=row.period,
-                changes=found,
-                algo=series.VERSION,
+            session.add(holder)
+            session.flush()
+            event(session, holder, at, "created", record=cand.record_id, title=title, from_series=True)
+        row.topic_id = holder.id
+    if holder is not None and found:
+        event(
+            session,
+            holder,
+            at,
+            "series",
+            record=cand.record_id,
+            **{("measure_kind" if k == "kind" else k): v for k, v in key.items()},
+            value=final["value"],
+            period=row.period,
+            changes=found,
+            algo=series.VERSION,
+            checks=[check_id],
+        )
+    if holder is not None and series.notable(found):
+        # the records the computation used become the topic's records, so its analysis reads them
+        used = {i for c in found for i in c.get("rows", [])} | {row.id}
+        versions = session.scalars(select(db.Measurement.version_id).where(db.Measurement.id.in_(used)))
+        for obs in session.scalars(
+            select(db.Observation).where(
+                db.Observation.version_id.in_(list(versions)), db.Observation.topic_id.is_(None)
             )
-        if holder is not None and series.notable(found):
-            # the records the computation used become the topic's records, so its analysis reads them
-            used = {i for c in found for i in c.get("rows", [])} | {row.id}
-            versions = session.scalars(select(db.Measurement.version_id).where(db.Measurement.id.in_(used)))
-            for obs in session.scalars(
-                select(db.Observation).where(
-                    db.Observation.version_id.in_(list(versions)), db.Observation.topic_id.is_(None)
-                )
-            ):
-                obs.topic_id = holder.id
-            if holder not in owed:
-                owed.append(holder)
-    return owed
+        ):
+            obs.topic_id = holder.id
+        owe(holder, "series_change", at)
+        owed.append(holder.id)
+    return row, owed
 
 
 def series_basis(session, topic_id) -> str:
@@ -673,11 +702,16 @@ def series_basis(session, topic_id) -> str:
         return ""
     d = last.detail
     used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
+    if not used or measure_checks.is_effective(session, used) != set(used):
+        return ""  # a point it used is no longer checked and readable: not a current conclusion
     rows = session.scalars(
         select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
     )
     points = "；".join(
-        f"{r.period or '当时'} {r.value:g}{r.unit}（{r.status}，记录 {r.record_id}）" for r in rows
+        f"{r.period or '当时'} {r.value_text or format(r.value, 'g')}{r.unit}"
+        f"（{r.status}，记录 {r.record_id}，"
+        f"已核 check {r.check_id}）"
+        for r in rows
     )
     scope = f"（{d['scope']}）" if d.get("scope") else ""
     found = "、".join(sorted({c["kind"] for c in d["changes"]}))
@@ -945,6 +979,10 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         reasons, whole = (
             observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
         )
+    with db.session() as session:
+        measure_checks.backfill(session, s)  # a checker upgrade owes every candidate a new check
+    for topic_id, reason in measure_checks.run(s, fabric, is_demo=is_demo, adopt=adopt).items():
+        reasons.setdefault(topic_id, reason)
     if not whole:
         # the budget ran out before or during triage: what was not triaged is owed, durably, and the
         # cursors move on (the retry path triages it once the budget allows)

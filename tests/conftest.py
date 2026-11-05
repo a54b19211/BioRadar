@@ -43,6 +43,7 @@ def record(
         "source_id": source,
         "source_record_id": record_id,
         "version_id": version or ("v" + record_id).ljust(64, "0"),
+        "raw_sha256": __import__("hashlib").sha256(text.encode()).hexdigest(),
         "is_demo": True,
         "record_kind": "document",
         "title": title,
@@ -68,11 +69,50 @@ def record(
 
 
 class FakeFabric:
-    def __init__(self, records):
-        from bioradar.adapters.fabric import document
+    """clean=True: each document's text is served as its clean_text artifact (test.clean.v11), the way
+    attach_clean_text leaves real documents, and clean_texts() reads it back by version + processor; `revoked`
+    and `tampered` (version ids) make that read refuse or return another text."""
+
+    PROCESSOR = "test.clean.v11"
+
+    def __init__(self, records, clean=False):
+        from bioradar.adapters.fabric import document, part
+        from bioradar.material import Material
 
         self.docs = [document(r) for r in records]
         self.calls = []
+        self.revoked, self.tampered = set(), set()
+        if clean:
+            for d in self.docs:
+                d["material"] = Material.part(
+                    d["text"], part(d, "clean_text", processor_version=self.PROCESSOR)
+                )
+                d["text"] = d["material"].text
+                d["clean_text_state"] = "processed"
+
+    def clean_texts(self, source, version_ids, *, is_demo, mode, cutoff, processor_version=None):
+        import hashlib
+
+        from bioradar.adapters.fabric import FabricError
+
+        self.calls.append(("clean_texts", source, tuple(version_ids)))
+        out = {}
+        for d in self.docs:
+            if d["source"] != source or d["version_id"] not in version_ids:
+                continue
+            if d["version_id"] in self.revoked:
+                raise FabricError("version_not_found", "not visible")
+            text = d["text"] + (" tampered" if d["version_id"] in self.tampered else "")
+            out[d["version_id"]] = {
+                "state": "ok",
+                "clean": {
+                    "processor_version": processor_version or self.PROCESSOR,
+                    "text": text,
+                    "status": "parsed",
+                    "text_sha256": hashlib.sha256(d["text"].encode()).hexdigest(),
+                },
+            }
+        return out
 
     def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=(), now=None):
         self.calls.append(("search", source, tuple(terms), tuple(record_ids)))
@@ -107,3 +147,37 @@ class FakeFabric:
 
     def fetch(self, source, query, **_):
         return []
+
+
+def biocheck_v5(answer=None, calls=None):
+    """BioCheck /v2 stand-in for series-logic tests: every field of every item answered match by checker v5
+    (answer(body) may alter the response). Real rule behaviour is tested against real BioCheck answers."""
+    import copy
+
+    import extraction_contract as ec
+
+    def post(body):
+        if calls is not None:
+            calls.append(copy.deepcopy(body))
+        items = [
+            {
+                "id": i["id"],
+                "kind": "measurement",
+                "status": "consistent",
+                "fields": {
+                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V5]["measurement"]
+                },
+            }
+            for i in body["items"]
+        ]
+        response = {
+            "contract_version": ec.CONTRACT_V2,
+            "checker_version": ec.CHECKER_V5,
+            "subject": body["subject"],
+            "items": items,
+            "counts": {"consistent": len(items), "inconsistent": 0, "unchecked": 0},
+            "llm_calls": [],
+        }
+        return answer(body, response) if answer else response
+
+    return post

@@ -197,9 +197,30 @@ class Measurement(Base):
 
     __tablename__ = "measurements"
     __table_args__ = (
-        UniqueConstraint("version_id", "object", "metric", "unit", "kind", "scope", "period"),
+        UniqueConstraint(
+            "version_id",
+            "object",
+            "metric",
+            "unit",
+            "kind",
+            "scope",
+            "scope_mode",
+            "period",
+            "period_type",
+            "period_precision",
+        ),
         Index(
-            "ix_measurements_series", "workspace_id", "is_demo", "object", "metric", "unit", "kind", "scope"
+            "ix_measurements_series",
+            "workspace_id",
+            "is_demo",
+            "object",
+            "metric",
+            "unit",
+            "kind",
+            "scope",
+            "scope_mode",
+            "period_type",
+            "period_precision",
         ),
     )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -229,6 +250,82 @@ class Measurement(Base):
     topic_id: Mapped[str | None] = mapped_column(ForeignKey("topics.id"), index=True)
     # set when a correction of this record gives the same object/metric/period again
     superseded_by: Mapped[int | None] = mapped_column(Integer)
+    # T-29 P3: the candidate and the check it was adopted from (NULL: a point from before checking, never in
+    # the effective view); the exact checked numbers as decimal text (value/denominator floats are only
+    # written when they read back equal); the period's type and precision and the scope mode, all series keys
+    candidate_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    check_id: Mapped[int | None] = mapped_column(Integer, index=True)
+    value_text: Mapped[str | None] = mapped_column(String(40))
+    denominator_text: Mapped[str | None] = mapped_column(String(40))
+    period_type: Mapped[str] = mapped_column(String(10), default="")
+    period_precision: Mapped[str] = mapped_column(String(10), default="")
+    scope_mode: Mapped[str] = mapped_column(String(30), default="")
+
+
+class MeasurementCandidate(Base):
+    """One measure as triage gave it (T-29 P3): the literal texts that locate it, the final values to check,
+    the
+    fixed artifact it was read from (from the material binding, re-read from Fabric before any check). Only a
+    consistent check whose stored values read back equal makes it a series point; otherwise it stays here as a
+    lead (not_built: it could not be sent as stated, with the reason)."""
+
+    __tablename__ = "measurement_candidates"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    source: Mapped[str] = mapped_column(String(80))
+    record_id: Mapped[str] = mapped_column(String(400))
+    version_id: Mapped[str] = mapped_column(String(128), index=True)
+    raw_sha256: Mapped[str | None] = mapped_column(String(64))
+    processor_version: Mapped[str | None] = mapped_column(String(120))
+    text_sha256: Mapped[str | None] = mapped_column(String(64))
+    quote_start: Mapped[int | None] = mapped_column(Integer)
+    quote_end: Mapped[int | None] = mapped_column(Integer)
+    measure: Mapped[dict] = mapped_column(Json)  # the triage output as given (literal texts + final forms)
+    status: Mapped[str] = mapped_column(String(20), default="pending")  # pending | not_built | checked
+    reason: Mapped[str | None] = mapped_column(String(120))
+    topic_id: Mapped[str | None] = mapped_column(ForeignKey("topics.id"), index=True)
+    direction: Mapped[str | None] = mapped_column(
+        String(30)
+    )  # triage's direction, for a topic a series opens
+    corrects: Mapped[list | None] = mapped_column(
+        Json
+    )  # [(source, record_id, version_id)] the record corrects
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # the record's availability
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MeasurementCheckTask(Base):
+    """The check owed to a candidate by one checker version (an upgrade owes a new one), leased."""
+
+    __tablename__ = "measurement_check_tasks"
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("measurement_candidates.id"), primary_key=True)
+    checker_version: Mapped[str] = mapped_column(String(80), primary_key=True)
+    state: Mapped[str] = mapped_column(String(20), default="queued")  # queued | waiting | done | blocked
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_check_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now, index=True)
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[dict | None] = mapped_column(Json)
+
+
+class MeasurementCheck(Base):
+    """One check of one candidate, append-only: the full request and response, the checker, the outcome and
+    the gate's decision and reason (series only when consistent and the stored values read back equal)."""
+
+    __tablename__ = "measurement_checks"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    candidate_id: Mapped[int] = mapped_column(ForeignKey("measurement_candidates.id"), index=True)
+    checker_version: Mapped[str] = mapped_column(String(80))
+    contract_version: Mapped[str] = mapped_column(String(40))
+    request_sha256: Mapped[str | None] = mapped_column(String(64))
+    request: Mapped[dict | None] = mapped_column(Json)
+    response: Mapped[dict | None] = mapped_column(Json)
+    status: Mapped[str] = mapped_column(String(20))  # consistent | inconsistent | unchecked
+    error_code: Mapped[str | None] = mapped_column(String(60))
+    gate: Mapped[str] = mapped_column(String(20))  # series | candidate
+    gate_reason: Mapped[str | None] = mapped_column(String(120))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class TopicEvent(Base):

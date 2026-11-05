@@ -57,6 +57,18 @@ def biocheck(settings: Settings, operation: str, body: dict) -> dict:
     )
 
 
+def biocheck_v2(settings: Settings, body: dict) -> dict:
+    """Extraction consistency, contract v2 / checker v5 (T-29 P3): one measurement request, rules only."""
+    return _post(
+        "biocheck",
+        settings.biocheck_url,
+        settings.biocheck_token,
+        "/v2/extraction-consistency",
+        body,
+        settings.service_timeout_seconds,
+    )
+
+
 def mechevidence(settings: Settings, body: dict) -> dict:
     return _post(
         "mechevidence",

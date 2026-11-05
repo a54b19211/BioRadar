@@ -2,12 +2,12 @@
 
 from datetime import UTC, datetime
 
-from conftest import FakeFabric, record
+from conftest import FakeFabric, biocheck_v5, record
 from sqlalchemy import func, select
 
 from bioradar import db
-from bioradar.adapters import llm
-from bioradar.research import monitor, schemas, series
+from bioradar.adapters import llm, services
+from bioradar.research import measure_checks, monitor, schemas, series
 
 
 def test_periods_and_numbers_are_read_strictly():
@@ -22,11 +22,7 @@ def test_periods_and_numbers_are_read_strictly():
     assert series.period_bounds("去年下半年", at) is None
     periods = ("2026", "2026Q4", "2026H1", "2026-10", "2026-10-05/2026-10-11", "")
     assert [series.grain(p) for p in periods] == ["Y", "Q", "H", "M", "R", "A"]
-    assert series.quoted(12, "2026Q1有12条投运产线") and not series.quoted(2, "2026Q1有12条投运产线")
-    assert series.quoted(4.1, "比例为4.1%") and not series.quoted(4, "比例为4.1%")
-    assert series.quoted(3, "8个哨点为3.0%") and series.quoted(1444, "已有1,444篇")
     assert not series.quoted(1, "2026Q1有12条")  # the 1 of Q1 is not a value
-    assert series.quoted(-3, "净变化-3条") and not series.quoted(3, "净变化-3条")
 
 
 def row(id_, period, value, status, available, superseded=None):
@@ -131,24 +127,35 @@ def fake_triage(by_title, payloads, *, topic_title=""):
 
 
 def feed(records):
-    """Add the records one per round; yields the feed before each round so a test can adjust a record."""
-    fabric = FakeFabric([])
+    """Add the records one per round (clean artifacts); yields the feed before each round so a test can
+    adjust a
+    record. Each round's check worker answers with the v5 stand-in."""
+    fabric = FakeFabric([], clean=True)
     for rid, day, title, relations in records:
         available = day + "T08:00:00+08:00"
-        fabric.docs += FakeFabric([record(rid, title, title, available=available, relations=relations)]).docs
+        fabric.docs += FakeFabric(
+            [record(rid, title, title, available=available, relations=relations)], clean=True
+        ).docs
         yield fabric
         monitor.tick(is_demo=True, fabric=fabric)
 
 
-def lines(period, value, status, quote):
+def checked(monkeypatch):
+    post = biocheck_v5()
+    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+
+
+def lines(period, value, status, quote, obj="甲公司"):
     return schemas.Measure(
-        object="甲公司苏州基地",
-        metric="灌装线数量",
-        value=value,
-        unit="条",
+        object_text=obj,
+        metric_text="灌装线",
+        value_text=str(value),
+        unit_text="条",
         kind="stock",
         period=period,
+        period_type="interval",
         status=status,
+        modality="planned" if status == "planned" else "actual",
         quote=quote,
     )
 
@@ -184,6 +191,7 @@ def quarter_records(quarters):
 
 
 def test_quarterly_records_build_one_series_and_owe_the_topic_only_real_changes(monkeypatch):
+    checked(monkeypatch)
     payloads = []
     by_title = {title: ([lines(*m)], "normal") for _, _, title, m in QUARTERS}
     monkeypatch.setattr(llm, "chat_json", fake_triage(by_title, payloads, topic_title="甲公司扩产"))
@@ -195,36 +203,47 @@ def test_quarterly_records_build_one_series_and_owe_the_topic_only_real_changes(
             s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "series").order_by(db.TopicEvent.id))
         )
         topic = s.scalars(select(db.Topic)).one()
-    # R6's quote is not in its text; R7's 2 only appears inside 2026 and 12: nothing stored for either
-    assert [(r.record_id, r.value, r.status) for r in rows] == [
-        ("R1", 2, "planned"),
-        ("R2", 2, "planned"),
-        ("R3", 2, "under_construction"),
-        ("R4", 3, "operational"),
-        ("R5", 2, "operational"),
+        candidates = {c.record_id: c for c in s.scalars(select(db.MeasurementCandidate))}
+    # planned values stay candidates (D4); R6's quote is not in its text, R7's 2 is only inside 2026 and 12:
+    # neither can be built, nothing stored
+    assert [(r.record_id, r.value_text, r.status) for r in rows] == [
+        ("R3", "2", "under_construction"),
+        ("R4", "3", "operational"),
+        ("R5", "2", "operational"),
     ]
-    assert rows[3].superseded_by == rows[4].id  # the correction replaces Q4's 3
+    assert {k: (c.status, c.reason) for k, c in candidates.items() if k in ("R1", "R2", "R6", "R7")} == {
+        "R1": ("checked", None),
+        "R2": ("checked", None),
+        "R6": ("not_built", "quote_not_in_text"),
+        "R7": ("not_built", "value_literal_not_located"),
+    }
+    assert all(r.check_id and r.numerator is None for r in rows)
+    assert rows[1].superseded_by == rows[2].id  # the correction replaces Q4's 3
     assert [(e.detail["record"], [c["kind"] for c in e.detail["changes"]]) for e in events] == [
-        ("R3", ["status_advance"]),
         ("R4", ["status_advance"]),
         ("R5", ["status_advance"]),  # after the correction Q4 is 2 lines operating
     ]
     assert {e.detail["algo"] for e in events} == {series.VERSION}
     assert "series_change" in (topic.pending_reason or "")
     assert payloads[-1]["series"] == [
-        {"object": "甲公司苏州基地", "metric": "灌装线数量", "unit": "条", "kind": "stock", "scope": ""}
+        {"object": "甲公司", "metric": "灌装线", "unit": "条", "kind": "stock", "scope": ""}
     ]
-    # the same correction triaged again (a retried round) is not measured or announced twice
+    # the same correction triaged again (a retried round) is not enqueued, measured or announced twice
     doc = next(d for d in fabric.docs if d["record_id"] == "R5")
     again = schemas.TriageItem(
         index=1, alert="normal", measures=[lines("2026Q4", 2, "operational", "投运2条灌装线")]
     )
     with db.session() as s:
-        assert monitor.measure(s, monitor.settings(), doc, again, topic, rows[4].available_at, True, []) == []
-        assert s.scalar(select(func.count()).select_from(db.Measurement)) == 5
+        assert (
+            measure_checks.enqueue(s, monitor.settings(), doc, again, topic, rows[2].available_at, True) == 0
+        )
+    monitor.tick(is_demo=True, fabric=fabric)
+    with db.session() as s:
+        assert s.scalar(select(func.count()).select_from(db.Measurement)) == 3
 
 
 def test_a_correction_of_another_version_does_not_replace_this_one(monkeypatch):
+    checked(monkeypatch)
     payloads = []
     by_title = {title: ([lines(*m)], "normal") for _, _, title, m in QUARTERS[3:5]}
     monkeypatch.setattr(llm, "chat_json", fake_triage(by_title, payloads, topic_title="甲公司扩产"))
@@ -241,13 +260,14 @@ def test_a_correction_of_another_version_does_not_replace_this_one(monkeypatch):
 
 def ili(period, value, quote, scope="5个哨点"):
     return schemas.Measure(
-        object="澜津",
-        metric="流感样病例比例",
-        value=value,
-        unit="%",
+        object_text="澜津",
+        metric_text="流感样病例比例",
+        value_text=str(value),
+        unit_text="%",
         kind="rate",
-        scope=scope,
+        scope_text=scope,
         period=period,
+        period_type="interval",
         status="reported",
         quote=quote,
     )
@@ -257,39 +277,40 @@ WEEKS = [
     (
         "H1",
         "2026-10-12",
-        "澜津哨点周报第41周流感样病例比例4.1%",
+        "澜津5个哨点周报第41周流感样病例比例4.1%",
         [ili("2026-10-05/2026-10-11", 4.1, "流感样病例比例4.1%")],
     ),
     (
         "H2",
         "2026-10-19",
-        "澜津哨点周报第42周流感样病例比例4.6%",
+        "澜津5个哨点周报第42周流感样病例比例4.6%",
         [ili("2026-10-12/2026-10-18", 4.6, "流感样病例比例4.6%")],
     ),
     (
         "H3",
         "2026-10-26",
-        "澜津哨点周报第43周流感样病例比例5.2%",
+        "澜津5个哨点周报第43周流感样病例比例5.2%",
         [ili("2026-10-19/2026-10-25", 5.2, "流感样病例比例5.2%")],
     ),
     # a wider coverage and a yearly figure are other series, never compared with the weekly 5-sentinel one
     (
         "H4",
         "2026-10-27",
-        "澜津新增哨点后的周报全部8个哨点为3.0%",
-        [ili("2026-10-19/2026-10-25", 3.0, "全部8个哨点为3.0%", "8个哨点")],
+        "澜津新增哨点后的周报全部8个哨点流感样病例比例为3.0%",
+        [ili("2026-10-19/2026-10-25", "3.0", "全部8个哨点流感样病例比例为3.0%", "8个哨点")],
     ),
     (
         "H5",
         "2026-10-28",
         "澜津年度监测综述全年流感样病例比例2.5%",
-        [ili("2026", 2.5, "全年流感样病例比例2.5%")],
+        [ili("2026", 2.5, "全年流感样病例比例2.5%", "")],
     ),
 ]
 
 
 def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(monkeypatch):
     """Each weekly report alone is unremarkable (alert none, no topic); the three-week rise is the signal."""
+    checked(monkeypatch)
     payloads = []
     by_title = {title: (measures, "none") for _, _, title, measures in WEEKS}
     monkeypatch.setattr(llm, "chat_json", fake_triage(by_title, payloads))
@@ -306,6 +327,7 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
     assert len(rows) == 5 and {r.scope for r in rows} == {
         "5个哨点",
         "8个哨点",
+        "",
     }  # all kept, none compared across
     # the analysis it starts reads the three weekly reports and is told what the program computed
     monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
@@ -317,26 +339,58 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
     assert "4.1%" in question and "5.2%" in question and "streak_up" in question
 
 
-def test_known_series_shown_to_a_replay_are_only_those_visible_then():
-    at = {"早": datetime(2026, 1, 1, tzinfo=UTC), "晚": datetime(2026, 1, 20, tzinfo=UTC)}
+def point(name, when, checked_=True):
+    """A stored point, with (or without) the candidate and v5 check that make it effective."""
     with db.session() as s:
-        for name, when in at.items():
-            s.add(
-                db.Measurement(
-                    workspace_id=monitor.settings().workspace_id,
-                    is_demo=True,
-                    object=name,
-                    metric="m",
-                    value=1,
-                    period_start=when,
-                    period_end=when,
-                    source="x",
-                    record_id=name,
-                    version_id=name,
-                    quote="1",
-                    available_at=when,
-                )
+        cand = db.MeasurementCandidate(
+            workspace_id=monitor.settings().workspace_id,
+            is_demo=True,
+            source="x",
+            record_id=name,
+            version_id=name,
+            measure={"quote": "1"},
+            status="checked",
+            observed_at=when,
+        )
+        s.add(cand)
+        s.flush()
+        check_id = None
+        if checked_:
+            check = db.MeasurementCheck(
+                candidate_id=cand.id,
+                checker_version=measure_checks.CHECKER,
+                contract_version=measure_checks.CONTRACT,
+                status="consistent",
+                gate="series",
             )
+            s.add(check)
+            s.flush()
+            check_id = check.id
+        s.add(
+            db.Measurement(
+                workspace_id=monitor.settings().workspace_id,
+                is_demo=True,
+                object=name,
+                metric="m",
+                value=1,
+                value_text="1",
+                period_start=when,
+                period_end=when,
+                source="x",
+                record_id=name,
+                version_id=name,
+                quote="1",
+                available_at=when,
+                candidate_id=cand.id if checked_ else None,
+                check_id=check_id,
+            )
+        )
+
+
+def test_known_series_shown_to_a_replay_are_only_checked_ones_visible_then():
+    point("早", datetime(2026, 1, 1, tzinfo=UTC))
+    point("晚", datetime(2026, 1, 20, tzinfo=UTC))
+    point("未核", datetime(2026, 1, 2, tzinfo=UTC), checked_=False)  # stored before checking: history only
     with db.session() as s:
         shown = monitor.known_series(s, monitor.settings(), True, datetime(2026, 1, 10, tzinfo=UTC))
     assert [k["object"] for k in shown] == ["早"]
@@ -345,6 +399,7 @@ def test_known_series_shown_to_a_replay_are_only_those_visible_then():
 def test_a_second_notice_correcting_the_same_value_does_not_bring_the_old_value_back(monkeypatch):
     """Codex r15: 5, corrected to 4 on day 5, another notice corrects the same 5 to 3 on day 8. As of day 6
     the value is 4 before and after the second notice arrives; from day 8 the two notices conflict."""
+    checked(monkeypatch)
     payloads = []
     quarters = [
         ("R4", "2026-10-01", "乙公司Q4投运5条灌装线", ("2026Q4", 5, "operational", "投运5条灌装线")),
@@ -356,7 +411,7 @@ def test_a_second_notice_correcting_the_same_value_does_not_bring_the_old_value_
             ("2026Q4", 3, "operational", "投运3条灌装线"),
         ),
     ]
-    by_title = {title: ([lines(*m)], "normal") for _, _, title, m in quarters}
+    by_title = {title: ([lines(*m, obj="乙公司")], "normal") for _, _, title, m in quarters}
     monkeypatch.setattr(llm, "chat_json", fake_triage(by_title, payloads, topic_title="乙公司扩产"))
     records = [
         (rid, day, title, [("corrects", "R4")] if rid != "R4" else ()) for rid, day, title, _ in quarters
