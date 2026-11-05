@@ -10,8 +10,9 @@ from bioradar.research import schemas
 
 
 def test_the_producer_and_checker_versions():
-    assert mc.CHECKER == ec.CHECKER_V9 == "biocheck.extraction_rules.v9"
-    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v4"}
+    # later producers keep this one's reading; the current versions (test_measure_v5)
+    assert mc.CHECKER == ec.CHECKER_V10 == "biocheck.extraction_rules.v10"
+    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v5"}
 
 
 def spans_of(text, **over):

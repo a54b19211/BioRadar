@@ -27,11 +27,12 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of
 
-# measure.v4 / checker v9: written numbers and whole-number tokens as in measure.v3; a period literal is
-# located only as the whole written period, a unit in the bound metric phrase only as its head counting noun -
-# extraction_normalize.v2, the functions BioCheck v9 uses (measure.v3 / v8 and measure.v2 / v7: as released)
-CHECKER, CONTRACT = ec.CHECKER_V9, ec.CONTRACT_V2
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v4"}
+# measure.v5 / checker v10: as measure.v4 (whole written periods), and a unit in the bound metric phrase is
+# located only as the head of the phrase's own subject, never a subset named after including / excluding /
+# such as - extraction_normalize.v3, the functions BioCheck v10 uses (measure.v4 / v9 and
+# earlier: as released)
+CHECKER, CONTRACT = ec.CHECKER_V10, ec.CONTRACT_V2
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v5"}
 TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan, T-31)
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
@@ -178,15 +179,17 @@ def locate(text, q0, q1, m):
         if off is not None:
             u = v_end + off
             m0, m1 = spans.get("metric", (0, 0))
-            if m0 <= u < u + len(unit) <= m1 and not norm.unit_head(text, v_end, u, u + len(unit), m0, m1):
+            if m0 <= u < u + len(unit) <= m1 and not norm.unit_subject_head(
+                text, v_end, u, u + len(unit), m0, m1
+            ):
                 # right after the value but a word of the metric phrase that is not its head counting noun
-                # ("close" of "23 close contacts"): not the unit (extraction_normalize.v2)
+                # ("close" of "23 close contacts"): not the unit (extraction_normalize.v3)
                 return None, "unit_literal_not_at_the_value"
             spans["unit"] = (u, u + len(unit))
-        elif "metric" in spans:  # the head counting noun of the bound metric phrase (extraction_normalize.v2)
+        elif "metric" in spans:  # the head of the bound metric phrase's subject (extraction_normalize.v3)
             m0, m1 = spans["metric"]
             u = text.find(unit, m0, m1)
-            if u < 0 or not norm.unit_head(text, v_end, u, u + len(unit), m0, m1):
+            if u < 0 or not norm.unit_subject_head(text, v_end, u, u + len(unit), m0, m1):
                 return None, "unit_literal_not_at_the_value"
             spans["unit"] = (u, u + len(unit))
         else:
