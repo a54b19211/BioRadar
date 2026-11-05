@@ -1040,6 +1040,11 @@ class Run:
         recorded = [p["measurement_id"] for p in self.input.get("series_points") or []][:64]
         if not recorded:
             return []
+        # the authority of these values now, read back from Fabric for them alone (bounded, batched): an
+        # analysis never relies on a background round having refreshed them first
+        measure_checks.refresh_bindings(
+            self.s, self.fabric, is_demo=self.input["is_demo"], measurement_ids=recorded
+        )
         with db.session() as session:
             points = measure_checks.series_points(session, recorded)
         keys = ("source", "record_id", "version_id", "object", "metric", "value", "unit", "period")

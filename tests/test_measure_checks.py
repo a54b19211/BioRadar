@@ -610,10 +610,22 @@ def test_nothing_the_planner_or_an_analysis_answers_can_write_a_point_or_a_check
 # ---- the planner reads the series state and cannot promote anything (Codex DECISION, behaviour) ------------
 
 
-def analysis_run(monkeypatch, point_ids, answer):
+def with_records(fabric):
+    """The analysis fixture's records (test_pipeline) next to the documents that serve the series values: one
+    Fabric, as in a real run, so each decide reads the values' authority from where they come from."""
+    from test_pipeline import RECORDS
+
+    merged = FakeFabric(RECORDS)
+    if fabric is not None:
+        merged.docs += fabric.docs
+        merged.revoked, merged.tampered = fabric.revoked, fabric.tampered
+    return merged
+
+
+def analysis_run(monkeypatch, point_ids, answer, fabric=None):
     """One real analysis Run over the points' recorded state; the planner stand-in gives `answer` (a confident
     stop or a verification read) and records every decide request it receives."""
-    from test_pipeline import RECORDS, fake_model
+    from test_pipeline import fake_model
 
     from bioradar.research import analyses
     from bioradar.research.pipeline import Run
@@ -645,7 +657,7 @@ def analysis_run(monkeypatch, point_ids, answer):
         series_points=recorded,
     )
     try:
-        Run(row, monitor.settings(), fabric=FakeFabric(RECORDS)).run()
+        Run(row, monitor.settings(), fabric=with_records(fabric)).run()
     except Exception:  # noqa: BLE001 - how the report ends is not this test's subject; the decide inputs are
         pass
     assert decided, "the planner was never asked"
@@ -669,7 +681,7 @@ def confident(body):
 def test_the_planner_receives_the_current_state_of_each_value(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
-    decided = analysis_run(monkeypatch, [point.id], confident)
+    decided = analysis_run(monkeypatch, [point.id], confident, fabric)
     [sent] = decided[0]["series"]
     assert sent["current"] is True and sent["value"] == "318" and sent["record_id"] == point.record_id
     assert (
@@ -685,7 +697,7 @@ def test_a_confident_planner_cannot_promote_a_revoked_value(monkeypatch):
     monitor.tick(is_demo=True, fabric=fabric)
     before = state()
     assert before[3] == []
-    decided = analysis_run(monkeypatch, [point.id], confident)
+    decided = analysis_run(monkeypatch, [point.id], confident, fabric)
     [sent] = decided[0]["series"]
     assert sent["current"] is False and sent["extraction_check"]["reason"] == "source_unreadable"
     assert state() == before  # no point, candidate, check or effective view changed by the planner's answer
@@ -728,7 +740,7 @@ def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
     """Radar's own decide requests over HTTP to a running query-planner (no stand-in): accepted with the
     series
     state; the same request plus a read of the revoked value's record is answered as a verification read."""
-    from test_pipeline import RECORDS, fake_model
+    from test_pipeline import fake_model
 
     from bioradar.research import analyses
     from bioradar.research.pipeline import Run
@@ -769,7 +781,7 @@ def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
         enqueue=False,
         series_points=recorded,
     )
-    Run(row, settings_, fabric=FakeFabric(RECORDS)).run()
+    Run(row, settings_, fabric=with_records(fabric)).run()
     assert (
         sent and answers and all(a["decision"] in ("continue", "complete", "insufficient") for a in answers)
     )
@@ -896,3 +908,73 @@ def test_after_an_upgrade_every_reader_cites_the_current_check(monkeypatch):
         and shown["extraction_check"]["checker_version"] == v8
     )
     assert effective_ids() == [now.id]
+
+
+# ---- Codex r140: an analysis reads the authority of its own values at each decide ------------------------
+
+
+def analysis_of(monkeypatch, point_ids, fabric):
+    from bioradar.research import analyses
+    from bioradar.research.pipeline import Run
+
+    with db.session() as s:
+        recorded = measure_checks.series_points(s, point_ids)
+    row = analyses.create(
+        question="审批数量现在应如何判断？",
+        direction="public_health",
+        is_demo=True,
+        enqueue=False,
+        series_points=recorded,
+    )
+    return Run(row, monitor.settings(), fabric=fabric)
+
+
+def test_an_analysis_sees_a_revocation_without_any_monitor_round(monkeypatch):
+    fabric, _ = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    run = analysis_of(monkeypatch, [point.id], fabric)
+    assert run.series_state()[0]["current"] is True  # the positive control
+    fabric.revoked.add(point.version_id)
+    [now] = run.series_state()  # what the next decide request carries; no tick in between
+    assert now["current"] is False and now["extraction_check"]["reason"] == "source_unreadable"
+    assert effective_ids() == []
+
+
+def test_an_analysis_treats_an_unknown_authority_as_not_current(monkeypatch):
+    from bioradar.adapters.fabric import FabricError
+
+    fabric, _ = one(monkeypatch, [measure()])
+    [point] = rows(db.Measurement)
+    run = analysis_of(monkeypatch, [point.id], fabric)
+
+    def down(*a, **k):
+        raise FabricError("unavailable", "temporary")
+
+    monkeypatch.setattr(fabric, "clean_texts", down)
+    [now] = run.series_state()
+    assert now["current"] is False and now["extraction_check"]["reason"] == "binding_unknown"
+
+
+def test_an_analysis_reads_back_only_its_own_values(monkeypatch):
+    fabric, _ = one(monkeypatch, [measure()])
+    text2 = "2026年5月，国家药监局共批准注册医疗器械产品300个。"
+    one(
+        monkeypatch,
+        [
+            measure(
+                value_text="300",
+                period_text="2026年5月",
+                period="2026-05",
+                quote="国家药监局共批准注册医疗器械产品300个",
+            )
+        ],
+        text=text2,
+        rid="R2",
+        day="2026-06-08",
+    )
+    first, second = rows(db.Measurement)
+    run = analysis_of(monkeypatch, [first.id], fabric)
+    fabric.calls.clear()
+    run.series_state()
+    read = [c for c in fabric.calls if c[0] == "clean_texts"]
+    assert read == [("clean_texts", first.source, (first.version_id,))]  # one bounded read, not all points

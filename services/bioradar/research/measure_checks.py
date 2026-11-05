@@ -713,8 +713,9 @@ def json_safe(value):
 # ---- current permission and binding at consumption (Codex r137) --------------------------------------------
 
 
-def _latest_checks(session, is_demo):
-    """(candidate, latest check under the current checker) of every candidate that has a stored point."""
+def _latest_checks(session, is_demo, measurement_ids=None):
+    """(candidate, latest check under the current checker) of every candidate that has a stored point (of the
+    given points only, when measurement_ids is set)."""
     latest = (
         select(db.MeasurementCheck.candidate_id, func.max(db.MeasurementCheck.id).label("id"))
         .where(db.MeasurementCheck.checker_version == CHECKER)
@@ -727,6 +728,7 @@ def _latest_checks(session, is_demo):
         .join(latest, latest.c.candidate_id == db.MeasurementCandidate.id)
         .join(db.MeasurementCheck, db.MeasurementCheck.id == latest.c.id)
         .where(db.MeasurementCandidate.is_demo == is_demo)
+        .where(db.Measurement.id.in_(list(measurement_ids)) if measurement_ids is not None else True)
     ).all()
 
 
@@ -777,16 +779,17 @@ def _states(fabric, cands):
     return out
 
 
-def refresh_bindings(s, fabric, *, is_demo):
+def refresh_bindings(s, fabric, *, is_demo, measurement_ids=None):
     """Run before a round reads any series: the binding and read permission of every stored point are read
     back
     now. A point whose artifact is unreadable or changed leaves the effective view at once (an appended
     unchecked check); one readable again with the same artifact is checked again by the worker this round.
     When Fabric cannot answer, the permission is unknown: the point leaves the effective view too (a
     binding_unknown check, not a revocation) and comes back only through a fresh authoritative readback and
-    check. Returns {state: count}."""
+    check. measurement_ids bounds it to those points (an analysis refreshing what it rests on).
+    Returns {state: count}."""
     with db.session() as session:
-        rows = _latest_checks(session, is_demo)
+        rows = _latest_checks(session, is_demo, measurement_ids)
         for cand, check in rows:
             session.expunge(cand)
             session.expunge(check)
