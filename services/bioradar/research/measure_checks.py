@@ -25,14 +25,18 @@ from sqlalchemy import func, or_, select
 from bioradar import db
 from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
-from bioradar.material import of
+from bioradar.material import of, tables_of
 
 # measure.v5 / checker v10: as measure.v4 (whole written periods), and a unit in the bound metric phrase is
 # located only as the head of the phrase's own subject, never a subset named after including / excluding /
 # such as - extraction_normalize.v3, the functions BioCheck v10 uses (measure.v4 / v9 and
 # earlier: as released)
 CHECKER, CONTRACT = ec.CHECKER_V10, ec.CONTRACT_V2
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v5"}
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v6"}
+# measure.v6 (B r2): a measure may cite the source of its period / object / scope / denominator literal - the
+# quote, the window, or a context the window sent; it is looked up there only, in the candidate's own send
+SOURCE_FIELDS = ("period", "object", "scope", "denominator")
+CONTEXT_SOURCES = ("heading", "table_header", "table_title")
 TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan, T-31)
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
@@ -121,10 +125,88 @@ def clause(text, a, b):
     return s, (min(ends) + 1 if ends else len(text))
 
 
-def locate(text, q0, q1, m):
+def cited_sources(session, candidate):
+    """({source: [(start, end)] in the artifact}, None) for every non-quote source the candidate's measure
+    cites, or (None, reason). A source counts only as sent in the candidate's own send - its material_read
+    (window) and, for a context, the row W{i}.<source> of that same model call - each bound to the
+    candidate's artifact (version, raw hash, processor, text hash). Never another send of the same text."""
+    wanted = {v for v in (candidate.measure.get("sources") or {}).values() if v != "quote"}
+    if not wanted:
+        return {}, None
+    sent = session.get(db.MaterialRead, candidate.material_read_id) if candidate.material_read_id else None
+    if sent is None or sent.status != "sent" or sent.llm_call_id is None:
+        return None, "source_not_sent_to_model"
+    out = {}
+    for name in sorted(wanted):
+        row = sent
+        if name != "window":
+            row = session.scalar(
+                select(db.MaterialRead).where(
+                    db.MaterialRead.llm_call_id == sent.llm_call_id,
+                    db.MaterialRead.ref == f"{sent.ref}.{name}",
+                    db.MaterialRead.status == "sent",
+                )
+            )
+        if row is None:
+            return None, "source_not_sent_to_model"
+        ranges = []
+        for seg in row.binding.get("segments") or []:
+            part = seg.get("part")
+            if part is None:
+                continue  # a literal notice the radar added: not the artifact
+            if (
+                row.version_id != candidate.version_id
+                or part.get("version_id") != candidate.version_id
+                or part.get("raw_sha256") != candidate.raw_sha256
+                or part.get("processor_version") != candidate.processor_version
+                or part.get("text_sha256") != candidate.text_sha256
+            ):
+                return None, "source_binding_stale"
+            ranges.append((seg["start"], seg["end"]))
+        if not ranges:
+            return None, "source_not_sent_to_model"
+        out[name] = ranges
+    return out, None
+
+
+def _in_source(text, q0, q1, name, literal, source, cited, spans):
+    """(offset, None) of the literal's one occurrence in the cited source, or (None, reason)."""
+    ranges = [(q0, q1)] if source == "quote" else (cited or {}).get(source)
+    if not ranges:
+        return None, "source_not_sent_to_model"
+    hits = []
+    for a, b in ranges:
+        for x in re.finditer(re.escape(literal), text[a:b]):
+            at = a + x.start()
+            if name == "denominator" and not norm.is_whole_number(text, at, at + len(literal)):
+                continue  # a number of the source, whole - "851" of "7 851" is not one
+            hits.append(at)
+    if not hits:
+        return None, f"{name}_not_in_cited_source"
+    if len(hits) > 1:
+        return None, f"{name}_ambiguous_in_cited_source"
+    at = hits[0]
+    if source in ("table_header", "table_title"):
+        # the context of the value's own table: never the header or caption of a neighbouring table
+        v = spans["value"][0]
+        table = next((t for t in tables_of(text) if t["start"] <= v < t["end"]), None)
+        if table is None:
+            return None, "source_not_of_value_table"
+        if source == "table_header" and not (table["header_start"] <= at < table["header_end"]):
+            return None, "source_not_of_value_table"
+        if source == "table_title":
+            end = next(b for a, b in ranges if a <= at < b)
+            if end > table["header_start"] or text[end : table["header_start"]].strip():
+                return None, "source_not_of_value_table"
+    return at, None
+
+
+def locate(text, q0, q1, m, cited=None):
     """Real offsets in the artifact of every literal of the measure: in the quote once, else its clause once;
     numbers as whole tokens; the unit right after the value (a count noun after at most two listed modifiers).
-    (spans, None) or (None, reason) - a literal that is not where it should be is never guessed."""
+    (spans, None) or (None, reason) - a literal that is not where it should be is never guessed.
+    measure.v6: a field whose source the measure cites is looked up there only (cited: cited_sources())."""
+    sources = m.get("sources") or {}
     c0, c1 = clause(text, q0, q1)
     spans = {}
 
@@ -164,9 +246,14 @@ def locate(text, q0, q1, m):
         literal = m.get(key) or ""
         if not literal:
             continue
-        at = find(name, literal)
-        if at is None:
-            return None, f"{name}_literal_not_located"
+        if name in SOURCE_FIELDS and sources.get(name):
+            at, why = _in_source(text, q0, q1, name, literal, sources[name], cited, spans)
+            if why:
+                return None, why
+        else:
+            at = find(name, literal)
+            if at is None:
+                return None, f"{name}_literal_not_located"
         spans[name] = (at, at + len(literal))
     if "period" in spans and not norm.period_span_whole(text, *spans["period"]):
         # "2018" of "In January 2018" or "Since 2018" is part of another period (extraction_normalize.v2)
@@ -223,8 +310,10 @@ def context_start(text, pos):
     return min(starts, default=pos)
 
 
-def build(candidate, text):
-    """The contract-v2 request of one candidate over its re-read artifact text, or (None, reason)."""
+def build(candidate, text, cited=None):
+    """The contract-v2 request of one candidate over its re-read artifact text, or (None, reason). cited: the
+    sources its measure cites (cited_sources()); a cited context outside the primary passage is a context
+    passage of its own (passages never overlap), a cited context inside it is a span of the primary one."""
     m = candidate.measure
     final, why = final_of(m)
     if final is None:
@@ -233,11 +322,14 @@ def build(candidate, text):
         return None, "raw_sha256_unknown"  # the subject binds the original by its hash: never sent without it
     if candidate.quote_start is None or text[candidate.quote_start : candidate.quote_end] != m["quote"]:
         return None, "quote_not_at_its_place"
-    spans, why = locate(text, candidate.quote_start, candidate.quote_end, m)
+    spans, why = locate(text, candidate.quote_start, candidate.quote_end, m, cited)
     if spans is None:
         return None, why
-    lo = max(0, min([candidate.quote_start] + [a for a, _ in spans.values()]) - WINDOW)
-    hi = min(len(text), max([candidate.quote_end] + [b for _, b in spans.values()]) + WINDOW)
+    sources = m.get("sources") or {}
+    outer = {n for n in spans if sources.get(n) in CONTEXT_SOURCES}  # placed after the primary passage
+    base = {n: v for n, v in spans.items() if n not in outer}
+    lo = max(0, min([candidate.quote_start] + [a for a, _ in base.values()]) - WINDOW)
+    hi = min(len(text), max([candidate.quote_end] + [b for _, b in base.values()]) + WINDOW)
     lo = min(lo, context_start(text, candidate.quote_start))
     lo, hi = (
         min(lo, clause(text, candidate.quote_start, candidate.quote_end)[0]),
@@ -245,10 +337,28 @@ def build(candidate, text):
     )
     if hi - lo > MAX_CHARS:
         return None, "context_over_20000_characters"
+    passages = [{"id": "p1", "role": "primary", "start": lo, "end": hi, "text": text[lo:hi]}]
+    where = {}
+    for n in sorted(outer):
+        a, b = spans[n]
+        if lo <= a and b <= hi:
+            where[n] = "p1"  # the context is inside the primary passage already: a span of it
+            continue
+        ra, rb = next((x, y) for x, y in cited[sources[n]] if x <= a and b <= y)
+        ra, rb = (max(ra, hi), rb) if a >= hi else (ra, min(rb, lo))  # never overlapping the primary
+        same = next((p for p in passages if (p["start"], p["end"]) == (ra, rb)), None)
+        if same is None:
+            if any(p["start"] < rb and ra < p["end"] for p in passages):
+                return None, "cited_sources_overlap"
+            same = {"id": f"c{len(passages)}", "role": "context", "start": ra, "end": rb, "text": text[ra:rb]}
+            passages.append(same)
+        where[n] = same["id"]
+    if sum(len(p["text"]) for p in passages) > MAX_CHARS or len(passages) > 8:
+        return None, "context_over_20000_characters"
 
     def span(name):
         a, b = spans[name]
-        return {"passage": "p1", "start": a, "end": b}
+        return {"passage": where.get(name, "p1"), "start": a, "end": b}
 
     def field(name, value):
         return (
@@ -287,7 +397,7 @@ def build(candidate, text):
                 "text_sha256": candidate.text_sha256,
             },
         },
-        "passages": [{"id": "p1", "role": "primary", "start": lo, "end": hi, "text": text[lo:hi]}],
+        "passages": passages,
         "items": [
             {
                 "id": f"m{candidate.id}",
@@ -551,7 +661,10 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
         text, why = _readback(fabric, candidate)
         built = None
         if text is not None:
-            built, why = build(candidate, text)
+            with db.session() as session:  # the sources it cites, in its own send only (measure.v6)
+                cited, why = cited_sources(session, candidate)
+            if cited is not None:
+                built, why = build(candidate, text, cited)
         response, error = None, None
         if built is not None:
             try:

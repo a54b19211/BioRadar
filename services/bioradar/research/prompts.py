@@ -105,7 +105,7 @@ EXTRACT = (
 下面是若干条已分诊记录的后续正文窗口（每条记录的开头已读过，这里是之后的内容）。每个窗口只做一件事：找出窗口原文明确给出的数值。
 - 每个窗口都返回一项，index 对应窗口序号；窗口里没有就返回空的 measures。
 - 窗口之间有重叠：同一句话在两个窗口都出现时，只在包含整句的那个窗口里填（程序也会去重）。
-- title 是记录标题，heading 是窗口之前最近的标题，table_header 是窗口所在表格的表头，table_title 是这张表格上方的表题：只作上下文，不是窗口原文；quote 和所有 *_text 都必须逐字取自窗口的 text。
+- title 是记录标题，heading 是窗口之前最近的标题，table_header 是窗口所在表格的表头，table_title 是这张表格上方的表题：只作上下文，不是窗口原文。quote、value_text、metric_text、unit_text 必须逐字取自窗口的 text；period_text、object_text、scope_text、denominator_text 若窗口里没有、写在 heading / table_header / table_title 里，可逐字取自那里，并在 sources 里写明取自哪一处。
 """
     + _MEASURE_RULES.replace("每条记录最多3个，无关记录也要填。", "每个窗口最多3个。")
 )

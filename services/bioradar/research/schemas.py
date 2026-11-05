@@ -159,6 +159,15 @@ class Measure(BaseModel):
         "other"
     )
     quote: str = Field(description="含这个数值的连续原文，逐字复制，不超过120字")
+    sources: dict[
+        Literal["period", "object", "scope", "denominator"],
+        Literal["quote", "window", "heading", "table_header", "table_title"],
+    ] = Field(
+        default_factory=dict,
+        description="period/object/scope/denominator 的 *_text 抄自哪里：quote（就在 quote 里）、"
+        "window（窗口正文别处）、heading / table_header / table_title（随窗口给出的上下文）；"
+        "在 quote 里可以不填。只能写这次实际给你的材料",
+    )
 
 
 class TriageItem(BaseModel):
