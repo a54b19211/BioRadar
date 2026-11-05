@@ -439,6 +439,11 @@ SEARCH_SCOPES = {
 }
 
 
+def doc_key(hit):
+    """The document cache key of a hit: a pinned hit (a correction notice) has its version in the key."""
+    return (hit["source"], hit["record_id"]) + ((hit["version_id"],) if hit.get("version_id") else ())
+
+
 class Run:
     def __init__(self, analysis: db.Analysis, settings: Settings, fabric: Fabric | None = None):
         self.found = 0.0  # what the current read found apart from answering (evidence_gain)
@@ -702,7 +707,15 @@ class Run:
             retries=0,
         )
         for seed in self.input.get("seed_records", []):
-            self.add_hit(seed["source"], seed["record_id"], seed.get("title", ""), required, critical=True)
+            # a correction notice is pinned to the version that corrected (Codex r168); other seeds are not
+            self.add_hit(
+                seed["source"],
+                seed["record_id"],
+                seed.get("title", ""),
+                required,
+                critical=True,
+                version_id=seed.get("version_id"),
+            )
         self.graph(required)
         # A fixed material set: searches stay inside it, and a small set's records visible at the
         # cutoff are reading candidates.
@@ -809,11 +822,13 @@ class Run:
 
     # ---- investigate ---------------------------------------------------------------------------
 
-    def add_hit(self, source, record_id, title, checks, *, critical=False):
+    def add_hit(self, source, record_id, title, checks, *, critical=False, version_id=None):
+        """version_id: a hit pinned to that fixed version (a correction notice) - its own hit, read as that
+        version, never merged with the record's head."""
         if self.scope and record_id not in self.scope:
             return False  # a seed or correction target outside the fixed material set
         for hit in self.p["hits"]:
-            if (hit["source"], hit["record_id"]) == (source, record_id):
+            if (hit["source"], hit["record_id"], hit.get("version_id")) == (source, record_id, version_id):
                 hit["checks"] = sorted(set(hit["checks"]) | set(checks))
                 hit["critical"] = hit["critical"] or critical
                 hit["found_by"] = hit.get("found_by", 1) + 1
@@ -828,6 +843,7 @@ class Run:
                 "read": False,
                 "found_by": 1,
             }
+            | ({"version_id": version_id} if version_id else {})
         )
         return True
 
@@ -930,7 +946,7 @@ class Run:
         terms = list(dict.fromkeys(squash(t) for q in self.p["queries"] for t in q["terms"]))
 
         def body(hit):
-            doc = self.docs.get((hit["source"], hit["record_id"]))
+            doc = self.docs.get(doc_key(hit))
             return None if doc is None else squash((doc["title"] or "") + (doc["text"] or ""))
 
         # full texts of what was read, only for documents in memory; after a restart those not reloaded
@@ -944,7 +960,7 @@ class Run:
             """The few ordering features of a hit, kept in progress so a resumed run orders the same way
             without the texts: which search terms its text contains, its own time, and which read record
             its full text is identical to (recorded only when both texts were compared)."""
-            doc = self.docs.get((hit["source"], hit["record_id"]))
+            doc = self.docs.get(doc_key(hit))
             if doc is not None:
                 old, b = hit.get("sketch", {}), body(hit)
                 hit["sketch"] = {
@@ -986,7 +1002,8 @@ class Run:
                 {
                     "kind": "read",
                     "source": hit["source"],
-                    "args": {"record_id": hit["record_id"]},
+                    "args": {"record_id": hit["record_id"]}
+                    | ({"version_id": hit["version_id"]} if hit.get("version_id") else {}),
                     "target_checks": hit["checks"],
                     "critical": hit["critical"],
                     # query-planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
@@ -1229,9 +1246,22 @@ class Run:
 
     def read(self, candidate):
         source, record_id = candidate["source"], candidate["args"]["record_id"]
-        hit = next(h for h in self.p["hits"] if (h["source"], h["record_id"]) == (source, record_id))
+        pinned = candidate["args"].get("version_id")
+        hit = next(
+            h
+            for h in self.p["hits"]
+            if (h["source"], h["record_id"], h.get("version_id")) == (source, record_id, pinned)
+        )
         hit["read"] = True
-        doc = self.docs.get((source, record_id))
+        doc = self.docs.get(doc_key(hit))
+        if doc is None and pinned:
+            # exactly the version that corrected (Codex r168), as visible at the cutoff - never the head
+            found, _ = self.fabric.read_versions(
+                source, [(record_id, pinned)], is_demo=self.input["is_demo"], cutoff=self.cutoff
+            )
+            if not found:
+                raise FabricError("record_not_visible", f"{record_id}@{pinned[:12]}")
+            doc = self.docs[doc_key(hit)] = found[0]
         if doc is None:
             found, _ = self.fabric.search(
                 source, (), is_demo=self.input["is_demo"], cutoff=self.cutoff, record_ids=[record_id], limit=1

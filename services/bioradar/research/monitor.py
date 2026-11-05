@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import delete, func, literal, select
+from sqlalchemy.orm import object_session
 
 from bioradar import db
 from bioradar.adapters import llm
@@ -847,11 +848,18 @@ def correction_seeds(session, topic_id, since, at=None):
     seeds, seen = [], set()
     for e in correction_events(session, topic_id, since, at):
         d = e.detail
-        key = (d.get("by_source"), d["record"])
+        key = (d.get("by_source"), d["record"], d.get("by_version_id"))
         if d.get("by_source") and key not in seen:
             seen.add(key)
             kind = "撤回通知" if d.get("relation") == "retracts" else "更正通知"
-            seeds.append({"source": d["by_source"], "record_id": d["record"], "title": kind})
+            seeds.append(
+                {
+                    "source": d["by_source"],
+                    "record_id": d["record"],
+                    "version_id": d.get("by_version_id"),
+                    "title": kind,
+                }
+            )
     return seeds
 
 
@@ -943,11 +951,46 @@ def activity(session, s: Settings, topic, at, is_demo) -> bool:
 
 
 def owe(topic, reason, at):
-    """Record, in the same transaction as the change, that this topic is owed an analysis."""
+    """Record, in the same transaction as the change, that this topic is owed an analysis - each new reason
+    also as a dated "owed" event, so an analysis at a cutoff can take only the reasons visible then
+    (Codex 718)."""
     if topic.pending_reason is None:
         topic.pending_reason, topic.pending_since = reason, at
     elif reason not in topic.pending_reason.split("+"):
         topic.pending_reason = (topic.pending_reason + "+" + reason)[:200]
+    else:
+        return
+    session = object_session(topic)
+    if session is not None:
+        event(session, topic, at, "owed", reason=reason)
+
+
+def owed_at(session, topic, cutoff):
+    """(reasons visible at the cutoff, [(reason, at)] owed only later) of the topic's current debt. A reason
+    without its dated event (owed before they were kept) cannot be placed in time: it is neither."""
+    reasons = (topic.pending_reason or "").split("+")
+    # the current debt: owed since the topic's last analysis cleared the one before
+    last = session.scalar(
+        select(func.max(db.TopicEvent.id)).where(
+            db.TopicEvent.topic_id == topic.id, db.TopicEvent.kind == "analysis"
+        )
+    )
+    seen = {}
+    for e in session.scalars(
+        select(db.TopicEvent)
+        .where(
+            db.TopicEvent.topic_id == topic.id,
+            db.TopicEvent.kind == "owed",
+            db.TopicEvent.id > (last or 0),
+        )
+        .order_by(db.TopicEvent.id)
+    ):
+        r = e.detail.get("reason")
+        if r in reasons:
+            seen.setdefault(r, e.at)
+    shown = [r for r in reasons if r in seen and parse_time(seen[r]) <= cutoff]
+    later = [(r, seen[r]) for r in reasons if r in seen and parse_time(seen[r]) > cutoff]
+    return shown, later
 
 
 def set_state(session, topic, state, at, **detail):
@@ -1016,6 +1059,14 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
         )
     for owed_topic in owed:
         topic_id, reason = owed_topic.id, owed_topic.pending_reason
+        later = []
+        if cutoff is not None:
+            # a replay takes only the debt visible at its cutoff; what is owed later stays owed (Codex 718)
+            with db.session() as session:
+                visible_reasons, later = owed_at(session, session.get(db.Topic, topic_id), cutoff)
+            if not visible_reasons:
+                continue
+            reason = "+".join(visible_reasons)
         if live and recent + len(created) >= s.auto_analyses_per_hour:
             log.info("auto analysis held (hourly cap): %d topics still owed", len(owed) - len(created))
             break
@@ -1057,12 +1108,9 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             if {"cross_domain_correction", "source_corrected"} & set(reason.split("+")):
                 since = owed_topic.pending_since
                 question += correction_basis(session, topic_id, since, cutoff)
-                named = {(x["source"], x["record_id"]) for x in seeds}
-                seeds += [
-                    x
-                    for x in correction_seeds(session, topic_id, since, cutoff)
-                    if (x["source"], x["record_id"]) not in named
-                ]
+                seeds += correction_seeds(
+                    session, topic_id, since, cutoff
+                )  # pinned: never merged with a head
             row = analyses.create(
                 question=question,
                 direction=topic.direction,
@@ -1076,8 +1124,19 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 session=session,
             )
             topic.last_analysis_id = row.id
-            topic.pending_reason = topic.pending_since = None
+            unplaced = [
+                r for r in (topic.pending_reason or "").split("+") if r and r not in reason.split("+")
+            ]
+            if cutoff is not None and unplaced:
+                # later reasons (and any that cannot be placed in time) are still owed, from their own time
+                times = [parse_time(at) for r, at in later]
+                topic.pending_reason = "+".join(unplaced)
+                topic.pending_since = min(times) if times else topic.pending_since
+            else:
+                topic.pending_reason = topic.pending_since = None
             event(session, topic, cutoff or db.now(), "analysis", analysis_id=row.id, reason=reason)
+            for r, at in later:  # still owed after this analysis, from their own time
+                event(session, topic, at, "owed", reason=r, carried=True)
         analyses.dispatch(row.id)
         created.append(row.id)
     return created
