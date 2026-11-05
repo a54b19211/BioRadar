@@ -554,3 +554,62 @@ def test_the_coverage_endpoint_is_read_only_signed_in_and_by_workspace_and_demo_
     assert long["processor_version"] and long["text_sha256"]
     assert client.get("/api/measure-coverage?is_demo=false").json()["items"] == []
     assert client.post("/api/measure-coverage").status_code == 405  # read-only
+
+
+# ---- authority, isolation, leases (Codex r149) ---------------------------------------------------------
+
+
+@pytest.mark.parametrize("state", ["not_processed", None, "pending", "not_visible_or_not_processed"])
+def test_only_an_artifact_fabric_calls_processed_is_sent(stand_ins, state):
+    """Old clean fields under any other state are never sent: the windows stay owed, no attempt spent."""
+    calls, _ = stand_ins
+    fabric = feed(text_with(3000))
+    monitor.tick(is_demo=True, fabric=fabric)  # triage + windows 1, 2 while processed
+    real = fabric.clean_texts
+
+    def clean_texts(*a, **k):
+        out = real(*a, **k)
+        for entry in out.values():
+            entry["state"] = state
+        return out
+
+    fabric.clean_texts = clean_texts
+    sent = len([c for c in calls if c[0] == "extract"])
+    due()
+    monitor.tick(is_demo=True, fabric=fabric)
+    assert len([c for c in calls if c[0] == "extract"]) == sent
+    assert windows()[3][3:] == (
+        "source_unreadable" if state == "not_visible_or_not_processed" else "pending",
+        0,
+    )
+
+
+def test_a_plan_of_another_workspace_is_never_claimed(stand_ins):
+    calls, _ = stand_ins
+    fabric = feed(text_with(3000))
+    monitor.tick(is_demo=True, fabric=fabric)
+    with db.session() as s:
+        s.execute(update(db.RecordRead).values(workspace_id="another-workspace"))
+    sent = len([c for c in calls if c[0] == "extract"])
+    due()
+    monitor.tick(is_demo=True, fabric=fabric)
+    assert len([c for c in calls if c[0] == "extract"]) == sent
+
+
+def test_a_lease_that_ran_out_during_the_model_call_is_not_used(monkeypatch):
+    import time
+
+    calls = []
+    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    slow = model(calls)
+
+    def slow_extract(settings_, stage, system, payload, model_cls, **options):
+        if stage == "extract":
+            time.sleep(0.05)
+        return slow(settings_, stage, system, payload, model_cls, **options)
+
+    monkeypatch.setattr(llm, "chat_json", slow_extract)
+    monkeypatch.setattr(continuation, "LEASE", timedelta(milliseconds=10))
+    monitor.tick(is_demo=True, fabric=feed(text_with(3000)))
+    assert [w[3] for w in windows()][1:3] == ["pending", "pending"]  # not taken as read
+    assert candidates() == []

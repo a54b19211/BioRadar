@@ -104,7 +104,7 @@ class FakeFabric:
                 raise FabricError("version_not_found", "not visible")
             text = d["text"] + (" tampered" if d["version_id"] in self.tampered else "")
             out[d["version_id"]] = {
-                "state": "ok",
+                "state": "processed",  # as Fabric says it for a readable cleaned artifact
                 "clean": {
                     "processor_version": processor_version or self.PROCESSOR,
                     "text": text,

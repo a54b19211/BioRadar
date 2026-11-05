@@ -174,7 +174,7 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
 # ---- the worker ----------------------------------------------------------------------------------------
 
 
-def _claim(is_demo, now, taken, per_round, per_call):
+def _claim(s, is_demo, now, taken, per_round, per_call):
     """Up to per_call windows, round-robin over the sources and, inside a source, over its plans in arrival
     order (each plan's lowest windows first); no plan more than per_round windows this round - a long table
     or a busy source does not starve the others."""
@@ -184,6 +184,7 @@ def _claim(is_demo, now, taken, per_round, per_call):
             select(db.RecordReadWindow, db.RecordRead.source)
             .join(db.RecordRead, db.RecordRead.id == db.RecordReadWindow.read_id)
             .where(
+                db.RecordRead.workspace_id == s.workspace_id,
                 db.RecordRead.is_demo == is_demo,
                 db.RecordRead.state == "reading",
                 db.RecordReadWindow.state.in_(TO_READ),
@@ -252,8 +253,13 @@ def _readback(fabric, read, now):
         return None, "fabric_unavailable"
     entry = (found or {}).get(read.version_id) or {}
     clean = entry.get("clean") or {}
-    if entry.get("state") in NOT_VISIBLE or entry.get("state") == "not_visible":
+    state = entry.get("state")
+    if state in NOT_VISIBLE or state in ("not_visible", "not_visible_or_not_processed"):
         return None, "source_unreadable"
+    if state != "processed":
+        # not processed, empty or a state this reader does not know: nothing is sent on old fields - the
+        # windows stay owed and are tried again later (no attempt spent)
+        return None, "artifact_not_ready"
     text = clean.get("text")
     if (
         text is None
@@ -282,7 +288,7 @@ def run(s: Settings, fabric, *, is_demo, budget=False, now=None):
         if budget and analyses.over_auto_budget():
             break
         at = now or db.now()
-        keys, token = _claim(is_demo, at, taken, s.continuation_per_round, s.continuation_windows_per_call)
+        keys, token = _claim(s, is_demo, at, taken, s.continuation_per_round, s.continuation_windows_per_call)
         if not keys:
             break
         sent += _read(s, fabric, keys, token, at)
@@ -307,7 +313,7 @@ def _read(s, fabric, keys, token, now):
             why = problems[w.read_id]
             if why:
                 w.lease_token = w.lease_until = None
-                if why == "fabric_unavailable":
+                if why in ("fabric_unavailable", "artifact_not_ready"):
                     w.next_at = now + RETRY  # the window waits; no attempt spent
                 elif why == "source_unreadable":
                     w.state, read.state, read.reason = "source_unreadable", "paused_unreadable", why
@@ -366,6 +372,7 @@ def _read(s, fabric, keys, token, now):
         raise
     items = {it.index: it for it in (result.items if result else []) if 1 <= it.index <= len(windows)}
     sent = 0
+    done = db.now()  # the model call took time: a lease that ran out meanwhile belongs to another round
     with db.session() as session:
         u = call["usage"]
         llm_row = db.LlmCall(
@@ -384,7 +391,7 @@ def _read(s, fabric, keys, token, now):
         for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(mids))):
             r.llm_call_id, r.status = llm_row.id, "sent" if result else "failed"
         for i, ((key, rid, material, a, b), mid) in enumerate(zip(windows, mids), 1):
-            w = _own(session, key, token, now)
+            w = _own(session, key, token, done)
             if w is None:
                 continue  # the lease ran out during the call: another round owns the window now
             read = session.get(db.RecordRead, rid)
@@ -567,13 +574,17 @@ def coverage(session, read):
     }
 
 
-def periodic_resume(session, fabric, is_demo, now):
+def periodic_resume(session, s, fabric, is_demo, now):
     """Paused plans whose source reads again are resumed (checked with one bounded read per plan)."""
     n = 0
     for read in list(
         session.scalars(
             select(db.RecordRead)
-            .where(db.RecordRead.is_demo == is_demo, db.RecordRead.state == "paused_unreadable")
+            .where(
+                db.RecordRead.workspace_id == s.workspace_id,
+                db.RecordRead.is_demo == is_demo,
+                db.RecordRead.state == "paused_unreadable",
+            )
             .limit(20)
         )
     ):

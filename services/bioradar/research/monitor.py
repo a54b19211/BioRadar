@@ -1023,7 +1023,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     if not paused:  # a re-extraction is a model call: it waits while the token budget is spent
         measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage, plan=continuation.plan)
     with db.session() as session:  # plans paused by a withdrawn permission read on once it is back
-        continuation.periodic_resume(session, fabric, is_demo, db.now())
+        continuation.periodic_resume(session, s, fabric, is_demo, db.now())
     if not paused:  # continuation windows are model calls too (T-31)
         continuation.run(s, fabric, is_demo=is_demo, budget=budget)
     for topic_id, reason in measure_checks.run(s, fabric, is_demo=is_demo, adopt=adopt).items():
