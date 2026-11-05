@@ -104,6 +104,45 @@ class LlmCall(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class MaterialRead(Base):
+    """One record's text as actually sent to a model or a service (v3 6.1): stage, receiver, the material's
+    sha256 and its binding — every segment's part (fixed version, processor or parser version, renderer),
+    range and hash, or the literal radar text (bioradar.material). The text itself is not stored again: the
+    evidence row keeps it, and reread() rebuilds it from the parts."""
+
+    __tablename__ = "material_reads"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    analysis_id: Mapped[str | None] = mapped_column(ForeignKey("analyses.id"), index=True)
+    llm_call_id: Mapped[int | None] = mapped_column(ForeignKey("llm_calls.id"), index=True)  # triage batches
+    stage: Mapped[str] = mapped_column(String(30))  # triage | read | report | mechanism
+    service: Mapped[str] = mapped_column(String(30))  # radar | biocheck | mechevidence
+    ref: Mapped[str] = mapped_column(String(20))  # E1 ... in an analysis, R1 ... in a triage batch
+    source: Mapped[str] = mapped_column(String(80))
+    record_id: Mapped[str] = mapped_column(String(400))
+    version_id: Mapped[str] = mapped_column(String(128))
+    sha256: Mapped[str] = mapped_column(String(64))
+    chars: Mapped[int] = mapped_column(Integer)
+    binding: Mapped[dict] = mapped_column(Json)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+def material_read(material, *, stage, service, ref, source, record_id, version_id, **links) -> MaterialRead:
+    """The row for one outbound material (a bioradar.material.Material); links: analysis_id or llm_call_id."""
+    binding = material.binding()
+    return MaterialRead(
+        stage=stage,
+        service=service,
+        ref=ref,
+        source=source,
+        record_id=record_id,
+        version_id=version_id,
+        sha256=binding["sha256"],
+        chars=binding["chars"],
+        binding=binding,
+        **links,
+    )
+
+
 class Topic(Base):
     __tablename__ = "topics"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

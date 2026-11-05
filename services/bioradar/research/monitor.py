@@ -17,6 +17,7 @@ from bioradar import db
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import REGISTRY_DIFF_SOURCES, Fabric
 from bioradar.config import Settings, settings
+from bioradar.material import of
 from bioradar.research import analyses, prompts, schemas, series
 
 log = logging.getLogger("bioradar")
@@ -24,6 +25,7 @@ _turn = 0  # rotates which monitored source is read first in a live round
 ALERTS = ["none", "normal", "important", "urgent"]
 WEIGHT = {"none": 0, "normal": 1, "important": 2, "urgent": 3}
 BATCH = 10
+TRIAGE_CHARACTERS = 1500  # of each record's text, per triage call
 
 
 def parse_time(value) -> datetime:
@@ -334,6 +336,7 @@ def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40)
 
 def triage(s: Settings, docs, topics, watch=None, known=None):
     watch = watch or {}
+    windows = [of(d).slice(0, TRIAGE_CHARACTERS) for d in docs]  # what the model reads of each record
     payload = {
         "series": known or [],
         "topics": [
@@ -348,27 +351,41 @@ def triage(s: Settings, docs, topics, watch=None, known=None):
                 "material_kind": d["material_kind"],
                 "verified": d["verified"],
                 "events": d["events"],
-                "text": d["text"][:1500],
+                "text": w.text,
             }
-            for i, d in enumerate(docs, 1)
+            for i, (d, w) in enumerate(zip(docs, windows), 1)
         ],
     }
     result, call = llm.chat_json(s, "triage", prompts.TRIAGE, payload, schemas.Triage)
     with db.session() as session:
         u = call["usage"]
-        session.add(
-            db.LlmCall(
-                stage="triage",
-                service="radar",
-                model=call["model"],
-                error=call["error"],
-                finish_reason=call["finish_reason"],
-                prompt_tokens=u.get("prompt_tokens", 0),
-                completion_tokens=u.get("completion_tokens", 0),
-                total_tokens=u.get("total_tokens", 0),
-                seconds=call["seconds"],
-            )
+        row = db.LlmCall(
+            stage="triage",
+            service="radar",
+            model=call["model"],
+            error=call["error"],
+            finish_reason=call["finish_reason"],
+            prompt_tokens=u.get("prompt_tokens", 0),
+            completion_tokens=u.get("completion_tokens", 0),
+            total_tokens=u.get("total_tokens", 0),
+            seconds=call["seconds"],
         )
+        session.add(row)
+        session.flush()
+        # each record's window as sent in this call, with its binding (v3 6.1)
+        for i, (d, w) in enumerate(zip(docs, windows), 1):
+            session.add(
+                db.material_read(
+                    w,
+                    stage="triage",
+                    service="radar",
+                    ref=f"R{i}",
+                    source=d["source"],
+                    record_id=d["record_id"],
+                    version_id=d["version_id"],
+                    llm_call_id=row.id,
+                )
+            )
     items = {item.index: item for item in (result.items if result else []) if 1 <= item.index <= len(docs)}
     return [items.get(i) for i in range(1, len(docs) + 1)]
 

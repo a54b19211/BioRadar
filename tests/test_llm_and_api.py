@@ -226,115 +226,68 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
     assert fabric.requests["search"] == {"n": 1, "errors": 0}
 
 
-def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():
-    """Codex r37: live NCT00073242 had 30 fields from Fabric (phase, status, enrollment, results), but the
-    radar read only its 871-character summary."""
-    from bioradar.adapters.fabric import document
+def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
+    """v3 3.3/6.1 (Codex 470): the radar reads Fabric's cleaned text of the version (for a trial its
+    summary and every registry field, untruncated), not the version's projection text; a version not
+    processed yet keeps its own text and says so. Each part of what is read is bound to its fixed version
+    and processor, and a bound window reads back exactly."""
+    from datetime import UTC, datetime
 
-    record = {
-        "source_id": "clinicaltrials",
-        "source_record_id": "NCT00073242",
-        "version_id": "v" * 64,
-        "is_demo": False,
-        "record_kind": "trial",
-        "title": "Leptin",
-        "clean_text": "Brief summary.",
-        "facts": {
-            "phase": ["PHASE3"],
-            "status": "COMPLETED",
-            "enrollment": 31,
-            "enrollment_type": "ACTUAL",
-            "has_results": True,
-            "primary_completion_date_type": "ESTIMATED",
-        },
-        "field_locators": {
-            "phase": {"json_pointer": "/protocolSection/designModule/phases"},
-            "enrollment": {"json_pointer": "/protocolSection/designModule/enrollmentInfo/count"},
-            "has_results": {"json_pointer": "/hasResults"},
-        },
-    }
-    text = document(record)["text"]
-    assert text.startswith("Brief summary.")
-    assert '阶段 phase（/protocolSection/designModule/phases）: ["PHASE3"]' in text
-    assert "入组人数 enrollment（/protocolSection/designModule/enrollmentInfo/count）: 31" in text
-    assert '入组人数类型 enrollment_type（）: "ACTUAL"' in text and '"ESTIMATED"' in text
-    assert "登记中有结果表 has_results（/hasResults）: true" in text
-    assert (
-        "结果：终点数据 results_outcome_measures（）: （原件无此字段）" in text
-    )  # missing is not 0 or false
-    assert document(dict(record, record_kind="document"))["text"] == "Brief summary."
-    measures = {
-        "outcomeMeasures": [
-            {
-                "type": "PRIMARY",
-                "title": "Total Energy Expenditure (TEE)",
-                "unitOfMeasure": "kcal/day",
-                "paramType": "MEAN",
-                "dispersionType": "STANDARD_DEVIATION",
-                "groups": [
-                    {"id": "OG000", "title": "Leptin Repletion"},
-                    {"id": "OG001", "title": "T3 Repletion"},
-                ],
-                "denoms": [
-                    {"counts": [{"value": "22", "groupId": "OG000"}, {"value": "9", "groupId": "OG001"}]}
-                ],
-                "classes": [
-                    {
-                        "title": "Initial Wt",
-                        "categories": [
-                            {
-                                "measurements": [
-                                    {"value": "3131", "spread": "500", "groupId": "OG000"},
-                                    {"value": "2961", "spread": "243", "groupId": "OG001"},
-                                ]
-                            }
-                        ],
-                    }
-                ],
+    import pytest
+
+    from bioradar.adapters.fabric import Fabric, document
+    from bioradar.material import MaterialError, reread
+
+    v, previous = "v" * 64, "u" * 64
+    clean = "Brief summary.\n状态 status: COMPLETED\n分期 phase: PHASE3\n入组人数 enrollment: 31"
+    diff = {"state": "processed", "from_version_id": previous,
+            "changes": [{"field": "status", "description": "状态 RECRUITING → COMPLETED", "material": True}]}
+    processors = {"clean": "datafabric.clean_text.v11"}
+
+    def handler(request):
+        path, params = request.url.path, request.url.params
+        ids = params.get_list("version_ids")
+        if path.endswith("/clean-text"):
+            named = params.get("processor_version")
+            versions = {
+                i: {
+                    "state": "processed",
+                    "clean": {"processor_version": processors["clean"], "status": "parsed", "text": clean},
+                }
+                for i in ids if i == v and named in (None, processors["clean"])
             }
-        ]
-    }
-    measures["outcomeMeasures"][0]["denoms"][0]["units"] = "Participants"
-    ci = {
-        "type": "SECONDARY",
-        "title": "HbA1c change",
-        "timeFrame": "Week 24",
-        "unitOfMeasure": "%",
-        "paramType": "MEAN",
-        "dispersionType": "95% Confidence Interval",
-        "groups": [{"id": "OG000", "title": "Drug"}],
-        "denoms": [{"units": "Participants", "counts": [{"value": "40", "groupId": "OG000"}]}],
-        "classes": [
-            {
-                "categories": [
-                    {
-                        "measurements": [
-                            {"value": "12", "lowerLimit": "10", "upperLimit": "14", "groupId": "OG000"}
-                        ]
-                    }
-                ]
-            }
-        ],
-    }
-    measures["outcomeMeasures"].append(ci)
-    record["field_locators"]["results_outcome_measures"] = {
-        "json_pointer": "/resultsSection/outcomeMeasuresModule"
-    }
-    text = document(dict(record, facts=dict(record["facts"], results_outcome_measures=measures)))["text"]
-    assert (
-        "终点 PRIMARY 「Total Energy Expenditure (TEE)」（"
-        "/resultsSection/outcomeMeasuresModule/outcomeMeasures/0；"
-        "unitOfMeasure kcal/day；paramType MEAN；dispersionType STANDARD_DEVIATION；"
-        "分析数 Participants: Leptin Repletion 22，T3 Repletion 9）: "
-        "Initial Wt: Leptin Repletion 3131 (spread 500)，T3 Repletion 2961 (spread 243)"
-    ) in text
-    # Codex r41: a confidence interval keeps its limits, its time frame and its analysed units
-    assert (
-        "（/resultsSection/outcomeMeasuresModule/outcomeMeasures/1；timeFrame Week 24；unitOfMeasure %；"
-        "paramType MEAN；dispersionType 95% Confidence Interval；"
-        "分析数 Participants: Drug 40）: Drug 12 [10, 14]"
-    ) in text
-    assert '"outcomeMeasures"' not in text  # the long JSON is not repeated beside the compact lines
+            return httpx.Response(200, json={"versions": versions})
+        if path.endswith("/registry-changes"):
+            return httpx.Response(200, json={"processor_version": "datafabric.registry_diff.v1",
+                                             "versions": {i: diff for i in ids if i == v}})
+        return httpx.Response(404, json={"detail": {"code": "version_not_found"}})
+
+    fabric = Fabric(settings(), client=httpx.Client(base_url="http://fabric.invalid",
+                                                    transport=httpx.MockTransport(handler)))
+    record = {"source_id": "clinicaltrials", "source_record_id": "NCT00073242", "version_id": v,
+              "is_demo": False, "record_kind": "trial", "title": "Leptin", "clean_text": "Brief summary.",
+              "parser_version": "p1", "facts": {"status": "COMPLETED"}}
+    doc = document(record)
+    assert doc["text"] == "Brief summary." and doc["material"].parts()[0]["kind"] == "projection_text"
+    fabric.complete([doc], is_demo=False, mode="current", cutoff=datetime.now(UTC).isoformat())
+    assert doc["clean_text_state"] == "processed" and doc["text"].endswith(clean)
+    assert doc["text"].startswith("【与上一版相比的登记变化") and "入组人数 enrollment: 31" in doc["text"]
+    parts = doc["material"].parts()
+    assert [p["kind"] for p in parts] == ["registry_diff", "clean_text"]
+    assert parts[1]["processor_version"] == "datafabric.clean_text.v11" and parts[1]["version_id"] == v
+    assert parts[0]["from_version_id"] == previous and parts[0]["renderer"].startswith("bioradar.")
+    window = doc["material"].slice(len(doc["text"]) - len(clean) + 15, len(doc["text"]))
+    assert window.text == clean[15:] and window.binding()["segments"][0]["start"] == 15
+    assert reread(doc["material"].binding(), fabric.part_texts) == doc["text"]
+    # after a cleaner upgrade the bound processor's text is asked for by name, never the new one in its place
+    processors["clean"] = "datafabric.clean_text.v12"
+    with pytest.raises(MaterialError) as error:
+        reread(window.binding(), fabric.part_texts)
+    assert error.value.code == "part_unreadable"
+    # not processed yet: the version's own text stays, marked
+    other = document(dict(record, version_id="w" * 64))
+    fabric.complete([other], is_demo=False, mode="current", cutoff=datetime.now(UTC).isoformat())
+    assert other["text"] == "Brief summary." and other["clean_text_state"] == "unavailable"
 
 
 def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resumed_run():

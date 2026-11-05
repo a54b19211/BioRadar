@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 
 from bioradar.config import Settings
+from bioradar.material import Material, part_key
 
 CURRENT = "current"
 HISTORY = "public_history_reconstruction"
@@ -62,132 +63,48 @@ def native_kind(record: dict):
     return kind, ("abstract" if raw.get("abstractText") else None)
 
 
-# Registry fields Fabric already extracted from a trial record, in reading order. Each is shown with the
-# JSON pointer it came from in the same fixed version, its value as stored (ACTUAL/ESTIMATED, false and
-# missing kept as they are), so a quote from this block points back to the record, not to a summary.
-REGISTRY_FIELDS = [
-    ("trial_id", "登记号"),
-    ("official_title", "正式题目"),
-    ("status", "状态"),
-    ("phase", "阶段"),
-    ("study_type", "研究类型"),
-    ("design_info", "设计"),
-    ("enrollment", "入组人数"),
-    ("enrollment_type", "入组人数类型"),
-    ("start_date", "开始日期"),
-    ("start_date_type", "开始日期类型"),
-    ("primary_completion_date", "主要完成日期"),
-    ("primary_completion_date_type", "主要完成日期类型"),
-    ("completion_date", "完成日期"),
-    ("completion_date_type", "完成日期类型"),
-    ("conditions", "疾病"),
-    ("interventions", "干预"),
-    ("arm_groups", "分组"),
-    ("lead_sponsor", "申办方"),
-    ("primary_outcomes", "主要终点（方案）"),
-    ("secondary_outcomes", "次要终点（方案）"),
-    ("has_results", "登记中有结果表"),
-    ("results_first_posted", "结果首次公布"),
-    ("results_participant_flow", "结果：受试者流程"),
-    ("results_baseline", "结果：基线"),
-    ("results_outcome_measures", "结果：终点数据"),
-    ("results_adverse_events", "结果：不良事件"),
-]
-REGISTRY_FIELD_CHARS = 3000  # one long results table must not push the protocol fields out
-
-
-def _measurement(x: dict) -> str:
-    """One value with whatever the registry gave around it: spread, or lower/upper limits, as named."""
-    text = str(x.get("value"))
-    if x.get("spread") not in (None, ""):
-        text += f" (spread {x['spread']})"
-    if x.get("lowerLimit") not in (None, "") or x.get("upperLimit") not in (None, ""):
-        text += f" [{x.get('lowerLimit', '?')}, {x.get('upperLimit', '?')}]"
-    return text
-
-
-def outcome_lines(value, pointer="") -> list[str]:
-    """ClinicalTrials results (resultsSection/outcomeMeasuresModule) as one compact line per measure,
-    keeping the registry's own fields and words: type, title, time frame, unit, statistic (paramType),
-    dispersion type (SD, 95% CI, range ... as written), the analysed counts with their units, and each
-    class/category's group values with spread or lower/upper limits. Nothing is turned into "±" (Codex
-    r41: a 95% CI lost its limits and its week-24 time frame). The full JSON stays in the record."""
-    lines = []
-    for i, m in enumerate((value or {}).get("outcomeMeasures", []) if isinstance(value, dict) else []):
-        groups = {g.get("id"): g.get("title", g.get("id")) for g in m.get("groups", [])}
-        denoms = [
-            f"{d.get('units', '')}: "
-            + "，".join(
-                f"{groups.get(c.get('groupId'), c.get('groupId'))} {c.get('value')}"
-                for c in d.get("counts", [])
-            )
-            for d in m.get("denoms", [])
-        ]
-        parts = []
-        for c in m.get("classes", []):
-            for cat in c.get("categories", []):
-                values = "，".join(
-                    f"{groups.get(x.get('groupId'), x.get('groupId'))} {_measurement(x)}"
-                    for x in cat.get("measurements", [])
-                )
-                label = "／".join(t for t in (c.get("title"), cat.get("title")) if t)
-                parts.append(f"{label}: {values}" if label else values)
-        head = "；".join(
-            f"{k} {m[k]}" for k in ("timeFrame", "unitOfMeasure", "paramType", "dispersionType") if m.get(k)
-        )
-        lines.append(
-            f"终点 {m.get('type', '')} 「{m.get('title', '')}」（{pointer}/outcomeMeasures/{i}；{head}；"
-            f"分析数 {'；'.join(denoms) or '（原件无）'}）: " + ("；".join(parts) or "（原件无数值）")
-        )
-    return lines
-
-
-def registry_text(record: dict) -> str:
-    """The trial's registry fields as lines "名称 field（JSON pointer）: value"; empty for other records."""
-    facts, locators = record.get("facts") or {}, record.get("field_locators") or {}
-    if record.get("record_kind") != "trial" or not facts:
-        return ""
-    lines = ["【登记字段：程序按原件 JSON 路径取出的值，同一固定版本】"]
-    for key, label in REGISTRY_FIELDS:
-        pointer = (locators.get(key) or {}).get("json_pointer", "")
-        if key not in facts:
-            value = "（原件无此字段）"
-        elif key == "results_outcome_measures":
-            # one compact line per measure below instead of the long JSON (kept in the record)
-            lines.append(f"{label} {key}（{pointer}）: 见下列各终点")
-            lines += [f"  {line}" for line in outcome_lines(facts[key], pointer)]
-            continue
-        else:
-            value = json.dumps(facts[key], ensure_ascii=False, separators=(",", ":"))
-            if len(value) > REGISTRY_FIELD_CHARS:
-                # say that more exists, so a writer does not report the rest as missing
-                value = (
-                    value[:REGISTRY_FIELD_CHARS]
-                    + f"…（此字段共 {len(value)} 字符，这里只取前 {REGISTRY_FIELD_CHARS}）"
-                )
-        lines.append(f"{label} {key}（{pointer}）: {value}")
-    return "\n".join(lines)
-
-
 # Sources whose attachment versions get their text from Fabric's processing layer (/derived-text).
 ATTACHMENT_SOURCES = {"nmpa", "cde", "chictr"}
 
 
-def attachment_block(doc: dict, found: dict) -> str:
-    """The parsed text of an attachment, headed by what it is and where it came from, so a quote points back
-    to the attachment version and its page."""
+def attachment_heading(doc: dict, found: dict) -> str:
+    """The line put above an attachment's parsed text: what it is and where it came from, so a quote points
+    back to the attachment version and its page."""
     return (
         f"【附件正文：{doc['title']}（附件版本 {doc['version_id'][:16]}，"
         f"所属页面 {doc.get('parent_record_id') or '?'}；"
-        f"由 {found.get('parse_method') or '?'} 从原件解析，表格和扫描件的识别可能有误，以原件为准）】"
-        + "\n\n"
-        + (found.get("text") or "")
+        f"由 {found.get('parse_method') or '?'} 从原件解析，表格和扫描件的识别可能有误，以原件为准）】\n\n"
     )
+
+
+def part(doc: dict, kind: str, **identity) -> dict:
+    """The identity of one part of a document's text (v3 6.1): what to read back, from which fixed version."""
+    return {
+        "kind": kind,
+        "source": doc["source"],
+        "record_id": doc["record_id"],
+        "version_id": doc["version_id"],
+        "is_demo": doc["is_demo"],
+        **identity,
+    }
 
 
 # Sources whose versions Fabric's processing layer diffs field by field against the previous version.
 REGISTRY_DIFF_SOURCES = {"clinicaltrials"}
 REGISTRY_CHANGE_LINES = 12
+# The radar's rendering of a registry diff is part of what a model reads: its version is in the binding, and
+# a change to registry_change_block() needs a new one so earlier bindings still read back.
+REGISTRY_DIFF_RENDERER = "bioradar.registry_change_block.v1"
+
+
+def registry_diff_part(doc: dict, diff: dict) -> dict:
+    return part(
+        doc,
+        "registry_diff",
+        processor_version=diff.get("processor_version"),
+        from_version_id=diff.get("from_version_id"),
+        renderer=REGISTRY_DIFF_RENDERER,
+    )
 
 
 def registry_change_block(diff: dict, version_id: str) -> str:
@@ -223,14 +140,13 @@ def document(record: dict) -> dict:
     native, level = native_kind(record) if not evidence else (None, None)
     kind = evidence.get("material_kind") or native or record.get("record_kind")
     independence = evidence.get("source_independence") or {}
-    return {
+    doc = {
         "source": record["source_id"],
         "record_id": record["source_record_id"],
         "version_id": record["version_id"],
         "is_demo": record["is_demo"],
         "title": record.get("title") or "",
         "url": record.get("source_url"),
-        "text": "\n\n".join(t for t in (record.get("clean_text") or "", registry_text(record)) if t),
         "published_at": _time(record.get("source_published_at")) or _time(record.get("event_time")),
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
@@ -269,7 +185,17 @@ def document(record: dict) -> dict:
         # program-derived text put into this document (registry diff block, parsed attachment text), with what
         # it was derived from, so the evidence record can point back to the inputs (Codex r58/r59)
         "derived": [],
+        # what the cleaning layer gave for this version (Fabric.attach_clean_text): processed, or why not
+        "clean_text_state": None,
     }
+    # Until the cleaning layer's text is attached, the text is the version's own projection text. `material`
+    # is the text with where each character came from (bioradar.material); `text` is always material.text.
+    doc["material"] = Material.part(
+        record.get("clean_text") or "",
+        part(doc, "projection_text", parser_version=record.get("parser_version")),
+    )
+    doc["text"] = doc["material"].text
+    return doc
 
 
 class Fabric:
@@ -390,8 +316,7 @@ class Fabric:
             params["cursor"] = cursor
         data = self._get("/api/history/records", params)
         docs = [document(item) for item in data["items"]]
-        self.attach_registry_changes(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
-        self.attach_attachment_text(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
+        self.complete(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         return docs, data.get("next_cursor")
 
     def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None):
@@ -419,8 +344,7 @@ class Fabric:
                 missing.append(version_id)  # revoked, withdrawn from view, or not visible at this cutoff
                 continue
             docs.append(document(item))
-        self.attach_registry_changes(docs, is_demo=is_demo, mode=mode, cutoff=at)
-        self.attach_attachment_text(docs, is_demo=is_demo, mode=mode, cutoff=at)
+        self.complete(docs, is_demo=is_demo, mode=mode, cutoff=at)
         return docs, missing
 
     def registry_changes(self, source, version_ids, *, is_demo, mode, cutoff):
@@ -458,6 +382,105 @@ class Fabric:
             value.setdefault("processor_version", data.get("processor_version"))
         return versions
 
+    def clean_texts(self, source, version_ids, *, is_demo, mode, cutoff, processor_version=None):
+        """Fabric's cleaning-layer text of each version (v3 3.3):
+        {version_id: {state, clean: {processor_version, text, text_sha256, segments, status, ...}}};
+        processor_version names an earlier processor's text."""
+        params = {
+            "source_id": source,
+            "is_demo": str(is_demo).lower(),
+            "mode": mode,
+            "cutoff": cutoff,
+            "version_ids": list(version_ids),
+        }
+        if processor_version:
+            params["processor_version"] = processor_version
+        return self._get("/api/history/clean-text", params).get("versions") or {}
+
+    def complete(self, docs, *, is_demo, mode, cutoff):
+        """What the radar reads of each version: the cleaning layer's text (or the parsed attachment),
+        with the registry diff block on top for trials."""
+        self.attach_clean_text(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
+        self.attach_registry_changes(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
+        self.attach_attachment_text(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
+
+    def attach_clean_text(self, docs, *, is_demo, mode, cutoff):
+        """The text a model reads is the cleaning layer's text of the version (v3 3.3; for a trial the summary
+        and every registry field, untruncated). Not processed yet, or Fabric unable to answer: the version's
+        own projection text stays and `clean_text_state` says why, so the analysis can say what it read.
+        Attachment versions get their parsed text from attach_attachment_text."""
+        by_source = {}
+        for d in docs:
+            if not (d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment"):
+                by_source.setdefault(d["source"], []).append(d)
+        for source, group in by_source.items():
+            for start in range(0, len(group), 100):
+                page = group[start : start + 100]
+                try:
+                    found = self.clean_texts(
+                        source, [d["version_id"] for d in page], is_demo=is_demo, mode=mode, cutoff=cutoff
+                    )
+                except (FabricError, httpx.HTTPError):
+                    found = {}
+                for d in page:
+                    entry = found.get(d["version_id"]) or {"state": "unavailable"}
+                    clean = entry.get("clean") or {}
+                    if clean.get("status") == "parsed" and (clean.get("text") or "").strip():
+                        d["material"] = Material.part(
+                            clean["text"], part(d, "clean_text", processor_version=clean["processor_version"])
+                        )
+                        d["text"] = d["material"].text
+                        d["clean_text_state"] = "processed"
+                    else:
+                        d["clean_text_state"] = clean.get("status") or entry.get("state") or "unavailable"
+
+    def part_texts(self, parts):
+        """Read back the full text of each bound part (bioradar.material.reread): {part_key: text}, at the
+        bound identity — the clean text of the bound processor version, the projection text of the bound
+        parser,
+        the registry diff of the bound processor rendered by the bound renderer. A part Fabric no longer gives
+        (revoked, withdrawn, another processor's output only) is left out; reread reports it."""
+        now = datetime.now(UTC).isoformat()
+        out = {}
+        for p in parts:
+            key = part_key(p)
+            if key in out:
+                continue
+            common = {"is_demo": p["is_demo"], "mode": CURRENT, "cutoff": now}
+            try:
+                if p["kind"] == "clean_text":
+                    entry = self.clean_texts(
+                        p["source"], [p["version_id"]], processor_version=p["processor_version"], **common
+                    ).get(p["version_id"]) or {}
+                    clean = entry.get("clean") or {}
+                    if clean.get("processor_version") == p["processor_version"]:
+                        out[key] = clean.get("text") or ""
+                elif p["kind"] == "projection_text":
+                    record = self._get(
+                        f"/api/history/versions/{p['version_id']}",
+                        {
+                            "source_id": p["source"],
+                            "source_record_id": p["record_id"],
+                            "is_demo": str(p["is_demo"]).lower(),
+                            "mode": CURRENT,
+                            "cutoff": now,
+                        },
+                    )
+                    if record.get("parser_version") == p["parser_version"]:
+                        out[key] = record.get("clean_text") or ""
+                elif p["kind"] == "registry_diff" and p["renderer"] == REGISTRY_DIFF_RENDERER:
+                    found = self.registry_changes(p["source"], [p["version_id"]], **common)
+                    diff = found.get(p["version_id"]) or {}
+                    if (diff.get("processor_version"), diff.get("from_version_id")) == (
+                        p["processor_version"],
+                        p["from_version_id"],
+                    ):
+                        out[key] = registry_change_block(diff, p["version_id"])
+            except FabricError as error:
+                if error.code not in NOT_VISIBLE:
+                    raise
+        return out
+
     def attach_attachment_text(self, docs, *, is_demo, mode, cutoff):
         """Give each attachment version its parsed text. Not parsed yet, failed, or Fabric unable to answer:
         the text stays empty and `attachment_text` says why; the monitor decides what to do with it."""
@@ -478,7 +501,13 @@ class Fabric:
                     state = found.get(d["version_id"]) or {"state": "unavailable"}
                     d["attachment_text"] = {k: v for k, v in state.items() if k != "text"}
                     if state.get("status") == "parsed" and (state.get("text") or "").strip():
-                        d["text"] = attachment_block(d, state)
+                        # the parsed text is the attachment version's clean text in Fabric's processing layer
+                        d["material"] = Material.literal(attachment_heading(d, state)) + Material.part(
+                            state["text"],
+                            part(d, "clean_text", processor_version=state.get("processor_version")),
+                        )
+                        d["text"] = d["material"].text
+                        d["clean_text_state"] = "processed"
                         d["derived"] = list(d.get("derived") or []) + [
                             {
                                 "kind": "attachment_text",
@@ -514,7 +543,12 @@ class Fabric:
                     d["registry_diff"] = diff
                     block = registry_change_block(diff, d["version_id"])
                     if block:
-                        d["text"] = block + "\n\n" + d["text"]
+                        d["material"] = (
+                            Material.part(block, registry_diff_part(d, diff))
+                            + Material.literal("\n\n")
+                            + d["material"]
+                        )
+                        d["text"] = d["material"].text
                         d["derived"] = list(d.get("derived") or []) + [
                             {
                                 "kind": "registry_diff",
@@ -559,8 +593,7 @@ class Fabric:
         )
         items = [document(item) for item in data["items"]]
         now = datetime.now(UTC).isoformat()
-        self.attach_registry_changes(items, is_demo=is_demo, mode=CURRENT, cutoff=now)
-        self.attach_attachment_text(items, is_demo=is_demo, mode=CURRENT, cutoff=now)
+        self.complete(items, is_demo=is_demo, mode=CURRENT, cutoff=now)
         return items, max([after] + [item["seq"] or 0 for item in items])
 
     def head(self, source, *, is_demo):

@@ -632,3 +632,33 @@ def test_waiting_rows_at_the_front_do_not_hide_a_lost_one_and_redis_trouble_is_n
     sent.clear()
     monkeypatch.setattr(analyses, "waiting_in_queue", down)
     assert all(analyses.recover() == 0 for _ in range(3)) and sent == []
+
+
+def test_each_triaged_record_window_is_recorded_with_its_call_and_reads_back():
+    """v3 6.1: triage sends the first TRIAGE_CHARACTERS of each record; each window is recorded with the
+    model call it went into and its binding, and reads back from the record's fixed-version text."""
+    from sqlalchemy import select
+
+    from bioradar.config import settings
+    from bioradar.material import part_key, reread
+
+    docs = FakeFabric([record("D1", "长文", "长文" * 2000), record("D2", "短文", "短文")]).docs
+    sent = []
+    original = llm.chat_json
+    try:
+        llm.chat_json = triage_by_title(sent)
+        monitor.triage(settings(), docs, [])
+    finally:
+        llm.chat_json = original
+    with db.session() as s:
+        rows = list(s.scalars(select(db.MaterialRead).order_by(db.MaterialRead.id)))
+        call = s.scalars(select(db.LlmCall).where(db.LlmCall.stage == "triage")).one()
+    assert [(r.stage, r.ref, r.llm_call_id) for r in rows] == [
+        ("triage", "R1", call.id),
+        ("triage", "R2", call.id),
+    ]
+    assert [r["text"] for r in sent[0]["records"]] == [docs[0]["text"][:1500], docs[1]["text"]]
+    texts = {d["version_id"]: d["text"] for d in docs}
+    for r, sent_record in zip(rows, sent[0]["records"]):
+        resolve = lambda parts: {part_key(q): texts[q["version_id"]] for q in parts}  # noqa: E731
+        assert reread(r.binding, resolve) == sent_record["text"] and r.chars == len(sent_record["text"])

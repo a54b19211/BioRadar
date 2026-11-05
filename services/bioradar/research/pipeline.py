@@ -17,6 +17,7 @@ from bioradar.adapters import llm, services
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.adapters.services import ServiceError
 from bioradar.config import Settings
+from bioradar.material import Material, of, restore
 from bioradar.research import compute, prompts, schemas
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
@@ -112,29 +113,38 @@ def squash(text):
     return re.sub(r"\s+", "", text or "")
 
 
-def adopt(text, terms, limit):
-    """Whole text when short; otherwise the paragraphs that mention the search terms, in original order."""
+def adopt(material, terms, limit):
+    """Whole text when short; otherwise the paragraphs that mention the search terms, in original order.
+    Material in, Material out (bioradar.material): every paragraph kept keeps where it came from."""
+    text = material.text
     if len(text) <= limit:
-        return text, "full"
-    paragraphs = [p for p in re.split(r"\n\s*\n|\n", text) if p.strip()]
-    ranked = sorted(range(len(paragraphs)), key=lambda i: (-sum(paragraphs[i].count(t) for t in terms), i))
+        return material, "full"
+    paragraphs = [m.span() for m in re.finditer(r"[^\n]+", text) if m.group().strip()]
+    ranked = sorted(
+        range(len(paragraphs)), key=lambda i: (-sum(text[slice(*paragraphs[i])].count(t) for t in terms), i)
+    )
     keep, size = set(), 0
     for i in ranked:
-        if size + len(paragraphs[i]) > limit:
+        length = paragraphs[i][1] - paragraphs[i][0]
+        if size + length > limit:
             continue
         keep.add(i)
-        size += len(paragraphs[i]) + 2
-    return "\n…\n".join(paragraphs[i] for i in sorted(keep)) or text[:limit], "selected"
+        size += length + 2
+    if not keep:
+        return material.slice(0, limit), "selected"
+    return Material.join("\n…\n", [material.slice(*paragraphs[i]) for i in sorted(keep)]), "selected"
 
 
-def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
+def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
     """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact.
     Every quote goes in first; the room left then widens each quote, shortest first, to its whole line
     (a registry field's title-only quote such as "Total Energy Expenditure" is useless without the values
     on that line, Codex r40), and what is still left widens the quotes not yet widened (first 100 before
-    and 900 after, since values follow their titles). Nothing quoted is dropped for context (Codex r38)."""
+    and 900 after, since values follow their titles). Nothing quoted is dropped for context (Codex r38).
+    Material in, Material out: each window keeps its original range."""
+    text = material.text
     if len(text) <= limit:
-        return text
+        return material
     spans = []
     for quote in quotes:
         # Quotes were checked with whitespace removed, so locate them the same way.
@@ -182,12 +192,15 @@ def excerpt(text, quotes, limit=EXCERPT_CHARACTERS):
             trial = widen(i, max(0, a - before), min(len(text), b + after))
             if size(trial) <= limit:
                 windows, _ = trial, widened.add(i)
-    parts = [text[a:b] for a, b in merged(windows)]
-    return "\n…\n".join(parts) or text[:limit]
+    if not windows:
+        return material.slice(0, limit)
+    return Material.join("\n…\n", [material.slice(a, b) for a, b in merged(windows)])
 
 
 # A trial registry's fields the writer gets whether or not a fact quoted them (Codex r41): what the trial
-# is now and its primary results. Each line names its JSON pointer in the same fixed version.
+# is now and its primary results. Fabric's cleaner (v3 3.3) renders each field as a line
+# "<名称> <field>:" with its nested values on the lines below as ASCII paths, so a field is the lines
+# from its heading to the next.
 REGISTRY_ESSENTIALS = (
     "status",
     "phase",
@@ -200,30 +213,64 @@ REGISTRY_ESSENTIALS = (
     "completion_date",
     "has_results",
 )
+RESULTS_FIELD = "results_outcome_measures"
+FIELD_HEADING = re.compile(r"^[^\x00-\x7f]\S* ([a-z][a-z0-9_]*):", re.M)
+MEASURE_LINE = re.compile(r"outcomeMeasures\[(\d+)\][ .]")
 ESSENTIALS_SHARE = 0.6  # of the record's report characters; the rest is for the quoted passages
 
 
-def report_text(text, quotes, limit=EXCERPT_CHARACTERS):
+def lines_in(text, a, b):
+    return [(a + m.start(), a + m.end()) for m in re.finditer(r"[^\n]+", text[a:b])]
+
+
+def registry_lines(text):
+    """The [start, end) of each line a writer must get from a trial record: the essential fields, and the
+    primary end points' result lines (every outcomeMeasures[i] line of a measure typed PRIMARY)."""
+    headings = list(FIELD_HEADING.finditer(text))
+    fields = {
+        h.group(1): (h.start(), headings[n + 1].start() if n + 1 < len(headings) else len(text))
+        for n, h in enumerate(headings)
+    }
+    out = [span for name in REGISTRY_ESSENTIALS if name in fields for span in lines_in(text, *fields[name])]
+    if RESULTS_FIELD in fields:
+        results = lines_in(text, *fields[RESULTS_FIELD])
+        measures = [(span, MEASURE_LINE.match(text, span[0])) for span in results]
+        primary = {
+            m.group(1)
+            for (a, b), m in measures
+            if m and text[m.end() - 1] == " " and re.search(r"\btype: PRIMARY\b", text[a:b])
+        }
+        out += [span for span, m in measures if m and m.group(1) in primary]
+    return sorted(out)
+
+
+def report_text(material, quotes, limit=EXCERPT_CHARACTERS):
     """A record's report input: for a trial registry record its essential fields and primary end points
     first (dropped from the end, with a note naming what was left out, when they do not fit), then the
-    quoted passages in what is left; any other record goes to excerpt() unchanged."""
-    if "【登记字段：" not in text or len(text) <= limit:
-        return excerpt(text, quotes, limit)
-    keys = tuple(f" {k}（" for k in REGISTRY_ESSENTIALS)
-    lines = text.split("\n")
-    wanted = [ln for ln in lines if any(k in ln for k in keys) or ln.startswith("  终点 PRIMARY")]
+    quoted passages in what is left; any other record goes to excerpt() unchanged. Material in and out."""
+    text = material.text
+    wanted = registry_lines(text) if len(text) > limit else []
+    if not wanted:
+        return excerpt(material, quotes, limit)
     kept, left_out, size = [], [], 0
-    for ln in wanted:
-        if size + len(ln) + 1 <= limit * ESSENTIALS_SHARE:
-            kept.append(ln)
-            size += len(ln) + 1
+    for a, b in wanted:
+        if size + b - a + 1 <= limit * ESSENTIALS_SHARE:
+            kept.append((a, b))
+            size += b - a + 1
         else:
-            left_out.append(ln.split("（")[0].strip())
+            heading = FIELD_HEADING.match(text, a)
+            left_out.append(heading.group(1) if heading else text[a:b].split(" ", 1)[0])
+    head = Material.join("\n", [material.slice(a, b) for a, b in kept])
     if left_out:
-        kept.append(f"（写稿输入放不下、未提供：{'、'.join(left_out)}；原件里有）")
-    head = "\n".join(kept)
-    rest = "\n".join(ln for ln in lines if ln not in kept)
-    return head + "\n…\n" + excerpt(rest, quotes, max(0, limit - len(head)))
+        names = "、".join(dict.fromkeys(left_out))
+        head = head + Material.literal(f"\n（写稿输入放不下、未提供：{names}；原件里有）")
+    rest, pos = [], 0
+    for a, b in kept:
+        rest.append(material.slice(pos, a))
+        pos = b
+    rest.append(material.slice(pos, len(text)))
+    rest = Material.join("", rest)
+    return head + Material.literal("\n…\n") + excerpt(rest, quotes, max(0, limit - len(head)))
 
 
 LINEAGE_DEPTH = 500  # rounds followed back; a longer, looping or broken chain counts as unknown
@@ -1051,12 +1098,14 @@ class Run:
                 raise FabricError("record_not_visible", record_id)
             doc = found[0]
         terms = [t for q in self.p["queries"] if set(q["checks"]) & set(hit["checks"]) for t in q["terms"]]
-        text, window = adopt(doc["text"], terms, self.s.read_characters)
+        material, window = adopt(of(doc), terms, self.s.read_characters)
+        text = material.text
         ref = f"E{len(self.p['refs']) + 1}"
         self.p["refs"][ref] = f"{source}|{record_id}"
         with db.session() as s:
             # A worker that died mid-read may have left this ref behind without saving progress.
             s.execute(delete(db.Evidence).where(db.Evidence.analysis_id == self.id, db.Evidence.ref == ref))
+            read_id = self.sent(s, "read", "radar", ref, doc, material)
             s.add(
                 db.Evidence(
                     analysis_id=self.id,
@@ -1081,6 +1130,10 @@ class Run:
                         # versions; the attachment's parse artifact and parent versions). A quote
                         # found only there quotes a derived comparison, not the source record.
                         "derived": doc.get("derived") or [],
+                        # the material_reads row binding this text to its parts (v3 6.1), and whether the
+                        # cleaning layer's text was read or, not processed yet, the version's own text
+                        "material_read_id": read_id,
+                        "clean_text_state": doc.get("clean_text_state"),
                     },
                 )
             )
@@ -1349,6 +1402,50 @@ class Run:
                 )
             )
 
+    def sent(self, session, stage, service, ref, origin, material):
+        """Record one record's material as it goes to a model or service (v3 6.1); returns the row id. A stage
+        repeated after a restart replaces its row for that ref. origin: a document or an evidence row."""
+        session.execute(
+            delete(db.MaterialRead).where(
+                db.MaterialRead.analysis_id == self.id,
+                db.MaterialRead.stage == stage,
+                db.MaterialRead.ref == ref,
+            )
+        )
+        get = origin.get if isinstance(origin, dict) else lambda k: getattr(origin, k)
+        row = db.material_read(
+            material,
+            stage=stage,
+            service=service,
+            ref=ref,
+            source=get("source"),
+            record_id=get("record_id"),
+            version_id=get("version_id"),
+            analysis_id=self.id,
+        )
+        session.add(row)
+        session.flush()
+        return row.id
+
+    def material_of(self, row):
+        """An evidence row's text with its binding restored; evidence read before bindings existed is
+        literal text (no provenance claimed)."""
+        read_id = (row.meta or {}).get("material_read_id")
+        if read_id is None:
+            return Material.literal(row.text)
+        with db.session() as s:
+            return restore(row.text, s.get(db.MaterialRead, read_id).binding)
+
+    def send_rows(self, stage, service, rows, window=lambda m, r: m):
+        """{ref: text} of evidence rows as sent to `service` at `stage`, each recorded with its binding."""
+        out = {}
+        with db.session() as s:
+            for r in rows:
+                material = window(self.material_of(r), r)
+                self.sent(s, stage, service, r.ref, r, material)
+                out[r.ref] = material.text
+        return out
+
     def mechanism(self):
         target = self.p.get("mechanism")
         if not target or not self.s.mechevidence_url:
@@ -1357,23 +1454,24 @@ class Run:
             )
             return
         cited = {f["ref"] for f in self.p["facts"]}
+        rows = [r for r in self.evidence_rows() if r.ref in cited and r.material_kind in MECH_KIND]
+        if not rows:
+            self.p["mechanism_result"] = {"status": "not_run", "reason": "no_research_material"}
+            return
+        self.upstream_still_readable()
+        texts = self.send_rows("mechanism", "mechevidence", rows)
         materials = [
             {
                 "id": r.ref,
                 "title": r.title,
-                "text": r.text,
+                "text": texts[r.ref],
                 **MECH_KIND[r.material_kind],
                 "text_level": "excerpt"
                 if r.meta.get("window") == "selected"
                 else MECH_LEVEL.get(r.meta.get("text_level"), "excerpt"),
             }
-            for r in self.evidence_rows()
-            if r.ref in cited and r.material_kind in MECH_KIND
+            for r in rows
         ]
-        if not materials:
-            self.p["mechanism_result"] = {"status": "not_run", "reason": "no_research_material"}
-            return
-        self.upstream_still_readable()
         try:
             response = services.mechevidence(
                 self.s,
@@ -1404,6 +1502,9 @@ class Run:
             quotes.setdefault(fact["ref"], []).append(fact["quote"])
         # Both ends of a correction go to BioCheck even if one yielded no fact.
         related = {r["to"] for r in self.p["relations"]} | {r["from"] for r in self.p["relations"]}
+        sent = [r for r in rows if r.ref in quotes or r.record_id in related]
+        # the writer and every BioCheck check get this window of each record, recorded with its binding
+        texts = self.send_rows("report", "biocheck", sent, lambda m, r: report_text(m, quotes.get(r.ref, [])))
         evidence = [
             {
                 "id": r.ref,
@@ -1412,12 +1513,11 @@ class Run:
                 "published_at": r.published_at,
                 "source_kind": source_kind(r.material_kind, r.source),
                 "verified": r.verified,
-                "text": report_text(r.text, quotes.get(r.ref, [])),
+                "text": texts[r.ref],
                 # Fabric's explicit same-origin group; absent means independence is unknown, not proven
                 "origin_group": (r.meta or {}).get("origin_group"),
             }
-            for r in rows
-            if r.ref in quotes or r.record_id in related
+            for r in sent
         ]
         results = [
             {

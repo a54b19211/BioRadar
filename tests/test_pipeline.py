@@ -144,6 +144,23 @@ def test_analysis_end_to_end(monkeypatch):
         result["usage"]["llm_calls"] == 1 + 2 + 1 + 1 + 3
     )  # plan, two reads, calculate, assess, BioCheck x3 (generate, verify, judgments)
     assert result["usage"]["requests"] == result["usage"]["llm_calls"] + 1
+    # v3 6.1: what the reader and BioCheck received is recorded per record with its binding, and reads
+    # back from the parts it names (here each record's fixed-version text in the fake Fabric)
+    from bioradar.material import part_key, reread
+
+    texts = {d["version_id"]: d["text"] for d in FakeFabric(RECORDS).docs}
+    with db.session() as s:
+        reads = list(s.scalars(select(db.MaterialRead).order_by(db.MaterialRead.id)))
+    assert {(r.stage, r.service) for r in reads} == {("read", "radar"), ("report", "biocheck")}
+    by_ref = {(r.stage, r.ref): r for r in reads}
+    for e in evidence:
+        assert e.meta["material_read_id"] == by_ref[("read", e.ref)].id
+        assert by_ref[("read", e.ref)].sha256 == __import__("hashlib").sha256(e.text.encode()).hexdigest()
+    sent_texts = {e["id"]: e["text"] for e in generate["evidence"]}
+    for r in reads:
+        resolve = lambda parts: {part_key(q): texts[q["version_id"]] for q in parts}  # noqa: E731
+        text = reread(r.binding, resolve)
+        assert text == (sent_texts[r.ref] if r.stage == "report" else evidence[int(r.ref[1:]) - 1].text)
 
 
 def test_planner_unavailable_fails_cleanly(monkeypatch):
@@ -646,11 +663,12 @@ def test_reads_tell_the_planner_what_they_found_apart_from_answering(monkeypatch
 def test_the_report_input_keeps_every_quoted_fact_even_far_down_a_long_record():
     """Codex r38: a trial's status fields filled the 4000 characters with context, the loop stopped, and
     the results table the reader had quoted never reached BioCheck."""
+    from bioradar.material import Material
     from bioradar.research.pipeline import excerpt
 
     quotes = [f"字段{i}的值是{i * 7}" for i in range(12)]
     text = "".join("背景" * 400 + q for q in quotes)  # each quote 800 characters after the last
-    sent = excerpt(text, quotes, limit=4000)
+    sent = excerpt(Material.literal(text), quotes, limit=4000).text
     assert all(q in sent for q in quotes) and len(sent) <= 4000 + 12 * 3
 
 
@@ -864,26 +882,46 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
 
 
 def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted_them():
-    """Codex r41: the reader never quoted the phase, so the writer wrote that the phase was not given."""
-    from bioradar.research.pipeline import report_text
+    """Codex r41: the reader never quoted the phase, so the writer wrote that the phase was not given. The
+    record is Fabric's cleaned trial text (v3 3.3): field headings "<名称> <field>:", nested lines as paths.
+    Every window of the report input keeps its range in that text (v3 6.1)."""
+    from bioradar.material import Material, part_key, reread
+    from bioradar.research.pipeline import excerpt, report_text
 
     lines = [
         "Brief summary.",
-        "【登记字段：程序按原件 JSON 路径取出的值，同一固定版本】",
-        '阶段 phase（/protocolSection/designModule/phases）: ["PHASE3"]',
-        '状态 status（/protocolSection/statusModule/overallStatus）: "COMPLETED"',
-        "入组人数 enrollment（/protocolSection/designModule/enrollmentInfo/count）: 31",
-        "长字段 eligibility（/protocolSection/eligibilityModule）: " + "条件" * 2000,
+        "分期 phase: PHASE3",
+        "状态 status: COMPLETED",
+        "入组人数 enrollment: 31",
+        "入选标准 eligibility:",
+        "eligibilityCriteria: " + "条件" * 2000,
+        "结果-终点测量 results_outcome_measures:",
     ]
-    lines += [f"  终点 PRIMARY 「终点{i}」（…）: 组A {i}0 (spread 5)" + "，组B 1" * 60 for i in range(12)]
+    for i in range(1, 13):
+        lines += [
+            f"outcomeMeasures[{i}] title: 终点{i}; type: PRIMARY",
+            f"outcomeMeasures[{i}].classes[1].categories[1].measurements[1] groupId: OG000; value: {i}0"
+            + "；组B 1" * 60,
+        ]
+    lines += ["outcomeMeasures[13] title: 次要终点; type: SECONDARY", "主要申办方 lead_sponsor: name: X"]
     text = "\n".join(lines)
-    sent = report_text(text, ["Brief summary."])
-    assert '"PHASE3"' in sent and '"COMPLETED"' in sent and ": 31" in sent
-    assert "「终点0」" in sent and "写稿输入放不下、未提供：" in sent  # the rest is named, not silently cut
-    assert "Brief summary." in sent and "条件条件条件" not in sent[:200]
-    assert report_text("普通材料" * 2000, ["普通材料"]) == __import__(
-        "bioradar.research.pipeline", fromlist=["excerpt"]
-    ).excerpt("普通材料" * 2000, ["普通材料"])
+    part = {"kind": "clean_text", "source": "clinicaltrials", "record_id": "NCT1", "version_id": "v" * 64,
+            "is_demo": True, "processor_version": "datafabric.clean_text.v11"}
+    record = Material.part(text, part)
+    sent = report_text(record, ["Brief summary."])
+    head = sent.text.split("\n…\n")[0]
+    assert "分期 phase: PHASE3" in head and "状态 status: COMPLETED" in head
+    assert "入组人数 enrollment: 31" in head
+    assert "outcomeMeasures[1] title: 终点1; type: PRIMARY" in head and "value: 10" in head
+    assert "SECONDARY" not in head
+    assert "写稿输入放不下、未提供：" in head  # the rest is named, not silently cut
+    assert "Brief summary." in sent.text and "条件条件条件" not in sent.text[:200]
+    # every character of the report input is either radar text or a bound range of the cleaned record
+    binding = sent.binding()
+    assert {s["part"]["kind"] for s in binding["segments"] if "part" in s} == {"clean_text"}
+    assert reread(binding, lambda parts: {part_key(p): text for p in parts}) == sent.text
+    plain = Material.literal("普通材料" * 2000)
+    assert report_text(plain, ["普通材料"]).text == excerpt(plain, ["普通材料"]).text
 
 
 def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(monkeypatch):
@@ -967,10 +1005,11 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
 
 
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
+    from bioradar.material import Material
     from bioradar.research.pipeline import excerpt
 
     text = "甲" * 5000 + "PFS的HR\n为 0.69" + "乙" * 5000
-    assert "0.69" in excerpt(text, ["PFS的HR为0.69"], limit=2000)
+    assert "0.69" in excerpt(Material.literal(text), ["PFS的HR为0.69"], limit=2000).text
 
 
 def test_a_check_about_two_objects_is_not_answered_by_facts_about_one(monkeypatch):
@@ -1470,3 +1509,33 @@ def test_question_objects_found_in_the_reviewed_graph_bring_their_source_records
         }
     ]
     assert any(h["record_id"] == "N1" and h["title"] == "图谱：XQ-17" for h in run.p["hits"])
+
+
+def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_read(monkeypatch):
+    """v3 6.1: the materials sent to MechEvidence are recorded per record; each binds to the same parts and
+    ranges as the reading window it came from, so it reads back from the fixed-version text."""
+    from bioradar.material import of, part_key, reread
+    from bioradar.research.pipeline import adopt
+
+    doc = FakeFabric([record("M1", "机制研究", "甲" * 30000 + "X 抑制 Y。", kind="primary_research")]).docs[0]
+    row = analyses.create(question="X 是否抑制 Y？", direction="science", is_demo=True, enqueue=False)
+    run = Run(row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=None)
+    run.p.update(facts=[{"ref": "E1"}], mechanism={"statement": "X 抑制 Y"})
+    material, window = adopt(of(doc), ["抑制"], 2000)
+    with db.session() as s:
+        read_id = run.sent(s, "read", "radar", "E1", doc, material)
+        s.add(db.Evidence(analysis_id=run.id, ref="E1", source=doc["source"], record_id=doc["record_id"],
+                          version_id=doc["version_id"], title=doc["title"], material_kind="primary_research",
+                          verified=True, text=material.text,
+                          meta={"material_read_id": read_id, "window": window}))
+    bodies = []
+    monkeypatch.setattr(services, "mechevidence", lambda s, body: bodies.append(body) or {"llm_calls": []})
+    run.mechanism()
+    assert run.p["mechanism_result"]["status"] == "completed"
+    with db.session() as s:
+        mine = select(db.MaterialRead).where(db.MaterialRead.analysis_id == run.id)
+        rows = {r.stage: r for r in s.scalars(mine)}
+    assert set(rows) == {"read", "mechanism"} and rows["mechanism"].service == "mechevidence"
+    assert rows["mechanism"].binding == rows["read"].binding == material.binding()
+    resolve = lambda parts: {part_key(q): doc["text"] for q in parts}  # noqa: E731
+    assert reread(rows["mechanism"].binding, resolve) == bodies[0]["materials"][0]["text"] == material.text
