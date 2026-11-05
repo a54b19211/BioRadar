@@ -142,3 +142,34 @@ def test_a_fixed_version_read_accepts_only_exactly_the_named_version():
     assert not fixed_version_is(doc, "t", "C1", V_OLD, True, day(3))  # another source
     assert not fixed_version_is(doc, "s", "C1", V_OLD, False, day(3))  # the other demo kind
     assert not fixed_version_is(doc, "s", "C1", V_OLD, True, day(1))  # not visible at that cutoff
+
+
+def test_a_fixed_version_read_needs_explicit_well_formed_metadata():
+    """Codex r170: a boolean demo kind and an aware time no later than the bound - never a parser error."""
+    from bioradar.adapters.fabric import fixed_version_is
+
+    base = {
+        "source": "s",
+        "record_id": "C1",
+        "version_id": V_OLD,
+        "is_demo": True,
+        "available_at": "2026-06-02T08:00:00+08:00",
+    }
+    assert fixed_version_is(base, "s", "C1", V_OLD, True, day(3))
+    for bad in (
+        {"is_demo": None},
+        {"is_demo": "true"},
+        {"is_demo": 1},
+        {"available_at": None},
+        {"available_at": "2026-06-02"},
+        {"available_at": "2026-06-02T08:00:00"},
+        {"available_at": "x"},
+        {"available_at": 1780000000},
+    ):
+        assert fixed_version_is(dict(base, **bad), "s", "C1", V_OLD, True, day(3)) is False, bad
+    assert fixed_version_is(base, "s", "C1", V_OLD, True, "not-a-cutoff") is False
+    assert fixed_version_is(base, "s", "C1", V_OLD, True, None)  # live: bounded by now
+    assert (
+        fixed_version_is(dict(base, available_at="2999-01-01T00:00:00+00:00"), "s", "C1", V_OLD, True, None)
+        is False
+    )

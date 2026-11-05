@@ -368,6 +368,7 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
         if path.startswith("/api/history/versions/"):
             return httpx.Response(200, json={
                 "source_id": "clinicaltrials", "source_record_id": "NCT1", "version_id": v, "is_demo": True,
+                "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
                 "raw_sha256": "r" * 64, "record_kind": "trial", "title": "T", "clean_text": "投影正文",
                 "parser_version": "p1", "facts": {}})
         if path.endswith("/clean-text"):
@@ -427,6 +428,7 @@ def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one
             return httpx.Response(200, json={
                 "source_id": "nmpa", "source_record_id": "P1#attachment=x.xls", "version_id": v,
                 "is_demo": True,
+                "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
                 "raw_sha256": "r" * 64, "record_kind": "document", "title": "附件", "clean_text": "",
                 "parser_version": "p1", "facts": {"role": "attachment", "parent_record_id": "P1"}})
         if path.endswith("/clean-text"):

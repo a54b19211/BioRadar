@@ -233,19 +233,30 @@ def document(record: dict) -> dict:
     return doc
 
 
+def _aware(value):
+    """A timezone-aware datetime from a datetime or an ISO string, else None (never raises)."""
+    try:
+        text = None if isinstance(value, datetime) else str(value).replace("Z", "+00:00")
+        at = value if text is None else datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    return at if at.tzinfo is not None and at.utcoffset() is not None else None
+
+
 def fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff=None) -> bool:
-    """Whether a document returned for a fixed-version read is exactly what was named: the same source,
-    record, version and demo kind, visible at the cutoff (Codex r169)."""
+    """Whether a document returned for a fixed-version read is exactly what was named (Codex r169/r170): the
+    same source, record and version, an explicit boolean demo kind equal to the one asked for, and a
+    timezone-aware available_at no later than the read's bound - its cutoff, or now for a live read. Anything
+    missing, mistyped or malformed is not a verified read."""
+    if not isinstance(doc, dict):
+        return False
     if (doc.get("source"), doc.get("record_id"), doc.get("version_id")) != (source, record_id, version_id):
         return False
-    if "is_demo" in doc and bool(doc["is_demo"]) != bool(is_demo):
+    if not isinstance(doc.get("is_demo"), bool) or doc["is_demo"] is not bool(is_demo):
         return False
-    if cutoff is not None and doc.get("available_at"):
-        at = datetime.fromisoformat(str(doc["available_at"]).replace("Z", "+00:00"))
-        if at > (cutoff if isinstance(cutoff, datetime) else datetime.fromisoformat(str(cutoff))):
-            return False
-    return True
-
+    at = _aware(doc.get("available_at"))
+    bound = datetime.now(UTC) if cutoff is None else _aware(cutoff)
+    return at is not None and bound is not None and at <= bound
 
 class Fabric:
     def __init__(self, settings: Settings, client: httpx.Client | None = None):
