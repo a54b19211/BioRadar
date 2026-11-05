@@ -685,19 +685,20 @@ def adopt(session, s: Settings, cand, final, check_id):
         )
         if series.grain(r.period) == grain  # a year is not compared with a quarter
     ]
-    # a point withdrawn by a correction outside this domain leaves the series from when that correction was
-    # visible (a correction inside the domain is handled by series.points, which also reports what it revised)
+    # a point whose record a stated correction withdrew by then leaves the series - whether or not a
+    # replacement passed checking, and whatever domain it went to (Codex r166); a replacement inside this
+    # domain is left to series.points, which also reports what it revised
     inside = {r["id"] for r in rows}
+    out = measure_checks.withdrawn(session, [r["id"] for r in rows if r["id"] != row.id], at)
     outside = {r["superseded_by"] for r in rows if r["superseded_by"] and r["superseded_by"] not in inside}
     if outside:
-        seen = {
-            i
-            for i, available in session.execute(
-                select(db.Measurement.id, db.Measurement.available_at).where(db.Measurement.id.in_(outside))
-            )
-            if measure_checks._utc(available) <= at
+        out |= {
+            r["id"]
+            for r in rows
+            if r["superseded_by"] in outside
+            and measure_checks._utc(session.get(db.Measurement, r["superseded_by"]).available_at) <= at
         }
-        rows = [r for r in rows if r["superseded_by"] not in seen]
+    rows = [r for r in rows if r["id"] not in out or r["superseded_by"] in inside]
     if row.id not in {r["id"] for r in rows}:  # the new point counts once its check is the latest (it is)
         rows.append(
             {
@@ -742,7 +743,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     return row, owed
 
 
-def series_basis_points(session, topic_id) -> list:
+def series_basis_points(session, topic_id, at=None) -> list:
     """The structured record of the points the latest series event used, each with whether it is current and
     its latest check (series_basis states them only when all are current)."""
     last = session.scalar(
@@ -752,10 +753,10 @@ def series_basis_points(session, topic_id) -> list:
         .limit(1)
     )
     used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])})
-    return measure_checks.series_points(session, used) if used else []  # current or not, with its state
+    return measure_checks.series_points(session, used, at) if used else []  # current or not, with its state
 
 
-def series_basis(session, topic_id) -> str:
+def series_basis(session, topic_id, at=None) -> str:
     """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
     and records, so the investigation starts from what the program found instead of searching blind."""
     last = session.scalar(
@@ -775,7 +776,7 @@ def series_basis(session, topic_id) -> str:
             select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
         )
     )
-    states = [measure_checks.comparability(session, r) for r in rows]
+    states = [measure_checks.comparability(session, r, at) for r in rows]
     if any(c["state"] != "provisional" for c in states):
         return ""  # a point it used was withdrawn since (or has no domain): not a current conclusion
     points = "；".join(
@@ -810,6 +811,8 @@ def correction_basis(session, topic_id, since) -> str:
     lines = []
     for e in rows:
         d = e.detail
+        if d.get("reason") != "cross_domain_correction":
+            continue  # a source_correction event: the record was corrected, no replacement placed elsewhere
         old = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(d["withdrawn"])))
         new = session.get(db.Measurement, d["by"])
         olds = "、".join(f"{m.period} {m.value_text}{m.unit}（记录 {m.record_id}）" for m in old)
@@ -986,8 +989,8 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             )
             points = []
             if "series_change" in reason.split("+"):
-                question += series_basis(session, topic_id)
-                points = series_basis_points(session, topic_id)
+                question += series_basis(session, topic_id, cutoff)
+                points = series_basis_points(session, topic_id, cutoff)
             if "analyst_review" in reason.split("+"):
                 question += review_basis(session, topic_id, owed_topic.pending_since)
             if "cross_domain_correction" in reason.split("+"):
@@ -1012,6 +1015,69 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
         analyses.dispatch(row.id)
         created.append(row.id)
     return created
+
+
+def record_corrections(session, s: Settings, docs, *, is_demo: bool) -> int:
+    """Record each correction or retraction a new record states (T-24, Codex r166), visible from the record's
+    time, apart from whether its replacement value passes checking; the topics of the points it withdraws get
+    a "correction" event and are owed an analysis (source_corrected). Idempotent. Returns how many new."""
+    made = 0
+    for doc in docs:
+        at = parse_time(doc["available_at"])
+        for r in doc.get("relations") or []:
+            if r["kind"] not in {"corrects", "retracts"}:
+                continue
+            target = dict(
+                workspace_id=s.workspace_id,
+                is_demo=is_demo,
+                target_source=r.get("target_source", doc["source"]),
+                target_record_id=r["target_record_id"],
+                target_version_id=r.get("target_version_id") or "",
+            )
+            if session.scalar(
+                select(db.RecordCorrection.id).filter_by(**target, by_version_id=doc["version_id"])
+            ):
+                continue
+            session.add(
+                db.RecordCorrection(
+                    **target,
+                    relation=r["kind"],
+                    by_source=doc["source"],
+                    by_record_id=doc["record_id"],
+                    by_version_id=doc["version_id"],
+                    visible_at=at,
+                )
+            )
+            session.flush()
+            made += 1
+            hit = select(db.Measurement).where(
+                db.Measurement.workspace_id == s.workspace_id,
+                db.Measurement.is_demo == is_demo,
+                db.Measurement.source == target["target_source"],
+                db.Measurement.record_id == target["target_record_id"],
+                db.Measurement.domain_basis == "topic",
+            )
+            if target["target_version_id"]:
+                hit = hit.where(db.Measurement.version_id == target["target_version_id"])
+            by_topic = {}
+            for m in session.scalars(hit):
+                by_topic.setdefault(m.domain_id, []).append(m.id)
+            for topic_id, ids in sorted(by_topic.items()):
+                topic = session.get(db.Topic, topic_id)
+                if topic is None:
+                    continue
+                event(
+                    session,
+                    topic,
+                    at,
+                    "correction",
+                    record=doc["record_id"],
+                    reason="source_correction",
+                    relation=r["kind"],
+                    withdrawn=sorted(ids),
+                )
+                owe(topic, "source_corrected", at)
+    return made
 
 
 def flag_corrections(docs, *, is_demo: bool, session=None) -> int:
@@ -1074,6 +1140,8 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     measure_checks.refresh_bindings(s, fabric, is_demo=is_demo)
     # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
+    with db.session() as session:  # a stated correction counts from when it is seen, triaged or not
+        record_corrections(session, s, docs, is_demo=is_demo)
     routed = {}
     for d in docs:
         reason = route(d)

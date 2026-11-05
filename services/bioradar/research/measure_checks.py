@@ -980,28 +980,60 @@ def reextract(s, fabric, *, is_demo, triage, limit=10, plan=None):
 COMPARABILITY = "series_domain.v1"
 
 
-def comparability(session, m):
+def withdrawn(session, ids, at=None):
+    """The ids of the points (of `ids`) whose record a correction or retraction Fabric stated withdraws as of
+    `at` (None: now, every recorded correction) - whatever became of the replacement value (Codex r166)."""
+    if not ids:
+        return set()
+    query = (
+        select(db.Measurement.id)
+        .join(
+            db.RecordCorrection,
+            (db.RecordCorrection.workspace_id == db.Measurement.workspace_id)
+            & (db.RecordCorrection.is_demo == db.Measurement.is_demo)
+            & (db.RecordCorrection.target_source == db.Measurement.source)
+            & (db.RecordCorrection.target_record_id == db.Measurement.record_id)
+            & (
+                (db.RecordCorrection.target_version_id == "")
+                | (db.RecordCorrection.target_version_id == db.Measurement.version_id)
+            ),
+        )
+        .where(db.Measurement.id.in_(list(ids)))
+    )
+    if at is not None:
+        query = query.where(db.RecordCorrection.visible_at <= at)
+    return set(session.scalars(query))
+
+
+def comparability(session, m, at=None):
     """Whether point m may be compared with the others of its series now (T-24), apart from whether its
     extraction is checked: "provisional" - one known domain, the topic its record was placed in, the business
     subject (disease, product, cohort, counting basis) not yet checked; "not_comparable" - of no known domain,
     or withdrawn by a correction. cross_domain_correction marks a correction across topics, on the withdrawn
-    point and on the point that corrected it - the old topic is routed, nothing is adopted across."""
+    point and on the point that corrected it - the old topic is routed, nothing is adopted across.
+    As of `at` (an analysis' cutoff; None: now): a correction visible only later is not known yet."""
+
+    def seen(point):
+        return at is None or _utc(point.available_at) <= at
+
     reasons = []
     if m.domain_basis != "topic":
         reasons.append("domain_unknown")
-    if m.superseded_by is not None:
+    by = session.get(db.Measurement, m.superseded_by) if m.superseded_by is not None else None
+    by = by if by is not None and seen(by) else None
+    if by is not None or m.id in withdrawn(session, [m.id], at):
         reasons.append("withdrawn_by_correction")
-        by = session.get(db.Measurement, m.superseded_by)
         if by is not None and (by.domain_basis, by.domain_id) != (m.domain_basis, m.domain_id):
             reasons.append("cross_domain_correction")
-    elif session.scalar(
-        select(db.Measurement.id)
-        .where(
-            db.Measurement.superseded_by == m.id,
-            (db.Measurement.domain_basis != m.domain_basis)
-            | (db.Measurement.domain_id.is_distinct_from(m.domain_id)),
+    elif any(
+        seen(c)
+        for c in session.scalars(
+            select(db.Measurement).where(
+                db.Measurement.superseded_by == m.id,
+                (db.Measurement.domain_basis != m.domain_basis)
+                | (db.Measurement.domain_id.is_distinct_from(m.domain_id)),
+            )
         )
-        .limit(1)
     ):
         reasons.append("cross_domain_correction")
     if m.domain_basis == "topic":
@@ -1016,7 +1048,7 @@ def comparability(session, m):
     }
 
 
-def series_points(session, ids):
+def series_points(session, ids, at=None):
     """The structured, read-only record of the points an analysis rests on, as they stand now: each with its
     exact value, whether it is in the effective series (current: its extraction is checked), its latest check
     under the current checker, and - a layer apart - whether it may be compared now (comparability, T-24).
@@ -1057,7 +1089,7 @@ def series_points(session, ids):
                 "record_id": m.record_id,
                 "version_id": m.version_id,
                 "extraction_check": describe(check) if check else None,
-                "comparability": comparability(session, m),
+                "comparability": comparability(session, m, at),
             }
         )
     return out

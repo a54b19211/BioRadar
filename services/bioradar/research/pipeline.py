@@ -1046,7 +1046,7 @@ class Run:
             self.s, self.fabric, is_demo=self.input["is_demo"], measurement_ids=recorded
         )
         with db.session() as session:
-            points = measure_checks.series_points(session, recorded)
+            points = measure_checks.series_points(session, recorded, self.cutoff)  # as of the cutoff
         keys = ("source", "record_id", "version_id", "object", "metric", "value", "unit", "period")
         return [
             {k: str(p.get(k) or "") for k in keys}

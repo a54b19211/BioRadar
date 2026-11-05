@@ -191,6 +191,38 @@ class Observation(Base):
     activity_key: Mapped[str | None] = mapped_column(String(700))
 
 
+class RecordCorrection(Base):
+    """A correction or retraction Fabric states for a record (T-24, Codex r166): recorded when the correcting
+    record is seen, apart from whether any replacement value passes checking. From visible_at on, the target
+    record's points (of the named version, when Fabric names one) are withdrawn from comparison; a reader
+    with an earlier cutoff does not see it."""
+
+    __tablename__ = "record_corrections"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id",
+            "is_demo",
+            "target_source",
+            "target_record_id",
+            "target_version_id",
+            "by_version_id",
+        ),
+        Index("ix_record_corrections_target", "workspace_id", "is_demo", "target_source", "target_record_id"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+    target_source: Mapped[str] = mapped_column(String(80))
+    target_record_id: Mapped[str] = mapped_column(String(400))
+    target_version_id: Mapped[str] = mapped_column(String(128), default="")  # "" = every version
+    relation: Mapped[str] = mapped_column(String(20))  # corrects | retracts
+    by_source: Mapped[str] = mapped_column(String(80))
+    by_record_id: Mapped[str] = mapped_column(String(400))
+    by_version_id: Mapped[str] = mapped_column(String(128))
+    visible_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
 class Measurement(Base):
     """One quoted value of one metric of one object for one period, from one fixed record version (T-24).
     Series are read with available_at <= the clock, so a replay never sees a later value."""

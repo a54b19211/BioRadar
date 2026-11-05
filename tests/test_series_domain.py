@@ -1,6 +1,8 @@
 """T-24 comparable domain (Codex r160): a series is one key in one domain - the topic the record was placed
 in. Known different domains are never compared; an unknown domain is kept, effective and computes nothing."""
 
+from datetime import timedelta
+
 from conftest import FakeFabric, biocheck_fake, record
 from sqlalchemy import select
 
@@ -143,11 +145,18 @@ def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its
     assert "step" in by_record["A3"]  # 30 -> 33 within the topic still counts
     with db.session() as s:
         anthrax = s.scalars(select(db.Topic).where(db.Topic.title == "炭疽")).one()
-        [corr] = s.scalars(
-            select(db.TopicEvent).where(
-                db.TopicEvent.topic_id == anthrax.id, db.TopicEvent.kind == "correction"
+        corrections = {
+            e.detail["reason"]: e
+            for e in s.scalars(
+                select(db.TopicEvent).where(
+                    db.TopicEvent.topic_id == anthrax.id, db.TopicEvent.kind == "correction"
+                )
             )
-        )
+        }
+        # the record was corrected (seen with C1, Codex r166) and its replacement went to another topic
+        assert set(corrections) == {"source_correction", "cross_domain_correction"}
+        assert corrections["source_correction"].detail["withdrawn"] == [points["A1"][3]]
+        corr = corrections["cross_domain_correction"]
         assert corr.detail["reason"] == "cross_domain_correction" and corr.detail["record"] == "C1"
         assert corr.detail["withdrawn"] == [points["A1"][3]] and corr.detail["by"] == points["C1"][3]
         assert "cross_domain_correction" in (anthrax.pending_reason or "").split("+")
@@ -190,3 +199,29 @@ def test_every_series_point_says_whether_it_may_be_compared_now(monkeypatch):
         "A2": (True, "provisional", ["needs_subject"]),
         "U1": (True, "not_comparable", ["domain_unknown"]),
     }  # all four are checked (current); only the second layer tells them apart
+
+
+def test_a_retraction_withdraws_the_point_from_when_it_is_seen_with_no_replacement(monkeypatch):
+    """Codex r166: the correction's own lifecycle - a retraction has no replacement value at all; the point
+    leaves comparison from the retraction's time on, and a reader with an earlier cutoff still sees it."""
+    topics, points, events = run(
+        monkeypatch,
+        [
+            ("A1", "炭疽", 1, 10, ()),
+            ("X1", "撤回通报", 5, 1, [("retracts", "A1")]),
+            ("A2", "炭疽", 2, 30, ()),
+        ],
+    )
+    by_record = {r: k for t, r, k in events}
+    assert "step" not in by_record.get("A2", [])
+    with db.session() as s:
+        [rc] = s.scalars(select(db.RecordCorrection))
+        assert (rc.relation, rc.target_record_id, rc.by_record_id) == ("retracts", "A1", "X1")
+        a1 = points["A1"][3]
+        assert measure_checks.series_points(s, [a1])[0]["comparability"]["reasons"] == [
+            "withdrawn_by_correction",
+            "needs_subject",
+        ]
+        before = rc.visible_at - timedelta(seconds=1)
+        assert measure_checks.series_points(s, [a1], before)[0]["comparability"]["state"] == "provisional"
+        assert monitor.record_corrections(s, monitor.settings(), [], is_demo=True) == 0
