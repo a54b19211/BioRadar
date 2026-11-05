@@ -4,7 +4,7 @@ triage -> enqueue(): a candidate per measure, bound to the fixed clean artifact 
 material binding), with its literal texts and final values, and a check task for the current checker.
 run(): each due task re-reads that artifact from Fabric (fixed version + processor, hash recomputed, read
 permission now), locates every literal in it (never guessed), sends one contract-v2 request to BioCheck
-(checker v6) outside any transaction, judges the answer with the shared extraction-contract verdict, appends
+(checker v7) outside any transaction, judges the answer with the shared extraction-contract verdict, appends
 the check, and only a consistent item whose values are exact and actual is handed to `adopt` (the series
 logic); a stored point must read back equal to what was checked. Everything else stays a candidate.
 effective(): the measurements whose candidate's latest check under the current checker put them in the
@@ -26,11 +26,14 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of
 
-CHECKER, CONTRACT = ec.CHECKER_V6, ec.CONTRACT_V2
+CHECKER, CONTRACT = ec.CHECKER_V7, ec.CONTRACT_V2
 PRODUCER = {"name": "bioradar.triage", "version": "measure.v2"}
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
-REVALIDATE = timedelta(hours=24)  # an adopted point's binding and permission are checked again this often
+PARKED = timedelta(
+    days=3650
+)  # a finished task is due again only when refresh_bindings or backfill re-queues it
+MAX_ATTEMPTS = 8  # failed calls / reads are retried with backoff this many times, then the task is blocked
 WINDOW, MAX_CHARS = 200, 20000
 STOP = "。；;！？!?\n"
 MODIFIERS = r"(?:(?:suspected|confirmed|probable|laboratory-confirmed|new|human|associated)\s+){0,2}"
@@ -168,6 +171,32 @@ def locate(text, q0, q1, m):
     return spans, None
 
 
+def context_start(text, pos):
+    """Where the context of the text at pos begins: the topmost of its effective ancestor markdown headings
+    (each above it of a lower level than the last one found) and the caption line above the table it is in.
+    The request must carry them: a plan heading or a table caption may qualify what the sentence states."""
+    starts = []
+    line = text.rfind("\n", 0, pos) + 1
+    if text.startswith("|", line):  # inside a table: the first non-table line above it is its caption
+        i = line
+        while i > 0:
+            prev = text.rfind("\n", 0, i - 1) + 1
+            if not text.startswith("|", prev):
+                if text[prev : i - 1].strip():
+                    starts.append(prev)
+                break
+            i = prev
+    level, i = 7, line
+    while i > 0:
+        prev = text.rfind("\n", 0, i - 1) + 1
+        m = re.match(r"(#{1,6})\s", text[prev : i - 1])
+        if m and len(m.group(1)) < level:
+            starts.append(prev)
+            level = len(m.group(1))
+        i = prev
+    return min(starts, default=pos)
+
+
 def build(candidate, text):
     """The contract-v2 request of one candidate over its re-read artifact text, or (None, reason)."""
     m = candidate.measure
@@ -183,6 +212,7 @@ def build(candidate, text):
         return None, why
     lo = max(0, min([candidate.quote_start] + [a for a, _ in spans.values()]) - WINDOW)
     hi = min(len(text), max([candidate.quote_end] + [b for _, b in spans.values()]) + WINDOW)
+    lo = min(lo, context_start(text, candidate.quote_start))
     lo, hi = (
         min(lo, clause(text, candidate.quote_start, candidate.quote_end)[0]),
         max(hi, clause(text, candidate.quote_start, candidate.quote_end)[1]),
@@ -434,7 +464,9 @@ def _append(session, candidate, *, status, gate, error=None, reason=None, body=N
 def _finish(task, now, state, delay=None):
     task.state, task.lease_token, task.lease_until = state, None, None
     task.attempts = task.attempts + 1 if state == "waiting" else task.attempts
-    task.next_check_at = now + (delay or REVALIDATE)
+    if state == "waiting" and task.attempts >= MAX_ATTEMPTS:
+        state = task.state = "blocked"  # bounded: a failure that keeps coming back is left for review
+    task.next_check_at = now + (delay or PARKED)
 
 
 def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
@@ -466,6 +498,10 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                     if exc.code in ("invalid_request", "http_422")
                     else "service_unavailable"
                 )
+            except ValueError:  # an HTTP 200 whose body is no JSON (an upstream HTML error page)
+                error = "invalid_response"
+            except Exception:  # noqa: BLE001 - any other failure of the call is unchecked and retried
+                error = "service_unavailable"
         with db.session() as session:
             now = datetime.now(UTC)
             task = _own(session, candidate_id, token, now)
@@ -480,7 +516,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                     "waiting",
                     timedelta(seconds=BACKOFF[min(task.attempts, len(BACKOFF) - 1)])
                     if why == "fabric_unavailable"
-                    else REVALIDATE,
+                    else PARKED,
                 )
                 continue
             if built is None:
@@ -535,7 +571,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                     body=body,
                     response=response,
                 )
-                _finish(task, now, "waiting", REVALIDATE)
+                _finish(task, now, "waiting", PARKED)
                 continue
             item = response["items"][0]
             gate_reason = None
@@ -668,3 +704,223 @@ def describe(check):
 
 def json_safe(value):
     return json.loads(json.dumps(value, default=str))
+
+
+# ---- current permission and binding at consumption (Codex r137) --------------------------------------------
+
+
+def _latest_checks(session, is_demo):
+    """(candidate, latest check under the current checker) of every candidate that has a stored point."""
+    latest = (
+        select(db.MeasurementCheck.candidate_id, func.max(db.MeasurementCheck.id).label("id"))
+        .where(db.MeasurementCheck.checker_version == CHECKER)
+        .group_by(db.MeasurementCheck.candidate_id)
+        .subquery()
+    )
+    return session.execute(
+        select(db.MeasurementCandidate, db.MeasurementCheck)
+        .join(db.Measurement, db.Measurement.candidate_id == db.MeasurementCandidate.id)
+        .join(latest, latest.c.candidate_id == db.MeasurementCandidate.id)
+        .join(db.MeasurementCheck, db.MeasurementCheck.id == latest.c.id)
+        .where(db.MeasurementCandidate.is_demo == is_demo)
+    ).all()
+
+
+def _states(fabric, cands):
+    """{candidate id: readable | source_unreadable | artifact_changed | fabric_unavailable}, read in batches
+    of
+    100 versions per (source, processor) - one Fabric read per page, never a BioCheck call."""
+    out, groups = {}, {}
+    for c in cands:
+        groups.setdefault((c.source, c.processor_version, c.is_demo), []).append(c)
+    for (source, processor, is_demo), group in groups.items():
+        for start in range(0, len(group), 100):
+            page = group[start : start + 100]
+            try:
+                found = fabric.clean_texts(
+                    source,
+                    [c.version_id for c in page],
+                    is_demo=is_demo,
+                    mode=CURRENT,
+                    cutoff=datetime.now(UTC).isoformat(),
+                    processor_version=processor,
+                )
+            except FabricError as exc:
+                if exc.code not in NOT_VISIBLE:
+                    out.update({c.id: "fabric_unavailable" for c in page})
+                    continue
+                for c in page:  # one version of the page is not visible: read them one by one
+                    out[c.id] = _readback(fabric, c)[1] or "readable"
+                continue
+            except Exception:  # noqa: BLE001 - unknown now: not taken for readable, not for revoked either
+                out.update({c.id: "fabric_unavailable" for c in page})
+                continue
+            for c in page:
+                entry = (found or {}).get(c.version_id) or {}
+                clean = entry.get("clean") or {}
+                text = clean.get("text")
+                if not entry or entry.get("state") in NOT_VISIBLE:
+                    out[c.id] = "source_unreadable"
+                elif (
+                    text is None
+                    or clean.get("processor_version") != c.processor_version
+                    or clean.get("text_sha256") != c.text_sha256
+                    or sha256(text) != c.text_sha256
+                ):
+                    out[c.id] = "artifact_changed"
+                else:
+                    out[c.id] = "readable"
+    return out
+
+
+def refresh_bindings(s, fabric, *, is_demo):
+    """Run before a round reads any series: the binding and read permission of every stored point are read
+    back
+    now. A point whose artifact is unreadable or changed leaves the effective view at once (an appended
+    unchecked check); one readable again with the same artifact is checked again by the worker this round.
+    A Fabric failure changes nothing (unknown is neither readable nor revoked). Returns {state: count}."""
+    with db.session() as session:
+        rows = _latest_checks(session, is_demo)
+        for cand, check in rows:
+            session.expunge(cand)
+            session.expunge(check)
+    states = _states(fabric, [c for c, _ in rows])
+    counts = {}
+    with db.session() as session:
+        for cand, check in rows:
+            state = states.get(cand.id, "fabric_unavailable")
+            counts[state] = counts.get(state, 0) + 1
+            if state == "fabric_unavailable":
+                continue
+            live = session.get(db.MeasurementCandidate, cand.id)
+            if check.gate == "series" and state != "readable":
+                _append(session, live, status="unchecked", gate="candidate", error=state)
+            elif check.error_code in ("source_unreadable", "artifact_changed") and state == "readable":
+                task = session.get(db.MeasurementCheckTask, (cand.id, CHECKER))
+                if task is not None and task.state not in ("queued",):
+                    task.state, task.next_check_at, task.attempts = "queued", db.now(), 0
+    return counts
+
+
+# ---- points stored before checking: a persisted re-extraction path -----------------------------------------
+
+
+def legacy_backlog(session, s):
+    """Every record version with points stored before checking (no candidate) owes one re-extraction: a
+    placeholder candidate (status reextract) is persisted per version. The old points stay history; what the
+    re-extraction finds goes through the normal check and may enter the effective view."""
+    owed = session.execute(
+        select(
+            db.Measurement.workspace_id,
+            db.Measurement.is_demo,
+            db.Measurement.source,
+            db.Measurement.record_id,
+            db.Measurement.version_id,
+            func.min(db.Measurement.available_at),
+            func.min(db.Measurement.id),
+        )
+        .where(db.Measurement.candidate_id.is_(None))
+        .group_by(
+            db.Measurement.workspace_id,
+            db.Measurement.is_demo,
+            db.Measurement.source,
+            db.Measurement.record_id,
+            db.Measurement.version_id,
+        )
+    ).all()
+    have = set(
+        session.scalars(
+            select(db.MeasurementCandidate.version_id).where(
+                db.MeasurementCandidate.status.in_(("reextract", "reextracted", "reextract_failed"))
+            )
+        )
+    )
+    n = 0
+    for workspace, is_demo, source, record_id, version_id, at, first in owed:
+        if version_id in have:
+            continue
+        session.add(
+            db.MeasurementCandidate(
+                workspace_id=workspace,
+                is_demo=is_demo,
+                source=source,
+                record_id=record_id,
+                version_id=version_id,
+                measure={"reextract_of_version": version_id, "first_point": first},
+                status="reextract",
+                reason="stored_before_checking",
+                observed_at=at,
+            )
+        )
+        n += 1
+    return n
+
+
+def reextract(s, fabric, *, is_demo, triage, limit=10):
+    """Re-read up to `limit` owed versions from Fabric and triage them for their measures only (no
+    observation,
+    topic or alert side effects): the measures found become ordinary candidates and are checked as any other.
+    A version no longer readable is marked reextract_failed with the reason. Returns how many were done."""
+    with db.session() as session:
+        owed = list(
+            session.scalars(
+                select(db.MeasurementCandidate)
+                .where(
+                    db.MeasurementCandidate.status == "reextract", db.MeasurementCandidate.is_demo == is_demo
+                )
+                .order_by(db.MeasurementCandidate.id)
+                .limit(limit)
+            )
+        )
+        for c in owed:
+            session.expunge(c)
+    done = 0
+    for c in owed:
+        try:
+            docs, missing = fabric.read_versions(c.source, [(c.record_id, c.version_id)], is_demo=is_demo)
+        except Exception:  # noqa: BLE001 - transient: stays owed
+            continue
+        if missing or not docs:
+            with db.session() as session:
+                row = session.get(db.MeasurementCandidate, c.id)
+                row.status, row.reason = "reextract_failed", "version_not_readable"
+            continue
+        decisions = triage(s, docs, [], {}, [])
+        with db.session() as session:
+            row = session.get(db.MeasurementCandidate, c.id)
+            enqueue(
+                session, s, docs[0], decisions[0] if decisions else None, None, _utc(c.observed_at), is_demo
+            )
+            row.status = "reextracted"
+        done += 1
+    return done
+
+
+def series_points(session, ids):
+    """The structured, read-only record of points an analysis is told about: each effective point with its
+    exact value and the check that admitted it. The planner reads this; nothing it answers can change it."""
+    keep = is_effective(session, ids)
+    out = []
+    for m in session.scalars(
+        select(db.Measurement).where(db.Measurement.id.in_(sorted(keep))).order_by(db.Measurement.period_end)
+    ):
+        check = session.get(db.MeasurementCheck, m.check_id)
+        out.append(
+            {
+                "measurement_id": m.id,
+                "object": m.object,
+                "metric": m.metric,
+                "value": m.value_text,
+                "unit": m.unit,
+                "period": m.period,
+                "period_type": m.period_type,
+                "period_precision": m.period_precision,
+                "scope": m.scope,
+                "scope_mode": m.scope_mode,
+                "source": m.source,
+                "record_id": m.record_id,
+                "version_id": m.version_id,
+                "extraction_check": describe(check) if check else None,
+            }
+        )
+    return out

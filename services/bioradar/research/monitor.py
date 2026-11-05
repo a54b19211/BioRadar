@@ -689,6 +689,20 @@ def adopt(session, s: Settings, cand, final, check_id):
     return row, owed
 
 
+def series_basis_points(session, topic_id) -> list:
+    """The structured record of the points series_basis states (effective ones only, with their checks)."""
+    last = session.scalar(
+        select(db.TopicEvent)
+        .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
+        .order_by(db.TopicEvent.id.desc())
+        .limit(1)
+    )
+    used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])})
+    if not used or measure_checks.is_effective(session, used) != set(used):
+        return []
+    return measure_checks.series_points(session, used)
+
+
 def series_basis(session, topic_id) -> str:
     """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
     and records, so the investigation starts from what the program found instead of searching blind."""
@@ -884,8 +898,10 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 else f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
                 "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
             )
+            points = []
             if "series_change" in reason.split("+"):
                 question += series_basis(session, topic_id)
+                points = series_basis_points(session, topic_id)
             if "analyst_review" in reason.split("+"):
                 question += review_basis(session, topic_id, owed_topic.pending_since)
             row = analyses.create(
@@ -899,6 +915,7 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 seed_records=[
                     {"source": r.source, "record_id": r.record_id, "title": r.title} for r in records
                 ],
+                series_points=points,
                 session=session,
             )
             topic.last_analysis_id = row.id
@@ -962,6 +979,11 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     fabric = fabric or Fabric(s)
     budget = cutoff is None and not is_demo  # live real monitoring only
     paused = budget and analyses.over_auto_budget()
+    with db.session() as session:
+        measure_checks.backfill(session, s)  # a checker upgrade owes every candidate a new check
+        measure_checks.legacy_backlog(session, s)  # points stored before checking owe a re-extraction
+    # current read permission and binding of every stored point, before anything this round reads a series
+    measure_checks.refresh_bindings(s, fabric, is_demo=is_demo)
     # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
     routed = {}
@@ -979,8 +1001,8 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         reasons, whole = (
             observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
         )
-    with db.session() as session:
-        measure_checks.backfill(session, s)  # a checker upgrade owes every candidate a new check
+    if not paused:  # a re-extraction is a model call: it waits while the token budget is spent
+        measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage)
     for topic_id, reason in measure_checks.run(s, fabric, is_demo=is_demo, adopt=adopt).items():
         reasons.setdefault(topic_id, reason)
     if not whole:

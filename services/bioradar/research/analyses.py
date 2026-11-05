@@ -51,6 +51,7 @@ def create(
     enqueue=True,
     session=None,
     previous=True,
+    series_points=(),
 ) -> db.Analysis:
     """With `session`, the row is added to the caller's transaction and not queued: the caller
     commits it together with its own changes and then calls dispatch(). previous=False leaves the
@@ -71,6 +72,8 @@ def create(
         "cutoff": cutoff,
         "seed_records": list(seed_records),
         "scope_record_ids": list(dict.fromkeys(scope_record_ids)),
+        # T-29 P3: the checked points the question states, each with the check that admitted it (read only)
+        "series_points": list(series_points),
         "budget": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
     }
     if session is not None:

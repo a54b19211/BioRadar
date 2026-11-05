@@ -149,7 +149,7 @@ class FakeFabric:
         return []
 
 
-def biocheck_v6(answer=None, calls=None):
+def biocheck_fake(answer=None, calls=None):
     """BioCheck /v2 stand-in for series-logic tests: every field of every item answered match by checker v6
     (answer(body) may alter the response). Real rule behaviour is tested against real BioCheck answers."""
     import copy
@@ -165,14 +165,14 @@ def biocheck_v6(answer=None, calls=None):
                 "kind": "measurement",
                 "status": "consistent",
                 "fields": {
-                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V6]["measurement"]
+                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V7]["measurement"]
                 },
             }
             for i in body["items"]
         ]
         response = {
             "contract_version": ec.CONTRACT_V2,
-            "checker_version": ec.CHECKER_V6,
+            "checker_version": ec.CHECKER_V7,
             "subject": body["subject"],
             "items": items,
             "counts": {"consistent": len(items), "inconsistent": 0, "unchecked": 0},

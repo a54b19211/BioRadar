@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from conftest import FakeFabric, biocheck_v6, record
+from conftest import FakeFabric, biocheck_fake, record
 from sqlalchemy import func, select
 
 from bioradar import db
@@ -141,7 +141,7 @@ def feed(records):
 
 
 def checked(monkeypatch):
-    post = biocheck_v6()
+    post = biocheck_fake()
     monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
 
 
@@ -340,7 +340,7 @@ def test_a_trend_no_single_record_shows_opens_a_topic_and_is_owed_an_analysis(mo
 
 
 def point(name, when, checked_=True):
-    """A stored point, with (or without) the candidate and v6 check that make it effective."""
+    """A stored point, with (or without) the candidate and current check that make it effective."""
     with db.session() as s:
         cand = db.MeasurementCandidate(
             workspace_id=monitor.settings().workspace_id,
