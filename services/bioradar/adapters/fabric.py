@@ -488,6 +488,10 @@ class Fabric:
                         d["text"] = d["material"].text
                         d["clean_text_state"] = "processed"
                         d["clean_text_choice"] = "search_hit" if wanted else "current"
+                        d["clean_meta"] = {
+                            "parse_method": clean.get("basis"),
+                            "locator_kind": clean.get("locator_kind"),
+                        }
                     else:
                         state = clean.get("status") or entry.get("state") or "unavailable"
                         d["clean_text_state"], d["text_level"] = state, "uncleaned_projection"
@@ -561,8 +565,22 @@ class Fabric:
                 for d in page:
                     state = found.get(d["version_id"]) or {"state": "unavailable"}
                     d["attachment_text"] = {k: v for k, v in state.items() if k != "text"}
-                    if d.get("clean_text_choice") == "search_hit":
-                        pass  # a search hit named this attachment's artifact: attach_clean_text read it
+                    wanted = d.get("artifact_wanted")
+                    if wanted:
+                        # a search hit named this attachment's artifact: attach_clean_text read exactly it, or
+                        # said it is not there; the current processor's text never takes its place (Codex
+                        # r86). Read, it keeps its inputs: the artifact and the parent pages it belongs to.
+                        if d.get("clean_text_choice") == "search_hit":
+                            d["derived"] = list(d.get("derived") or []) + [
+                                {
+                                    "kind": "attachment_text",
+                                    "attachment_version_id": d["version_id"],
+                                    "processor_version": wanted.get("processor_version"),
+                                    "text_sha256": wanted.get("text_sha256"),
+                                    **(d.get("clean_meta") or {}),
+                                    "attachment_of": state.get("attachment_of") or [],
+                                }
+                            ]
                     elif state.get("status") == "parsed" and (state.get("text") or "").strip():
                         # the parsed text is the attachment version's clean text in Fabric's processing layer
                         d["material"] = Material.literal(attachment_heading(d, state)) + Material.part(

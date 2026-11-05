@@ -151,16 +151,17 @@ def test_analysis_end_to_end(monkeypatch):
     texts = {d["version_id"]: d["text"] for d in FakeFabric(RECORDS).docs}
     with db.session() as s:
         reads = list(s.scalars(select(db.MaterialRead).order_by(db.MaterialRead.id)))
-    assert {(r.stage, r.service) for r in reads} == {("read", "radar"), ("report", "biocheck")}
+    assert {(r.stage.split(":")[0], r.service) for r in reads} == {("read", "radar"), ("report", "biocheck")}
     by_ref = {(r.stage, r.ref): r for r in reads}
     for e in evidence:
         assert e.meta["material_read_id"] == by_ref[("read", e.ref)].id
         assert by_ref[("read", e.ref)].sha256 == __import__("hashlib").sha256(e.text.encode()).hexdigest()
     sent_texts = {e["id"]: e["text"] for e in generate["evidence"]}
-    # every record was read once; its report window went to BioCheck twice (the report, then the check of
-    # the conclusions), each send its own record
+    # every record was read once; each BioCheck request that carried its report window is its own record
+    # (write, check, then the check of the conclusions), all sent
     assert {(r.stage, r.attempt, r.status) for r in reads} == {
-        ("read", 1, "sent"), ("report", 1, "sent"), ("report", 2, "sent")}
+        ("read", 1, "sent"), ("report:generate", 1, "sent"), ("report:verify", 1, "sent"),
+        ("report:verify", 2, "sent")}
     for r in reads:
         resolve = lambda parts: {part_key(q): texts[q["version_id"]] for q in parts}  # noqa: E731
         text = reread(r.binding, resolve)
@@ -1626,3 +1627,38 @@ def test_the_notice_heads_every_window_of_a_long_uncleaned_record():
     report = noticed(report_text(sent, ["HR为0.69"], 300), "failed")
     assert report.text.startswith(notice) and "HR为0.69" in report.text
     assert noticed(report, "failed").text.count(notice) == 1 and noticed(read, "processed") is read
+
+
+def test_each_biocheck_request_has_its_own_outbound_record(monkeypatch):
+    """Codex r86: generate succeeded, then verify failed; the two requests carrying the same report windows
+    are two records (report:generate sent, report:verify failed), never one sent record hiding the failure."""
+    from types import SimpleNamespace
+
+    import pytest
+
+    from bioradar.material import of
+
+    row = analyses.create(question="审计？", direction="pipeline", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=None)
+    doc = FakeFabric(RECORDS).docs[0]
+    evidence = SimpleNamespace(ref="E1", source=doc["source"], record_id=doc["record_id"],
+                               version_id=doc["version_id"], meta={})
+    run.report_windows = [(evidence, of(doc))]
+    body = {"evidence": [{"id": "E1", "text": doc["text"]}]}
+
+    def biocheck(s, operation, body):
+        if operation == "verify":
+            raise RuntimeError("biocheck down")
+        return {"draft": "稿", "llm_calls": []}
+
+    monkeypatch.setattr(services, "biocheck", biocheck)
+    run.service("generate", dict(body))
+    with pytest.raises(RuntimeError):
+        run.service("verify", dict(body))
+    with db.session() as s:
+        rows = list(s.scalars(select(db.MaterialRead).where(db.MaterialRead.analysis_id == run.id)))
+    assert sorted((r.stage, r.attempt, r.status) for r in rows) == [
+        ("report:generate", 1, "sent"),
+        ("report:verify", 1, "failed"),
+    ]
+    assert rows[0].binding == rows[1].binding  # the same content, bound the same way

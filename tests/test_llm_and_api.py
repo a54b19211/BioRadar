@@ -396,3 +396,54 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
     # text without known provenance never reads back as if it were bound
     with pytest.raises(MaterialError):
         reread(Material.unbound("旧证据", "read_before_binding").binding(), fabric.part_texts)
+
+
+def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one():
+    """Codex r86: the hit named attachment_parse.v1 and Fabric no longer has it; the current v2 text must not
+    take its place (it stays uncleaned, said so). When the named artifact is there, it is read and keeps its
+    inputs: the artifact and the parent page it belongs to."""
+    import hashlib
+
+    from bioradar.adapters.fabric import Fabric
+
+    v, v1_text, v2_text = "a" * 64, "附件 v1 正文", "附件 v2 正文"
+    v1 = {"processor_version": "datafabric.attachment_parse.v1", "status": "parsed", "text": v1_text,
+          "basis": "mineru", "text_sha256": hashlib.sha256(v1_text.encode()).hexdigest()}
+    have_v1 = {"on": False}
+
+    def handler(request):
+        path, params = request.url.path, request.url.params
+        if path.startswith("/api/history/versions/"):
+            return httpx.Response(200, json={
+                "source_id": "nmpa", "source_record_id": "P1#attachment=x.xls", "version_id": v,
+                "is_demo": True,
+                "raw_sha256": "r" * 64, "record_kind": "document", "title": "附件", "clean_text": "",
+                "parser_version": "p1", "facts": {"role": "attachment", "parent_record_id": "P1"}})
+        if path.endswith("/clean-text"):
+            named = params.get("processor_version")
+            ok = have_v1["on"] and named == v1["processor_version"]
+            versions = {v: {"state": "processed", "clean": v1}} if ok else {}
+            return httpx.Response(200, json={"versions": versions})
+        if path.endswith("/derived-text"):
+            current = "datafabric.attachment_parse.v2"
+            return httpx.Response(200, json={"processor_version": current, "versions": {
+                v: {"state": "processed", "status": "parsed", "text": v2_text, "parse_method": "mineru",
+                    "attachment_of": [{"parent_record_id": "P1", "parent_version_id": "p" * 64}]}}})
+        return httpx.Response(404, json={"detail": {"code": "version_not_found"}})
+
+    fabric = Fabric(settings(), client=httpx.Client(base_url="http://fabric.invalid",
+                                                    transport=httpx.MockTransport(handler)))
+    wanted = {"processor_version": v1["processor_version"], "text_sha256": v1["text_sha256"]}
+    docs, _ = fabric.read_versions("nmpa", [("P1#attachment=x.xls", v)], is_demo=True, artifacts={v: wanted})
+    assert v2_text not in docs[0]["text"] and docs[0]["clean_text_state"] != "processed"
+    assert "清洗层正文不可用" in docs[0]["text"]
+    have_v1["on"] = True
+    docs, _ = fabric.read_versions("nmpa", [("P1#attachment=x.xls", v)], is_demo=True, artifacts={v: wanted})
+    doc = docs[0]
+    assert doc["text"].endswith(v1_text) and v2_text not in doc["text"]
+    assert doc["clean_text_choice"] == "search_hit"
+    assert doc["material"].parts()[-1]["processor_version"] == "datafabric.attachment_parse.v1"
+    derived = doc["derived"][-1]
+    assert derived["processor_version"] == v1["processor_version"]
+    assert derived["text_sha256"] == v1["text_sha256"]
+    assert derived["attachment_of"] == [{"parent_record_id": "P1", "parent_version_id": "p" * 64}]

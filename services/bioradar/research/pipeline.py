@@ -1538,10 +1538,13 @@ class Run:
         # Both ends of a correction go to BioCheck even if one yielded no fact.
         related = {r["to"] for r in self.p["relations"]} | {r["from"] for r in self.p["relations"]}
         sent = [r for r in rows if r.ref in quotes or r.record_id in related]
-        # the writer and every BioCheck check get this window of each record, recorded with its binding
-        texts, self.report_material = self.send_rows(
-            "report", "biocheck", sent, lambda m, r: report_text(m, quotes.get(r.ref, []))
-        )
+        # the writer and every BioCheck check get this window of each record; service() records it, with its
+        # binding, once per request that carries it
+        self.report_windows = []
+        for r in sent:
+            window = report_text(self.material_of(r), quotes.get(r.ref, []))
+            self.report_windows.append((r, noticed(window, (r.meta or {}).get("clean_text_state"))))
+        texts = {r.ref: m.text for r, m in self.report_windows}
         evidence = [
             {
                 "id": r.ref,
@@ -1678,7 +1681,18 @@ class Run:
     def service(self, operation, body):
         self.upstream_still_readable()  # every BioCheck request carries the scope built from earlier work
         body["max_llm_calls"] = max(1, self.calls_left() - 1)
-        with self.outbound(getattr(self, "report_material", []) if "evidence" in body else []):
+        # every request that carries the records is its own outbound record (stage report:<operation>, its
+        # own attempt and status): a later failed request is never hidden by an earlier sent one (Codex r86)
+        ids = []
+        if "evidence" in body:
+            sent = {e.get("id") for e in body["evidence"]}
+            with db.session() as s:
+                ids = [
+                    self.sent(s, f"report:{operation}", "biocheck", r.ref, r, m)
+                    for r, m in getattr(self, "report_windows", [])
+                    if r.ref in sent
+                ]
+        with self.outbound(ids):
             response = services.biocheck(self.s, operation, body)
         self.log(response.pop("llm_calls", []), "biocheck")
         return response
