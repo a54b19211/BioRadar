@@ -512,7 +512,7 @@ def options():
             "planner": bool(s.planner_url),
             "biocheck": bool(s.biocheck_url),
             "mechevidence": bool(s.mechevidence_url),
-            "weknora": bool(s.weknora_url),
+            "weknora": s.semantic_search,
         },
         "limits": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
         "monitor": {"enabled": s.monitor_enabled, "auto_analysis": s.auto_analysis},

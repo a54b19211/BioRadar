@@ -1255,10 +1255,10 @@ def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
     assert any(n["code"] == "plan_exploratory_scope" for n in result["notes"])
 
 
-def test_a_replay_does_not_search_the_bridge_index(monkeypatch):
-    """The bridge searches today's index: in a replay it would pick records by text written later."""
-    s = settings().model_copy(update={"weknora_url": "http://bridge.invalid"})
-    for cutoff, expected in ((None, True), ("2026-09-30T00:00:00+08:00", False)):
+def test_semantic_search_is_offered_in_replays_too(monkeypatch):
+    """v3 3.6: Fabric verifies every WeKnora hit at the analysis cutoff, so a replay can search semantically."""
+    s = settings().model_copy(update={"semantic_search": True})
+    for cutoff in (None, "2026-09-30T00:00:00+08:00"):
         row = analyses.create(
             question="XQ-17 的PFS？", direction="pipeline", is_demo=True, cutoff=cutoff, enqueue=False
         )
@@ -1266,7 +1266,10 @@ def test_a_replay_does_not_search_the_bridge_index(monkeypatch):
         run.p.update(
             queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[]
         )
-        assert any(c["source"] == "weknora" for c in run.candidates()) is expected
+        assert any(c["source"] == "weknora" for c in run.candidates())
+    off = Run(row, settings(), fabric=FakeFabric([]))
+    off.p.update(queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[])
+    assert not any(c["source"] == "weknora" for c in off.candidates())
 
 
 def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_itself(monkeypatch):

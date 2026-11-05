@@ -26,11 +26,10 @@ class Settings(BaseSettings):
     # stay searchable for analyses but must not flood triage with old documents.
     monitor_sources: list[str] | None = None
 
-    # WeKnora semantic search; empty URL disables it.
-    weknora_url: str = ""
-    weknora_token: str = ""
-    weknora_knowledge_base_id: str = ""
-    weknora_source_instance: str = ""  # only hits this Fabric published (the bridge's source_instance)
+    # Semantic search through Fabric (POST /api/history/search): WeKnora recalls candidates, Fabric verifies each
+    # one at the analysis cutoff (source permission, the version visible then, the fixed text) and only then
+    # reranks; replays can use it too. Off: no semantic search.
+    semantic_search: bool = False
     graph_lookup: bool = False  # look question objects up in Tang's reviewed graph through Fabric (T-20)
 
     # Professional services. Empty URL means the step is skipped and reported as not run.

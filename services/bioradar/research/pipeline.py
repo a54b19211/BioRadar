@@ -13,7 +13,7 @@ import httpx
 from sqlalchemy import delete, func, select
 
 from bioradar import db
-from bioradar.adapters import llm, services, weknora
+from bioradar.adapters import llm, services
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.adapters.services import ServiceError
 from bioradar.config import Settings
@@ -289,6 +289,15 @@ def hypothesis_citations(draft, claims, ids):
             if c["verdict"] == "supported" and start <= at < end:
                 cited[h].update(c["citations"])
     return cited
+
+
+# Fabric index target scopes searched per analysis direction (the scopes of DATAFABRIC_INDEX_TARGETS).
+SEARCH_SCOPES = {
+    "pipeline": ("pipeline", "research"),
+    "science": ("research",),
+    "business": ("business", "pipeline"),
+    "public_health": ("public_health", "research"),
+}
 
 
 class Run:
@@ -700,9 +709,8 @@ class Run:
             )
             for a in self.p["actions"]
         }
-        # The bridge searches today's index, so a replay would choose records by text seen later.
-        bridge = self.s.weknora_url and self.cutoff is None
-        sources = list(self.input["sources"]) + (["weknora"] if bridge else [])
+        # Semantic search is verified by Fabric at the analysis cutoff, so replays use it too.
+        sources = list(self.input["sources"]) + (["weknora"] if self.s.semantic_search else [])
         result = []
         for q in self.p["queries"]:
             for source in sources:
@@ -959,28 +967,29 @@ class Run:
         if candidate["args"].get("browse"):
             return self.browse(source, candidate["args"]["page"], candidate["target_checks"])
         if source == "weknora":
-            hits, scopes = weknora.search(
-                self.s, " ".join(terms), direction=self.input["direction"], is_demo=self.input["is_demo"]
+            hits, summary = self.fabric.semantic_search(
+                " ".join(terms),
+                scopes=SEARCH_SCOPES.get(self.input["direction"], ("research",)),
+                is_demo=self.input["is_demo"],
+                cutoff=self.cutoff,
             )
-            self.p.setdefault("weknora", []).append({"terms": terms, "scopes": scopes})
-            for scope, state in scopes.items():
-                if state.get("error") or state.get("degraded"):
-                    self.note("weknora_scope", f"{scope}: {state.get('error') or 'degraded'}")
-            docs = []
+            self.p.setdefault("weknora", []).append({"terms": terms, **summary})
+            for scope in summary["recall"]:
+                if scope.get("degraded"):
+                    self.note("weknora_scope", f"{scope['scope']}: degraded")
+            # each hit is already the version visible at this cutoff: read exactly that version
+            refs = {}
             for hit in hits:
                 if hit["source"] in self.input["sources"]:
-                    found, _ = self.fabric.search(
-                        hit["source"],
-                        (),
-                        is_demo=self.input["is_demo"],
-                        cutoff=self.cutoff,
-                        record_ids=[hit["record_id"]],
-                        limit=1,
-                    )
-                    if found and hit["version_id"] and found[0]["version_id"] != hit["version_id"]:
-                        # the index holds another version; the current Fabric version is what is read
-                        self.note("weknora_version_differs", f"{hit['record_id']}: {hit['version_id'][:12]}")
-                    docs += found
+                    refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
+            docs = []
+            for src, pairs in refs.items():
+                found, missing = self.fabric.read_versions(
+                    src, list(pairs), is_demo=self.input["is_demo"], cutoff=self.cutoff
+                )
+                for version_id in missing:  # revoked or withdrawn between the search and the read
+                    self.note("weknora_version_unreadable", f"{src}: {version_id[:12]}")
+                docs += found
             cursor = None
         elif kind == "fetch":
             docs, cursor = self.fabric.fetch(source, " ".join(terms)), None
@@ -1237,8 +1246,7 @@ class Run:
             for key, page in self.p.get("pages", {}).items()
             if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]
         }
-        bridge = self.s.weknora_url and self.cutoff is None
-        sources = list(self.input["sources"]) + (["weknora"] if bridge else [])
+        sources = list(self.input["sources"]) + (["weknora"] if self.s.semantic_search else [])
         # retired only once every source it applies to has been searched (or failed) and paged out
         done = [
             i

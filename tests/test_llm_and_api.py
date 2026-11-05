@@ -181,55 +181,49 @@ def test_a_literature_record_without_document_evidence_keeps_its_own_publication
     assert (stated["material_kind"], stated["text_level"]) == ("news_report", "full_text")  # Fabric wins
 
 
-def test_weknora_hits_point_back_to_fabric_only_with_a_fabric_identity():
+def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
+    """v3 3.6: the radar never calls the bridge; Fabric recalls through WeKnora and verifies each hit at the
+    cutoff, returning the version visible then, the fixed text and why others were excluded."""
     import json
+    from datetime import UTC, datetime
 
-    from bioradar.adapters.weknora import identity
-
-    locator = {"source_instance": "x", "source_id": "clinicaltrials", "source_record_id": "NCT07500001"}
-    assert identity({"metadata": {"raw_locator": json.dumps(locator)}}) == ("clinicaltrials", "NCT07500001")
-    assert identity({"metadata": {"source_id": "who_don", "source_record_id": "D1"}}) == ("who_don", "D1")
-    assert identity({"metadata": {"content": "---\nsource_site: chictr\n---"}}) is None  # crawler upload
-    assert identity({"identity": {"source_id": "who_don", "source_record_id": "D2"}}) == ("who_don", "D2")
-
-
-def test_weknora_search_goes_through_the_bridge_by_direction_scope():
-    import json
-
-    from bioradar.adapters import weknora
+    from bioradar.adapters.fabric import Fabric
 
     sent = []
 
     def handler(request):
         body = json.loads(request.content)
-        sent.append(
-            (request.url.path, request.headers["authorization"], body["source_scope"], body["is_demo"])
-        )
-        if body["source_scope"] == "research":
-            return httpx.Response(400, json={"detail": "search scope exceeds 1000 published documents"})
-        hit = {
-            "identity": {"source_id": "who_don", "source_record_id": "D1", "version_id": "v1"},
-            "score": 0.5,
+        sent.append((request.method, request.url.path, request.headers["authorization"], body))
+        result = {
+            "source_id": "who_don", "source_record_id": "D1", "version_id": "v-visible", "is_demo": True,
+            "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}], "rerank_score": 0.8,
+            "indexed_as": {"version_id": "v-first"},
         }
-        execution = {"keyword": "succeeded", "vector": "skipped", "embedding": "failed", "degraded": True}
-        return httpx.Response(
-            200, json={"results": [hit, {"identity": {}, "score": 0.1}], "execution": execution}
-        )
+        execution = {
+            "candidates": 3, "verified": 1, "returned": 1, "insufficient": True,
+            "rerank": {"state": "succeeded"},
+            "recall": [{"source_scope": "public_health", "execution": {"keyword": "succeeded", "vector": "succeeded",
+                                                                       "degraded": False}}],
+        }
+        return httpx.Response(200, json={"results": [result], "execution": execution,
+                                         "excluded": {"counts": {"not_visible_at_cutoff": 2}, "items": []},
+                                         "coverage": {"who_don": {"ready_records": 67}}})
 
-    s = settings().model_copy(
-        update={
-            "weknora_url": "http://bridge.invalid/",
-            "weknora_token": "t",
-            "weknora_knowledge_base_id": "kb",
-        }
-    )
-    client = httpx.Client(transport=httpx.MockTransport(handler))
-    hits, scopes = weknora.search(s, "布病 聚集", direction="public_health", client=client)
-    # the failed scope keeps the other's hits; the identity-less hit is skipped
-    assert hits == [{"source": "who_don", "record_id": "D1", "version_id": "v1", "score": 0.5}]
-    assert scopes["research"] == {"error": "http_400"}
-    assert scopes["public_health"]["degraded"] is True and scopes["public_health"]["embedding"] == "failed"
-    assert [x[2] for x in sent] == ["public_health", "research"]
+    s = settings().model_copy(update={"fabric_read_token": "read-token", "semantic_search": True})
+    fabric = Fabric(s, client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)))
+    cutoff = datetime(2026, 9, 30, tzinfo=UTC)
+    hits, summary = fabric.semantic_search("布病 聚集", scopes=("public_health", "research"), is_demo=True,
+                                           cutoff=cutoff)
+    method, path, auth, body = sent[0]
+    assert (method, path, auth) == ("POST", "/api/history/search", "Bearer read-token")
+    assert body["mode"] == "public_history_reconstruction" and body["cutoff"] == cutoff.isoformat()
+    assert body["scopes"] == ["public_health", "research"] and body["is_demo"] is True
+    assert hits == [{"source": "who_don", "record_id": "D1", "version_id": "v-visible", "score": 0.8,
+                     "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}]}]
+    assert summary["excluded"] == {"not_visible_at_cutoff": 2} and summary["insufficient"] is True
+    assert summary["recall"] == [{"scope": "public_health", "keyword": "succeeded", "vector": "succeeded",
+                                  "embedding": None, "degraded": False, "degraded_reasons": None}]
+    assert fabric.requests["search"] == {"n": 1, "errors": 0}
 
 
 def test_a_trial_record_brings_fabrics_registry_fields_with_their_json_paths():

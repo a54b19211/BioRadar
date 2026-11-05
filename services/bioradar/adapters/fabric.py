@@ -302,6 +302,76 @@ class Fabric:
             raise FabricError(code or f"fabric_http_{response.status_code}", str(error)[:300])
         return response.json()
 
+    def _post(self, path, body, token=None):
+        endpoint = path.removeprefix("/api/history/").split("/")[0]
+        count = self.requests.setdefault(endpoint, {"n": 0, "errors": 0})
+        count["n"] += 1
+        try:
+            response = self.client.post(
+                path, json=body, headers={"Authorization": f"Bearer {token or self.settings.fabric_read_token}"}
+            )
+        except httpx.HTTPError:
+            count["errors"] += 1
+            raise
+        if response.status_code >= 400:
+            count["errors"] += 1
+            try:
+                error = response.json().get("error") or response.json().get("detail") or {}
+            except ValueError:
+                error = {}
+            code = error.get("code") if isinstance(error, dict) else None
+            raise FabricError(code or f"fabric_http_{response.status_code}", str(error)[:300])
+        return response.json()
+
+    def semantic_search(self, query, *, scopes, is_demo, cutoff=None, now=None, top_k=10):
+        """WeKnora recall verified by Fabric (POST /api/history/search). Every hit was checked at this mode and
+        cutoff: source permission, the version visible then, and that the chunk is that version's fixed text.
+        Returns (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the visible
+        version; summary: excluded counts by reason, whether fewer than top_k came back, per-scope recall
+        channels and index coverage. Missing hits do not mean the material does not exist."""
+        mode = HISTORY if cutoff else CURRENT
+        data = self._post(
+            "/api/history/search",
+            {
+                "query": query[:2000],
+                "mode": mode,
+                "cutoff": (cutoff or now or datetime.now(UTC)).isoformat(),
+                "scopes": list(scopes),
+                "is_demo": is_demo,
+                "top_k": top_k,
+            },
+        )
+        hits = [
+            {
+                "source": r["source_id"],
+                "record_id": r["source_record_id"],
+                "version_id": r["version_id"],
+                "score": r.get("rerank_score", r.get("recall_score")),
+                "text": r["text"],
+                "locators": r.get("locators") or [],
+            }
+            for r in data.get("results") or []
+        ]
+        execution = data.get("execution") or {}
+        summary = {
+            "excluded": (data.get("excluded") or {}).get("counts") or {},
+            "insufficient": execution.get("insufficient"),
+            "candidates": execution.get("candidates"),
+            "rerank": (execution.get("rerank") or {}).get("state"),
+            "recall": [
+                {
+                    "scope": item.get("source_scope"),
+                    **{
+                        k: (item.get("execution") or {}).get(k)
+                        for k in ("keyword", "vector", "embedding", "degraded", "degraded_reasons")
+                    },
+                }
+                for item in execution.get("recall") or []
+            ],
+            "coverage": data.get("coverage") or {},
+        }
+        return hits, summary
+
     def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=(), now=None):
         """One page of records matching all terms. cutoff=None means current mode at `now` (default: this
         moment); Fabric binds a page cursor to that time, so later pages must pass the same `now`."""
