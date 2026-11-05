@@ -16,9 +16,10 @@ import json
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 import extraction_contract as ec
+from extraction_contract import normalize as norm
 from sqlalchemy import func, or_, select
 
 from bioradar import db
@@ -26,8 +27,10 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of
 
-CHECKER, CONTRACT = ec.CHECKER_V7, ec.CONTRACT_V2
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v2"}
+# measure.v3 / checker v8: written numbers, whole-number tokens and the unit in the bound metric phrase
+# are read with extraction_normalize.v1, the functions BioCheck v8 uses (v7 / measure.v2: frozen baseline)
+CHECKER, CONTRACT = ec.CHECKER_V8, ec.CONTRACT_V2
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v3"}
 TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan, T-31)
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
@@ -49,18 +52,8 @@ def sha256(text):
 def decimal_text(written):
     """The canonical decimal string of a written number (thousands commas and full-width digits read, nothing
     else), or None: never through a float, never beyond 18 digits / 6 decimals."""
-    t = (written or "").strip().translate(FULLWIDTH).replace("−", "-")
-    if not re.fullmatch(r"-?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?", t):
-        return None
-    try:
-        d = Decimal(t.replace(",", ""))
-    except InvalidOperation:
-        return None
-    text = format(d.normalize(), "f") if d != 0 else "0"
-    whole, _, frac = text.lstrip("-").partition(".")
-    if len(whole.lstrip("0") + frac) > MAX_DIGITS or len(frac) > MAX_DECIMALS:
-        return None
-    return text
+    # thousands grouped by comma, space, NBSP or NNBSP (groups of three): extraction_normalize.v1
+    return norm.decimal_text(written)
 
 
 def structured_period(period, period_type):
@@ -135,9 +128,21 @@ def locate(text, q0, q1, m):
 
     def find(name, literal):
         if name in ("value", "denominator"):
-            pat = r"(?<![\d.,])" + re.escape(literal) + r"(?![\d]|[.,]\d)"
-        else:
+            # a whole number token of its clause: "851" of "7 851" is not one (extraction_normalize.v1)
             pat = re.escape(literal)
+            whole = set(norm.number_tokens(text[c0:c1]))
+            inq = [
+                x.start()
+                for x in re.finditer(pat, text[q0:q1])
+                if (q0 + x.start() - c0, q0 + x.end() - c0) in whole
+            ]
+            if len(inq) == 1:
+                return q0 + inq[0]
+            if inq:
+                return None
+            inc = [x.start() for x in re.finditer(pat, text[c0:c1]) if (x.start(), x.end()) in whole]
+            return c0 + inc[0] if len(inc) == 1 else None
+        pat = re.escape(literal)
         inq = [x.start() for x in re.finditer(pat, text[q0:q1])]
         if len(inq) == 1:
             return q0 + inq[0]
@@ -166,9 +171,16 @@ def locate(text, q0, q1, m):
         v_end = spans["value"][1]
         hit = re.match(r"\s*" + MODIFIERS, text[v_end : v_end + 80], re.IGNORECASE)
         off = hit.end() if text[v_end + hit.end() :].startswith(unit) else None
-        if off is None:
+        if off is not None:
+            spans["unit"] = (v_end + off, v_end + off + len(unit))
+        elif "metric" in spans:  # a word of the metric phrase bound to the value (extraction_normalize.v1)
+            m0, m1 = spans["metric"]
+            u = text.find(unit, m0, m1)
+            if u < 0 or not norm.unit_bound(text, v_end, u, u + len(unit), m0, m1):
+                return None, "unit_literal_not_at_the_value"
+            spans["unit"] = (u, u + len(unit))
+        else:
             return None, "unit_literal_not_at_the_value"
-        spans["unit"] = (v_end + off, v_end + off + len(unit))
     return spans, None
 
 

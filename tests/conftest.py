@@ -165,14 +165,14 @@ def biocheck_fake(answer=None, calls=None):
                 "kind": "measurement",
                 "status": "consistent",
                 "fields": {
-                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V7]["measurement"]
+                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V8]["measurement"]
                 },
             }
             for i in body["items"]
         ]
         response = {
             "contract_version": ec.CONTRACT_V2,
-            "checker_version": ec.CHECKER_V7,
+            "checker_version": ec.CHECKER_V8,
             "subject": body["subject"],
             "items": items,
             "counts": {"consistent": len(items), "inconsistent": 0, "unchecked": 0},

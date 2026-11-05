@@ -89,7 +89,7 @@ def test_a_consistent_exact_actual_answer_is_stored_as_checked_and_reads_back_eq
     assert (check.gate, check.status, check.checker_version, point.check_id) == (
         "series",
         "consistent",
-        ec.CHECKER_V7,
+        ec.CHECKER_V8,
         check.id,
     )
     body = calls[0]
@@ -250,9 +250,9 @@ def test_revocation_and_recovery_move_a_point_out_of_and_back_into_the_effective
 def test_a_checker_upgrade_takes_points_out_until_the_new_checker_confirms_them(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
-    v8 = "biocheck.extraction_rules.v8"  # a hypothetical next checker
-    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V7])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V7])
+    v8 = "biocheck.extraction_rules.v9"  # a hypothetical next checker (v8 is the current one)
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V8])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V8])
     monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V2)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
     monkeypatch.setattr(measure_checks, "CHECKER", v8)
@@ -361,7 +361,11 @@ real = pytest.mark.skipif(not SRC, reason="BIORADAR_TEST_BIOCHECK_SRC (a BioChec
 
 
 def real_post(body):
-    env = dict(os.environ, PYTHONPATH=SRC + os.pathsep + os.path.join(SRC, "tests"))
+    # BIORADAR_TEST_BIOCHECK_PATH: BioCheck's own extra import path (checker v8 imports extraction_contract)
+    extra = os.environ.get("BIORADAR_TEST_BIOCHECK_PATH", "")
+    env = dict(
+        os.environ, PYTHONPATH=os.pathsep.join(x for x in (SRC, os.path.join(SRC, "tests"), extra) if x)
+    )
     p = subprocess.run(
         [PYTHON, "-c", DRIVER],
         input=json.dumps(body),
@@ -619,7 +623,7 @@ def test_an_analysis_records_each_point_with_the_check_that_admitted_it(monkeypa
     with db.session() as s:
         got = measure_checks.series_points(s, [point.id])
     assert got[0]["value"] == "318" and got[0]["extraction_check"]["gate"] == "series"
-    assert got[0]["extraction_check"]["checker_version"] == ec.CHECKER_V7
+    assert got[0]["extraction_check"]["checker_version"] == ec.CHECKER_V8
     fabric.revoked.add(point.version_id)
     monitor.tick(is_demo=True, fabric=fabric)
     with db.session() as s:
@@ -719,7 +723,7 @@ def test_the_planner_receives_the_current_state_of_each_value(monkeypatch):
     assert sent["current"] is True and sent["value"] == "318" and sent["record_id"] == point.record_id
     assert (
         sent["extraction_check"]["gate"] == "series"
-        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V7
+        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V8
     )
 
 
@@ -922,9 +926,9 @@ def test_after_an_upgrade_every_reader_cites_the_current_check(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
     first = point.check_id
-    v8 = "biocheck.extraction_rules.v8"
-    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V7])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V7])
+    v8 = "biocheck.extraction_rules.v9"  # the next checker
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V8])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V8])
     monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V2)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
     monkeypatch.setattr(measure_checks, "CHECKER", v8)
