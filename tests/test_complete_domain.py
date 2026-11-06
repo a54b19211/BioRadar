@@ -263,3 +263,70 @@ def test_d4_a_point_with_an_unknown_dimension_is_never_grouped_with_one_that_sta
         monkeypatch, [("A1", 1, 10, FULL), ("U1", 1, 20, {"disease": "炭疽", "date_basis": "按报告日"})]
     )
     assert events == [] and "dim_unknown:population" in states["U1"]["reasons"]
+
+
+def test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contradiction(monkeypatch):
+    """Codex r177: the same record version, group and period, 10 and 30 in two sentences - both stored with
+    the
+    gap record_internal_conflict, never compared, the topic told; the same value twice is one point."""
+    v11_stand_in(monkeypatch)
+    sent = [
+        "首次统计，2026年1月医院A在湖北省新增确诊病例{v}例。",
+        "另据本通报，2026年1月医院A在湖北省新增确诊病例{v}例。",
+    ]
+    post = biocheck_fake()
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
+    for values, expect in (((10, 30), 2), ((10, 10), 1)):
+        text = "# 炭疽\n\n" + "\n\n".join(q.format(v=v) for q, v in zip(sent, values))
+        measures = [
+            schemas.Measure(
+                object_text="医院A",
+                metric_text="新增确诊病例",
+                value_text=str(v),
+                unit_text="例",
+                period_text="2026年1月",
+                period="2026-01",
+                period_type="interval",
+                kind="flow",
+                scope_text="在湖北省",
+                qualifier="exact",
+                modality="actual",
+                status="reported",
+                quote=q.format(v=v)[:-1],
+                family="case_count",
+                dims=[schemas.Dim(kind=k, text=x) for k, x in FULL.items()],
+            )
+            for q, v in zip(sent, values)
+        ]
+        rid = f"R{values[1]}"
+
+        def triage(settings_, stage, system, payload, model_cls, **options):
+            if stage == "extract":
+                return schemas.Extraction(
+                    items=[schemas.ExtractItem(index=w["index"]) for w in payload["windows"]]
+                ), dict(CALL, stage=stage)
+            return schemas.Triage(
+                items=[
+                    schemas.TriageItem(
+                        index=r["index"],
+                        new_topic="炭疽",
+                        direction="public_health",
+                        alert="normal",
+                        measures=measures,
+                    )
+                    for r in payload["records"]
+                ]
+            ), CALL
+
+        monkeypatch.setattr(llm, "chat_json", triage)
+        monitor.tick(is_demo=True, fabric=FakeFabric([record(rid, "炭疽", text)], clean=True))
+        with db.session() as s:
+            points = list(s.scalars(select(db.Measurement).where(db.Measurement.record_id == rid)))
+            assert len(points) == expect, [(p.value_text, p.dims_reasons) for p in points]
+            if expect == 2:
+                assert all("record_internal_conflict" in p.dims_reasons for p in points)
+                assert {measure_checks.comparability(s, p)["state"] for p in points} == {"not_comparable"}
+                [e] = s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "record_conflict"))
+                assert sorted(x["value"] for x in e.detail["points"]) == ["10", "30"]
+            else:
+                assert "record_internal_conflict" not in points[0].dims_reasons

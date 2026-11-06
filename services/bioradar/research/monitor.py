@@ -574,6 +574,9 @@ def period_bounds(period, at):
     return series.period_bounds(text, at)
 
 
+RECORD_CONFLICT = "record_internal_conflict"
+
+
 def adopt(session, s: Settings, cand, final, check_id):
     """Store one checked point (T-24 series logic over the effective view) and compare it with its series as
     visible at the record's time. A correction of an earlier record (of the named version, when Fabric names
@@ -622,16 +625,23 @@ def adopt(session, s: Settings, cand, final, check_id):
         existing.check_id = check_id
         # as this check proves them: family, group key, dimensions and gaps move together (Codex r171)
         existing.family, existing.dims_key = key["family"], key["dims_key"]
-        existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"]
+        kept = [RECORD_CONFLICT] if RECORD_CONFLICT in (existing.dims_reasons or []) else []
+        existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"] + kept  # a contradiction stays
         return existing, []
-    if session.scalar(
-        select(db.Measurement.id).filter_by(
-            version_id=cand.version_id,
-            period=period_text,
-            **{k: v for k, v in key.items() if k not in unplaced},
+    stated = list(
+        session.scalars(
+            select(db.Measurement).filter_by(
+                version_id=cand.version_id,
+                period=period_text,
+                **{k: v for k, v in key.items() if k not in unplaced},
+            )
         )
-    ):
+    )
+    if any(r.value_text == final["value"] for r in stated):
         return None, []  # the same point of this version from another candidate (a retried triage)
+    # the same record version states this identity with another value: a contradiction inside the record -
+    # both values kept, neither compared (Codex r177); never "the first one wins"
+    contradicted = stated
     m = cand.measure
     row = db.Measurement(
         **same,
@@ -657,6 +667,26 @@ def adopt(session, s: Settings, cand, final, check_id):
     )
     session.add(row)
     session.flush()
+    if contradicted:
+        for r in contradicted + [row]:
+            if RECORD_CONFLICT not in (r.dims_reasons or []):
+                r.dims_reasons = list(r.dims_reasons or []) + [RECORD_CONFLICT]
+        holder = session.get(db.Topic, domain_id) if domain_basis == "topic" else None
+        if holder is not None:
+            event(
+                session,
+                holder,
+                at,
+                "record_conflict",
+                record=cand.record_id,
+                version=cand.version_id,
+                period=row.period,
+                points=[
+                    {"id": r.id, "value": r.value_text, "candidate": r.candidate_id, "quote": r.quote}
+                    for r in contradicted + [row]
+                ],
+            )
+            owe(holder, "record_conflict", at)
     # a correction Fabric states is about the fact, not a comparison: it withdraws the corrected point in
     # whatever domain that point is (T-24, Codex 695); only the comparison stays within one domain
     undomained = {k: v for k, v in key.items() if k not in domainless}
@@ -700,9 +730,10 @@ def adopt(session, s: Settings, cand, final, check_id):
         # stored and effective, but not comparable: no difference, trend or conflict is computed from a point
         # whose domain is not known, and no topic is opened from it (T-24)
         return row, owed
-    if gate["reasons"]:
-        # not a complete, proven domain (family or a required dimension unknown or unchecked): stored and
-        # effective, a lead for investigation with its gaps - nothing is computed from it (Codex 725)
+    if row.dims_reasons:
+        # not a complete, proven domain (family or a required dimension unknown or unchecked), or a value the
+        # same record contradicts: stored and effective, a lead with its gaps - nothing computed
+        # (Codex 725/r177)
         return row, owed
     grain = series.grain(row.period)
     rows = [
