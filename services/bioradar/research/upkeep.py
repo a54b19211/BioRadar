@@ -24,8 +24,11 @@ backfill_corrections (Codex r167, migration 0010 started empty): the corrections
 the records seen before record_corrections existed are registered from their fixed versions, dated at the
 record's own time, through the same idempotent monitor.record_corrections.
 
-Each call handles at most `limit` items and records every outcome (upkeep_items, append-only); a Fabric
-that does not answer stops the call with the cursor before the item. A run is continued by id."""
+Each call does at most `limit` reads or settlements, counted whether an item's state changed or not, and
+records every outcome (upkeep_items, append-only); each pass over items already met (retrying, settling,
+rechecking) resumes after the last one it handled (upkeep_runs.positions), so an item that stays unreadable
+never holds back the others. A Fabric that does not answer at all stops the call with the cursor before the
+item. A run is continued by id."""
 
 import copy
 import re
@@ -50,6 +53,25 @@ RECHECKED = (
 )
 PLAN = ("version_id", "old_read", "new_read", "old_artifact", "new_artifact", "windows")  # an item's identity
 RETRY = ("artifact_not_ready",)  # tried again once the cursor is through
+
+
+def _order(key):
+    return tuple(int(x) for x in re.findall(r"\d+", str(key)))
+
+
+def _rotation(keys, after):
+    """`keys` in order, starting after `after` and wrapping round: a pass that resumes where the last call
+    stopped (Codex r185/r186), so an item that stays unreadable never holds back the ones after it."""
+    keys = sorted(keys, key=_order)
+    if not after:
+        return keys
+    i = next((n for n, k in enumerate(keys) if _order(k) > _order(after)), len(keys))
+    return keys[i:] + keys[:i]
+
+
+def _moved(run, lane, key):
+    """The run's position in one of its passes (retry, settle, recheck): the last item it handled."""
+    run.positions = {**(run.positions or {}), lane: str(key)}
 
 
 def _run(session, s: Settings, kind, is_demo, run_id, params):
@@ -95,6 +117,7 @@ def summary(session, run):
         "params": run.params,
         "items": items,  # by each item's latest outcome
         "recorded": run.counts,  # every outcome recorded, retries included
+        "positions": run.positions or {},  # where each pass resumes
     }
 
 
@@ -183,13 +206,20 @@ def _readable(fabric, old, processor, is_demo, now):
     return "plan", {"doc": doc}, False
 
 
-def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
-    """Upgrades whose new plan is read and checked: settled when every old point was taken over, else owed."""
+def _settle_upgrades(s, fabric, run_id, is_demo, budget, now):
+    """Upgrades whose new plan is read and checked: settled when every old point was taken over, else owed.
+    Every upgrade looked at costs one of the call's budget, its state changed or not, and the pass resumes
+    after the last one looked at (Codex r185). Returns the budget left."""
     with db.session() as session:
         run = session.get(db.UpkeepRun, run_id)
-        for key, (outcome, d) in list(latest(session, run).items()):
-            if outcome not in UNSETTLED or limit <= 0:
-                continue
+        state = latest(session, run)
+        keys = [k for k, (o, _) in state.items() if o in UNSETTLED]
+        for key in _rotation(keys, (run.positions or {}).get("settle")):
+            if budget <= 0:
+                break
+            budget -= 1
+            _moved(run, "settle", key)
+            outcome, d = state[key]
             new = session.get(db.RecordRead, d["new_read"])
             base = {k: d[k] for k in PLAN if k in d}
             if new.state == "reading":
@@ -206,7 +236,6 @@ def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
                         state=new.state,
                         reason=new.reason,
                     )
-                    limit -= 1
                 continue
             candidates = select(db.MeasurementCandidate.id).where(
                 db.MeasurementCandidate.workspace_id == s.workspace_id,
@@ -253,7 +282,6 @@ def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
             )
             if not left:
                 _item(session, run, key, "settled", **facts)
-                limit -= 1
                 continue
             # read whole, yet some old points were not given again: not proven absent (Codex r184) - they stay
             # as they are, owed a reading of the new artifact that gives them again; the run stays open
@@ -271,7 +299,7 @@ def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
                 _item(
                     session, run, key, "upgrade_unconfirmed", **facts, unconfirmed=unconfirmed, readback=why
                 )
-                limit -= 1
+    return budget
 
 
 def _recheck_state(session, m, new):
@@ -307,118 +335,130 @@ def _recheck_state(session, m, new):
 
 def recheck_unconfirmed(s: Settings, fabric, *, is_demo, run_id, limit=20, now=None):
     """One bounded step working off an upgrade run's owed old points (see the module text): at most `limit`
-    points, each outcome recorded once per point (key p<point id>). Returns the run's summary."""
+    points handled, each outcome recorded per point (key p<point id>), one fair pass over (upgrade, point)
+    that resumes after the last point handled - a point whose new artifact Fabric does not serve now stays
+    owed (recheck_waiting) and never holds back the points after it (Codex r186). Returns the run's
+    summary."""
     now = now or db.now()
     budget = limit
     with db.session() as session:
         run = _run(session, s, "upgrade_reads", is_demo, run_id, {})
         state = latest(session, run)
-        for key, (outcome, d) in list(state.items()):
-            if budget <= 0:
-                break
+        pairs = {}  # "<upgrade key>:<point id>" -> (upgrade key, new plan, point)
+        for key, (outcome, d) in state.items():
             if outcome not in UNSETTLED:
                 continue
             new = session.get(db.RecordRead, d["new_read"])
-            old = list(
-                session.scalars(
-                    select(db.Measurement)
-                    .where(
-                        db.Measurement.workspace_id == s.workspace_id,
-                        db.Measurement.is_demo == is_demo,
-                        db.Measurement.version_id == new.version_id,
-                        db.Measurement.artifact_key == d["old_artifact"],
-                        db.Measurement.retired_reason.is_(None),
-                    )
-                    .order_by(db.Measurement.id)
+            for m in session.scalars(
+                select(db.Measurement).where(
+                    db.Measurement.workspace_id == s.workspace_id,
+                    db.Measurement.is_demo == is_demo,
+                    db.Measurement.version_id == new.version_id,
+                    db.Measurement.artifact_key == d["old_artifact"],
+                    db.Measurement.retired_reason.is_(None),
+                )
+            ):
+                if (state.get(f"p{m.id}") or ("",))[0] not in RECHECKED:
+                    pairs[f"{key}:{m.id}"] = (key, new, m)
+        texts = {}  # the new artifacts read in this call: one read each
+        for pair in _rotation(list(pairs), (run.positions or {}).get("recheck")):
+            if budget <= 0:
+                break
+            budget -= 1
+            _moved(run, "recheck", pair)
+            key, new, m = pairs[pair]
+            if new.id not in texts:
+                texts[new.id] = continuation._readback(fabric, new, now)
+            text, why = texts[new.id]
+            pk = f"p{m.id}"
+            if text is None:
+                _item(session, run, pk, "recheck_waiting", plan=key, readback=why)  # tried again later
+                continue
+            cand = session.get(db.MeasurementCandidate, m.candidate_id) if m.candidate_id else None
+            if cand is None:
+                _item(session, run, pk, "no_candidate", plan=key)
+                continue
+            cited = sorted({v for v in (cand.measure.get("sources") or {}).values() if v != "quote"})
+            if cited:
+                # sent only with the old model call: no reading of the new artifact sent them
+                _item(session, run, pk, "cites_old_send", plan=key, old_candidate=cand.id, sources=cited)
+                continue
+            quote = cand.measure.get("quote") or ""
+            hits = [x.start() for x in re.finditer(re.escape(quote), text)] if quote else []
+            if len(hits) != 1:
+                outcome_ = "quote_in_several_places" if hits else "quote_not_in_new_text"
+                _item(session, run, pk, outcome_, plan=key, old_candidate=cand.id, found=len(hits))
+                continue
+            c = db.MeasurementCandidate(
+                workspace_id=cand.workspace_id,
+                is_demo=cand.is_demo,
+                source=cand.source,
+                record_id=cand.record_id,
+                version_id=cand.version_id,
+                raw_sha256=(new.part or {}).get("raw_sha256") or cand.raw_sha256,
+                processor_version=new.processor_version,
+                text_sha256=new.text_sha256,
+                quote_start=hits[0],
+                quote_end=hits[0] + len(quote),
+                measure=copy.deepcopy(cand.measure),
+                status="pending",
+                topic_id=cand.topic_id,
+                direction=cand.direction,
+                observed_at=cand.observed_at,
+                material_read_id=None,  # no model call read it in this artifact
+                corrects=copy.deepcopy(cand.corrects),
+                relocated_from=cand.id,
+            )
+            session.add(c)
+            session.flush()
+            session.add(
+                db.MeasurementCheckTask(
+                    candidate_id=c.id,
+                    checker_version=measure_checks.CHECKER,
+                    state="queued",
+                    attempts=0,
+                    next_check_at=db.now(),
                 )
             )
-            todo = [m for m in old if (state.get(f"p{m.id}") or ("",))[0] not in RECHECKED][:budget]
-            if not todo:
-                continue
-            text, why = continuation._readback(fabric, new, now)
-            for m in todo:
-                budget -= 1
-                pk = f"p{m.id}"
-                if text is None:
-                    _item(session, run, pk, "recheck_waiting", plan=key, readback=why)  # tried again later
-                    continue
-                cand = session.get(db.MeasurementCandidate, m.candidate_id) if m.candidate_id else None
-                if cand is None:
-                    _item(session, run, pk, "no_candidate", plan=key)
-                    continue
-                cited = sorted({v for v in (cand.measure.get("sources") or {}).values() if v != "quote"})
-                if cited:
-                    # sent only with the old model call: no reading of the new artifact sent them
-                    _item(session, run, pk, "cites_old_send", plan=key, old_candidate=cand.id, sources=cited)
-                    continue
-                quote = cand.measure.get("quote") or ""
-                hits = [x.start() for x in re.finditer(re.escape(quote), text)] if quote else []
-                if len(hits) != 1:
-                    outcome_ = "quote_in_several_places" if hits else "quote_not_in_new_text"
-                    _item(session, run, pk, outcome_, plan=key, old_candidate=cand.id, found=len(hits))
-                    continue
-                c = db.MeasurementCandidate(
-                    workspace_id=cand.workspace_id,
-                    is_demo=cand.is_demo,
-                    source=cand.source,
-                    record_id=cand.record_id,
-                    version_id=cand.version_id,
-                    raw_sha256=(new.part or {}).get("raw_sha256") or cand.raw_sha256,
-                    processor_version=new.processor_version,
-                    text_sha256=new.text_sha256,
-                    quote_start=hits[0],
-                    quote_end=hits[0] + len(quote),
-                    measure=copy.deepcopy(cand.measure),
-                    status="pending",
-                    topic_id=cand.topic_id,
-                    direction=cand.direction,
-                    observed_at=cand.observed_at,
-                    material_read_id=None,  # no model call read it in this artifact
-                    corrects=copy.deepcopy(cand.corrects),
-                    relocated_from=cand.id,
-                )
-                session.add(c)
-                session.flush()
-                session.add(
-                    db.MeasurementCheckTask(
-                        candidate_id=c.id,
-                        checker_version=measure_checks.CHECKER,
-                        state="queued",
-                        attempts=0,
-                        next_check_at=db.now(),
-                    )
-                )
-                _item(
-                    session,
-                    run,
-                    pk,
-                    "relocated",
-                    plan=key,
-                    old_candidate=cand.id,
-                    candidate=c.id,
-                    quote_start=c.quote_start,
-                    quote_end=c.quote_end,
-                    artifact=new.artifact_key,
-                )
+            _item(
+                session,
+                run,
+                pk,
+                "relocated",
+                plan=key,
+                old_candidate=cand.id,
+                candidate=c.id,
+                quote_start=c.quote_start,
+                quote_end=c.quote_end,
+                artifact=new.artifact_key,
+            )
         return summary(session, run)
 
 
 def upgrade_reads(
     s: Settings, fabric, *, is_demo, source=None, processor=None, limit=20, run_id=None, now=None
 ):
-    """One bounded step of an upgrade run (see the module text). Returns the run's summary."""
+    """One bounded step of an upgrade run (see the module text): at most `limit` Fabric reads or settlements
+    in all - planning, retrying what was not ready, settling - each a fair pass resumed where the last call
+    stopped (Codex r185/r186). Returns the run's summary."""
     now = now or db.now()
+    budget = limit
     with db.session() as session:
         run = _run(session, s, "upgrade_reads", is_demo, run_id, {"source": source, "processor": processor})
         run_id, source, processor = run.id, run.params["source"], run.params["processor"]
-        todo = list(session.scalars(_old_plans(s, source, processor, is_demo, run.cursor).limit(limit)))
+        todo = list(session.scalars(_old_plans(s, source, processor, is_demo, run.cursor).limit(budget)))
         fresh = bool(todo)
-        if not fresh:  # the cursor is through: what was not ready is tried again
-            waiting = [int(k) for k, (o, _) in latest(session, run).items() if o in RETRY][:limit]
-            todo = [r for r in (session.get(db.RecordRead, k) for k in waiting) if r is not None]
+        if not fresh:  # the cursor is through: what was not ready is tried again, in turn
+            waiting = [k for k, (o, _) in latest(session, run).items() if o in RETRY]
+            waiting = _rotation(waiting, (run.positions or {}).get("retry"))[:budget]
+            todo = [r for r in (session.get(db.RecordRead, int(k)) for k in waiting) if r is not None]
         for r in todo:
             session.expunge(r)
     for old in todo:
+        budget -= 1
+        if not fresh:
+            with db.session() as session:
+                _moved(session.get(db.UpkeepRun, run_id), "retry", old.id)
         outcome, detail, stop = _readable(fabric, old, processor, is_demo, now)
         if stop:
             with db.session() as session:
@@ -466,7 +506,7 @@ def upgrade_reads(
                     )
             if fresh:
                 run.cursor = max(run.cursor, old.id)
-    _settle_upgrades(s, fabric, run_id, is_demo, limit, now)
+    _settle_upgrades(s, fabric, run_id, is_demo, budget, now)
     with db.session() as session:
         run = session.get(db.UpkeepRun, run_id)
         more = session.scalar(_old_plans(s, source, processor, is_demo, run.cursor).limit(1))

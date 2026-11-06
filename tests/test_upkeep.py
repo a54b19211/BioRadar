@@ -477,8 +477,8 @@ def test_rechecks_are_bounded_and_carry_on_after_a_restart_and_an_unreadable_art
     run = recheck(fabric, run, limit=1)
     assert run["items"] == {"upgrade_unconfirmed": 2, "recheck_waiting": 1}
     fabric.clean_texts = real
-    run = recheck(fabric, run, limit=1)  # a fresh call, as after a restart
-    assert run["items"] == {"upgrade_unconfirmed": 2, "relocated": 1}
+    run = recheck(fabric, run, limit=1)  # a fresh call, as after a restart: the next point, in turn
+    assert run["items"] == {"upgrade_unconfirmed": 2, "recheck_waiting": 1, "relocated": 1}
     run = recheck(fabric, run, limit=1)
     assert run["items"] == {"upgrade_unconfirmed": 2, "relocated": 2}
     assert recheck(fabric, run, limit=5)["recorded"]["relocated"] == 2  # nothing relocated twice
@@ -498,3 +498,60 @@ def test_a_relocated_fact_takes_the_place_of_its_own_old_point_whatever_its_grou
     [(a0, _, why0, by0, _), (a1, _, why1, _, id1)] = points()
     assert (a0, why0, by0) == (OLD, "artifact_upgrade", id1) and (a1, why1) == (NEW, None)
     assert upgrade(fabric, run["run_id"])["state"] == "done"
+
+
+# ---- bounded and fair passes (Codex r185/r186) -----------------------------------------------------------
+
+
+def counting(fabric, monkeypatch, denied=()):
+    """Count the new artifact's reads; versions in `denied` are not visible."""
+    asked, real = [], fabric.clean_texts
+
+    def read(source, versions, **kw):
+        if kw.get("processor_version") == NEW:
+            asked.extend(versions)
+            if set(versions) & set(denied):
+                return {v: {"state": "not_visible", "clean": None} for v in versions}
+        return real(source, versions, **kw)
+
+    monkeypatch.setattr(fabric, "clean_texts", read)
+    return asked
+
+
+def test_settling_reads_no_more_than_the_limit_and_takes_the_upgrades_in_turn(stand_ins, monkeypatch):
+    fabric, run = unconfirmed(monkeypatch, text_with(2500), text_with(3000), text_with(3500))
+    asked = counting(fabric, monkeypatch)
+    seen = []
+    for _ in range(3):  # unchanged states still cost a read, and each call goes on from the last
+        before = len(asked)
+        run = upgrade(fabric, run["run_id"], limit=1)
+        assert len(asked) - before <= 1
+        seen += asked[before:]
+    assert sorted(seen) == sorted(p.version_id for p in plans() if p.supersedes_id is None)
+    assert run["recorded"]["upgrade_unconfirmed"] == 3  # said once each, not again
+
+
+def test_a_point_whose_new_artifact_stays_unreadable_does_not_hold_back_the_next(stand_ins, monkeypatch):
+    fabric, run = unconfirmed(monkeypatch, text_with(3000), text_with(2500))
+    first = plans()[0].version_id
+    asked = counting(fabric, monkeypatch, denied=[first])
+    for _ in range(2):
+        run = recheck(fabric, run, limit=1)
+    assert run["items"]["recheck_waiting"] == 1 and run["items"]["relocated"] == 1
+    assert len(asked) == 2
+    run = recheck(fabric, run, limit=1)  # round again: the unreadable one is tried again, still owed
+    assert run["items"]["recheck_waiting"] == 1 and run["recorded"]["recheck_waiting"] == 2
+
+
+def test_versions_not_ready_are_retried_in_turn(stand_ins):
+    fabric = old_state(text_with(3000), text_with(2500), text_with(2800))
+    for p, t in zip(plans(), (text_with(3000), text_with(2500), text_with(2800))):
+        fabric.v12[p.version_id] = t + TAIL
+    run = upgrade(fabric, limit=3)
+    assert run["items"] == {"artifact_not_ready": 3}
+    fabric.ready.add(plans()[2].version_id)  # only the last becomes ready
+    run = upgrade(fabric, run["run_id"], limit=1)
+    run = upgrade(fabric, run["run_id"], limit=1)
+    assert run["items"].get("planned", 0) == 0  # the first two were tried, in turn
+    run = upgrade(fabric, run["run_id"], limit=1)
+    assert run["items"]["planned"] == 1 and run["positions"]["retry"] == str(plans()[2].id)

@@ -462,6 +462,8 @@ class UpkeepRun(Base):
     cursor: Mapped[int] = mapped_column(Integer, default=0)
     state: Mapped[str] = mapped_column(String(20), default="running")  # running | done
     counts: Mapped[dict] = mapped_column(Json, default=dict)  # outcome -> times recorded (retries included)
+    # where each pass over items already met resumes: {retry|settle|recheck: the last item handled}
+    positions: Mapped[dict] = mapped_column(Json, default=dict)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
