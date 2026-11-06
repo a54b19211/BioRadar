@@ -1,0 +1,13 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_every_outbound_attempt_keeps_its_own_record_and_status"
+}

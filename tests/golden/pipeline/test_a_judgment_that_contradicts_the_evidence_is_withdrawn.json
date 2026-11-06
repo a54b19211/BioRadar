@@ -1,0 +1,13 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_a_judgment_that_contradicts_the_evidence_is_withdrawn"
+}

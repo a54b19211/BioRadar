@@ -1,0 +1,3549 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": {
+     "alert": "important",
+     "hypotheses": [],
+     "judgments": [
+      {
+       "check": "unverified",
+       "conclusion": "有限人群内的重要进展",
+       "confidence": "possible",
+       "consequence": "high",
+       "credibility": "high",
+       "grounds": [],
+       "priority": "high",
+       "question": "是否为重要进展",
+       "unproven": ""
+      }
+     ]
+    },
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [
+     {
+      "denominator": "",
+      "expression": "(1 - x1) * 100",
+      "id": "A1",
+      "label": "风险降低比例",
+      "operands": [
+       {
+        "fact": "F1",
+        "quote": "HR为0.69",
+        "ref": "E1",
+        "value": 0.69
+       }
+      ],
+      "period": "",
+      "population": "",
+      "unit": "%",
+      "value": 31.0
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "report": {
+     "claims": [],
+     "coverage": {
+      "verdict": "incomplete"
+     },
+     "draft": "无。",
+     "read_requests": [],
+     "revised": false,
+     "status": "REVIEW",
+     "versions": [
+      {
+       "claims": [],
+       "draft": "无。",
+       "status": "REVIEW",
+       "step": "generate"
+      }
+     ]
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "result": null,
+   "stage": "done",
+   "state": "queued"
+  }
+ ],
+ "saves": [
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": false,
+      "record_id": "B31",
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": false,
+      "record_id": "B41",
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [
+       "E1"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": false,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "retries": 0,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "available_at": "2026-09-29T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 2,
+      "origin_group": null,
+      "relations": [],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-29",
+     "record_id": "B31",
+     "ref": "E2",
+     "source": "external_archive",
+     "text": "随机试验纳入240例，PFS的HR为0.62。",
+     "title": "XQ-17 随机试验初步结果",
+     "verified": true,
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "radar",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "retries": 0,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "available_at": "2026-09-29T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 2,
+      "origin_group": null,
+      "relations": [],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-29",
+     "record_id": "B31",
+     "ref": "E2",
+     "source": "external_archive",
+     "text": "随机试验纳入240例，PFS的HR为0.62。",
+     "title": "XQ-17 随机试验初步结果",
+     "verified": true,
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "radar",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "compute",
+   "stage": "compute"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "available_at": "2026-09-29T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 2,
+      "origin_group": null,
+      "relations": [],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-29",
+     "record_id": "B31",
+     "ref": "E2",
+     "source": "external_archive",
+     "text": "随机试验纳入240例，PFS的HR为0.62。",
+     "title": "XQ-17 随机试验初步结果",
+     "verified": true,
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "calculate",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "radar",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [
+     {
+      "denominator": "",
+      "expression": "(1 - x1) * 100",
+      "id": "A1",
+      "label": "风险降低比例",
+      "operands": [
+       {
+        "fact": "F1",
+        "quote": "HR为0.69",
+        "ref": "E1",
+        "value": 0.69
+       }
+      ],
+      "period": "",
+      "population": "",
+      "unit": "%",
+      "value": 31.0
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "mechanism",
+   "stage": "mechanism"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "available_at": "2026-09-29T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 2,
+      "origin_group": null,
+      "relations": [],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-29",
+     "record_id": "B31",
+     "ref": "E2",
+     "source": "external_archive",
+     "text": "随机试验纳入240例，PFS的HR为0.62。",
+     "title": "XQ-17 随机试验初步结果",
+     "verified": true,
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "calculate",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "radar",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [
+     {
+      "denominator": "",
+      "expression": "(1 - x1) * 100",
+      "id": "A1",
+      "label": "风险降低比例",
+      "operands": [
+       {
+        "fact": "F1",
+        "quote": "HR为0.69",
+        "ref": "E1",
+        "value": 0.69
+       }
+      ],
+      "period": "",
+      "population": "",
+      "unit": "%",
+      "value": 31.0
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "report",
+   "stage": "report"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "available_at": "2026-09-29T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 2,
+      "origin_group": null,
+      "relations": [],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-29",
+     "record_id": "B31",
+     "ref": "E2",
+     "source": "external_archive",
+     "text": "随机试验纳入240例，PFS的HR为0.62。",
+     "title": "XQ-17 随机试验初步结果",
+     "verified": true,
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "calculate",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "radar",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "biocheck",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "report:generate",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "biocheck",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "report:generate",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "biocheck",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "report:verify",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "biocheck",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "report:verify",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [
+     {
+      "denominator": "",
+      "expression": "(1 - x1) * 100",
+      "id": "A1",
+      "label": "风险降低比例",
+      "operands": [
+       {
+        "fact": "F1",
+        "quote": "HR为0.69",
+        "ref": "E1",
+        "value": 0.69
+       }
+      ],
+      "period": "",
+      "population": "",
+      "unit": "%",
+      "value": 31.0
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "report": {
+     "claims": [],
+     "coverage": {
+      "verdict": "incomplete"
+     },
+     "draft": "无。",
+     "read_requests": [],
+     "revised": false,
+     "status": "REVIEW",
+     "versions": [
+      {
+       "claims": [],
+       "draft": "无。",
+       "status": "REVIEW",
+       "step": "generate"
+      }
+     ]
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "assess",
+   "stage": "assess"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [
+    {
+     "available_at": "2026-09-30T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 1,
+      "origin_group": null,
+      "relations": [
+       {
+        "kind": "corrects",
+        "target_record_id": "B31",
+        "target_source": "external_archive",
+        "target_version_id": null
+       }
+      ],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-30",
+     "record_id": "B41",
+     "ref": "E1",
+     "source": "external_archive",
+     "text": "更正：同一试验PFS的HR为0.69，95%CI 0.51-0.93。",
+     "title": "XQ-17 试验结果更正",
+     "verified": true,
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "available_at": "2026-09-29T08:00:00+08:00",
+     "material_kind": "official_notice",
+     "meta": {
+      "clean_text_choice": null,
+      "clean_text_state": null,
+      "derived": [],
+      "events": [],
+      "material_read_id": 2,
+      "origin_group": null,
+      "relations": [],
+      "table_header_omitted": 0,
+      "text_level": "full_text",
+      "url": null,
+      "window": "full"
+     },
+     "published_at": "2026-09-29",
+     "record_id": "B31",
+     "ref": "E2",
+     "source": "external_archive",
+     "text": "随机试验纳入240例，PFS的HR为0.62。",
+     "title": "XQ-17 随机试验初步结果",
+     "verified": true,
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "read",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "calculate",
+     "total_tokens": 15
+    },
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "assess",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "radar",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "radar",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "read",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "biocheck",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "report:generate",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "biocheck",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "report:generate",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "biocheck",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "report:verify",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 1,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "biocheck",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "report:verify",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 2,
+     "binding": {
+      "chars": 35,
+      "segments": [
+       {
+        "end": 35,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "record_id": "B41",
+         "source": "external_archive",
+         "text_sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+         "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+        "start": 0
+       }
+      ],
+      "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+     },
+     "chars": 35,
+     "llm_call_id": null,
+     "record_id": "B41",
+     "ref": "E1",
+     "service": "biocheck",
+     "sha256": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec",
+     "source": "external_archive",
+     "stage": "report:verify",
+     "status": "sent",
+     "version_id": "vB41000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+     "attempt": 2,
+     "binding": {
+      "chars": 23,
+      "segments": [
+       {
+        "end": 23,
+        "part": {
+         "is_demo": true,
+         "kind": "projection_text",
+         "parser_version": null,
+         "raw_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "record_id": "B31",
+         "source": "external_archive",
+         "text_sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+         "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+        },
+        "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+        "start": 0
+       }
+      ],
+      "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+     },
+     "chars": 23,
+     "llm_call_id": null,
+     "record_id": "B31",
+     "ref": "E2",
+     "service": "biocheck",
+     "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f",
+     "source": "external_archive",
+     "stage": "report:verify",
+     "status": "sent",
+     "version_id": "vB31000000000000000000000000000000000000000000000000000000000000"
+    }
+   ],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 2,
+      "gain": 0.3,
+      "kind": "search",
+      "new": 2,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B41"
+      },
+      "evidence_gain": 1.0,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E1",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "record_id": "B31"
+      },
+      "evidence_gain": 0.6,
+      "gain": 0.0,
+      "kind": "read",
+      "ref": "E2",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": {
+     "alert": "important",
+     "hypotheses": [],
+     "judgments": [
+      {
+       "check": "unverified",
+       "conclusion": "有限人群内的重要进展",
+       "confidence": "possible",
+       "consequence": "high",
+       "credibility": "high",
+       "grounds": [],
+       "priority": "high",
+       "question": "是否为重要进展",
+       "unproven": ""
+      }
+     ]
+    },
+    "checks": [
+     {
+      "evidence": [
+       "E1",
+       "E2"
+      ],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [
+       "XQ-17",
+       "YB-2"
+      ],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [
+     {
+      "denominator": "",
+      "expression": "(1 - x1) * 100",
+      "id": "A1",
+      "label": "风险降低比例",
+      "operands": [
+       {
+        "fact": "F1",
+        "quote": "HR为0.69",
+        "ref": "E1",
+        "value": 0.69
+       }
+      ],
+      "period": "",
+      "population": "",
+      "unit": "%",
+      "value": 31.0
+     }
+    ],
+    "facts": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F1",
+      "object": "XQ-17",
+      "quote": "HR为0.69",
+      "ref": "E1",
+      "stance": "supports",
+      "text": "PFS风险比"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "hypothesis": "",
+      "hypothesis_stance": "none",
+      "id": "F2",
+      "object": "XQ-17",
+      "quote": "HR为0.62",
+      "ref": "E2",
+      "stance": "supports",
+      "text": "PFS风险比"
+     }
+    ],
+    "hits": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": true,
+      "found_by": 2,
+      "read": true,
+      "record_id": "B31",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-29"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 随机试验初步结果"
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "critical": false,
+      "found_by": 1,
+      "read": true,
+      "record_id": "B41",
+      "sketch": {
+       "matched": [
+        "PFS"
+       ],
+       "when": "2026-09-30"
+      },
+      "source": "external_archive",
+      "title": "XQ-17 试验结果更正"
+     }
+    ],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "quote_not_found",
+      "detail": "E1: OS显著延长",
+      "stage": "investigate"
+     },
+     {
+      "code": "quote_not_found",
+      "detail": "E2: OS显著延长",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [
+     "XQ-17",
+     "YB-2"
+    ],
+    "pages": {
+     "external_archive|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 2,
+      "new": 2,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question",
+     "XQ-17": "question",
+     "YB-2": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {
+     "E1": "external_archive|B41",
+     "E2": "external_archive|B31"
+    },
+    "relations": [
+     {
+      "from": "B41",
+      "kind": "corrects",
+      "source": "external_archive",
+      "to": "B31",
+      "to_source": "external_archive",
+      "to_version": null
+     }
+    ],
+    "report": {
+     "claims": [],
+     "coverage": {
+      "verdict": "incomplete"
+     },
+     "draft": "无。",
+     "read_requests": [],
+     "revised": false,
+     "status": "REVIEW",
+     "versions": [
+      {
+       "claims": [],
+       "draft": "无。",
+       "status": "REVIEW",
+       "step": "generate"
+      }
+     ]
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "done",
+   "stage": "done"
+  }
+ ],
+ "scenario": "test_a_check_about_two_objects_is_not_answered_by_facts_about_one"
+}

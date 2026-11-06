@@ -1,0 +1,1014 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "result": null,
+   "stage": "done",
+   "state": "queued"
+  }
+ ],
+ "saves": [
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "compute",
+   "stage": "compute"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "mechanism",
+   "stage": "mechanism"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "report",
+   "stage": "report"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "assess",
+   "stage": "assess"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "华南海鲜"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "武汉",
+       "华南海鲜"
+      ],
+      "id": "Q1",
+      "importance": 0.5,
+      "objects": [],
+      "required": false,
+      "status": "open",
+      "text": "武汉卫健委是否确认华南海鲜市场聚集"
+     },
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q2",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:武汉、华南海鲜；Q2:",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "external_archive|华南海鲜": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "华南海鲜": "exploratory",
+     "武汉": "exploratory"
+    },
+    "plan_removed": [
+     {
+      "basis": "exploratory",
+      "checks": [
+       "Q1"
+      ],
+      "name": "武汉"
+     }
+    ],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "华南海鲜"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "done",
+   "stage": "done"
+  }
+ ],
+ "scenario": "test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_itself"
+}

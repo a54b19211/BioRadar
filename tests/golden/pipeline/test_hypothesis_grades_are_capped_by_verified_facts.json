@@ -1,0 +1,13 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_hypothesis_grades_are_capped_by_verified_facts"
+}

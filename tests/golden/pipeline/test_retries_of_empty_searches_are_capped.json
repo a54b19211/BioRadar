@@ -1,0 +1,9596 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 6,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "result": null,
+   "stage": "done",
+   "state": "queued"
+  }
+ ],
+ "saves": [
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 2,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 4,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "compute",
+   "stage": "compute"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "mechanism",
+   "stage": "mechanism"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 6,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "report",
+   "stage": "report"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 6,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "assess",
+   "stage": "assess"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "无0",
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1",
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2",
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无3",
+        "空3"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无4",
+        "空4"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无5",
+        "空5"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无6",
+        "空6"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无7",
+        "空7"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空0"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空1"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "无2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     },
+     {
+      "args": {
+       "terms": [
+        "空2"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "external_archive",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "external_archive|无0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无0|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无1|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无2|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无3|空3": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无4|空4": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无5|空5": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无6|空6": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|无7|空7": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空0": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空1": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     },
+     "external_archive|空2": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "无0": "exploratory",
+     "无1": "exploratory",
+     "无2": "exploratory",
+     "无3": "exploratory",
+     "无4": "exploratory",
+     "无5": "exploratory",
+     "无6": "exploratory",
+     "无7": "exploratory",
+     "空0": "exploratory",
+     "空1": "exploratory",
+     "空2": "exploratory",
+     "空3": "exploratory",
+     "空4": "exploratory",
+     "空5": "exploratory",
+     "空6": "exploratory",
+     "空7": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0",
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1",
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2",
+       "空2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无3",
+       "空3"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无4",
+       "空4"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无5",
+       "空5"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无6",
+       "空6"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无7",
+       "空7"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空0"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空1"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "无2"
+      ]
+     },
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "空2"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 6,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "done",
+   "stage": "done"
+  }
+ ],
+ "scenario": "test_retries_of_empty_searches_are_capped"
+}

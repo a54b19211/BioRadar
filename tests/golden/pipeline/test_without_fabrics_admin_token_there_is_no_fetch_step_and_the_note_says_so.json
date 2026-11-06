@@ -1,0 +1,1606 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "result": null,
+   "stage": "done",
+   "state": "queued"
+  },
+  {
+   "id": "<id2>",
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "result": null,
+   "stage": "done",
+   "state": "queued"
+  }
+ ],
+ "saves": [
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "compute",
+   "stage": "compute"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "mechanism",
+   "stage": "mechanism"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "report",
+   "stage": "report"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "assess",
+   "stage": "assess"
+  },
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "fetch_not_configured",
+      "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+      "stage": "investigate"
+     }
+    ],
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "done",
+   "stage": "done"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "continue",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": null,
+   "stage": "investigate"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "compute",
+   "stage": "compute"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "mechanism",
+   "stage": "mechanism"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "report",
+   "stage": "report"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "assess",
+   "stage": "assess"
+  },
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [
+     {
+      "args": {
+       "terms": [
+        "PFS"
+       ]
+      },
+      "found": 0,
+      "gain": 0.0,
+      "kind": "search",
+      "new": 0,
+      "origin": "plan",
+      "source": "clinicaltrials",
+      "status": "completed",
+      "target_checks": [
+       "Q1"
+      ]
+     }
+    ],
+    "assessment": null,
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "computations": [],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "mechanism_result": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {
+     "clinicaltrials|PFS": {
+      "at": "<now>",
+      "checks": [
+       "Q1"
+      ],
+      "cursor": null,
+      "found": 0,
+      "new": false,
+      "pages": 1
+     }
+    },
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "report": {
+     "draft": "",
+     "reason": "no_evidence",
+     "revised": false,
+     "status": "NOT_RUN",
+     "versions": []
+    },
+    "retries": 0,
+    "stop": {
+     "decision": "complete",
+     "reason": "test"
+    },
+    "used_previous": false
+   },
+   "saved": "done",
+   "stage": "done"
+  }
+ ],
+ "scenario": "test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so"
+}

@@ -1,0 +1,20 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id2>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_a_percentage_whose_units_cannot_be_read_from_the_quotes_is_not_computed"
+}

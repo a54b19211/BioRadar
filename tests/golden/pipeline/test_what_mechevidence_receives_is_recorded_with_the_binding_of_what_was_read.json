@@ -1,0 +1,13 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_read"
+}

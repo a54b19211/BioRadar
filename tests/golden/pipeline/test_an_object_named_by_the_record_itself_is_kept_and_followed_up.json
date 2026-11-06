@@ -1,0 +1,13 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_an_object_named_by_the_record_itself_is_kept_and_followed_up"
+}

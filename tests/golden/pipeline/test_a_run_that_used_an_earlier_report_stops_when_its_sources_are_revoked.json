@@ -1,0 +1,132 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": {
+    "draft": "上一轮稿件[E1]。"
+   },
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id2>",
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": true
+   },
+   "result": null,
+   "stage": "investigate",
+   "state": "queued"
+  }
+ ],
+ "saves": [
+  {
+   "analysis": "<id2>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "question"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": true
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  }
+ ],
+ "scenario": "test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked"
+}

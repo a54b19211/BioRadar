@@ -1,0 +1,183 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": {
+    "draft": "根稿[E1]。"
+   },
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id2>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id3>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id4>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id5>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id6>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id7>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id8>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id9>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id10>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id11>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id12>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id13>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id14>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id15>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id16>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id17>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id18>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id19>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id20>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id21>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id22>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id23>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id24>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id25>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_is_unknown"
+}

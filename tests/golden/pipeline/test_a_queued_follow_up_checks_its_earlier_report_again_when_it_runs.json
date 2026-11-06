@@ -1,0 +1,22 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": {
+    "draft": "上一轮稿件[E1]。"
+   },
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id2>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_a_queued_follow_up_checks_its_earlier_report_again_when_it_runs"
+}

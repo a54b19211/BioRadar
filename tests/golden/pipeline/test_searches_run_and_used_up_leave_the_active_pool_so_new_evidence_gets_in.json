@@ -1,0 +1,20 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  },
+  {
+   "id": "<id2>",
+   "progress": {},
+   "result": null,
+   "stage": "plan",
+   "state": "queued"
+  }
+ ],
+ "saves": [],
+ "scenario": "test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in"
+}

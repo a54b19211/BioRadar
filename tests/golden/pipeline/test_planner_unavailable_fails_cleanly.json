@@ -1,0 +1,141 @@
+{
+ "final": [
+  {
+   "id": "<id1>",
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "PFS"
+      ],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:PFS",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "result": null,
+   "stage": "investigate",
+   "state": "queued"
+  }
+ ],
+ "saves": [
+  {
+   "analysis": "<id1>",
+   "evidence": [],
+   "llm_calls": [
+    {
+     "completion_tokens": 5,
+     "error": null,
+     "finish_reason": "stop",
+     "http": null,
+     "model": "fake",
+     "prompt_tokens": 10,
+     "requests": 1,
+     "seconds": 0.1,
+     "service": "radar",
+     "stage": "plan",
+     "total_tokens": 15
+    }
+   ],
+   "material_reads": [],
+   "progress": {
+    "actions": [],
+    "checks": [
+     {
+      "evidence": [],
+      "exploratory": [
+       "PFS"
+      ],
+      "id": "Q1",
+      "importance": 1.0,
+      "objects": [],
+      "required": true,
+      "status": "open",
+      "text": "当前PFS疗效数值"
+     }
+    ],
+    "facts": [],
+    "hits": [],
+    "hypotheses": [],
+    "judgments": [
+     "是否为重要进展"
+    ],
+    "mechanism": null,
+    "needs_calculation": true,
+    "notes": [
+     {
+      "code": "plan_exploratory_scope",
+      "detail": "Q1:PFS",
+      "stage": "plan"
+     }
+    ],
+    "objects": [],
+    "pages": {},
+    "plan_basis": {
+     "PFS": "exploratory"
+    },
+    "plan_removed": [],
+    "queries": [
+     {
+      "checks": [
+       "Q1"
+      ],
+      "origin": "plan",
+      "terms": [
+       "PFS"
+      ]
+     }
+    ],
+    "refs": {},
+    "relations": [],
+    "retries": 0,
+    "used_previous": false
+   },
+   "saved": "investigate",
+   "stage": "investigate"
+  }
+ ],
+ "scenario": "test_planner_unavailable_fails_cleanly"
+}
