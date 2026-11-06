@@ -50,7 +50,7 @@ def one(monkeypatch, measures, *, text=TEXT, post=None, rid="R1", day="2026-05-0
     current checker)."""
     calls = []
     post = post or biocheck_fake(calls=calls)
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monkeypatch.setattr(llm, "chat_json", fake_triage({text: (measures, "normal")}, [], topic_title="批准"))
     fabric = FakeFabric([record(rid, text, text, available=day + "T08:00:00+08:00")], clean=True)
     monitor.tick(is_demo=True, fabric=fabric)
@@ -89,12 +89,12 @@ def test_a_consistent_exact_actual_answer_is_stored_as_checked_and_reads_back_eq
     assert (check.gate, check.status, check.checker_version, point.check_id) == (
         "series",
         "consistent",
-        ec.CHECKER_V10,
+        ec.CHECKER_V11,
         check.id,
     )
     body = calls[0]
     assert (
-        body["contract_version"] == ec.CONTRACT_V2 and body["items"][0]["fields"]["value"]["value"] == "318"
+        body["contract_version"] == ec.CONTRACT_V3 and body["items"][0]["fields"]["value"]["value"] == "318"
     )
     a, b = body["items"][0]["locator"]["start"], body["items"][0]["locator"]["end"]
     assert (
@@ -188,7 +188,7 @@ def test_a_service_failure_is_unchecked_then_checked_on_retry(monkeypatch):
         "service_unavailable"
     ]
     post = biocheck_fake()
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     due_now()
     monitor.tick(is_demo=True, fabric=fabric)
     assert len(rows(db.Measurement)) == 1 and [c.gate for c in rows(db.MeasurementCheck)] == [
@@ -200,7 +200,7 @@ def test_a_service_failure_is_unchecked_then_checked_on_retry(monkeypatch):
 def test_a_changed_artifact_is_never_sent(monkeypatch):
     calls = []
     post = biocheck_fake(calls=calls)
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monkeypatch.setattr(
         llm, "chat_json", fake_triage({TEXT: ([measure()], "normal")}, [], topic_title="批准")
     )
@@ -219,7 +219,7 @@ def test_permission_withdrawn_during_the_call_is_not_adopted(monkeypatch):
         return response
 
     post = biocheck_fake(answer)
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monkeypatch.setattr(
         llm, "chat_json", fake_triage({TEXT: ([measure()], "normal")}, [], topic_title="批准")
     )
@@ -250,17 +250,18 @@ def test_revocation_and_recovery_move_a_point_out_of_and_back_into_the_effective
 def test_a_checker_upgrade_takes_points_out_until_the_new_checker_confirms_them(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
-    v8 = "biocheck.extraction_rules.v11"  # a hypothetical next checker (v10 is the current one)
-    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V10])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V10])
-    monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V2)
+    v8 = "biocheck.extraction_rules.v12"  # a hypothetical next checker (v11 is the current one)
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V11])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V11])
+    monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V3)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
+    monkeypatch.setattr(ec, "DIM_CHECKERS", ec.DIM_CHECKERS | {v8})  # it answers dimensions too
     monkeypatch.setattr(measure_checks, "CHECKER", v8)
     assert effective_ids() == []  # no v8 check yet: not current
     with db.session() as s:
         assert measure_checks.backfill(s, monitor.settings()) == 1
     post = biocheck_fake(lambda body, response: dict(response, checker_version=v8))
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monitor.tick(is_demo=True, fabric=fabric)
     assert effective_ids() == [point.id] and len(rows(db.Measurement)) == 1
 
@@ -353,8 +354,9 @@ from fastapi.testclient import TestClient
 from app.service import create_app
 from conftest import FakeLLM
 with TestClient(create_app(FakeLLM()), raise_server_exceptions=False) as client:
-    r = client.post("/v2/extraction-consistency", json=json.load(sys.stdin),
-                    headers={"Authorization": "Bearer t"})
+    body = json.load(sys.stdin)
+    path = "/%s/extraction-consistency" % ("v3" if body["contract_version"].endswith("v3") else "v2")
+    r = client.post(path, json=body, headers={"Authorization": "Bearer t"})
     print(json.dumps({"status": r.status_code, "body": r.json()}, ensure_ascii=False))
 """
 real = pytest.mark.skipif(not SRC, reason="BIORADAR_TEST_BIOCHECK_SRC (a BioCheck checkout) is not set")
@@ -488,7 +490,7 @@ def test_a_context_beyond_the_contract_limit_stays_pending(monkeypatch):
         monkeypatch.setattr(s, name, value)
     calls = []
     post = biocheck_fake(calls=calls)
-    monkeypatch.setattr(services, "biocheck_v2", lambda s_, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s_, body: post(body))
 
     def chat_json(settings_, stage, system, payload, model_cls, **options):
         call = {
@@ -520,7 +522,7 @@ def test_a_context_beyond_the_contract_limit_stays_pending(monkeypatch):
 def test_a_200_that_is_not_json_is_unchecked_and_the_round_goes_on(monkeypatch, body):
     import httpx
 
-    real = services.biocheck_v2
+    real = services.biocheck_extraction
     monkeypatch.setattr(services.httpx, "post", lambda *a, **k: httpx.Response(200, text=body))
     fabric, _ = one(
         monkeypatch,
@@ -575,7 +577,7 @@ def test_a_point_stored_before_checking_is_re_extracted_checked_and_becomes_curr
         )
     assert effective_ids() == []
     post = biocheck_fake()
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monkeypatch.setattr(
         llm, "chat_json", fake_triage({TEXT: ([measure()], "normal")}, [], topic_title="批准")
     )
@@ -623,7 +625,7 @@ def test_an_analysis_records_each_point_with_the_check_that_admitted_it(monkeypa
     with db.session() as s:
         got = measure_checks.series_points(s, [point.id])
     assert got[0]["value"] == "318" and got[0]["extraction_check"]["gate"] == "series"
-    assert got[0]["extraction_check"]["checker_version"] == ec.CHECKER_V10
+    assert got[0]["extraction_check"]["checker_version"] == ec.CHECKER_V11
     fabric.revoked.add(point.version_id)
     monitor.tick(is_demo=True, fabric=fabric)
     with db.session() as s:
@@ -723,7 +725,7 @@ def test_the_planner_receives_the_current_state_of_each_value(monkeypatch):
     assert sent["current"] is True and sent["value"] == "318" and sent["record_id"] == point.record_id
     assert (
         sent["extraction_check"]["gate"] == "series"
-        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V10
+        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V11
     )
 
 
@@ -928,14 +930,15 @@ def test_after_an_upgrade_every_reader_cites_the_current_check(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
     first = point.check_id
-    v8 = "biocheck.extraction_rules.v11"  # the next checker
-    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V10])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V10])
-    monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V2)
+    v8 = "biocheck.extraction_rules.v12"  # the next checker
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V11])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V11])
+    monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V3)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
+    monkeypatch.setattr(ec, "DIM_CHECKERS", ec.DIM_CHECKERS | {v8})  # it answers dimensions too
     monkeypatch.setattr(measure_checks, "CHECKER", v8)
     post = biocheck_fake(lambda body, response: dict(response, checker_version=v8))
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monitor.tick(is_demo=True, fabric=fabric)
     [now] = rows(db.Measurement)
     with db.session() as s:

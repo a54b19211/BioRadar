@@ -163,7 +163,7 @@ CALL = {"stage": "triage", "model": "fake", "finish_reason": "stop", "usage": {}
 def feed(monkeypatch, specs):
     """specs: (record id, month, value, {dim: text}); one tick per record, all placed in topic 炭疽."""
     post = biocheck_fake()
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     by_text, records = {}, []
     for day_, (rid, month, value, stated) in enumerate(specs, 1):
         sentence = f"2026年{month}月医院A在湖北省新增确诊病例{value}例。"

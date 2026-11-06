@@ -9,8 +9,8 @@ from bioradar.research import schemas
 
 
 def test_the_producer_and_checker_versions():
-    assert mc.CHECKER == ec.CHECKER_V10 == "biocheck.extraction_rules.v10"
-    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v7"}
+    assert mc.CHECKER == ec.CHECKER_V11 == "biocheck.extraction_rules.v11"
+    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v8"}
 
 
 def spans_of(metric, unit):

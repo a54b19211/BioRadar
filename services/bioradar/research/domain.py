@@ -92,6 +92,12 @@ def group_key(family, dims):
     return "sha256:" + hashlib.sha256(body.encode("utf-8")).hexdigest()
 
 
+def _dims_answered(check):
+    """{kind: result} of the dimensions checker v11 answered (contract v3), from the stored response."""
+    response = (check.response if check is not None else None) or {}
+    return ((response.get("items") or [{}])[0]).get("dims") or {}
+
+
 def _fields(check):
     """{name: (result, value, span)} of the item the check answered, from its stored request and response."""
     request = (check.request if check is not None else None) or {}
@@ -110,6 +116,8 @@ def series_gate(measure, final, check):
     """{family, dims, dims_key, reasons} of a checked point. reasons empty = complete and proven: the point
     may be compared automatically in its group; otherwise each gap, and nothing is computed from it."""
     fields, asked = _fields(check)
+    answered = _dims_answered(check)
+    unlocated = {u.get("kind"): u for u in final.get("dims_unlocated") or []}
     check_id = getattr(check, "id", None)
 
     def matched(name):
@@ -167,14 +175,31 @@ def series_gate(measure, final, check):
             if dim is not None and kind in stated and _norm(stated[kind]["text"]) not in dim["norm"]:
                 dim = None  # the measure states it otherwise: a stated dimension is never replaced by a carry
         if dim is None and kind in stated:
-            # written and located by the producer, not yet checked as this value's (checker v11 does that)
-            dim = {
-                "kind": kind,
-                "norm": _norm(stated[kind]["text"]),
-                "state": "stated_unchecked",
-                "text": stated[kind]["text"],
-                "source": stated[kind].get("source") or "quote",
-            }
+            got = answered.get(kind) or {}
+            if got.get("result") == "match" and got.get("span"):
+                # checker v11: its literal, its relation to the value and its role, from the text (Codex 740)
+                dim = {
+                    "kind": kind,
+                    "norm": _norm(stated[kind]["text"]),
+                    "state": "checked",
+                    "text": stated[kind]["text"],
+                    "proof": {
+                        "check_id": check_id,
+                        "result": "match",
+                        "reason": got.get("reason"),
+                        "span": got["span"],
+                    },
+                }
+            else:
+                # stated, not proven: not located in its cited source, or not matched by the checker
+                dim = {
+                    "kind": kind,
+                    "norm": _norm(stated[kind]["text"]),
+                    "state": "stated_unchecked",
+                    "text": stated[kind]["text"],
+                    "source": stated[kind].get("source") or "quote",
+                    "why": (unlocated.get(kind) or {}).get("reason") or got.get("reason") or "not_answered",
+                }
         if dim is None:
             dim = {"kind": kind, "norm": "", "state": "unknown"}
         dims.append(dim)

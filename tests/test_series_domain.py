@@ -40,7 +40,7 @@ def run(monkeypatch, specs):
     """specs: (record id, topic title or "", month, value, relations); one tick per record, in order.
     Each record goes to the existing topic of that title (or opens it); "" places it in none."""
     post = biocheck_fake()
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     by_text = {}
     records = []
     for day, (rid, topic, month, value, relations) in enumerate(specs, 1):

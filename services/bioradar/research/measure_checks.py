@@ -27,12 +27,11 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of, tables_of
 
-# measure.v5 / checker v10: as measure.v4 (whole written periods), and a unit in the bound metric phrase is
-# located only as the head of the phrase's own subject, never a subset named after including / excluding /
-# such as - extraction_normalize.v3, the functions BioCheck v10 uses (measure.v4 / v9 and
-# earlier: as released)
-CHECKER, CONTRACT = ec.CHECKER_V10, ec.CONTRACT_V2
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v7"}
+# measure.v8 / checker v11 / contract v3: as measure.v7, and the dimensions the measure states are located in
+# their cited sources and sent with the item for checker v11 to judge each (extraction_normalize.v4 for the
+# unit); earlier producers and checkers as released
+CHECKER, CONTRACT = ec.CHECKER_V11, ec.CONTRACT_V3
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v8"}
 # measure.v7 (T-24 complete domain): the measure also names its metric family and the dimensions the record
 # states; a point is compared automatically only in a complete, proven group (research/domain.py)
 # measure.v6 (B r2): a measure may cite the source of its period / object / scope / denominator literal - the
@@ -127,12 +126,13 @@ def clause(text, a, b):
     return s, (min(ends) + 1 if ends else len(text))
 
 
-def cited_sources(session, candidate):
+def cited_sources(session, candidate, wanted=None):
     """({source: [(start, end)] in the artifact}, None) for every non-quote source the candidate's measure
     cites, or (None, reason). A source counts only as sent in the candidate's own send - its material_read
     (window) and, for a context, the row W{i}.<source> of that same model call - each bound to the
     candidate's artifact (version, raw hash, processor, text hash). Never another send of the same text."""
-    wanted = {v for v in (candidate.measure.get("sources") or {}).values() if v != "quote"}
+    if wanted is None:  # the field sources: strict - the value is not built without them
+        wanted = {v for v in (candidate.measure.get("sources") or {}).values() if v != "quote"}
     if not wanted:
         return {}, None
     sent = session.get(db.MaterialRead, candidate.material_read_id) if candidate.material_read_id else None
@@ -171,6 +171,19 @@ def cited_sources(session, candidate):
     return out, None
 
 
+def cited_dim_sources(session, candidate):
+    """({source: ranges}, {source: why}) for the sources the stated dimensions cite, each resolved on its own:
+    one not sent with this candidate, or stale, only leaves its dimensions unlocated (Codex 740)."""
+    found, failed = {}, {}
+    for name in sorted({d.get("source") for d in candidate.measure.get("dims") or []} - {None, "quote"}):
+        got, why = cited_sources(session, candidate, wanted={name})
+        if got is None:
+            failed[name] = why
+        else:
+            found.update(got)
+    return found, failed
+
+
 def _in_source(text, q0, q1, name, literal, source, cited, spans):
     """(offset, None) of the literal's one occurrence in the cited source, or (None, reason)."""
     ranges = [(q0, q1)] if source == "quote" else (cited or {}).get(source)
@@ -201,6 +214,27 @@ def _in_source(text, q0, q1, name, literal, source, cited, spans):
             if end > table["header_start"] or text[end : table["header_start"]].strip():
                 return None, "source_not_of_value_table"
     return at, None
+
+
+def locate_dims(text, q0, q1, m, cited, spans, failed=None):
+    """({kind: (start, end)}, [unlocated]) of the dimensions the measure states, each looked up in its cited
+    source only (measure.v6 rules); an unlocated one is kept with why - never dropped as if never stated."""
+    located, unlocated, seen = {}, [], set()
+    for d in m.get("dims") or []:
+        kind, literal, source = d.get("kind"), d.get("text") or "", d.get("source") or "quote"
+        if kind in seen or kind not in ec.DIM_KINDS or not literal:
+            unlocated.append({"kind": kind, "text": literal, "source": source, "reason": "dim_not_sendable"})
+            continue
+        seen.add(kind)
+        if source in (failed or {}):
+            unlocated.append({"kind": kind, "text": literal, "source": source, "reason": failed[source]})
+            continue
+        at, why = _in_source(text, q0, q1, f"dim_{kind}", literal, source, cited, spans)
+        if why:
+            unlocated.append({"kind": kind, "text": literal, "source": source, "reason": why})
+            continue
+        located[kind] = (at, at + len(literal))
+    return located, unlocated
 
 
 def locate(text, q0, q1, m, cited=None):
@@ -268,7 +302,7 @@ def locate(text, q0, q1, m, cited=None):
         if off is not None:
             u = v_end + off
             m0, m1 = spans.get("metric", (0, 0))
-            if m0 <= u < u + len(unit) <= m1 and not norm.unit_subject_head(
+            if m0 <= u < u + len(unit) <= m1 and not norm.unit_subject_head_v4(
                 text, v_end, u, u + len(unit), m0, m1
             ):
                 # right after the value but a word of the metric phrase that is not its head counting noun
@@ -278,7 +312,7 @@ def locate(text, q0, q1, m, cited=None):
         elif "metric" in spans:  # the head of the bound metric phrase's subject (extraction_normalize.v3)
             m0, m1 = spans["metric"]
             u = text.find(unit, m0, m1)
-            if u < 0 or not norm.unit_subject_head(text, v_end, u, u + len(unit), m0, m1):
+            if u < 0 or not norm.unit_subject_head_v4(text, v_end, u, u + len(unit), m0, m1):
                 return None, "unit_literal_not_at_the_value"
             spans["unit"] = (u, u + len(unit))
         else:
@@ -312,7 +346,7 @@ def context_start(text, pos):
     return min(starts, default=pos)
 
 
-def build(candidate, text, cited=None):
+def build(candidate, text, cited=None, dims_failed=None):
     """The contract-v2 request of one candidate over its re-read artifact text, or (None, reason). cited: the
     sources its measure cites (cited_sources()); a cited context outside the primary passage is a context
     passage of its own (passages never overlap), a cited context inside it is a span of the primary one."""
@@ -327,7 +361,14 @@ def build(candidate, text, cited=None):
     spans, why = locate(text, candidate.quote_start, candidate.quote_end, m, cited)
     if spans is None:
         return None, why
-    sources = m.get("sources") or {}
+    dims_at, dims_unlocated = locate_dims(
+        text, candidate.quote_start, candidate.quote_end, m, cited, spans, dims_failed
+    )
+    sources = dict(m.get("sources") or {})
+    for d in m.get("dims") or []:
+        if d.get("kind") in dims_at:
+            sources[f"dim:{d['kind']}"] = d.get("source") or "quote"
+    spans = dict(spans, **{f"dim:{k}": v for k, v in dims_at.items()})
     outer = {n for n in spans if sources.get(n) in CONTEXT_SOURCES}  # placed after the primary passage
     base = {n: v for n, v in spans.items() if n not in outer}
     lo = max(0, min([candidate.quote_start] + [a for a, _ in base.values()]) - WINDOW)
@@ -408,9 +449,16 @@ def build(candidate, text, cited=None):
                 "locator": {"passage": "p1", "start": candidate.quote_start, "end": candidate.quote_end},
                 "quote": m["quote"],
                 "fields": fields,
+                "family": m.get("family") or "",
+                "dims": [
+                    {"kind": k, "state": "stated", "value": text[a:b], "span": span(f"dim:{k}")}
+                    for k, (a, b) in dims_at.items()
+                ],
             }
         ],
     }
+    # the dimensions stated but not sendable stay with the candidate's final values, with why (Codex 740)
+    final = dict(final, dims_unlocated=dims_unlocated)
     return (body, final), None
 
 
@@ -649,7 +697,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
     """Process due check tasks. adopt(session, s, candidate, final, check_id) stores the point and runs the
     series logic,
     returning the topics owed an analysis. Returns {topic_id: "series_change"} for the round's wake list."""
-    post = client_post or (lambda body: services.biocheck_v2(s, body))
+    post = client_post or (lambda body: services.biocheck_extraction(s, body))
     owed = {}
     for _ in range(limit):
         now = datetime.now(UTC)
@@ -665,8 +713,11 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
         if text is not None:
             with db.session() as session:  # the sources it cites, in its own send only (measure.v6)
                 cited, why = cited_sources(session, candidate)
+                dim_cited, dims_failed = (
+                    cited_dim_sources(session, candidate) if cited is not None else ({}, {})
+                )
             if cited is not None:
-                built, why = build(candidate, text, cited)
+                built, why = build(candidate, text, {**dim_cited, **cited}, dims_failed)
         response, error = None, None
         if built is not None:
             try:

@@ -69,6 +69,28 @@ def biocheck_v2(settings: Settings, body: dict) -> dict:
     )
 
 
+EXTRACTION_PATHS = {
+    "extraction_consistency.v2": "/v2/extraction-consistency",
+    "extraction_consistency.v3": "/v3/extraction-consistency",
+}
+
+
+def biocheck_extraction(settings: Settings, body: dict) -> dict:
+    """Extraction consistency at the endpoint of the request's own contract: v2 (checkers v7-v10) or v3
+    (checker v11, per-dimension results); a contract this client does not know is never sent."""
+    path = EXTRACTION_PATHS.get(body.get("contract_version"))
+    if path is None:
+        raise ServiceError("biocheck", "invalid_request")
+    return _post(
+        "biocheck",
+        settings.biocheck_url,
+        settings.biocheck_token,
+        path,
+        body,
+        settings.service_timeout_seconds,
+    )
+
+
 def mechevidence(settings: Settings, body: dict) -> dict:
     return _post(
         "mechevidence",

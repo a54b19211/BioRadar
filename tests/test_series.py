@@ -158,7 +158,7 @@ def feed(records):
 
 def checked(monkeypatch):
     post = biocheck_fake()
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
 
 
 def lines(period, value, status, quote, obj="甲公司"):

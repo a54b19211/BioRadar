@@ -86,7 +86,7 @@ def model(calls, *, error_for=None, extract_over=None, quote=QUOTE, by_quote=Non
 def stand_ins(monkeypatch):
     calls, checks = [], []
     post = biocheck_fake(calls=checks)
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: post(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
     monkeypatch.setattr(llm, "chat_json", model(calls))
     return calls, checks
 
@@ -224,7 +224,7 @@ def test_a_sentence_in_the_overlap_found_twice_is_one_candidate(stand_ins):
 def test_the_same_statement_read_differently_in_an_overlap_is_still_one_candidate(monkeypatch):
     """Window 1 states the overlap's measure with another status: same place, same value and metric - one."""
     calls = []
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     monkeypatch.setattr(llm, "chat_json", model(calls, extract_over={"status": "confirmed"}))
     monitor.tick(is_demo=True, fabric=feed(text_with(1300, n=2600)))
     assert len(candidates()) == 1
@@ -245,7 +245,7 @@ def test_a_statement_longer_than_the_overlap_across_a_border_is_in_no_window_and
     spans = continuation.windows_of(text, 300)
     assert len(long) > 500 and not any(a <= 1100 and 1100 + len(long) <= b for a, b in spans)
     calls = []
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     monkeypatch.setattr(llm, "chat_json", model(calls, quote=long[:-1]))
     ticks(feed(text), 3)
     assert candidates() == [] and plans()[0][1] == "complete"
@@ -263,7 +263,7 @@ def test_a_repeated_sentence_is_located_by_the_window_that_read_it(stand_ins):
 
 def test_triage_does_not_build_a_quote_it_cannot_have_read(monkeypatch):
     """A triage answer quoting text beyond its window is not built (quote_not_in_window)."""
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
 
     def beyond(settings_, stage, system, payload, model_cls, **options):
         call = {
@@ -361,7 +361,7 @@ def test_reading_is_fair_across_sources(stand_ins, monkeypatch):
 
 def test_read_until_is_the_contiguous_front_and_a_failed_window_is_a_hole(monkeypatch):
     calls = []
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     monkeypatch.setattr(llm, "chat_json", model(calls, error_for=lambda n: "timeout" if n == 1 else None))
     monkeypatch.setattr(monitor.settings(), "continuation_windows_per_call", 1)
     text = text_with(100)
@@ -387,7 +387,7 @@ def test_a_withdrawn_permission_pauses_the_plan_and_it_reads_on_when_restored(st
 
 def test_a_spent_model_budget_leaves_windows_owed_without_spending_attempts(monkeypatch):
     calls = []
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     monkeypatch.setattr(
         llm, "chat_json", model(calls, error_for=lambda n: "http_error:429" if n == 1 else None)
     )
@@ -400,7 +400,7 @@ def test_a_spent_model_budget_leaves_windows_owed_without_spending_attempts(monk
 
 def test_failures_are_retried_a_bounded_number_of_times(monkeypatch):
     calls = []
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     monkeypatch.setattr(llm, "chat_json", model(calls, error_for=lambda n: "timeout"))
     ticks(feed(text_with(100, n=2600)), 4)
     assert windows()[1][3:] == ("failed_final", 3)
@@ -457,7 +457,7 @@ def run_two_months(monkeypatch, at):
         QUOTE: {},
         QUOTE.replace("318", "900"): {"value_text": "900", "period_text": "2026年5月", "period": "2026-05"},
     }
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     monkeypatch.setattr(llm, "chat_json", model([], by_quote=by_quote))
     fabric = feed(text_with(100, n=1400))
     monitor.tick(is_demo=True, fabric=fabric)
@@ -600,7 +600,7 @@ def test_a_lease_that_ran_out_during_the_model_call_is_not_used(monkeypatch):
     import time
 
     calls = []
-    monkeypatch.setattr(services, "biocheck_v2", lambda s, body: biocheck_fake()(body))
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: biocheck_fake()(body))
     slow = model(calls)
 
     def slow_extract(settings_, stage, system, payload, model_cls, **options):
