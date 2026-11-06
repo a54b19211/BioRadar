@@ -15,18 +15,19 @@ artifact is no longer readable are history, not current."""
 import hashlib
 import json
 import re
-import uuid
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import extraction_contract as ec
 from extraction_contract import normalize as norm
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of, tables_of
+from bioradar.research import lease
+from bioradar.research.clock import utc
 
 # The producer (triage's measure prompt and rules) and the checker its measures are checked by. A change of
 # what triage extracts or of how it is checked is a new version, and what earlier versions produced is kept
@@ -596,7 +597,7 @@ def backfill(session, s):
 
 
 def _claim(is_demo, now):
-    token = uuid.uuid4().hex
+    token = lease.new_token()
     with db.session() as session:
         task = session.scalars(
             select(db.MeasurementCheckTask)
@@ -606,7 +607,7 @@ def _claim(is_demo, now):
                 db.MeasurementCheckTask.state.in_(("queued", "waiting", "done")),
                 db.MeasurementCheckTask.next_check_at <= now,
                 db.MeasurementCandidate.is_demo == is_demo,
-                or_(db.MeasurementCheckTask.lease_until.is_(None), db.MeasurementCheckTask.lease_until < now),
+                lease.claimable(db.MeasurementCheckTask, now),
             )
             .order_by(db.MeasurementCheckTask.next_check_at)
             .limit(1)
@@ -614,24 +615,8 @@ def _claim(is_demo, now):
         ).first()
         if task is None:
             return None
-        task.lease_token, task.lease_until = token, now + LEASE
+        lease.take([task], token, now, LEASE)
         return task.candidate_id, token
-
-
-def _own(session, candidate_id, token, now):
-    task = session.get(db.MeasurementCheckTask, (candidate_id, CHECKER), with_for_update=True)
-    return (
-        task
-        if task is not None
-        and task.lease_token == token
-        and task.lease_until
-        and _utc(task.lease_until) >= now
-        else None
-    )
-
-
-def _utc(value):
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
 
 
 def _readback(fabric, candidate):
@@ -686,11 +671,15 @@ def _append(session, candidate, *, status, gate, error=None, reason=None, body=N
 
 
 def _finish(task, now, state, delay=None):
-    task.state, task.lease_token, task.lease_until = state, None, None
-    task.attempts = task.attempts + 1 if state == "waiting" else task.attempts
-    if state == "waiting" and task.attempts >= MAX_ATTEMPTS:
-        state = task.state = "blocked"  # bounded: a failure that keeps coming back is left for review
-    task.next_check_at = now + (delay or PARKED)
+    """Settle a claimed task. "waiting" is a failed attempt, retried with backoff and blocked after
+    MAX_ATTEMPTS (bounded: a failure that keeps coming back is left for review)."""
+    rule = {"due": "next_check_at", "delay": delay or PARKED}
+    if state == "waiting":
+        lease.fail_with_backoff(
+            task, now, max_attempts=MAX_ATTEMPTS, retry_state="waiting", final_state="blocked", **rule
+        )
+    else:
+        lease.finish(task, state, now, **rule)
 
 
 def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
@@ -734,7 +723,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                 error = "service_unavailable"
         with db.session() as session:
             now = datetime.now(UTC)
-            task = _own(session, candidate_id, token, now)
+            task = lease.own(session, db.MeasurementCheckTask, (candidate_id, CHECKER), token, now)
             if task is None:
                 continue  # the lease went to another worker: its result counts, not this one
             cand = session.get(db.MeasurementCandidate, candidate_id)
@@ -744,9 +733,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                     task,
                     now,
                     "waiting",
-                    timedelta(seconds=BACKOFF[min(task.attempts, len(BACKOFF) - 1)])
-                    if why == "fabric_unavailable"
-                    else PARKED,
+                    lease.backoff(task.attempts, BACKOFF) if why == "fabric_unavailable" else PARKED,
                 )
                 continue
             if built is None:
@@ -768,9 +755,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                     task,
                     now,
                     "blocked" if error == "contract_rejected" else "waiting",
-                    None
-                    if error == "contract_rejected"
-                    else timedelta(seconds=BACKOFF[min(task.attempts, len(BACKOFF) - 1)]),
+                    None if error == "contract_rejected" else lease.backoff(task.attempts, BACKOFF),
                 )
                 continue
             request = {k: v for k, v in body.items() if k != "contract_version"}
@@ -785,9 +770,7 @@ def run(s, fabric, *, is_demo, adopt, limit=100, client_post=None):
                     body=body,
                     response=response if isinstance(response, dict) else None,
                 )
-                _finish(
-                    task, now, "waiting", timedelta(seconds=BACKOFF[min(task.attempts, len(BACKOFF) - 1)])
-                )
+                _finish(task, now, "waiting", lease.backoff(task.attempts, BACKOFF))
                 continue
             # permission and binding again before the answer is adopted (the call took time)
             again, why = _readback(fabric, cand)
@@ -1137,10 +1120,10 @@ def reextract(s, fabric, *, is_demo, triage, limit=10, plan=None):
                     row.status = "reextract_failed"
                 continue
             enqueue(  # zero measures settle it too; triage read the first window only
-                session, s, docs[0], item, None, _utc(c.observed_at), is_demo, window=(0, TRIAGE_WINDOW)
+                session, s, docs[0], item, None, utc(c.observed_at), is_demo, window=(0, TRIAGE_WINDOW)
             )
             if plan:
-                plan(session, s, docs[0], None, item.direction, _utc(c.observed_at), is_demo)
+                plan(session, s, docs[0], None, item.direction, utc(c.observed_at), is_demo)
             row.status, row.reason = "reextracted", "stored_before_checking"
         done += 1
     return done
@@ -1183,7 +1166,7 @@ def comparability(session, m, at=None):
     As of `at` (an analysis' cutoff; None: now): a correction visible only later is not known yet."""
 
     def seen(point):
-        return at is None or _utc(point.available_at) <= at
+        return at is None or utc(point.available_at) <= at
 
     reasons = []
     if m.domain_basis != "topic":

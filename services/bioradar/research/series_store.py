@@ -11,7 +11,7 @@ from sqlalchemy import select
 from bioradar import db
 from bioradar.config import Settings
 from bioradar.research import domain, measure_checks, series
-from bioradar.research.clock import parse_time
+from bioradar.research.clock import parse_time, utc
 from bioradar.research.topics import event, owe
 
 
@@ -35,7 +35,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     effective but nothing is computed from it, and no topic is opened from it - a shared object/metric name is
     not a business identity. Writes a `series` topic event per change.
     Returns (point or None, topic ids owed)."""
-    at = measure_checks._utc(cand.observed_at)
+    at = utc(cand.observed_at)
     period = final["period"]
     period_text = period.get("value") or f"{period['start']}/{period['end']}"
     bounds = period_bounds(period, at)
@@ -217,7 +217,7 @@ def adopt(session, s: Settings, cand, final, check_id):
             r["id"]
             for r in rows
             if r["superseded_by"] in outside
-            and measure_checks._utc(session.get(db.Measurement, r["superseded_by"]).available_at) <= at
+            and utc(session.get(db.Measurement, r["superseded_by"]).available_at) <= at
         }
     rows = [r for r in rows if r["id"] not in out or r["superseded_by"] in inside]
     if row.id not in {r["id"] for r in rows}:  # the new point counts once its check is the latest (it is)

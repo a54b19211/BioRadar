@@ -9,6 +9,7 @@ from sqlalchemy import func, select
 from bioradar import db
 from bioradar.adapters import llm, services
 from bioradar.research import measure_checks, monitor, schemas, series, triage
+from bioradar.research.clock import utc
 
 # the series kernel: families and dimensions count as proven here (the real gate: test_complete_domain)
 pytestmark = pytest.mark.usefixtures("dims_verified")
@@ -442,7 +443,7 @@ def test_a_second_notice_correcting_the_same_value_does_not_bring_the_old_value_
         }
         for r in rows
     ]
-    day6 = [r for r in as_rows if series._utc(r["available_at"]) <= datetime(2026, 10, 6, tzinfo=UTC)]
+    day6 = [r for r in as_rows if utc(r["available_at"]) <= datetime(2026, 10, 6, tzinfo=UTC)]
     assert [p["value"] for p in series.points(day6)] == [4]  # the 5 stays replaced
     assert sorted(p["value"] for p in series.points(as_rows)) == [3, 4]  # two notices, no basis to choose
     assert [c["kind"] for c in series.changes(as_rows, rows[2].id)] == ["conflict"]

@@ -21,6 +21,7 @@ from bioradar.config import settings
 from bioradar.research import analyses, continuation, lineage, monitor
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import topic_view
+from bioradar.text import squash
 
 app = FastAPI(title="BioRadar", version="1.0.0")
 COOKIE = "bioradar_session"
@@ -349,13 +350,13 @@ class SafeTerms:
 
     def __init__(self, value, hidden, inherited):
         self.origins = {f"read:{ref}" for ref in hidden} | {f"object:{ref}" for ref in hidden}
-        self.question = "".join(str(value.get("question", "")).split())
+        self.question = squash(str(value.get("question", "")))
         self.inherited = inherited
 
     def __call__(self, terms, origin):
         if origin and not self.inherited:  # under an earlier round's revoked report nothing else is checkable
             return origin not in self.origins
-        return all("".join(t.split()) in self.question for t in terms)
+        return all(squash(t) in self.question for t in terms)
 
 
 def withhold_terms(progress, safe):

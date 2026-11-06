@@ -16,6 +16,8 @@ compares them:
 import re
 from datetime import UTC, datetime, timedelta
 
+from bioradar.research.clock import utc
+
 VERSION = "series-v2"  # written into each series event, so a later rule change is visible in old events
 # planned -> under construction -> operational; reported -> confirmed
 RANK = {"planned": 0, "under_construction": 1, "operational": 2, "reported": 0, "confirmed": 1}
@@ -97,19 +99,15 @@ def quoted(value: float, quote: str) -> bool:
     )
 
 
-def _utc(value):
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value  # SQLite returns naive values
-
-
 def points(rows):
     """Visible, unsuperseded rows of one series -> one point per (period, value, status), in period order;
     the earliest-available row stands for repeated mentions."""
     rows = [
         dict(
             r,
-            period_start=_utc(r["period_start"]),
-            period_end=_utc(r["period_end"]),
-            available_at=_utc(r["available_at"]),
+            period_start=utc(r["period_start"]),
+            period_end=utc(r["period_end"]),
+            available_at=utc(r["available_at"]),
         )
         for r in rows
     ]

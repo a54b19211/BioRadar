@@ -3,6 +3,11 @@
 from datetime import UTC, datetime
 
 
+def utc(value: datetime) -> datetime:
+    """A stored time as aware UTC (SQLite returns naive values)."""
+    return value.replace(tzinfo=UTC) if value.tzinfo is None else value
+
+
 def parse_time(value) -> datetime:
     if isinstance(value, datetime):
         return value if value.tzinfo else value.replace(tzinfo=UTC)

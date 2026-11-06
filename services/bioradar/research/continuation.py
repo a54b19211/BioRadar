@@ -19,17 +19,17 @@ Skipped windows (only when configured) count as unread. read_until is the contig
 coverage is the union of what was read. Read is not "every fact extracted"."""
 
 import re
-import uuid
 from datetime import timedelta
 
-from sqlalchemy import or_, select
+from sqlalchemy import select
 
 from bioradar import db
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.config import Settings
 from bioradar.material import Material, of
-from bioradar.research import analyses, measure_checks, prompts, schemas
+from bioradar.research import analyses, lease, measure_checks, prompts, schemas
+from bioradar.research.clock import utc
 
 WINDOW = measure_checks.TRIAGE_WINDOW  # = triage.TRIAGE_CHARACTERS: window 0 is the triage window
 LEASE = timedelta(minutes=2)
@@ -191,7 +191,7 @@ def _claim(s, is_demo, now, taken, per_round, per_call):
     """Up to per_call windows, round-robin over the sources and, inside a source, over its plans in arrival
     order (each plan's lowest windows first); no plan more than per_round windows this round - a long table
     or a busy source does not starve the others."""
-    token = uuid.uuid4().hex
+    token = lease.new_token()
     with db.session() as session:
         rows = session.execute(
             select(db.RecordReadWindow, db.RecordRead.source)
@@ -203,7 +203,7 @@ def _claim(s, is_demo, now, taken, per_round, per_call):
                 db.RecordRead.superseded_by_id.is_(None),  # a replaced plan is not read on
                 db.RecordReadWindow.state.in_(TO_READ),
                 db.RecordReadWindow.next_at <= now,
-                or_(db.RecordReadWindow.lease_until.is_(None), db.RecordReadWindow.lease_until < now),
+                lease.claimable(db.RecordReadWindow, now),
             )
             .order_by(db.RecordRead.created_at, db.RecordRead.id, db.RecordReadWindow.window_index)
             .limit(500)
@@ -228,20 +228,8 @@ def _claim(s, is_demo, now, taken, per_round, per_call):
                     break
             if not moved:
                 break
-        for w in picked:
-            w.lease_token, w.lease_until = token, now + LEASE
+        lease.take(picked, token, now, LEASE)
         return [(w.read_id, w.window_index) for w in picked], token
-
-
-def _own(session, key, token, now):
-    w = session.get(db.RecordReadWindow, key, with_for_update=True)
-    ok = (
-        w is not None
-        and w.lease_token == token
-        and w.lease_until
-        and measure_checks._utc(w.lease_until) >= now
-    )
-    return w if ok else None
 
 
 def _attempt(session, w, outcome, **fields):
@@ -320,13 +308,13 @@ def _read(s, fabric, keys, token, now):
     windows = []  # (key, read, material slice, start, end)
     with db.session() as session:
         for key in keys:
-            w = _own(session, key, token, now)
+            w = lease.own(session, db.RecordReadWindow, key, token, now)
             if w is None:
                 continue
             read = session.get(db.RecordRead, w.read_id)
             why = problems[w.read_id]
             if why:
-                w.lease_token = w.lease_until = None
+                lease.release(w)
                 if why in ("fabric_unavailable", "artifact_not_ready"):
                     w.next_at = now + RETRY  # the window waits; no attempt spent
                 elif why == "source_unreadable":
@@ -338,7 +326,8 @@ def _read(s, fabric, keys, token, now):
             text = texts[w.read_id]
             # an explicit saving, never "no data": a skipped window stays unread in the coverage
             if s.continuation_skip_no_digit and not DIGIT.search(text[w.start_char : w.end_char]):
-                w.state, w.lease_token, w.lease_until = "skipped_no_digit", None, None
+                lease.release(w)
+                w.state = "skipped_no_digit"
                 _attempt(session, w, "skipped_no_digit")
                 continue
             material = Material.part(text, read.part)
@@ -418,19 +407,25 @@ def _read(s, fabric, keys, token, now):
         for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(all_ids))):
             r.llm_call_id, r.status = llm_row.id, "sent" if result else "failed"
         for i, ((key, rid, material, a, b), mid) in enumerate(zip(windows, mids), 1):
-            w = _own(session, key, token, done)
+            w = lease.own(session, db.RecordReadWindow, key, token, done)
             if w is None:
                 continue  # the lease ran out during the call: another round owns the window now
             read = session.get(db.RecordRead, rid)
-            w.lease_token = w.lease_until = None
+            lease.release(w)
             item = items.get(i)
             if result is None or item is None:
                 if call["error"] in BUDGET_ERRORS:
                     w.state = "budget_spent"  # no attempt spent: read when the budget allows
                 else:
-                    w.attempts += 1
-                    w.state = "failed_final" if w.attempts >= MAX_ATTEMPTS else "failed"
-                    w.next_at = now + RETRY
+                    lease.fail(
+                        w,
+                        now,
+                        due="next_at",
+                        delay=RETRY,
+                        max_attempts=MAX_ATTEMPTS,
+                        retry_state="failed",
+                        final_state="failed_final",
+                    )
                 _attempt(session, w, call["error"] or "no_item", material_read_id=mid, llm_call_id=llm_row.id)
                 continue
             doc = {
@@ -451,7 +446,7 @@ def _read(s, fabric, keys, token, now):
                 doc,
                 triage_like,
                 topic,
-                measure_checks._utc(read.observed_at),
+                utc(read.observed_at),
                 read.is_demo,
                 overlap=True,
                 window=(a, b),

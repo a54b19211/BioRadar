@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
-from bioradar.research import topics, views
+from bioradar.research import lease, topics, views
 from bioradar.research.pipeline import Failed, Run
 
 LEASE = timedelta(minutes=90)
@@ -177,7 +177,7 @@ def execute(analysis_id: str):
         row = session.get(db.Analysis, analysis_id, with_for_update=True)
         if row is None or row.state in {"completed", "failed"}:
             return
-        if row.lease_until and row.lease_until > db.now():
+        if lease.running(row, db.now()):
             return
         # A queued live topic analysis waits for tomorrow once today's automatic budget is used up.
         if row.trigger == "topic" and not row.input.get("cutoff") and not row.input.get("is_demo"):
