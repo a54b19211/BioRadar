@@ -12,6 +12,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
+from bioradar.research import views
 from bioradar.research.pipeline import Failed, Run
 
 LEASE = timedelta(minutes=90)
@@ -260,13 +261,12 @@ def view(row: db.Analysis, *, full=False) -> dict:
         "cutoff": row.input.get("cutoff"),
         "created_at": row.created_at.isoformat(),
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
-        "result": row.result
+        "result": views.result(row.result)
         if full
         else {k: (row.result or {}).get(k) for k in ("report_status", "usage", "assessment")},
     }
     if full:
-        p = row.progress or {}
-        value["progress"] = {k: p.get(k) for k in ("checks", "queries", "actions", "facts", "stop", "notes")}
+        value["progress"] = views.progress(row.progress)
         with db.session() as session:
             value["evidence"] = [
                 {

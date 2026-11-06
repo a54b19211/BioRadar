@@ -295,11 +295,13 @@ def notice(hidden: dict) -> str:
 
 
 def redact(value: dict) -> dict:
-    """The one output check behind the analysis exits (original text, detail, list, export). When any
-    material of an analysis comes from a source that cannot be read now, its own entry keeps only number,
-    source and record id, and every piece of model-written text that could carry its words (the draft,
-    sentence checks, judgments and hypotheses, the mechanism evaluation) is withheld with the reason;
-    numbers, states and references stay. Nothing stored is changed."""
+    """The one output check behind the analysis exits (original text, detail, list, export). It works on
+    the external view (analyses.view), which carries only the fields RunState marks shown, so a field added
+    later is not exposed until someone decides it may be. When any material of an analysis comes from a
+    source that cannot be read now, its own entry keeps only number, source and record id, and every piece
+    of model-written text that could carry its words (the draft, sentence checks, judgments and
+    hypotheses, the mechanism evaluation) is withheld with the reason; numbers, states and references
+    stay. Nothing stored is changed."""
     readable = readable_sources()
     hidden = hidden_refs(value["evidence"], readable)
     # what the earlier rounds cited binds this one too: its text grew out of their reports
@@ -309,101 +311,135 @@ def redact(value: dict) -> dict:
     if not hidden and not inherited:
         return value
     value = copy.deepcopy(value)
-    for e in value["evidence"]:
-        if e["ref"] in hidden:
-            e.update(title="", url=None, withheld=hidden[e["ref"]])
     progress = value.get("progress") or {}
-    for f in progress.get("facts") or []:
-        if f.get("ref") in hidden:
-            f.update(text="", quote="", object="", withheld=hidden[f["ref"]])
-    # search terms taken from those records (names found in them, the reader's new terms) and the search
-    # actions that used them; notes may quote any of it, so their details go too (codes stay)
-    origins = {f"read:{ref}" for ref in hidden} | {f"object:{ref}" for ref in hidden}
-    question = "".join(str(value.get("question", "")).split())
-
-    def safe(terms, origin):
-        """Terms that may stay: from the plan or a still readable record; without a known origin (older
-        runs, retired queries) only words of the user's own question."""
-        if origin and not inherited:  # under an earlier round's revoked report nothing else is checkable
-            return origin not in origins
-        return all("".join(t.split()) in question for t in terms)
-
-    for q in progress.get("queries") or []:
-        if not safe(q["terms"], q.get("origin", "")):
-            q["terms"] = []
-    # the plan's checks were written with the earlier round's report in view
+    withhold_material(value["evidence"], progress.get("facts") or [], hidden)
+    safe = SafeTerms(value, hidden, inherited)
+    withhold_terms(progress, safe)
     if inherited:
-        for c in (progress.get("checks") or []) + ((value.get("result") or {}).get("checks") or []):
-            if not safe([c.get("text", "")], ""):
-                c["text"] = ""
-            c["exploratory"] = [n for n in c.get("exploratory", []) if safe([n], "")]
-        result_ = value.get("result") or {}
-        if isinstance(result_.get("plan_basis"), dict):  # the plan's names are its keys, not its values
-            result_["plan_basis"] = {k: v for k, v in result_["plan_basis"].items() if safe([k], "")}
-    for a in progress.get("actions") or []:
-        terms = a.get("args", {}).get("terms")
-        if terms and not safe(terms, a.get("origin", "")):
-            a["args"] = dict(a["args"], terms=[])
+        withhold_check_texts(progress, value.get("result") or {}, safe)
     for n in (progress.get("notes") or []) + ((value.get("result") or {}).get("notes") or []):
         n["detail"] = ""
     result = value.get("result") or {}
     if result:
-        result["withheld"] = notice({**hidden, **inherited})
-        result["draft"] = ""
-        for key in ("review", "assessment", "mechanism"):
-            if result.get(key):
-                result[key] = blank(result[key])
-        for c in result.get("computations") or []:
-            for o in c.get("operands") or []:
-                if o.get("ref") in hidden:
-                    o["quote"] = ""
+        withhold_result(result, hidden, notice({**hidden, **inherited}))
     for r in value.get("reviews") or []:  # a reviewer's note may quote the sentence it is about
         r["note"] = ""
     if inherited:
-        # The round's own model text grew out of the earlier report too, so all of it goes, not field by
-        # field (a fact's text named the earlier project while its quote came from a record still
-        # readable). What stays as decided above: quotes whose own record is readable, the terms and check
-        # texts found safe, the plan basis left, the stop reason and the user's question.
-        facts = progress.get("facts") or []
-        quotes = [f.get("quote", "") if f.get("ref") not in hidden else "" for f in facts]
-        queries = [q.get("terms", []) for q in progress.get("queries") or []]
-        actions = [a.get("args", {}).get("terms") for a in progress.get("actions") or []]
-        checks = {
+        withhold_round(value, progress, result, hidden, notice({**hidden, **inherited}))
+    return value
+
+
+def withhold_material(evidence, facts, hidden):
+    """A withheld record keeps its number, source and record id; the facts read from it lose their words."""
+    for e in evidence:
+        if e["ref"] in hidden:
+            e.update(title="", url=None, withheld=hidden[e["ref"]])
+    for f in facts:
+        if f.get("ref") in hidden:
+            f.update(text="", quote="", object="", withheld=hidden[f["ref"]])
+
+
+class SafeTerms:
+    """Which search terms and check texts may stay. Terms taken from a withheld record (names found in it,
+    the reader's new terms) go, with the search actions that used them; terms from the plan or a still
+    readable record stay. Without a known origin (older runs, retired queries), and under an earlier
+    round's revoked report, only words of the user's own question stay."""
+
+    def __init__(self, value, hidden, inherited):
+        self.origins = {f"read:{ref}" for ref in hidden} | {f"object:{ref}" for ref in hidden}
+        self.question = "".join(str(value.get("question", "")).split())
+        self.inherited = inherited
+
+    def __call__(self, terms, origin):
+        if origin and not self.inherited:  # under an earlier round's revoked report nothing else is checkable
+            return origin not in self.origins
+        return all("".join(t.split()) in self.question for t in terms)
+
+
+def withhold_terms(progress, safe):
+    for q in progress.get("queries") or []:
+        if not safe(q["terms"], q.get("origin", "")):
+            q["terms"] = []
+    for a in progress.get("actions") or []:
+        terms = a.get("args", {}).get("terms")
+        if terms and not safe(terms, a.get("origin", "")):
+            a["args"] = dict(a["args"], terms=[])
+
+
+def withhold_check_texts(progress, result, safe):
+    """The plan's checks were written with the earlier round's report in view, and the plan's names are
+    plan_basis's keys."""
+    for c in (progress.get("checks") or []) + (result.get("checks") or []):
+        if not safe([c.get("text", "")], ""):
+            c["text"] = ""
+        c["exploratory"] = [n for n in c.get("exploratory", []) if safe([n], "")]
+    if isinstance(result.get("plan_basis"), dict):
+        result["plan_basis"] = {k: v for k, v in result["plan_basis"].items() if safe([k], "")}
+
+
+def withhold_result(result, hidden, reason):
+    """The draft, sentence checks, judgments, hypotheses and mechanism text; a calculation keeps its
+    numbers, not the quotes of withheld records."""
+    result["withheld"] = reason
+    result["draft"] = ""
+    for key in ("review", "assessment", "mechanism"):
+        if result.get(key):
+            result[key] = blank(result[key])
+    for c in result.get("computations") or []:
+        for o in c.get("operands") or []:
+            if o.get("ref") in hidden:
+                o["quote"] = ""
+
+
+def withhold_round(value, progress, result, hidden, reason):
+    """The round's own model text grew out of the earlier report too, so all of it goes, not field by field
+    (a fact's text named the earlier project while its quote came from a record still readable). What stays
+    as decided above: quotes whose own record is readable, the terms and check texts found safe, the plan
+    basis left, the stop reason and the user's question."""
+    kept = kept_in_round(progress, result, hidden)
+    progress, result = withhold(progress), withhold(result)
+    for f, quote in zip(progress.get("facts") or [], kept["quotes"]):
+        f["quote"] = quote
+    for q, terms in zip(progress.get("queries") or [], kept["queries"]):
+        q["terms"] = terms
+    for a, terms in zip(progress.get("actions") or [], kept["actions"]):
+        if terms is not None:
+            a["args"]["terms"] = terms
+    for key, where in (("progress", progress.get("checks") or []), ("result", result.get("checks") or [])):
+        for c, (check_text, exploratory) in zip(where, kept["checks"][key]):
+            c.update(text=check_text, exploratory=exploratory)
+    for c, quoted in zip(result.get("computations") or [], kept["operands"]):
+        for o, quote in zip(c.get("operands") or [], quoted):
+            o["quote"] = quote
+    if progress:
+        progress["stop"] = kept["stops"][0]
+        value["progress"] = progress
+    if result:
+        result.update(plan_basis=kept["basis"], stop=kept["stops"][1], withheld=reason)
+        value["result"] = result
+
+
+def kept_in_round(progress, result, hidden):
+    """What withhold_round puts back after withholding the round's text."""
+    facts = progress.get("facts") or []
+    return {
+        "quotes": [f.get("quote", "") if f.get("ref") not in hidden else "" for f in facts],
+        "queries": [q.get("terms", []) for q in progress.get("queries") or []],
+        "actions": [a.get("args", {}).get("terms") for a in progress.get("actions") or []],
+        "checks": {
             key: [(c.get("text", ""), c.get("exploratory", [])) for c in where]
             for key, where in (
                 ("progress", progress.get("checks") or []),
                 ("result", result.get("checks") or []),
             )
-        }
-        operands = [
+        },
+        "operands": [
             [o.get("quote", "") if o.get("ref") not in hidden else "" for o in c.get("operands") or []]
             for c in result.get("computations") or []
-        ]
-        basis, stops = result.get("plan_basis"), (progress.get("stop"), result.get("stop"))
-        progress, result = withhold(progress), withhold(result)
-        for f, quote in zip(progress.get("facts") or [], quotes):
-            f["quote"] = quote
-        for q, terms in zip(progress.get("queries") or [], queries):
-            q["terms"] = terms
-        for a, terms in zip(progress.get("actions") or [], actions):
-            if terms is not None:
-                a["args"]["terms"] = terms
-        for key, where in (
-            ("progress", progress.get("checks") or []),
-            ("result", result.get("checks") or []),
-        ):
-            for c, (text, exploratory) in zip(where, checks[key]):
-                c.update(text=text, exploratory=exploratory)
-        for c, quoted in zip(result.get("computations") or [], operands):
-            for o, quote in zip(c.get("operands") or [], quoted):
-                o["quote"] = quote
-        if progress:
-            progress["stop"] = stops[0]
-            value["progress"] = progress
-        if result:
-            result.update(plan_basis=basis, stop=stops[1], withheld=notice({**hidden, **inherited}))
-            value["result"] = result
-    return value
+        ],
+        "basis": result.get("plan_basis"),
+        "stops": (progress.get("stop"), result.get("stop")),
+    }
 
 
 def hidden_by_analysis(ids, *, own=True) -> dict:

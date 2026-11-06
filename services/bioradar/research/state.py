@@ -13,15 +13,27 @@ Every key the run writes is declared here; tests/test_run_state.py fails when a 
 is not. Shapes owned by another service's contract (BioCheck claims and coverage, MechEvidence's evaluation,
 Fabric's search summaries) are typed as plain dicts here and documented by that contract."""
 
-from typing import Any, Literal, TypedDict, cast
+from typing import Annotated, Any, Literal, TypedDict, cast
 
 Basis = Literal["question", "prior_report", "exploratory"]
 
 
+class Shown:
+    """Marks a field the external views (analysis detail, list and export; analyses.view) may show. A field
+    without it - every field added later, until someone decides - is left out of those views; app.redact
+    then withholds, in the shown fields, what a source that cannot be read now makes unreadable."""
+
+    def __repr__(self):
+        return "SHOWN"
+
+
+SHOWN = Shown()
+
+
 class Note(TypedDict):
-    code: str
-    detail: str
-    stage: str
+    code: Annotated[str, SHOWN]
+    detail: Annotated[str, SHOWN]
+    stage: Annotated[str, SHOWN]
 
 
 class RequestCount(TypedDict):
@@ -38,21 +50,21 @@ class Hypothesis(TypedDict, total=False):
 
 
 class Check(TypedDict, total=False):
-    id: str  # Q1 ...
-    text: str
-    required: bool
-    importance: float
-    status: Literal["open", "answered", "conflict"]
-    evidence: list[str]  # refs E1 ...
-    objects: list[str]  # names of the question's objects this check is about
-    exploratory: list[str]  # names not from the question that the check text mentions
+    id: Annotated[str, SHOWN]  # Q1 ...
+    text: Annotated[str, SHOWN]
+    required: Annotated[bool, SHOWN]
+    importance: Annotated[float, SHOWN]
+    status: Annotated[Literal["open", "answered", "conflict"], SHOWN]
+    evidence: Annotated[list[str], SHOWN]  # refs E1 ...
+    objects: Annotated[list[str], SHOWN]  # names of the question's objects this check is about
+    exploratory: Annotated[list[str], SHOWN]  # names not from the question that the check text mentions
 
 
 class Query(TypedDict, total=False):
-    terms: list[str]
-    checks: list[str]
-    origin: str  # plan | object:E3 | read:E3 | "" (older runs, retries)
-    value: int  # 3 found object, 2 decisive record, 1 plan, 0 background record
+    terms: Annotated[list[str], SHOWN]
+    checks: Annotated[list[str], SHOWN]
+    origin: Annotated[str, SHOWN]  # plan | object:E3 | read:E3 | "" (older runs, retries)
+    value: Annotated[int, SHOWN]  # 3 found object, 2 decisive record, 1 plan, 0 background record
 
 
 class RemovedName(TypedDict):
@@ -89,26 +101,26 @@ class GraphEntry(TypedDict):
 
 
 class ActionArgs(TypedDict, total=False):
-    terms: list[str]
-    page: int
-    record_id: str
-    version_id: str
-    browse: str
+    terms: Annotated[list[str], SHOWN]
+    page: Annotated[int, SHOWN]
+    record_id: Annotated[str, SHOWN]
+    version_id: Annotated[str, SHOWN]
+    browse: Annotated[str, SHOWN]
 
 
 class Action(TypedDict, total=False):
-    kind: Literal["search", "fetch", "next_page", "read"]
-    source: str
-    args: ActionArgs
-    target_checks: list[str]
-    gain: float
-    status: Literal["completed", "failed"]
-    origin: str
-    found: int
-    new: int
-    ref: str
-    evidence_gain: float
-    error: str
+    kind: Annotated[Literal["search", "fetch", "next_page", "read"], SHOWN]
+    source: Annotated[str, SHOWN]
+    args: Annotated[ActionArgs, SHOWN]
+    target_checks: Annotated[list[str], SHOWN]
+    gain: Annotated[float, SHOWN]
+    status: Annotated[Literal["completed", "failed"], SHOWN]
+    origin: Annotated[str, SHOWN]
+    found: Annotated[int, SHOWN]
+    new: Annotated[int, SHOWN]
+    ref: Annotated[str, SHOWN]
+    evidence_gain: Annotated[float, SHOWN]
+    error: Annotated[str, SHOWN]
 
 
 class Sketch(TypedDict, total=False):
@@ -130,15 +142,15 @@ class Hit(TypedDict, total=False):
 
 
 class Fact(TypedDict, total=False):
-    id: str  # F1 ...
-    ref: str
-    text: str
-    quote: str
-    checks: list[str]
-    stance: Literal["supports", "refutes", "limits", "context"]
-    object: str
-    hypothesis: str
-    hypothesis_stance: Literal["supports", "refutes", "none"]
+    id: Annotated[str, SHOWN]  # F1 ...
+    ref: Annotated[str, SHOWN]
+    text: Annotated[str, SHOWN]
+    quote: Annotated[str, SHOWN]
+    checks: Annotated[list[str], SHOWN]
+    stance: Annotated[Literal["supports", "refutes", "limits", "context"], SHOWN]
+    object: Annotated[str, SHOWN]
+    hypothesis: Annotated[str, SHOWN]
+    hypothesis_stance: Annotated[Literal["supports", "refutes", "none"], SHOWN]
 
 
 # "from" is a keyword, so this one is declared functionally
@@ -172,27 +184,27 @@ class FoundObject(TypedDict):
 
 
 class Stop(TypedDict):
-    decision: str
-    reason: str
+    decision: Annotated[str, SHOWN]
+    reason: Annotated[str, SHOWN]
 
 
 class ComputedOperand(TypedDict):
-    fact: str
-    value: float
-    ref: str
-    quote: str
+    fact: Annotated[str, SHOWN]
+    value: Annotated[float, SHOWN]
+    ref: Annotated[str, SHOWN]
+    quote: Annotated[str, SHOWN]
 
 
 class Computation(TypedDict):
-    id: str  # A1 ...
-    label: str
-    value: Any
-    expression: str
-    unit: str
-    period: str
-    population: str
-    denominator: str
-    operands: list[ComputedOperand]
+    id: Annotated[str, SHOWN]  # A1 ...
+    label: Annotated[str, SHOWN]
+    value: Annotated[Any, SHOWN]
+    expression: Annotated[str, SHOWN]
+    unit: Annotated[str, SHOWN]
+    period: Annotated[str, SHOWN]
+    population: Annotated[str, SHOWN]
+    denominator: Annotated[str, SHOWN]
+    operands: Annotated[list[ComputedOperand], SHOWN]
 
 
 class MechanismResult(TypedDict, total=False):
@@ -202,11 +214,11 @@ class MechanismResult(TypedDict, total=False):
 
 
 class ReportVersion(TypedDict, total=False):
-    step: str  # generate | revise_1 ...
-    draft: str
-    status: str  # unchecked until its check answered, then BioCheck's status
-    claims: list[dict[str, Any]]
-    error: str
+    step: Annotated[str, SHOWN]  # generate | revise_1 ...
+    draft: Annotated[str, SHOWN]
+    status: Annotated[str, SHOWN]  # unchecked until its check answered, then BioCheck's status
+    claims: Annotated[list[dict[str, Any]], SHOWN]
+    error: Annotated[str, SHOWN]
 
 
 class Report(TypedDict, total=False):
@@ -228,16 +240,16 @@ class RunState(TypedDict, total=False):
     objects: list[str]
     plan_basis: dict[str, Basis]
     plan_removed: list[RemovedName]
-    checks: list[Check]
-    queries: list[Query]
+    checks: Annotated[list[Check], SHOWN]
+    queries: Annotated[list[Query], SHOWN]
     judgments: list[str]
     needs_calculation: bool
     mechanism: MechanismTarget | None
     graph: list[GraphEntry]
     # investigate
-    actions: list[Action]
+    actions: Annotated[list[Action], SHOWN]
     hits: list[Hit]
-    facts: list[Fact]
+    facts: Annotated[list[Fact], SHOWN]
     relations: list[Relation]
     pages: dict[str, Page]  # "source|term|term" -> paging of that search
     refs: dict[str, str]  # E1 -> "source|record_id"
@@ -247,15 +259,43 @@ class RunState(TypedDict, total=False):
     hit_positions: dict[str, list[HitPosition]]  # "source|record_id" -> verified search-hit passages
     weknora: list[dict[str, Any]]  # each semantic search: its terms and Fabric's summary
     found_objects: list[FoundObject]
-    stop: Stop
+    stop: Annotated[Stop, SHOWN]
     # compute, mechanism, report, assess
     computations: list[Computation]
     mechanism_result: MechanismResult | None
     report: Report
     assessment: dict[str, Any] | None  # schemas.Assessment as dumped, with each item's BioCheck `check`
     # bookkeeping
-    notes: list[Note]
+    notes: Annotated[list[Note], SHOWN]
     fabric_requests: dict[str, RequestCount]  # Fabric endpoint -> requests sent by all processes so far
+
+
+class ResultReview(TypedDict, total=False):
+    claims: Annotated[list[dict[str, Any]] | None, SHOWN]  # BioCheck's sentence checks of the last check
+    coverage: Annotated[Any, SHOWN]
+    read_requests: Annotated[Any, SHOWN]
+    reason: Annotated[str | None, SHOWN]
+    revised: Annotated[bool | None, SHOWN]
+    versions: Annotated[list[ReportVersion] | None, SHOWN]
+
+
+class Result(TypedDict, total=False):
+    """What a finished run stores in `analyses.result` (Run.result(), plus what analyses.execute adds)."""
+
+    report_status: Annotated[str, SHOWN]
+    draft: Annotated[str, SHOWN]
+    review: Annotated[ResultReview, SHOWN]
+    assessment: Annotated[dict[str, Any] | None, SHOWN]
+    checks: Annotated[list[Check], SHOWN]
+    plan_basis: Annotated[dict[str, Basis], SHOWN]
+    computations: Annotated[list[Computation], SHOWN]
+    mechanism: Annotated[dict[str, Any] | None, SHOWN]  # MechanismResult with MechEvidence's evaluation
+    stop: Annotated[Stop | None, SHOWN]
+    reads: Annotated[int, SHOWN]
+    notes: Annotated[list[Note], SHOWN]
+    usage: Annotated[dict[str, int], SHOWN]
+    source_updates: Annotated[Any, SHOWN]  # corrections that arrived during the run (analyses.execute)
+    trace: Annotated[str, SHOWN]  # an unexpected failure's trace (analyses.execute)
 
 
 def load(progress: dict | None) -> RunState:
