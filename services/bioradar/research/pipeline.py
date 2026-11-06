@@ -19,7 +19,8 @@ from bioradar.adapters.fabric import Fabric, FabricError, fixed_version_is, noti
 from bioradar.adapters.services import ServiceError
 from bioradar.config import Settings
 from bioradar.material import Material, of, restore
-from bioradar.research import compute, measure_checks, prompts, schemas
+from bioradar.research import compute, measure_checks, prompts, schemas, state
+from bioradar.research.state import RunState
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 DEMO_SETTING = (
@@ -450,7 +451,7 @@ class Run:
         self.id = analysis.id
         self.row_investigation = analysis.investigation_id
         self.input = analysis.input
-        self.p = dict(analysis.progress or {})
+        self.p: RunState = state.load(analysis.progress)
         self.stage = analysis.stage
         self.s = settings
         self.fabric = fabric or Fabric(settings)
