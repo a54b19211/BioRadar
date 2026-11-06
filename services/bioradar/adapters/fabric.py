@@ -409,7 +409,11 @@ class Fabric:
                     raise  # transient (503, network): the owed work stays owed and is retried next round
                 missing.append(version_id)  # revoked, withdrawn from view, or not visible at this cutoff
                 continue
-            doc = document(item)
+            try:
+                doc = document(item)
+            except (KeyError, TypeError, ValueError, AttributeError):
+                # a raw record that cannot be read as a HistoryRecord is never that version (Codex r171)
+                raise FabricError("version_identity_mismatch", f"{record_id}@{version_id[:12]}") from None
             if not fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff):
                 # the read named one version: anything else is never that version's text (Codex r169)
                 raise FabricError("version_identity_mismatch", f"{record_id}@{version_id[:12]}")

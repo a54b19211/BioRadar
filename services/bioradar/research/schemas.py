@@ -134,11 +134,13 @@ class Dim(BaseModel):
         "milestone_definition",
         "entity",
         "stage",
+        "denominator_definition",
     ] = Field(
         description="维度：disease 病种/病原，population 人群或队列，"
         "date_basis 日期口径（按报告日/发病日…），indication 适应症，product_or_class 产品或类别，"
         "milestone_definition 里程碑定义，entity 企业或资产，"
-        "stage 阶段（计划/在建/投运/实际产出）"
+        "stage 阶段（计划/在建/投运/实际产出），"
+        "denominator_definition 比例的分母是什么（检测人数、全部病例…）"
     )
     text: str = Field(
         description="原文写法，逐字；原文没写就不要列这一项（不要猜，不要用专题名称或发布者代替）"

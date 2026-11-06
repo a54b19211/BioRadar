@@ -609,20 +609,26 @@ def adopt(session, s: Settings, cand, final, check_id):
         dims_key=gate["dims_key"],
     )
     same = dict(key, workspace_id=s.workspace_id, is_demo=cand.is_demo)
-    domainless = ("domain_basis", "domain_id", "family", "dims_key")
+    domainless = ("domain_basis", "domain_id", "family", "dims_key")  # for a correction: the fact, any group
+    unplaced = (
+        "domain_basis",
+        "domain_id",
+    )  # a retried triage: the same point in the same group (Codex r171)
     existing = session.scalar(select(db.Measurement).filter_by(candidate_id=cand.id))
     if existing is not None:
         # checked again (recovery, checker upgrade): the point stands and now cites its current check; its
         # stored
         # values are compared with this check's final values again; nothing new to compute for the series
         existing.check_id = check_id
-        existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"]  # as this check proves them
+        # as this check proves them: family, group key, dimensions and gaps move together (Codex r171)
+        existing.family, existing.dims_key = key["family"], key["dims_key"]
+        existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"]
         return existing, []
     if session.scalar(
         select(db.Measurement.id).filter_by(
             version_id=cand.version_id,
             period=period_text,
-            **{k: v for k, v in key.items() if k not in domainless},
+            **{k: v for k, v in key.items() if k not in unplaced},
         )
     ):
         return None, []  # the same point of this version from another candidate (a retried triage)

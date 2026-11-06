@@ -78,8 +78,28 @@ def test_d9_efficacy_is_never_compared_automatically():
 def test_d10_a_rate_needs_its_denominator_definition():
     g = gate(kind="rate", stated=dims(disease="炭疽", population="成人", date_basis="按报告日"), **CASES)
     assert "dim_unknown:denominator_definition" in g["reasons"]
-    g = gate(kind="rate", stated=dims(disease="炭疽"), denominator=("检测人数", "match"), **CASES)
-    assert not any("denominator" in r for r in g["reasons"])
+    # the denominator field is the number (contract v2): a matched 100 proves no definition (Codex r171)
+    g = gate(kind="rate", stated=dims(disease="炭疽"), denominator=("100", "match"), **CASES)
+    assert "dim_unknown:denominator_definition" in g["reasons"]
+    g = gate(kind="rate", stated=dims(disease="炭疽", denominator_definition="检测人数"), **CASES)
+    assert "dim_unchecked:denominator_definition" in g["reasons"]  # stated: checked by v11, not carried
+
+
+def test_an_indication_the_matched_metric_names_is_required_and_carried_with_its_phrase():
+    g = gate("milestone_count", stated=dims(date_basis="按批准日"), metric=("甲适应症获批项目", "match"))
+    ind = next(d for d in g["dims"] if d["kind"] == "indication")
+    assert ind["state"] == "carried" and ind["proof"]["phrase"] == "甲适应症获批项目"
+    assert "dim_unknown:product_or_class" in g["reasons"]  # an object proves no product class
+
+
+def test_the_group_key_is_a_lossless_identity_never_truncated():
+    long = "符合本研究纳入条件的成年受试者" * 40
+    a = gate(stated=dims(disease="炭疽", population=long + "甲", date_basis="按报告日"), **CASES)
+    b = gate(stated=dims(disease="炭疽", population=long + "乙", date_basis="按报告日"), **CASES)
+    assert a["dims_key"] != b["dims_key"] and a["dims_key"].startswith("sha256:") and len(a["dims_key"]) == 71
+    c = gate(stated=dims(disease="炭疽;population=x", date_basis="按报告日"), **CASES)
+    d = gate(stated=dims(disease="炭疽", population="x", date_basis="按报告日"), **CASES)
+    assert c["dims_key"] != d["dims_key"]  # no separator inside a value makes two groups one
 
 
 def test_d11_a_dimension_carried_by_an_unmatched_field_is_not_proven():

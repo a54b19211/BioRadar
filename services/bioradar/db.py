@@ -240,6 +240,9 @@ class Measurement(Base):
             "period",
             "period_type",
             "period_precision",
+            "family",
+            "dims_key",
+            name="measurements_version_series_period_domain_key",
         ),
         Index("ix_measurements_domain", "workspace_id", "is_demo", "domain_basis", "domain_id"),
         Index(
