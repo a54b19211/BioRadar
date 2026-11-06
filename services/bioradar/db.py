@@ -126,6 +126,22 @@ class LlmOutput(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+def request_count(call) -> int:
+    """The HTTP requests behind a call record: as recorded, 0 included (a service that was not configured, a
+    call stopped before its first request); 1 only when the record does not say (records from before the
+    count, stand-ins)."""
+    n = call.get("requests")
+    return 1 if n is None else int(n)
+
+
+def total_tokens(usage) -> int:
+    """A call's total tokens as recorded, 0 included; the sum of its parts only when no total was given."""
+    total = usage.get("total_tokens")
+    return (
+        int(total) if total is not None else usage.get("prompt_tokens", 0) + usage.get("completion_tokens", 0)
+    )
+
+
 def keep_outputs(session, llm_row, call):
     """The LlmOutput rows of one call record (llm.chat_json's "outputs"), for an LlmCall already flushed."""
     for o in call.get("outputs") or []:

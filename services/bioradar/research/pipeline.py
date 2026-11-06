@@ -73,16 +73,16 @@ class Run:
                     finish_reason=c.get("finish_reason"),
                     prompt_tokens=prompt,
                     completion_tokens=completion,
-                    total_tokens=usage.get("total_tokens") or prompt + completion,
+                    total_tokens=db.total_tokens(usage),
                     seconds=c.get("seconds") or 0,
                     error=c.get("error"),
-                    requests=c.get("requests") or 1,
+                    requests=db.request_count(c),
                     http=c.get("http"),
                 )
                 s.add(row)
                 s.flush()
                 db.keep_outputs(s, row, c)
-        self.calls_used += sum(c.get("requests") or 1 for c in calls)
+        self.calls_used += sum(db.request_count(c) for c in calls)
 
     def calls_left(self):
         return self.input["budget"]["max_llm_calls"] - self.calls_used
@@ -205,9 +205,9 @@ class Run:
         return before_send
 
     def settle(self, call):
-        """Log a model call as far as it went out, then stop the run if a request of it was blocked."""
-        if call.get("requests", 1):
-            self.log([call])
+        """Log a model call as far as it went out (a call stopped before its first request counts 0), then
+        stop the run if a request of it was blocked."""
+        self.log([call])
         if call.get("blocked"):
             raise Withheld(call["blocked"])
 
