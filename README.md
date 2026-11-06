@@ -41,10 +41,10 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 ## 启动
 
-需要 Python 3.12、Docker Compose、Node 22。
+需要 Python 3.12、Docker Compose、Node 22，以及 uv 0.13.0（在 PATH 上，例如 `~/.local/bin/uv`；或者 `make UV=<路径>`；`pyproject.toml` 的 `required-version` 拒绝别的版本）。
 
 ```sh
-make bootstrap          # 安装 Python 依赖
+make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Python 3.12）
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
@@ -88,7 +88,7 @@ cd ../MechEvidence  && uvicorn mechevidence.service:app --port 18563
 
 - 监测：每 30 秒读一次 Fabric 变更流。一个来源第一次被监测时从它**当前的末尾**开始（`legacy_documents` 有 62 万条历史记录，不能全部分诊）；历史材料用回放分析。自动分析每小时最多 6 次（`BIORADAR_AUTO_ANALYSES_PER_HOUR`）。
 - 改代码后：`git pull`，`uv sync --frozen`，有新迁移时 `alembic -c db/alembic.ini upgrade head`，再 `systemctl --user restart bioradar-api bioradar-worker bioradar-monitor`。
-- WeKnora（李明洋）：雷达只通过 weknora-kdd 桥检索，`bioradar-weknora-kdd` 单元监听 127.0.0.1:18564（端口在 `~/.config/systemd/user/bioradar-weknora-kdd.service.d/port.conf`，代码是 WeKnora `main` 的 `extensions/kdd`，检出在 `~/zk_projects/.bioradar-kdd-integration/weknora`）。`radar.env` 填 `BIORADAR_WEKNORA_URL=http://127.0.0.1:18564`、`BIORADAR_WEKNORA_TOKEN`（桥 `runtime.json` 的 token）、`BIORADAR_WEKNORA_KNOWLEDGE_BASE_ID` 和 `BIORADAR_WEKNORA_SOURCE_INSTANCE=datafabric.zktest.kdd`（只要现役 Fabric 发布的条目）。现役 2026-11-03 起已开启。桥按来源范围检索（管线题查 pipeline+research，公卫题查 public_health+research），命中只是指针，原文回 Fabric 读；历史回放不走桥，因为桥只有今天的索引。
+- WeKnora（李明洋）：雷达只通过 weknora-kdd 桥检索，`bioradar-weknora-kdd` 单元监听 127.0.0.1:18564（端口在 `~/.config/systemd/user/bioradar-weknora-kdd.service.d/port.conf`，代码是 WeKnora 的 `extensions/kdd`，检出是 WeKnora 仓库的 worktree `~/zk_projects/.rebuild-work/wt/kdd-bridge`，即单元的 WorkingDirectory）。`radar.env` 填 `BIORADAR_WEKNORA_URL=http://127.0.0.1:18564`、`BIORADAR_WEKNORA_TOKEN`（桥 `runtime.json` 的 token）、`BIORADAR_WEKNORA_KNOWLEDGE_BASE_ID` 和 `BIORADAR_WEKNORA_SOURCE_INSTANCE=datafabric.zktest.kdd`（只要现役 Fabric 发布的条目）。现役 2026-11-03 起已开启。桥按来源范围检索（管线题查 pipeline+research，公卫题查 public_health+research），命中只是指针，原文回 Fabric 读；历史回放不走桥，因为桥只有今天的索引。
 - Fabric 采集（徐子雯）：公开源由 Fabric publisher 按 `~/.config/datafabric-publication/runtime.env` 的 `DATAFABRIC_HISTORY_WATCHES` 定时刷新（最多 8 个）。现在是 WHO、Europe PMC 六组（BCMA、III 期随机、暴发标题、GLP-1 类、ADC/CAR-T/双抗、监管审批）和 ClinicalTrials III 期，查看状态用 `/api/history/source-health?source_id=…`。
 
 - 图谱（唐蔚雯）：`BIORADAR_GRAPH_LOOKUP=true` 时规划按题面对象查 reviewed_graph（每次最多 3 个对象、每个对象只看检索到的前 5 个图包，不是查全），图包指向的原文进阅读候选，实体身份状态（多为 unresolved）原样保留。现役默认关闭：当前图包里只有实体和 document_refs，没有已审核的关系边，开了只是多一条找原文的路，不提供关系判断。开启前确认 Fabric 里有 reviewed_graph 来源且雷达有读权限。
@@ -118,6 +118,8 @@ curl -b c.txt localhost:18100/api/analyses/<id>
 ## 检查
 
 ```sh
+make bootstrap          # .venv 只按 uv.lock 安装
+make test               # 全部测试（SQLite；BioCheck 检出在 BIOCHECK_SRC 时含真实 BioCheck 规则）
 make check              # = make test + make lint + make metrics + make web-check
 make check-install      # 在 /tmp 用声明的版本新建环境，核对四处契约版本一致，逐个导入 bioradar 模块
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head
@@ -130,8 +132,11 @@ progress、证据和外发记录，以及对外视图（详情、列表、导出
 
 改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
 
-测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出：
-`BIORADAR_TEST_BIOCHECK_SRC=../BioCheck BIORADAR_TEST_BIOCHECK_PYTHON=../BioCheck/.venv/bin/python make test`。不设这两个变量时，这些测试显示为跳过，不会算作通过。
+测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出和它自己的环境：
+`make test` 默认用同级的 `../clean-biocheck`（BioCheck 的集成线，先在那里 `make venv`），别处的检出用
+`make test BIOCHECK_SRC=<检出> [BIOCHECK_PYTHON=<它的 python>]`。找不到检出时这些测试显示为跳过，不会算作通过。
+已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：457 个通过、1 个跳过（真实 planner 服务的测试，
+要 `BIORADAR_TEST_PLANNER_URL`）。
 
 ## 验收实验
 

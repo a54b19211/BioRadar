@@ -15,6 +15,8 @@ dependencies = [
 ]
 
 [tool.uv]
+# the one uv of the environment (README, 启动); uv refuses to run this project with another version
+required-version = "==0.13.0"
 # the shared contract wheel, built from the sibling extraction-contract checkout (README)
 find-links = ["../extraction-contract/dist"]
 

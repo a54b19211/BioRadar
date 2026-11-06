@@ -1,10 +1,16 @@
-UV ?= .tools/bootstrap/bin/uv
+# uv 0.13.0 from PATH (installed as ~/.local/bin/uv; pyproject.toml requires that version) or UV=<path>
+UV ?= uv
+# the real-chain measurement tests run the real BioCheck rules from a BioCheck checkout in its own venv
+# (`make venv` there); without the checkout they are reported as skipped, never as passed
+BIOCHECK_SRC ?= ../clean-biocheck
+BIOCHECK_PYTHON ?= $(BIOCHECK_SRC)/.venv/bin/python
+TEST_ENV = $(if $(wildcard $(BIOCHECK_SRC)/app/service.py),BIORADAR_TEST_BIOCHECK_SRC=$(abspath $(BIOCHECK_SRC)) BIORADAR_TEST_BIOCHECK_PYTHON=$(abspath $(BIOCHECK_PYTHON)))
 COMPOSE = docker compose --env-file ops/.env -f ops/compose.yaml
 NODE = docker run --rm --network host --user $$(id -u):$$(id -g) -e npm_config_cache=/tmp/npm-cache -e HTTP_PROXY -e HTTPS_PROXY -v "$$(pwd):/app" -w /app/apps/web node:22-bookworm-slim
 
 .PHONY: help init bootstrap dev stop status migrate test lint metrics web-check check check-install check-migrations
 help:
-	@echo 'make bootstrap   install Python dependencies with uv'
+	@echo 'make bootstrap   .venv from uv.lock only (uv sync --frozen, Python 3.12)'
 	@echo 'make init        create ops/.env with a random database password and login'
 	@echo 'make dev         start postgres, redis, api, worker, monitor and web in Docker'
 	@echo 'make check       run the checks: test, lint, metrics, web-check'
@@ -13,8 +19,6 @@ help:
 init:
 	test -f ops/.env || python3 -c "import secrets,pathlib; t=pathlib.Path('ops/env.example').read_text(); t=t.replace('replace-with-generated-local-password', secrets.token_urlsafe(18)).replace('replace-with-generated-login', secrets.token_urlsafe(12)).replace('replace-with-generated-session-key', secrets.token_urlsafe(32)); p=pathlib.Path('ops/.env'); p.write_text(t); p.chmod(0o600)"
 bootstrap:
-	python3 -m venv .tools/bootstrap
-	.tools/bootstrap/bin/python -m pip install uv==0.13.0
 	$(UV) sync --frozen --python 3.12
 dev:
 	$(COMPOSE) up -d --build
@@ -25,7 +29,7 @@ status:
 migrate:
 	$(COMPOSE) run --rm migrate
 test:
-	$(UV) run --frozen pytest -q
+	$(TEST_ENV) $(UV) run --frozen pytest -q
 lint:
 	$(UV) run --frozen ruff check services tests db/migrations scripts
 metrics:
