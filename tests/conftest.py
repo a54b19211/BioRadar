@@ -165,7 +165,7 @@ def biocheck_fake(answer=None, calls=None):
                 "kind": "measurement",
                 "status": "consistent",
                 "fields": {
-                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V11]["measurement"]
+                    name: {"result": "match"} for name in ec.KIND_RESULTS[ec.CHECKER_V12]["measurement"]
                 },
                 # a stand-in proves no dimension: each one stated is answered unsupported
                 "dims": {
@@ -177,7 +177,7 @@ def biocheck_fake(answer=None, calls=None):
         ]
         response = {
             "contract_version": ec.CONTRACT_V3,
-            "checker_version": ec.CHECKER_V11,
+            "checker_version": ec.CHECKER_V12,
             "subject": body["subject"],
             "items": items,
             "counts": {"consistent": len(items), "inconsistent": 0, "unchecked": 0},

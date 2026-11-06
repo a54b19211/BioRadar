@@ -102,7 +102,7 @@ def spec(rid, month, value, population="成人", lead="", dims=None):
 
 def test_a_complete_group_proven_by_v11_compares_across_periods(monkeypatch):
     points, checks, events, states, dims = feed(monkeypatch, [spec("A1", 1, 10), spec("A2", 2, 12)])
-    assert {c.checker_version for c in checks.values()} == {"biocheck.extraction_rules.v11"}
+    assert {c.checker_version for c in checks.values()} == {"biocheck.extraction_rules.v12"}
     assert all(c.status == "consistent" for c in checks.values())
     assert dims["A2"] == {
         "disease": "checked",
@@ -174,7 +174,7 @@ def test_an_institution_claimed_as_the_product_and_a_number_as_a_denominator_def
     [check] = rows(db.MeasurementCheck)
     [point] = rows(db.Measurement)
     got = check.response["items"][0]["dims"]
-    assert check.status == "consistent" and check.checker_version == "biocheck.extraction_rules.v11"
+    assert check.status == "consistent" and check.checker_version == "biocheck.extraction_rules.v12"
     assert (
         got["product_or_class"]["reason"] == got["denominator_definition"]["reason"] == "dim_kind_not_proven"
     )
@@ -238,3 +238,23 @@ def test_a_dimension_written_in_an_adjacent_table_is_not_this_values(monkeypatch
     assert got["population"]["reason"] == "dim_relation_not_rule_checkable"  # a population word, not its
     assert got["date_basis"]["result"] == "match"
     assert dims["T1"]["population"] == "stated_unchecked" and states["T1"]["state"] == "not_comparable"
+
+
+def test_an_unproven_point_sharing_the_group_values_is_never_a_baseline(monkeypatch):
+    """Codex r178: the combined "成人和儿童" count stated as 成人 is unproven (v12: dim_qualifier_dropped) and
+    shares the adult group's values - it must not be the baseline of the adult-only point that follows."""
+    combined = "## 按报告日统计\n\n2026年1月，在成人和儿童中，医院A在湖北省共报告炭疽确诊病例10例。"
+    adult = "## 按报告日统计\n\n2026年2月，在成人中，医院A在湖北省共报告炭疽确诊病例12例。"
+    stated = [
+        schemas.Dim(kind="disease", text="炭疽"),
+        schemas.Dim(kind="population", text="成人"),
+        schemas.Dim(kind="date_basis", text="按报告日统计", source="window"),
+    ]
+    specs = [
+        (rid, t, measure_of(t, month, value, population="", dims=stated))
+        for rid, t, month, value in (("C1", combined, 1, 10), ("A2", adult, 2, 12))
+    ]
+    points, checks, events, states, dims = feed(monkeypatch, specs)
+    assert states["C1"]["state"] == "not_comparable" and states["A2"]["state"] == "comparable"
+    assert points["C1"].dims_key == points["A2"].dims_key  # the same values ...
+    assert events == []  # ... but the unproven point is no baseline: no step

@@ -720,6 +720,7 @@ def adopt(session, s: Settings, cand, final, check_id):
             measure_checks.effective(session, s, cand.is_demo, **key).where(db.Measurement.available_at <= at)
         )
         if series.grain(r.period) == grain  # a year is not compared with a quarter
+        and not r.dims_reasons  # only proven points: a gap in its domain makes no baseline (Codex r178)
     ]
     # a point whose record a stated correction withdrew by then leaves the series - whether or not a
     # replacement passed checking, and whatever domain it went to (Codex r166); a replacement inside this
