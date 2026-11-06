@@ -57,18 +57,6 @@ def biocheck(settings: Settings, operation: str, body: dict) -> dict:
     )
 
 
-def biocheck_v2(settings: Settings, body: dict) -> dict:
-    """Extraction consistency, contract v2 / checker v7: one measurement request, rules only."""
-    return _post(
-        "biocheck",
-        settings.biocheck_url,
-        settings.biocheck_token,
-        "/v2/extraction-consistency",
-        body,
-        settings.service_timeout_seconds,
-    )
-
-
 EXTRACTION_PATHS = {
     "extraction_consistency.v2": "/v2/extraction-consistency",
     "extraction_consistency.v3": "/v3/extraction-consistency",
