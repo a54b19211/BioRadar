@@ -1,5 +1,6 @@
-"""Leased work rows: the one queue mechanism of the radar (measurement check tasks, continuation windows,
-analyses).
+"""Leased work rows: ownership, fencing and recovery for the radar's database work (measurement check tasks,
+continuation windows, analyses). Delivery is not done here: an analysis reaches a worker as an RQ job, check
+tasks and read windows are polled by the monitor (docs/decisions/0007).
 
 A worker claims a due row inside SELECT ... FOR UPDATE SKIP LOCKED by writing a fresh token and an expiry
 (lease_token, lease_until). Only the holder of a lease that has not run out may settle the row afterwards,

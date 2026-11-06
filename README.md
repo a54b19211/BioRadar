@@ -39,6 +39,22 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 `method=planner` 是逐步规划；`method=baseline` 是固定流程（每组检索词搜一次，按顺序读，读满即停），用作对照。
 
+## RQ 派发与数据库租约的分工
+
+两套机制各管一件事，互不替代：
+
+| | 管什么 | 不管什么 |
+|---|---|---|
+| RQ（Redis） | 送达和唤醒：分析建好后 `analyses.dispatch` 入队，worker 取到就跑 | 这一行归谁、会不会跑两遍、过期后怎么办 |
+| 数据库租约（`research/lease.py`） | 归属、幂等、隔离、恢复：`SELECT … FOR UPDATE SKIP LOCKED` 认领并写入 `lease_token` / `lease_until`；过期的工人不能提交结果；工人崩溃后租约过期，下一个认领者接手一次；失败计一次尝试并退避，到上限转终态留待复核 | 把任务送到某个 worker |
+
+- 分析（`analyses`）：RQ 派发。`execute` 在行锁里查租约，已有人持有或已结束就直接返回，同一个分析不会同时跑两份；
+  monitor 每轮调用 `analyses.recover`，把租约过期（worker 崩溃）或任务没进 Redis 的分析重新入队。分析的租约没有令牌，
+  晚到的 worker 最后的写入不核对身份（已知缺口，见 [`docs/decisions/0007`](docs/decisions/0007-rq-dispatch-and-database-lease.md)）。
+- 测量核对任务（`measurement_check_tasks`）和阅读窗口（`record_read_windows`）：不经 RQ，由 monitor 每轮轮询认领，
+  结果写入前核对令牌，令牌已不是自己的就丢弃。
+- 这些保证在真实 PostgreSQL 上由 `make test-pg`（`tests_pg/`）验证；SQLite 没有行锁，单元测试证明不了。
+
 ## 启动
 
 需要 Python 3.12、Docker Compose、Node 22，以及 uv 0.13.0（在 PATH 上，例如 `~/.local/bin/uv`；或者 `make UV=<路径>`；`pyproject.toml` 的 `required-version` 拒绝别的版本）。
@@ -120,7 +136,8 @@ curl -b c.txt localhost:18100/api/analyses/<id>
 ```sh
 make bootstrap          # .venv 只按 uv.lock 安装
 make test               # 全部测试（SQLite；BioCheck 检出在 BIOCHECK_SRC 时含真实 BioCheck 规则）
-make check              # = make test + make lint + make metrics + make web-check
+make test-pg            # 租约在真实 PostgreSQL 上的并发测试（tests_pg/）：临时 postgres:17-alpine 容器，按本次创建的 ID 拆除；没有 Docker 就失败，不跳过
+make check              # = make test + make test-pg + make lint + make metrics + make web-check
 make check-install      # 在 /tmp 用声明的版本新建环境，核对四处契约版本一致，逐个导入 bioradar 模块
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
@@ -137,8 +154,7 @@ progress、证据和外发记录，以及对外视图（详情、列表、导出
 测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出和它自己的环境：
 `make test` 默认用同级的 `../clean-biocheck`（BioCheck 的集成线，先在那里 `make venv`），别处的检出用
 `make test BIOCHECK_SRC=<检出> [BIOCHECK_PYTHON=<它的 python>]`。找不到检出时这些测试显示为跳过，不会算作通过。
-已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：457 个通过、1 个跳过（真实 planner 服务的测试，
-要 `BIORADAR_TEST_PLANNER_URL`）。
+已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：`make test` 478 个通过、0 个跳过（真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`，由 `devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑），`make test-pg` 另有 13 个通过。
 
 ## 验收实验
 
@@ -181,29 +197,9 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 
 **花费**（最终一轮）：A 约 32 万 token，B 约 34 万，C 每次约 23–26 万，专题自动分析 45 万；D 定向 303 万；逐日监测 620 万。重构以来全部运行约 5,250 万 token。没有一次因预算或截断失败。
 
-## 2026-11-03 讨论室修订（Opus 实现，Codex 复核）
+## 2026-11-03 讨论室修订
 
-**新能力**
-
-- **跨时段观测账**（`measurements` 表，`research/series.py`）：监测分诊对每条进来的记录抽最多 3 个可比较的数值（对象写到项目或基地、指标、值、单位、存量/增量/累计/比例、口径、期间、计划/在建/投运或报告/确认、原文短引），程序校验短引在原文里、数值在短引里才入账。同一对象×指标×单位×类型×口径内，程序算状态推进、增减、新高新低、相邻期间的连续变化；同期同值同状态的重复提及只算一次（旧计划重提不算扩产）；更正从它自己可见的时间起替代旧值；迟到或更正的值会把其后各点重新评估并记 `revised`。只用 `available_at` 不晚于时钟的行，回放看不到未来。变化写成专题的「指标序列变化」事件，状态推进、新高新低、趋势会触发专题分析。
-- **评估输出也核验**：判断结论和假设理由按分句连同依据送 BioCheck，和原文矛盾的撤下（原文留在 notes），未核验通过的最高给「可能」；假设不再给「已证实」，「很可能」要求本段有核验通过的支持事实。
-- **规划范围**：程序判定每个规划名称来自题面、上一份报告还是纯探索；只有题面点名的进 `objects`，只挂在探索对象上的待查问题不能是必答；阅读的相关性只按题面判断。
-- **读取排序（T-21）**：planner 的阅读候选按「更正/种子优先 → 与已读全文完全相同的副本靠后 → 标题点名题面对象 → 检索词覆盖率 → 越新越前」排，排序特征存进 progress，重启后顺序不变；只有两篇原文都在内存里比对过、全文完全相同才算副本。baseline 顺序不变。
-- **信息活动基线（T-15）**：每个专题按前 7 个有记录的日子算均值+3σ（σ 为 0 时用均值+3），缺报的日子不当 0；按去重键计数（显式转载归原件，否则 Fabric 同源组，否则记录本身）。这是信息活动量，不是发病率。
-- **图谱只读接入（T-20）**：见上面「zktest 常驻部署」的图谱一条。
-- **同源转载（T-23）**：Fabric 的 reposts / supplements 作为 `source_relations` 传给 BioCheck 的写稿、核验和修订，两端按来源、记录、版本绑定，原件未读或版本不符的写明；更正、撤回仍走 `source_updates`。
-- **用户、角色与人工复核（T-14）**：`users` 表分只读（viewer）、分析员（analyst，可提问、追问、复核、手动跑监测）、管理员（admin，另管用户：`GET/POST /api/users`、`PATCH /api/users/{name}` 改角色、换凭据或 `active=false` 停用）；凭据用 scrypt 存。会话 cookie 只用独立的 `BIORADAR_SESSION_SECRET` 签名（`make init` 随机生成；没配就不能登录，不拿登录凭据当签名密钥），12 小时过期，带 `session_version`：换凭据或停用立即结束这个人所有的旧会话，改角色在下一次请求生效。分析页逐句核验表可「确认 / 驳回」，材料可「标记有误」，专题页可调警示；记录进 `reviews` 表（这张表就是人工操作的审计记录）。驳回或标记有误时，所在专题记一笔 `analyst_review`，下一次专题分析的问题里列出这些意见要求逐条回应；没有专题的人工分析只留记录。
-- **来源撤权**：以 Fabric 的 `/api/history/sources` 为准（撤权的来源从清单里消失），成功结果缓存 5 分钟，失败不缓存。所有对外出口在输出时统一检查：原文接口；分析详情、分析列表、导出——只要一份分析引用了当前不可读的来源，这条材料只给编号、来源和记录号，报告正文、逐句核验、判断与假设、机制评价的文字都暂不显示（编号、状态、置信度保留），并写明是哪几条材料、什么原因；专题列表与详情——由不可读来源的记录建立的专题不显示标题，这类记录的观测标题、分诊理由和专题事件里的标题、对象名不显示；监测页的观测列表同样处理。清单读不到时按「来源授权状态暂时无法确认」一律不给文字。数据库里存的内容和审计记录不改。
-- **模型服务故障**：429/503 按 5/20/60 秒退避重发，受剩余请求额度约束；200 但没有正常 choices 记为错误，不再崩溃。
-
-**实测**
-
-- 现役采集：Fabric 原来只有 2 个 watch，其中 Europe PMC 自 10-19 起每小时失败（翻页中命中数下降被当作分页中断）；修复在 Fabric `feat/server_fix`（a7e0c1f、d316aad），现役跑热修分支 `live/epmc-hotfix-20261103`。改成 8 个 watch 后全部至少完成一轮，现役雷达当轮处理 295 条新材料、出现 3 个升温专题。
-- T-12 冻结对照（20 份，`.rebuild-work/out/cmp-*`）：修改后 PASS 没有变多（前 1 份、后 0 份），只修好了 D-S1 planner 的 NOT_RUN；D 的 16 份全部停在步数上限。
-- D-S1 读取分析（`.rebuild-work/out/t21-offline/`，72 条标注与输入分开）：旧读取顺序就是 record_id 字母序，前 20 篇有 14 篇英文同缩写噪声；离线新排序覆盖 3 个聚集事件、无关 2 篇。另发现修改前的规划把题面没提的「武汉」「华南海鲜」写进检索词和待查问题，读到的兰州、哈尔滨布病通报被判无关——D 只能作为历史材料处理的演示，不能当作干净的事前预测证明。
-- DeepSeek 恢复后（同版本同配置补跑，首轮失败记录保留在 `out/r10-t13`）：T-16 的 16 份不可用结果在 `out/r10-t13-attempt2` 重跑，全部完成、0 失败；PHX 虚构公卫 240 条 × 4 截面 × 2 方法（`c0164f0` + BioCheck `16ca2a9`，`out/phx-main`）8/8 完成，W4-planner PASS，其余 REVIEW。这两组的报告内容由 Codex 按冻结材料独立复核，不当作 `7f302c2` 的模型验收。
-- T-23 真实写稿（C01-W2，`7f302c2` + BioCheck `7af7044`，`out/t23-c01w2`）：planner PASS、baseline REVIEW，两份都写明 E4 转载自 E3、只算一个来源。
-- 真实 BioCheck：after-C 那条把增长写成「均同比下降」的判断，整句核验漏判，按分句核验判为矛盾（`.rebuild-work/out/t13-repro/`）。
+当时加的能力（观测账、评估核验、规划范围、读取排序、用户与角色、来源撤权、模型服务故障退避）和实测记录在 [`docs/decisions/0008-room-revision-record-2026-11-03.md`](docs/decisions/0008-room-revision-record-2026-11-03.md)；现行行为以代码和测试为准。
 
 ## 未完成
 
@@ -218,5 +214,5 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **A 漏读删帖信号 SIM-A-43**：截图访问记录没有被任何检索词命中。下一步：监测分诊里出现 `information_events`（删帖、辟谣）的记录直接作为专题分析的种子。
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
-- **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 仍是 `82bad7b`，雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
+- **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（`live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
 - **整洁度第一波（2026-11-06）之后还剩的**：测量链路（`measure_checks`、`upkeep`、`continuation`、`series_store.adopt`、`domain`）按 v3 6.1 迁到 Fabric 派生数据层，之后再拆这些长函数；Fabric 提供一次返回可读材料的接口和来源目录（`fetchable`、附件、登记差分），雷达删掉 `FETCHABLE`、`ATTACHMENT_SOURCES`、`REGISTRY_DIFF_SOURCES`、`native_kind` 和适配器里的四段拼接；三个服务共用一份 LLM 客户端。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。

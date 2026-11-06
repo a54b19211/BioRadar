@@ -54,4 +54,4 @@
 
 ## 完成检查
 
-交付前运行 `make check`（`make test`、`make lint`、`make web-check`）。改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
+交付前运行 `make check`（`make test`、`make test-pg`、`make lint`、`make metrics`、`make web-check`）。改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
