@@ -12,7 +12,10 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 UV=${UV:-uv}
 WHEELS=${EXTRACTION_CONTRACT_WHEELS:-$ROOT/../extraction-contract/dist}
 WORK=$(mktemp -d /tmp/bioradar-check-install.XXXXXX)
-trap 'rm -rf "$WORK"' EXIT INT TERM
+# the non-editable build runs setuptools in the checkout; what it leaves there is removed again
+LEFT=""
+for d in "$ROOT/build" "$ROOT/services/bioradar.egg-info"; do [ -e "$d" ] || LEFT="$LEFT $d"; done
+trap 'rm -rf "$WORK" $LEFT' EXIT INT TERM
 VENV="$WORK/venv"
 
 cd "$ROOT"

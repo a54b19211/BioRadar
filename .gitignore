@@ -13,5 +13,6 @@ apps/web/dist/
 ops/.env
 work/
 dist/
+build/
 artifacts/
 .DS_Store
