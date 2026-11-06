@@ -87,16 +87,18 @@ class Run:
     def calls_left(self):
         return self.input["budget"]["max_llm_calls"] - self.calls_used
 
-    def ask(self, stage, system, payload, model_cls, *, carries=(), **options):
-        """One model call; `carries`: the sources of the run's own evidence the payload holds. Every HTTP
-        request that carries them - the first, a resend after a refusal, the client's format retry, this
-        method's one retry - goes out only after Fabric confirmed them right before it (confirm_sources;
-        the first one here, the later ones through chat_json's before_send). A blocked request stops the
-        run (Withheld) after the requests already sent are logged as they were."""
+    def ask(self, stage, system, payload, model_cls, *, carries=(), uses_previous=False, **options):
+        """One model call; `carries`: the sources of the run's own evidence the payload holds;
+        `uses_previous`: the payload holds the earlier round's report. Every HTTP request of the call - the
+        first, a resend after a refusal, the client's format retry, this method's one retry - goes out only
+        after Fabric confirmed every source it carries (carried: the run's own and the earlier rounds') right
+        before it (confirm_sources; the first one here, the later ones through chat_json's before_send). A
+        blocked request stops the run (Withheld) after the requests already sent are logged as they were."""
         self.upstream_still_readable()
         if self.calls_left() <= 0:
             self.note("llm_budget", stage)
             return None
+        carries = self.carried(carries, uses_previous)
         options["before_send"] = self.recheck(carries)
         self.confirm_sources(carries)
         options["max_requests"] = self.calls_left()
@@ -188,6 +190,20 @@ class Run:
             raise Withheld("source_access_unconfirmed") from None
         if not wanted <= readable:
             raise Withheld("source_access_withdrawn")
+
+    def carried(self, carries, uses_previous=False):
+        """Every source a request carries: the run's own evidence it holds, and the sources of all earlier
+        rounds when it holds the earlier report (the plan) or comes from a run that used it (every later
+        stage: its checks, terms and scope grew out of that report). A chain of rounds that cannot be
+        followed is never "no sources": the request is not sent."""
+        wanted = set(carries)
+        used = uses_previous or (self.stage != "plan" and self.p.get("used_previous", True))
+        if self.input.get("previous_report") and used:
+            chain = lineage_sources(self.id)
+            if chain is None:
+                raise Withheld("source_access_unconfirmed")
+            wanted |= chain
+        return wanted
 
     def recheck(self, carries):
         """chat_json's before_send: every request after a call's first (confirmed just before the call) asks

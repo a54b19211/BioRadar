@@ -142,3 +142,65 @@ def test_a_call_that_carries_no_evidence_asks_fabric_nothing(monkeypatch):
     run = Run(row, settings(), fabric=fabric)
     assert run.ask("plan", "计划", {"question": "?"}, schemas.Reading) is not None
     assert fabric.reads == 0
+
+
+PLAN = schemas.Plan(
+    checks=[schemas.PlanCheck(text="后续进展", required=True)],
+    queries=[schemas.PlanQuery(terms=["XQ-17"], checks=[1])],
+).model_dump_json()
+
+
+def follow_up_plan(fabric):
+    """A follow-up about to plan with its earlier report, whose evidence came from open_src and gone_src;
+    the follow-up itself has read nothing yet."""
+    from bioradar.research.run import plan
+
+    parent = analyses.create(question="XQ-17 的进展？", direction="pipeline", is_demo=True, enqueue=False)
+    with db.session() as s:
+        row = s.get(db.Analysis, parent.id)
+        row.state, row.completed_at = "completed", db.now()
+        row.result = {"draft": "PARENT_ONLY_FACT 上一轮稿件[E2]。", "report_status": "PASS"}
+        for ref, source in (("E1", "open_src"), ("E2", "gone_src")):
+            s.add(
+                db.Evidence(
+                    analysis_id=parent.id,
+                    ref=ref,
+                    source=source,
+                    record_id=f"{source}-1",
+                    version_id="v" * 64,
+                    title="t",
+                    text="x",
+                    meta={},
+                )
+            )
+    child = analyses.create(
+        question="XQ-17 后续应核实什么？",
+        direction="pipeline",
+        is_demo=True,
+        parent_id=parent.id,
+        enqueue=False,
+    )
+    run = Run(analyses.get(child.id), settings(), fabric=fabric)
+    return run, lambda: plan.ask_plan(run)
+
+
+def test_a_follow_ups_plan_retry_is_not_sent_once_an_earlier_rounds_source_is_revoked(monkeypatch):
+    fabric = Listing()
+    sent = model(monkeypatch, fabric, [(200, "not json"), (200, PLAN)], revoke_after=1)
+    run, ask_plan = follow_up_plan(fabric)
+    with pytest.raises(Failed) as blocked:
+        ask_plan()
+    assert blocked.value.code == "source_access_withdrawn"
+    assert len(sent) == 1 and "PARENT_ONLY_FACT" in json.dumps(sent[0], ensure_ascii=False)
+    assert stored(run)[1] == [(1, 15, "send_blocked", [200])]  # the request that went out, as it was
+    assert run.calls_used == 1
+
+
+def test_a_follow_ups_plan_retry_goes_out_while_the_earlier_rounds_sources_stay_readable(monkeypatch):
+    fabric = Listing()
+    sent = model(monkeypatch, fabric, [(200, "not json"), (200, PLAN)])
+    run, ask_plan = follow_up_plan(fabric)
+    model_plan, _ = ask_plan()
+    assert model_plan.checks[0].text == "后续进展" and len(sent) == 2
+    # the earlier report checked by the plan (previous_report), then before each of the two requests
+    assert fabric.reads == 3 and stored(run)[1] == [(2, 30, None, [200, 200])]

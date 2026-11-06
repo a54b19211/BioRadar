@@ -87,7 +87,7 @@ def ask_plan(run: "Run"):
     if previous:
         payload["previous_report"] = previous["draft"][:3000]
         payload["previous_report_check"] = previous_check(previous)
-    model = run.ask("plan", prompts.PLAN, payload, schemas.Plan)
+    model = run.ask("plan", prompts.PLAN, payload, schemas.Plan, uses_previous=bool(previous))
     if model is None or not model.checks:
         raise Failed("plan_failed")
     return model, (squash(run.input["question"]), squash(payload.get("previous_report", "")))
