@@ -22,6 +22,9 @@ MAX_FOUND = 12  # objects found in read records, beyond those the question names
 
 
 def read(run: "Run", candidate):
+    """Read one candidate record: its window goes to the reader as one evidence row (E1, E2 ...), and the
+    facts the reader quotes from it update the checks. Returns (gain, ref): the share of the targeted
+    checks this read settled, and the evidence ref."""
     source, record_id = candidate["source"], candidate["args"]["record_id"]
     pinned = candidate["args"].get("version_id")
     hit = next(
@@ -30,6 +33,30 @@ def read(run: "Run", candidate):
         if (h["source"], h["record_id"], h.get("version_id")) == (source, record_id, pinned)
     )
     hit["read"] = True
+    doc = document(run, hit, pinned)
+    material, window, omitted = reading_window(run, hit, doc)
+    ref = f"E{len(run.p['refs']) + 1}"
+    run.p["refs"][ref] = f"{source}|{record_id}"
+    read_id = store(run, hit, ref, doc, material, window, omitted)
+    follow_relations(run, hit, doc)
+    checks = {c["id"]: c for c in run.p["checks"]}
+    reading = ask_reader(run, ref, hit, doc, material.text, read_id)
+    if reading is None or not reading.relevant:
+        return 0.0, ref
+    before = {c["id"] for c in run.p["checks"] if c["status"] != "open"}
+    facts_before = len(run.p["facts"])
+    found_before_names = {o["name"] for o in run.p.get("found_objects", [])}
+    record_facts(run, reading, ref, material.text, checks)
+    close_answered(run, reading, checks)
+    follow_up(run, reading, hit, ref, run.p["facts"][facts_before:], found_before_names)
+    after = {c["id"] for c in run.p["checks"] if c["status"] != "open"}
+    return min(1.0, len(after - before) / max(1, len(candidate["target_checks"]))), ref
+
+
+def document(run: "Run", hit, pinned):
+    """The record as visible at the cutoff: from this process's cache, else exactly the pinned version
+    (a correction notice), else the record's visible version."""
+    source, record_id = hit["source"], hit["record_id"]
     doc = run.docs.get(doc_key(hit))
     if doc is None and pinned:
         # exactly the version that corrected, as visible at the cutoff - never the head
@@ -51,6 +78,13 @@ def read(run: "Run", candidate):
         if not found:
             raise FabricError("record_not_visible", record_id)
         doc = found[0]
+    return doc
+
+
+def reading_window(run: "Run", hit, doc):
+    """(material, window kind, table rows without header) the reader gets of this record: the verified
+    search-hit passages first, then the lines with the search terms of the hit's checks."""
+    source, record_id = hit["source"], hit["record_id"]
     terms = [t for q in run.p["queries"] if set(q["checks"]) & set(hit["checks"]) for t in q["terms"]]
     places = [
         p
@@ -65,12 +99,15 @@ def read(run: "Run", candidate):
     if omitted:
         run.note("table_header_omitted", f"{source}: {record_id}")
     material = noticed(material, doc.get("clean_text_state"))
-    text = material.text
     if doc.get("clean_text_state") not in (None, "processed"):
         # not the cleaning layer's text: read, but said so and never counted as cleaned or full text
         run.note("clean_text_unprocessed", f"{source}: {record_id} ({doc['clean_text_state']})")
-    ref = f"E{len(run.p['refs']) + 1}"
-    run.p["refs"][ref] = f"{source}|{record_id}"
+    return material, window, omitted
+
+
+def store(run: "Run", hit, ref, doc, material, window, omitted):
+    """The evidence row of this read and the outbound record of what the reader is about to get; returns
+    that record's id."""
     with db.session() as s:
         # A worker that died mid-read may have left this ref behind without saving progress.
         s.execute(delete(db.Evidence).where(db.Evidence.analysis_id == run.id, db.Evidence.ref == ref))
@@ -79,15 +116,15 @@ def read(run: "Run", candidate):
             db.Evidence(
                 analysis_id=run.id,
                 ref=ref,
-                source=source,
-                record_id=record_id,
+                source=hit["source"],
+                record_id=hit["record_id"],
                 version_id=doc["version_id"],
                 title=doc["title"],
                 published_at=doc["published_at"],
                 available_at=str(doc["available_at"]),
                 material_kind=doc["material_kind"],
                 verified=doc["verified"],
-                text=text,
+                text=material.text,
                 meta={
                     "url": doc["url"],
                     "window": window,
@@ -109,6 +146,12 @@ def read(run: "Run", candidate):
                 },
             )
         )
+    return read_id
+
+
+def follow_relations(run: "Run", hit, doc):
+    """The relations the record states; a correction or retraction it states is read next (critical)."""
+    source, record_id = hit["source"], hit["record_id"]
     for relation in doc["relations"]:
         run.p["relations"].append(
             {
@@ -124,50 +167,50 @@ def read(run: "Run", candidate):
             target = relation.get("target_source") or source
             search.add_hit(run, target, relation["target_record_id"], "", hit["checks"], critical=True)
             run.found = 1.0  # a correction or retraction arrived
-    checks = {c["id"]: c for c in run.p["checks"]}
+
+
+def ask_reader(run: "Run", ref, hit, doc, text, read_id):
+    """The reader's facts from this record's window (None: no call made, or no valid answer)."""
     material = {
         "ref": ref,
         "title": doc["title"],
-        "source": source,
+        "source": hit["source"],
         "published_at": doc["published_at"],
         "material_kind": doc["material_kind"],
         "verified": doc["verified"],
         "events": doc["events"],
         "text": text,
     }
-    with submit.outbound(run, [read_id], model=True):
-        reading = run.ask(
-            "read",
-            prompts.READ,
+    known = {
+        c["id"]: [f"{f['ref']}: {f['text']}" for f in run.p["facts"] if c["id"] in f["checks"]][-12:]
+        for c in run.p["checks"]
+    }
+    payload = {
+        "question": run.asked,
+        "material": material,
+        "objects": run.p.get("objects", []),
+        "hypotheses": [{"id": h["id"], "statement": h["statement"]} for h in run.p.get("hypotheses", [])],
+        "checks": [
             {
-                "question": run.asked,
-                "material": material,
-                "objects": run.p.get("objects", []),
-                "hypotheses": [
-                    {"id": h["id"], "statement": h["statement"]} for h in run.p.get("hypotheses", [])
-                ],
-                "checks": [
-                    {
-                        "id": c["id"],
-                        "text": c["text"],
-                        "status": c["status"],
-                        "objects": c.get("objects", []),
-                        "exploratory": c.get("exploratory", []),
-                        "known": [
-                            f"{f['ref']}: {f['text']}" for f in run.p["facts"] if c["id"] in f["checks"]
-                        ][-12:],
-                    }
-                    for c in run.p["checks"]
-                ],
-            },
-            schemas.Reading,
-        )
-    if reading is None or not reading.relevant:
-        return 0.0, ref
-    before = {c["id"] for c in run.p["checks"] if c["status"] != "open"}
-    facts_before = len(run.p["facts"])
-    found_before_names = {o["name"] for o in run.p.get("found_objects", [])}
+                "id": c["id"],
+                "text": c["text"],
+                "status": c["status"],
+                "objects": c.get("objects", []),
+                "exploratory": c.get("exploratory", []),
+                "known": known[c["id"]],
+            }
+            for c in run.p["checks"]
+        ],
+    }
+    with submit.outbound(run, [read_id], model=True):
+        return run.ask("read", prompts.READ, payload, schemas.Reading)
+
+
+def record_facts(run: "Run", reading, ref, text, checks):
+    """The reader's facts whose quote is in the text it got (others are dropped with a note); a fact for or
+    against a check is that check's evidence, and both directions on one check make it a conflict."""
     flat = squash(text)
+    hypotheses = {h["id"] for h in run.p.get("hypotheses", [])}
     for fact in reading.facts[:10]:
         if not fact.quote or squash(fact.quote) not in flat:
             run.note("quote_not_found", f"{ref}: {fact.quote[:60]}")
@@ -182,22 +225,25 @@ def read(run: "Run", candidate):
                 "checks": ids,
                 "stance": fact.stance,
                 "object": object_of(run, fact, ref),
-                "hypothesis": fact.hypothesis
-                if fact.hypothesis in {h["id"] for h in run.p.get("hypotheses", [])}
-                else "",
+                "hypothesis": fact.hypothesis if fact.hypothesis in hypotheses else "",
                 "hypothesis_stance": fact.hypothesis_stance,
             }
         )
-        if fact.stance == "context":
-            continue
-        for i in ids:
-            check = checks[i]
-            if ref not in check["evidence"]:
-                check["evidence"].append(ref)
-            stances = {f["stance"] for f in run.p["facts"] if i in f["checks"]}
-            if {"supports", "refutes"} <= stances:
-                check["status"] = "conflict"
-    # One record often answers part of a check (one company of three); the model says when it is whole.
+        if fact.stance != "context":
+            for i in ids:
+                count_as_evidence(run, checks[i], ref)
+
+
+def count_as_evidence(run: "Run", check, ref):
+    if ref not in check["evidence"]:
+        check["evidence"].append(ref)
+    stances = {f["stance"] for f in run.p["facts"] if check["id"] in f["checks"]}
+    if {"supports", "refutes"} <= stances:
+        check["status"] = "conflict"
+
+
+def close_answered(run: "Run", reading, checks):
+    """One record often answers part of a check (one company of three); the model says when it is whole."""
     for i in reading.answered:
         check = checks.get(i)
         if not check or not check["evidence"] or check["status"] != "open":
@@ -209,11 +255,14 @@ def read(run: "Run", candidate):
         covered = {f.get("object") for f in decisive}
         if decisive and all(o in covered for o in check.get("objects", [])):
             check["status"] = "answered"
+
+
+def follow_up(run: "Run", reading, hit, ref, new_facts, found_before_names):
+    """A newly found object is followed up by name (later updates of that event); then the reader's terms,
+    worth more when this record said something decisive than when it was only background. Sets what the
+    read found apart from answering (run.found)."""
     open_ids = [c["id"] for c in run.p["checks"] if c["status"] != "answered"]
-    new_facts = run.p["facts"][facts_before:]
     decisive = any(f["stance"] in {"supports", "refutes"} for f in new_facts)
-    # a newly found object is followed up by name (later updates of that event); then the reader's terms,
-    # worth more when this record said something decisive than when it was only background
     new_names = [o["name"] for o in run.p.get("found_objects", []) if o["name"] not in found_before_names]
     run.found = max(run.found, 1.0 if new_names else 0.6 if decisive else 0.0)
     for name in new_names:
@@ -226,8 +275,6 @@ def read(run: "Run", candidate):
             value=2 if decisive else 0,
             origin=f"read:{ref}",
         )
-    after = {c["id"] for c in run.p["checks"] if c["status"] != "open"}
-    return min(1.0, len(after - before) / max(1, len(candidate["target_checks"]))), ref
 
 
 def object_of(run: "Run", fact, ref):

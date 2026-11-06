@@ -46,13 +46,31 @@ def hypothesis_citations(draft, claims, ids):
     return cited
 
 
+ORDER = ["insufficient", "possible", "probable", "confirmed"]
+
+
 def assess(run: "Run"):
+    """The model grades the judgments and hypotheses from the checked report; BioCheck verifies what it
+    wrote (check_assessment), and every grade is capped by what the verified report supports."""
     report = run.p["report"]
     if not report.get("draft"):
         run.p["assessment"] = None
         return
+    result = ask_assessment(run, report)
+    if result is None:
+        run.p["assessment"] = None
+        return
+    assessment, verified = grounded(run, result, report)
+    check_assessment(run, assessment)
+    cap_judgments(run, assessment)
+    cap_hypotheses(run, assessment, verified, report["status"])
+    run.p["assessment"] = assessment
+    watch(run)
+
+
+def ask_assessment(run: "Run", report):
     rows = submit.evidence_rows(run)
-    result = run.ask(
+    return run.ask(
         "assess",
         prompts.ASSESS,
         {
@@ -75,14 +93,15 @@ def assess(run: "Run"):
         },
         schemas.Assessment,
     )
-    if result is None:
-        run.p["assessment"] = None
-        return
+
+
+def grounded(run: "Run", result, report):
+    """(assessment, {hypothesis: verified citations}): judgment grounds only refs the report cites; only
+    hypotheses the report writes up are graded, and their grounds are the tagged facts cited by supported
+    sentences in their own paragraph (supporting ones, or refuting ones for refuted)."""
     cited = set(re.findall(r"\[(E\d+)\]", report["draft"]))
     for judgment in result.judgments:
         judgment.grounds = [g for g in judgment.grounds if g in cited]
-    # Only hypotheses the report writes up are graded; their grounds are the tagged facts cited by
-    # supported sentences in their own paragraph (supporting ones, or refuting ones for refuted).
     verified = hypothesis_citations(
         report["draft"], report.get("claims", []), [h["id"] for h in run.p.get("hypotheses", [])]
     )
@@ -100,18 +119,26 @@ def assess(run: "Run"):
                 and f["ref"] in verified[h["id"]]
             }
         )
-    check_assessment(run, assessment)
-    order = ["insufficient", "possible", "probable", "confirmed"]
+    return assessment, verified
+
+
+def cap_judgments(run: "Run", assessment):
+    """A judgment BioCheck did not find supported is at most possible; one it found contradicted is
+    withdrawn."""
     for j in assessment["judgments"]:
         cap = {"supported": j["confidence"], "contradicted": "insufficient"}.get(j["check"], "possible")
-        if order.index(j["confidence"]) > order.index(cap):
+        if ORDER.index(j["confidence"]) > ORDER.index(cap):
             j["confidence"] = cap
         if j["check"] == "contradicted":
             run.note("judgment_contradicted", j["conclusion"])
             j["conclusion"] = "原结论与已读原文矛盾，已撤下"
-    # BioCheck writes hypotheses as 待验证 and never as confirmed, so the grade tops out at probable,
-    # which also needs a PASS report, no verified refutation and a reason BioCheck supports;
-    # refuted needs a supported reason on a verified refutation. Anything else is at most possible.
+
+
+def cap_hypotheses(run: "Run", assessment, verified, report_status):
+    """BioCheck writes hypotheses as 待验证 and never as confirmed, so the grade tops out at probable,
+    which also needs a PASS report, no verified refutation and a reason BioCheck supports; refuted needs
+    a supported reason on a verified refutation. Anything else is at most possible."""
+    facts = run.p.get("facts", [])
     for h in assessment["hypotheses"]:
         refuted = any(
             f.get("hypothesis") == h["id"]
@@ -123,16 +150,14 @@ def assess(run: "Run"):
         if h["level"] == "refuted":
             cap = "refuted" if backed else "possible"
         else:
-            cap = "probable" if backed and report["status"] == "PASS" and not refuted else "possible"
-            cap = h["level"] if order.index(h["level"]) <= order.index(cap) else cap
+            cap = "probable" if backed and report_status == "PASS" and not refuted else "possible"
+            cap = h["level"] if ORDER.index(h["level"]) <= ORDER.index(cap) else cap
         if h["check"] == "contradicted":
             run.note("hypothesis_reason_contradicted", h["reason"])
             h["reason"] = "原理由与已读原文矛盾，已撤下"
         if cap != h["level"]:
             h["reason"] = f"评估给 {h['level']}，已核验报告只撑得住 {cap}"
             h["level"] = cap
-    run.p["assessment"] = assessment
-    watch(run)
 
 
 def check_assessment(run: "Run", assessment):

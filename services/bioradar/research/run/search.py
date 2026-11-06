@@ -94,70 +94,20 @@ def browse(run: "Run", source, page, checks):
 
 
 def search(run: "Run", candidate):
+    """One finding action - a browse page, a semantic search, a fetch, a literal search or its next page:
+    the records found inside the task's scope become hits; a literal search's paging is kept, and an
+    empty multi-term search is retried shorter. Returns (records found, new hits)."""
     source, terms, kind = candidate["source"], candidate["args"]["terms"], candidate["kind"]
     key = f"{source}|{'|'.join(terms)}"
     if candidate["args"].get("browse"):
         return browse(run, source, candidate["args"]["page"], candidate["target_checks"])
+    at = None
     if source == "weknora":
-        hits, summary = run.fabric.semantic_search(
-            " ".join(terms),
-            scopes=SEARCH_SCOPES.get(run.input["direction"], ("research",)),
-            is_demo=run.input["is_demo"],
-            cutoff=run.cutoff,
-        )
-        run.p.setdefault("weknora", []).append({"terms": terms, **summary})
-        for scope in summary["recall"]:
-            if scope.get("degraded"):
-                run.note("weknora_scope", f"{','.join(scope['scopes'] or [])}: degraded")
-        # each hit is already the version visible at this cutoff: read exactly that version
-        refs = {}
-        artifacts = {}
-        positions = run.p.setdefault("hit_positions", {})
-        for hit in hits:
-            if hit["source"] in run.input["sources"]:
-                refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
-                # read exactly the cleaned artifact the hit was verified against
-                artifacts[hit["version_id"]] = hit.get("artifact") or None
-                # where in that artifact the hit is: the read window takes that passage first
-                art = hit.get("artifact") or {}
-                place = {
-                    "version_id": hit["version_id"],
-                    "processor_version": art.get("processor_version"),
-                    "text_sha256": art.get("text_sha256"),
-                    "range": hit.get("range"),
-                }
-                if None in (hit.get("range") or [None, None])[:2]:
-                    place["text"] = (hit.get("text") or "")[:2000]
-                kept = positions.setdefault(f"{hit['source']}|{hit['record_id']}", [])
-                if place not in kept and len(kept) < 5:
-                    kept.append(place)
-        docs = []
-        for src, pairs in refs.items():
-            found, missing = run.fabric.read_versions(
-                src, list(pairs), is_demo=run.input["is_demo"], cutoff=run.cutoff, artifacts=artifacts
-            )
-            for version_id in missing:  # revoked or withdrawn between the search and the read
-                run.note("weknora_version_unreadable", f"{src}: {version_id[:12]}")
-            docs += found
-        cursor = None
+        docs, cursor = semantic(run, terms), None
     elif kind == "fetch":
         docs, cursor = run.fabric.fetch(source, " ".join(terms)), None
     else:
-        page = run.p["pages"].get(key, {})
-        # current mode: a next page is read at the time of its first page (Fabric rejects the cursor
-        # otherwise: invalid_cursor on live Europe PMC)
-        at = page.get("at") if kind == "next_page" else None
-        at = datetime.fromisoformat(at) if at else datetime.now(UTC)
-        docs, cursor = run.fabric.search(
-            source,
-            terms,
-            is_demo=run.input["is_demo"],
-            cutoff=run.cutoff,
-            cursor=page.get("cursor") if kind == "next_page" else None,
-            record_ids=run.scope if len(run.scope) <= FABRIC_PAGE else (),
-            limit=FABRIC_PAGE if len(run.scope) > FABRIC_PAGE else 10,
-            now=at,
-        )
+        docs, cursor, at = literal(run, candidate, key)
     # A large set is filtered here; a page without in-set hits must not end paging.
     more = bool(docs) and len(run.scope) > FABRIC_PAGE
     if run.scope:
@@ -173,15 +123,87 @@ def search(run: "Run", candidate):
         if kind == "search" and run.cutoff is None:
             page["at"] = at.isoformat()
     if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
-        # Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss.
-        for shorter in (terms[:-1], terms[1:]):
-            if run.p["retries"] < MAX_RETRIES and all(shorter != q["terms"] for q in run.p["queries"]):
-                run.p["retries"] += 1
-                origin = next((q.get("origin", "") for q in run.p["queries"] if q["terms"] == terms), "")
-                run.p["queries"].append(
-                    {"terms": shorter, "checks": candidate["target_checks"], "origin": origin}
-                )
+        retry_shorter(run, terms, candidate["target_checks"])
     return len(docs), new
+
+
+def semantic(run: "Run", terms):
+    """WeKnora recall verified by Fabric: each hit is already the version visible at this cutoff, and
+    exactly that version is read, from the cleaned artifact the hit was verified against."""
+    hits, summary = run.fabric.semantic_search(
+        " ".join(terms),
+        scopes=SEARCH_SCOPES.get(run.input["direction"], ("research",)),
+        is_demo=run.input["is_demo"],
+        cutoff=run.cutoff,
+    )
+    run.p.setdefault("weknora", []).append({"terms": terms, **summary})
+    for scope in summary["recall"]:
+        if scope.get("degraded"):
+            run.note("weknora_scope", f"{','.join(scope['scopes'] or [])}: degraded")
+    refs, artifacts = {}, {}
+    run.p.setdefault("hit_positions", {})  # kept from the first semantic search on, with hits or not
+    for hit in hits:
+        if hit["source"] in run.input["sources"]:
+            refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
+            # read exactly the cleaned artifact the hit was verified against
+            artifacts[hit["version_id"]] = hit.get("artifact") or None
+            keep_position(run, hit)
+    docs = []
+    for src, pairs in refs.items():
+        found, missing = run.fabric.read_versions(
+            src, list(pairs), is_demo=run.input["is_demo"], cutoff=run.cutoff, artifacts=artifacts
+        )
+        for version_id in missing:  # revoked or withdrawn between the search and the read
+            run.note("weknora_version_unreadable", f"{src}: {version_id[:12]}")
+        docs += found
+    return docs
+
+
+def keep_position(run: "Run", hit):
+    """Where in its artifact a semantic hit is (up to 5 per record): the read window takes that passage
+    first."""
+    art = hit.get("artifact") or {}
+    place = {
+        "version_id": hit["version_id"],
+        "processor_version": art.get("processor_version"),
+        "text_sha256": art.get("text_sha256"),
+        "range": hit.get("range"),
+    }
+    if None in (hit.get("range") or [None, None])[:2]:
+        place["text"] = (hit.get("text") or "")[:2000]
+    kept = run.p.setdefault("hit_positions", {}).setdefault(f"{hit['source']}|{hit['record_id']}", [])
+    if place not in kept and len(kept) < 5:
+        kept.append(place)
+
+
+def literal(run: "Run", candidate, key):
+    """(records, cursor, time read at) of a literal search or its next page. In current mode a next page
+    is read at the time of its first page (Fabric rejects the cursor otherwise: invalid_cursor on live
+    Europe PMC)."""
+    kind = candidate["kind"]
+    page = run.p["pages"].get(key, {})
+    at = page.get("at") if kind == "next_page" else None
+    at = datetime.fromisoformat(at) if at else datetime.now(UTC)
+    docs, cursor = run.fabric.search(
+        candidate["source"],
+        candidate["args"]["terms"],
+        is_demo=run.input["is_demo"],
+        cutoff=run.cutoff,
+        cursor=page.get("cursor") if kind == "next_page" else None,
+        record_ids=run.scope if len(run.scope) <= FABRIC_PAGE else (),
+        limit=FABRIC_PAGE if len(run.scope) > FABRIC_PAGE else 10,
+        now=at,
+    )
+    return docs, cursor, at
+
+
+def retry_shorter(run: "Run", terms, checks):
+    """Terms are ANDed: drop the last one, and also the first in case the anchor term is the miss."""
+    for shorter in (terms[:-1], terms[1:]):
+        if run.p["retries"] < MAX_RETRIES and all(shorter != q["terms"] for q in run.p["queries"]):
+            run.p["retries"] += 1
+            origin = next((q.get("origin", "") for q in run.p["queries"] if q["terms"] == terms), "")
+            run.p["queries"].append({"terms": shorter, "checks": checks, "origin": origin})
 
 
 def add_query(run: "Run", terms, checks, *, value, origin):
@@ -195,6 +217,36 @@ def add_query(run: "Run", terms, checks, *, value, origin):
     if len(run.p["queries"]) < MAX_QUERIES:
         run.p["queries"].append(query)
         return
+    place = place_in_full_pool(run, value)
+    if place is None:
+        return
+    i, code = place
+    run.note(code, f"{' '.join(run.p['queries'][i]['terms'])} -> {' '.join(terms)}")
+    run.p["queries"][i] = query
+
+
+def place_in_full_pool(run: "Run", value):
+    """(index, note code) of the search a new one worth `value` takes the place of, or None."""
+    done, ran = searches_run(run)
+    waiting = [
+        (q.get("value", 1), i)
+        for i, q in enumerate(run.p["queries"])
+        if tuple(q["terms"]) not in ran and q.get("value", 1) < value
+    ]
+    # only evidence (a found object, terms from a decisive record) may take a used-up search's place,
+    # and only up to MAX_RETIRED times: PHX attempt 3 kept rotating background terms in, both methods
+    # spent 19-25 of 30 steps searching and read 5-11 records
+    retired = sum(1 for n in run.p.get("notes", []) if n["code"] == "query_retired")
+    if done and value >= 2 and retired < MAX_RETIRED:
+        return done[0], "query_retired"
+    if waiting:
+        return min(waiting)[1], "query_replaced"
+    return None
+
+
+def searches_run(run: "Run"):
+    """(indexes of the active searches run in every source they apply to - searched or failed - and paged
+    out, the terms of every search or fetch run)."""
     ran = {
         (a.get("source", ""), tuple(a["args"].get("terms", ())))
         for a in run.p["actions"]
@@ -206,27 +258,9 @@ def add_query(run: "Run", terms, checks, *, value, origin):
         if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]
     }
     sources = list(run.input["sources"]) + (["weknora"] if run.s.semantic_search else [])
-    # retired only once every source it applies to has been searched (or failed) and paged out
     done = [
         i
         for i, q in enumerate(run.p["queries"])
         if all((src, tuple(q["terms"])) in ran for src in sources) and tuple(q["terms"]) not in paging
     ]
-    ran = {terms for _, terms in ran}
-    waiting = [
-        (q.get("value", 1), i)
-        for i, q in enumerate(run.p["queries"])
-        if tuple(q["terms"]) not in ran and q.get("value", 1) < value
-    ]
-    # only evidence (a found object, terms from a decisive record) may take a used-up search's place,
-    # and only up to MAX_RETIRED times: PHX attempt 3 kept rotating background terms in, both methods
-    # spent 19-25 of 30 steps searching and read 5-11 records
-    retired = sum(1 for n in run.p.get("notes", []) if n["code"] == "query_retired")
-    if done and value >= 2 and retired < MAX_RETIRED:
-        i, code = done[0], "query_retired"
-    elif waiting:
-        i, code = min(waiting)[1], "query_replaced"
-    else:
-        return
-    run.note(code, f"{' '.join(run.p['queries'][i]['terms'])} -> {' '.join(terms)}")
-    run.p["queries"][i] = query
+    return done, {t for _, t in ran}

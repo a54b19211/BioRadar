@@ -63,6 +63,17 @@ def hit_spans(material, positions):
     return spans, unresolved
 
 
+def merge_spans(spans):
+    """[a, b) spans sorted and merged where they touch or overlap, as [a, b] lists."""
+    out = []
+    for a, b in sorted([list(s) for s in spans]):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return out
+
+
 def adopt(material, terms, limit, hits=()):
     """Whole text when short; otherwise the lines of the verified search hits first (`hits`: display spans,
     see hit_spans), then the lines that mention the search terms, in original order. A table row comes with
@@ -78,6 +89,19 @@ def adopt(material, terms, limit, hits=()):
         (i for i in range(len(paragraphs)) if i not in set(must)),
         key=lambda i: (-sum(text[slice(*paragraphs[i])].count(t) for t in terms), i),
     )
+    keep, headers, omitted = fit_lines(material, paragraphs, must, rest, limit)
+    if not keep:
+        return material.slice(0, limit), "selected"
+    merged = merge_spans(sorted(set(keep) | set(headers)))
+    return with_omitted(
+        Material.join("\n…\n", [material.slice(a, b) for a, b in merged]), omitted
+    ), "selected"
+
+
+def fit_lines(material, paragraphs, must, rest, limit):
+    """(lines kept, header rows kept with them, rows kept without their header) within `limit`, the hit
+    lines first: each line with its table's header rows when they fit, a hit line alone when they do
+    not."""
     keep, headers, size, omitted = [], [], 0, 0
     for i in must + rest:
         a, b = paragraphs[i]
@@ -95,18 +119,7 @@ def adopt(material, terms, limit, hits=()):
             keep.append((a, b))  # the hit's own line stays; its header did not fit
             size += b - a + 2
             omitted += bool(found)
-    if not keep:
-        return material.slice(0, limit), "selected"
-    spans = sorted(set(keep) | set(headers))
-    merged = []
-    for a, b in spans:
-        if merged and a <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], b)
-        else:
-            merged.append([a, b])
-    return with_omitted(
-        Material.join("\n…\n", [material.slice(a, b) for a, b in merged]), omitted
-    ), "selected"
+    return keep, headers, omitted
 
 
 EXCERPT_CHARACTERS = 4000
@@ -122,69 +135,87 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
     text = material.text
     if len(text) <= limit:
         return material
+    spans = quote_spans(text, quotes)
+    fixed, omitted = quoted_headers(material, spans, limit)
+    windows = widened(text, spans, fixed, limit)
+    if not windows:
+        return material.slice(0, limit)
+    merged = merge_spans(windows + fixed)
+    return with_omitted(Material.join("\n…\n", [material.slice(a, b) for a, b in merged]), omitted)
+
+
+def quote_spans(text, quotes):
+    """Where each quote is; quotes were checked with whitespace removed, so they are located the same way."""
     spans = []
     for quote in quotes:
-        # Quotes were checked with whitespace removed, so locate them the same way.
         hit = re.search(r"\s*".join(map(re.escape, squash(quote))), text) if squash(quote) else None
         if hit:
             spans.append([hit.start(), hit.end()])
+    return spans
 
-    # a quoted table row needs its table's header: real slices of the same part, taken right
-    # after the quotes and before any widening; one that does not fit or is not in this material is said
+
+def covered(windows, fixed):
+    """Characters the windows and the fixed header rows take together."""
+    return sum(b - a for a, b in merge_spans(windows + fixed))
+
+
+def quoted_headers(material, spans, limit):
+    """(header rows, quoted rows without one): a quoted table row needs its table's header - real slices
+    of the same part, taken right after the quotes and before any widening; one that does not fit or is
+    not in this material is said."""
     fixed, omitted = [], 0
-
-    def merged(windows):
-        out = []
-        for a, b in sorted([list(w) for w in windows] + [list(f) for f in fixed]):
-            if out and a <= out[-1][1]:
-                out[-1][1] = max(out[-1][1], b)
-            else:
-                out.append([a, b])
-        return out
-
-    def size(windows):
-        return sum(b - a for a, b in merged(windows))
-
-    def line(a, b):
-        end = text.find("\n", b)
-        return [text.rfind("\n", 0, a) + 1, len(text) if end < 0 else end]
-
     windows = [list(s) for s in spans]
-    widened = set()
     for a, b in spans:
         found = material.table_header(a, b)
         if not found:
             continue
         header = [list(s) for s in found[0] if list(s) not in fixed]
-        if found[1] and size(windows + header) <= limit:
+        if found[1] and covered(windows + header, fixed) <= limit:
             fixed += header
         elif not found[1] or header:
             omitted += 1
+    return fixed, omitted
 
-    def widen(i, a, b):  # never narrower than what window i already has
-        return windows[:i] + [[min(a, windows[i][0]), max(b, windows[i][1])]] + windows[i + 1 :]
 
+def line_of(text, a, b):
+    end = text.find("\n", b)
+    return [text.rfind("\n", 0, a) + 1, len(text) if end < 0 else end]
+
+
+def line_length(text, a, b):
+    start, end = line_of(text, a, b)
+    return end - start
+
+
+def widen(windows, i, a, b):
+    """The windows with window i widened to [a, b) - never narrower than what it already has."""
+    return windows[:i] + [[min(a, windows[i][0]), max(b, windows[i][1])]] + windows[i + 1 :]
+
+
+def widened(text, spans, fixed, limit):
+    """The quote windows widened as far as the room left allows: a quote without a number first to the
+    numbers after it, then each to its whole line (shortest first), then the rest by fixed margins."""
+    windows = [list(s) for s in spans]
+    done = set()
     # a quote with no number in it (a table or field title) gets the numbers after it first
     for i, (a, b) in enumerate(spans):
         if not re.search(r"\d", text[a:b]):
-            trial = widen(i, a, min(line(a, b)[1], b + 900))
-            if size(trial) <= limit:
+            trial = widen(windows, i, a, min(line_of(text, a, b)[1], b + 900))
+            if covered(trial, fixed) <= limit:
                 windows = trial
-    for i in sorted(range(len(spans)), key=lambda i: line(*spans[i])[1] - line(*spans[i])[0]):
-        trial = widen(i, *line(*spans[i]))
-        if size(trial) <= limit:
-            windows, _ = trial, widened.add(i)
+    for i in sorted(range(len(spans)), key=lambda i: line_length(text, *spans[i])):
+        trial = widen(windows, i, *line_of(text, *spans[i]))
+        if covered(trial, fixed) <= limit:
+            windows, _ = trial, done.add(i)
     # values follow their titles in records and tables, so the first try reaches further forward
     for before, after in ((100, 900), (400, 400), (150, 150)):
         for i, (a, b) in enumerate(spans):
-            if i in widened:
+            if i in done:
                 continue
-            trial = widen(i, max(0, a - before), min(len(text), b + after))
-            if size(trial) <= limit:
-                windows, _ = trial, widened.add(i)
-    if not windows:
-        return material.slice(0, limit)
-    return with_omitted(Material.join("\n…\n", [material.slice(a, b) for a, b in merged(windows)]), omitted)
+            trial = widen(windows, i, max(0, a - before), min(len(text), b + after))
+            if covered(trial, fixed) <= limit:
+                windows, _ = trial, done.add(i)
+    return windows
 
 
 # A trial registry's fields the writer gets whether or not a fact quoted them: what the trial

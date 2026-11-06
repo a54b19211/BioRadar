@@ -35,6 +35,47 @@ def code_roots(terms):
 
 
 def plan(run: "Run"):
+    """The model's plan as the run's checks, searches, hypotheses and judgments; the program numbers them,
+    decides where every planned name comes from, and adds the seeds, graph records and a small fixed
+    material set as the first reading candidates."""
+    model, shown = ask_plan(run)
+    planned = [o.name.strip() for o in model.objects[:8]]
+
+    def basis(name):
+        return name_basis(name, shown)
+
+    named = [n if n and basis(n) == "question" else "" for n in planned]  # check indexes
+    objects = list(dict.fromkeys(n for n in named if n))
+    checks = plan_checks(run, model, named)
+    required = [c["id"] for c in checks if c["required"]]
+    queries = plan_queries(model, checks, required)
+    terms = [t for q in queries for t in q["terms"]]
+    plan_basis, plan_removed = name_bases(model, planned, terms, basis)
+    mark_exploratory(run, checks, [n for n, b in plan_basis.items() if b != "question"])
+    run.p.update(
+        hypotheses=plan_hypotheses(model),
+        objects=objects,
+        plan_basis=plan_basis,
+        plan_removed=plan_removed,
+        checks=checks,
+        queries=queries,
+        judgments=model.judgments[:4],
+        needs_calculation=model.needs_calculation or run.input["direction"] == "business",
+        mechanism=model.mechanism.model_dump() if model.mechanism else None,
+        actions=[],
+        hits=[],
+        facts=[],
+        relations=[],
+        pages={},
+        refs={},
+        retries=0,
+    )
+    first_candidates(run, required)
+
+
+def ask_plan(run: "Run"):
+    """(the model's plan, (question, earlier report) as squashed text): the earlier round's report goes in
+    only while its sources can be read, and whether it did is kept (used_previous)."""
     payload = {
         "question": run.asked,
         "direction": run.input["direction"],
@@ -44,23 +85,48 @@ def plan(run: "Run"):
     run.p["used_previous"] = bool(previous)
     if previous:
         payload["previous_report"] = previous["draft"][:3000]
-    plan = run.ask("plan", prompts.PLAN, payload, schemas.Plan)
-    if plan is None or not plan.checks:
+    model = run.ask("plan", prompts.PLAN, payload, schemas.Plan)
+    if model is None or not model.checks:
         raise Failed("plan_failed")
-    planned = [o.name.strip() for o in plan.objects[:8]]
-    # where each planned name comes from, decided here and not reported by the model: the
-    # question, the previous report (a draft, not an original record), or nowhere (exploratory). Only
-    # names from the question become objects; the others may steer searching but never narrow what
-    # counts as relevant. plan_basis records every planned name's basis and plan_removed the objects
-    # left out with the checks they were attached to (the model's raw output is not kept in progress).
-    shown = squash(run.input["question"]), squash(payload.get("previous_report", ""))
+    return model, (squash(run.input["question"]), squash(payload.get("previous_report", "")))
 
-    def basis(name):
-        name = squash(name)
-        return "question" if name in shown[0] else "prior_report" if name in shown[1] else "exploratory"
 
-    named = [n if n and basis(n) == "question" else "" for n in planned]  # check indexes
-    objects = list(dict.fromkeys(n for n in named if n))
+def name_basis(name, shown):
+    """Where a planned name comes from, decided here and not reported by the model: the question, the
+    previous report (a draft, not an original record), or nowhere (exploratory). Only names from the
+    question become objects; the others may steer searching but never narrow what counts as relevant.
+    plan_basis records every planned name's basis and plan_removed the objects left out with the checks
+    they were attached to (the model's raw output is not kept in progress)."""
+    name = squash(name)
+    return "question" if name in shown[0] else "prior_report" if name in shown[1] else "exploratory"
+
+
+def name_bases(model, planned, terms, basis):
+    """(plan_basis: every planned name and search term with its basis, plan_removed: the planned objects
+    not from the question, with the checks they were attached to)."""
+    plan_basis = {n: basis(n) for n in dict.fromkeys([n for n in planned if n] + terms)}
+    plan_removed = [
+        {
+            "name": n,
+            "basis": basis(n),
+            "checks": [f"Q{i}" for i, c in enumerate(model.checks[:8], 1) if k in c.objects],
+        }
+        for k, n in enumerate(planned, 1)
+        if n and basis(n) != "question"
+    ]
+    return plan_basis, plan_removed
+
+
+def plan_hypotheses(model):
+    return [
+        {"id": f"H{n}", **h.model_dump()}
+        for n, h in enumerate(model.hypotheses[:3], 1)
+        if h.statement.strip()
+    ]
+
+
+def plan_checks(run: "Run", model, named):
+    """The checks (Q1 ...), each with the question's objects it is about; at least one is required."""
     checks = [
         {
             "id": f"Q{i}",
@@ -74,14 +140,14 @@ def plan(run: "Run"):
                 dict.fromkeys(named[n - 1] for n in c.objects if 1 <= n <= len(named) and named[n - 1])
             ),
         }
-        for i, c in enumerate(plan.checks[:8], 1)
+        for i, c in enumerate(model.checks[:8], 1)
     ]
-    for c, planned_check in zip(checks, plan.checks):
+    for c, planned_check in zip(checks, model.checks):
         # a check only about objects the question never named is a direction, never required
         if planned_check.objects and not c["objects"]:
             c["required"], c["importance"] = False, 0.5
     if not any(c["required"] for c in checks):
-        anchor = next((c for c, pc in zip(checks, plan.checks) if not pc.objects or c["objects"]), None)
+        anchor = next((c for c, pc in zip(checks, model.checks) if not pc.objects or c["objects"]), None)
         if anchor is None:  # every check is about names the question never gave: ask the question itself
             anchor = {
                 "id": f"Q{len(checks) + 1}",
@@ -93,9 +159,13 @@ def plan(run: "Run"):
             }
             checks.append(anchor)
         anchor["required"] = True
-    required = [c["id"] for c in checks if c["required"]]
+    return checks
+
+
+def plan_queries(model, checks, required):
+    """The planned searches, cleaned and deduplicated, and each code-like term's letter roots."""
     queries = []
-    for q in plan.queries[:10]:
+    for q in model.queries[:10]:
         terms = clean_terms(q.terms)
         if terms and all(terms != x["terms"] for x in queries):
             ids = [f"Q{n}" for n in q.checks if 1 <= n <= len(checks)]
@@ -105,18 +175,10 @@ def plan(run: "Run"):
             queries.append({"terms": root, "checks": required, "origin": "plan"})
     if not queries:
         raise Failed("plan_without_queries")
-    terms = [t for q in queries for t in q["terms"]]
-    plan_basis = {n: basis(n) for n in dict.fromkeys([n for n in planned if n] + terms)}
-    plan_removed = [
-        {
-            "name": n,
-            "basis": basis(n),
-            "checks": [f"Q{i}" for i, c in enumerate(plan.checks[:8], 1) if k in c.objects],
-        }
-        for k, n in enumerate(planned, 1)
-        if n and basis(n) != "question"
-    ]
-    exploratory = [n for n, b in plan_basis.items() if b != "question"]
+    return queries
+
+
+def mark_exploratory(run: "Run", checks, exploratory):
     for c in checks:
         # shown to the reader as search directions that do not limit the question's scope
         c["exploratory"] = [n for n in exploratory if squash(n) in squash(c["text"])]
@@ -125,27 +187,11 @@ def plan(run: "Run"):
             "plan_exploratory_scope",
             "；".join(f"{c['id']}:{'、'.join(c['exploratory'])}" for c in checks),
         )
-    hypotheses = [
-        {"id": f"H{n}", **h.model_dump()} for n, h in enumerate(plan.hypotheses[:3], 1) if h.statement.strip()
-    ]
-    run.p.update(
-        hypotheses=hypotheses,
-        objects=objects,
-        plan_basis=plan_basis,
-        plan_removed=plan_removed,
-        checks=checks,
-        queries=queries,
-        judgments=plan.judgments[:4],
-        needs_calculation=plan.needs_calculation or run.input["direction"] == "business",
-        mechanism=plan.mechanism.model_dump() if plan.mechanism else None,
-        actions=[],
-        hits=[],
-        facts=[],
-        relations=[],
-        pages={},
-        refs={},
-        retries=0,
-    )
+
+
+def first_candidates(run: "Run", required):
+    """The seed records, the question's objects' graph records, and a small fixed material set's records
+    visible at the cutoff, as reading candidates."""
     for seed in run.input.get("seed_records", []):
         # a correction notice is pinned to the version that corrected; other seeds are not
         search.add_hit(

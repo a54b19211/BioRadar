@@ -26,12 +26,10 @@ FETCHABLE = {"clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don"}
 
 
 def candidates(run: "Run"):
-    live = run.cutoff is None and not run.input["is_demo"]
-    # fresh collection needs Fabric's admin token; without it there is no fetch step, said once
-    if live and not run.s.fabric_admin_token:
-        live = False
-        if all(n["code"] != "fetch_not_configured" for n in run.p.get("notes", [])):
-            run.note("fetch_not_configured", "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集")
+    """Every action the planner may choose next, each with what it is expected to add (weigh): searches
+    and fetches of the active searches, the next page of a large fixed material set, further pages of
+    searches still finding new records, and the unread hits in reading order."""
+    live = fetch_allowed(run)
     done = {
         (
             a["kind"],
@@ -42,6 +40,24 @@ def candidates(run: "Run"):
         )
         for a in run.p["actions"]
     }
+    offered = searches(run, done, live) + browse_pages(run) + next_pages(run) + reads(run)
+    return weigh(run, offered)
+
+
+def fetch_allowed(run: "Run"):
+    """Fresh collection only in current mode on real data, and only with Fabric's admin token; without
+    the token there is no fetch step, said once."""
+    live = run.cutoff is None and not run.input["is_demo"]
+    if live and not run.s.fabric_admin_token:
+        live = False
+        if all(n["code"] != "fetch_not_configured" for n in run.p.get("notes", [])):
+            run.note("fetch_not_configured", "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集")
+    return live
+
+
+def searches(run: "Run", done, live):
+    """Each active search in every source not searched yet; once searched, a fresh fetch where the
+    source can be collected and the search found little."""
     # Semantic search is verified by Fabric at the analysis cutoff, so replays use it too.
     sources = list(run.input["sources"]) + (["weknora"] if run.s.semantic_search else [])
     result = []
@@ -75,31 +91,43 @@ def candidates(run: "Run"):
                             "cost": 3,
                         }
                     )
-    if run.scope and len(run.scope) > FABRIC_PAGE:
-        # a large fixed material set (the task's own scope): list what is visible at the cutoff, so
-        # discovery does not depend on a search term happening to match (PHX attempt 4, W1: 17 of 20
-        # searches found 0-1 records). An ordinary candidate, same budget; no ranking by importance.
-        required = [c["id"] for c in run.p["checks"] if c.get("required")]
-        pages = -(-len(run.scope) // FABRIC_PAGE)
-        for source in run.input["sources"]:
-            browsed = set(run.p.get("browsed", {}).get(source, []))
-            failed = [
-                a["args"]["page"]
-                for a in run.p["actions"]
-                if a["args"].get("browse") and a["source"] == source and a["status"] == "failed"
-            ]
-            # the next page not done yet; a page that failed twice is left (and stays visible in actions)
-            waiting = [n for n in range(pages) if n not in browsed and failed.count(n) < BROWSE_TRIES]
-            if waiting:
-                result.append(
-                    {
-                        "kind": "search",
-                        "source": source,
-                        "args": {"terms": [], "browse": "scope", "page": waiting[0]},
-                        "target_checks": required,
-                        "_value": 1,
-                    }
-                )
+    return result
+
+
+def browse_pages(run: "Run"):
+    """A large fixed material set (the task's own scope): list what is visible at the cutoff, so discovery
+    does not depend on a search term happening to match (PHX attempt 4, W1: 17 of 20 searches found 0-1
+    records). An ordinary candidate, same budget; no ranking by importance."""
+    if not (run.scope and len(run.scope) > FABRIC_PAGE):
+        return []
+    result = []
+    required = [c["id"] for c in run.p["checks"] if c.get("required")]
+    pages = -(-len(run.scope) // FABRIC_PAGE)
+    for source in run.input["sources"]:
+        browsed = set(run.p.get("browsed", {}).get(source, []))
+        failed = [
+            a["args"]["page"]
+            for a in run.p["actions"]
+            if a["args"].get("browse") and a["source"] == source and a["status"] == "failed"
+        ]
+        # the next page not done yet; a page that failed twice is left (and stays visible in actions)
+        waiting = [n for n in range(pages) if n not in browsed and failed.count(n) < BROWSE_TRIES]
+        if waiting:
+            result.append(
+                {
+                    "kind": "search",
+                    "source": source,
+                    "args": {"terms": [], "browse": "scope", "page": waiting[0]},
+                    "target_checks": required,
+                    "_value": 1,
+                }
+            )
+    return result
+
+
+def next_pages(run: "Run"):
+    """The next page of each search that has one and still found new records, up to MAX_PAGES."""
+    result = []
     for key, page in run.p["pages"].items():
         if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]:
             source, *terms = key.split("|")
@@ -111,84 +139,95 @@ def candidates(run: "Run"):
                     "target_checks": page["checks"],
                 }
             )
-    objects = run.p.get("objects", [])
+    return result
 
-    def named(title):
-        return any(o in (title or "") for o in objects)
 
-    # Reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits
-    # in record-id order, so without this a tie is read alphabetically. coverage: the share of this
-    # plan's search terms found in the record's text, a cheap ordering feature, not relevance or truth.
-    terms = list(dict.fromkeys(squash(t) for q in run.p["queries"] for t in q["terms"]))
+class ReadingOrder:
+    """Reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits in
+    record-id order, so without this a tie is read alphabetically. coverage: the share of this plan's
+    search terms found in the record's text, a cheap ordering feature, not relevance or truth."""
 
-    def body(hit):
-        doc = run.docs.get(doc_key(hit))
+    def __init__(self, run: "Run"):
+        self.run = run
+        self.objects = run.p.get("objects", [])
+        self.terms = list(dict.fromkeys(squash(t) for q in run.p["queries"] for t in q["terms"]))
+        # full texts of what was read, only for documents in memory; after a restart those not reloaded
+        # are unknown, and a copy already recorded stays recorded
+        self.read_bodies = {}
+        for h in run.p["hits"]:
+            if h["read"] and (b := self.body(h)):
+                self.read_bodies.setdefault(b, f"{h['source']}:{h['record_id']}")
+
+    def named(self, title):
+        return any(o in (title or "") for o in self.objects)
+
+    def body(self, hit):
+        doc = self.run.docs.get(doc_key(hit))
         return None if doc is None else squash((doc["title"] or "") + (doc["text"] or ""))
 
-    # full texts of what was read, only for documents in memory; after a restart those not reloaded
-    # are unknown, and a copy already recorded stays recorded
-    read_bodies = {}
-    for h in run.p["hits"]:
-        if h["read"] and (b := body(h)):
-            read_bodies.setdefault(b, f"{h['source']}:{h['record_id']}")
-
-    def sketch(hit):
+    def sketch(self, hit):
         """The few ordering features of a hit, kept in progress so a resumed run orders the same way
         without the texts: which search terms its text contains, its own time, and which read record
         its full text is identical to (recorded only when both texts were compared)."""
-        doc = run.docs.get(doc_key(hit))
+        doc = self.run.docs.get(doc_key(hit))
         if doc is not None:
-            old, b = hit.get("sketch", {}), body(hit)
+            old, b = hit.get("sketch", {}), self.body(hit)
             hit["sketch"] = {
-                "matched": sorted(set(old.get("matched", [])) | {t for t in terms if t in b}),
+                "matched": sorted(set(old.get("matched", [])) | {t for t in self.terms if t in b}),
                 "when": doc.get("published_at") or doc.get("available_at"),
             }
-            copy = old.get("duplicate_of") or (None if hit["read"] else read_bodies.get(b))
+            copy = old.get("duplicate_of") or (None if hit["read"] else self.read_bodies.get(b))
             if copy:
                 hit["sketch"]["duplicate_of"] = copy
         return hit.get("sketch") or {}
 
-    def coverage(hit):
-        matched = set(sketch(hit).get("matched", []))
-        return len(matched & set(terms)) / len(terms) if terms else 0.0
+    def coverage(self, hit):
+        matched = set(self.sketch(hit).get("matched", []))
+        return len(matched & set(self.terms)) / len(self.terms) if self.terms else 0.0
 
-    def newest(hit):  # the record's own visible time; unknown sorts last
-        value = sketch(hit).get("when")
+    def newest(self, hit):  # the record's own visible time; unknown sorts last
+        value = self.sketch(hit).get("when")
         try:
             return -datetime.fromisoformat(value).timestamp() if value else 0.0
         except (TypeError, ValueError):
             return 0.0
 
+    def key(self, hit):
+        # corrections and seeds first; exact copies of a text already read go behind, never dropped
+        return (
+            not hit["critical"],
+            bool(self.sketch(hit).get("duplicate_of")),
+            not self.named(hit["title"]),
+            -self.coverage(hit),
+            self.newest(hit),
+        )
+
+
+def reads(run: "Run"):
+    """The first 40 unread hits as read candidates, in reading order."""
+    order = ReadingOrder(run)
     unread = [h for h in run.p["hits"] if not h["read"]]
     if run.input["method"] == "planner":
-        # corrections and seeds first; exact copies of a text already read go behind, never dropped
-        unread.sort(
-            key=lambda h: (
-                not h["critical"],
-                bool(sketch(h).get("duplicate_of")),
-                not named(h["title"]),
-                -coverage(h),
-                newest(h),
-            )
-        )
+        unread.sort(key=order.key)
     else:
         unread.sort(key=lambda h: not h["critical"])
-    for hit in unread[:40]:
-        result.append(
-            {
-                "kind": "read",
-                "source": hit["source"],
-                "args": {"record_id": hit["record_id"]}
-                | ({"version_id": hit["version_id"]} if hit.get("version_id") else {}),
-                "target_checks": hit["checks"],
-                "critical": hit["critical"],
-                # query-planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
-                # object the question asks about
-                "scope_match": round(0.4 + 0.3 * coverage(hit) + (0.3 if named(hit["title"]) else 0), 3),
-                "_copy": bool(sketch(hit).get("duplicate_of")),
-            }
-        )
-    return weigh(run, result)
+    return [
+        {
+            "kind": "read",
+            "source": hit["source"],
+            "args": {"record_id": hit["record_id"]}
+            | ({"version_id": hit["version_id"]} if hit.get("version_id") else {}),
+            "target_checks": hit["checks"],
+            "critical": hit["critical"],
+            # query-planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
+            # object the question asks about
+            "scope_match": round(
+                0.4 + 0.3 * order.coverage(hit) + (0.3 if order.named(hit["title"]) else 0), 3
+            ),
+            "_copy": bool(order.sketch(hit).get("duplicate_of")),
+        }
+        for hit in unread[:40]
+    ]
 
 
 def weigh(run: "Run", result):
