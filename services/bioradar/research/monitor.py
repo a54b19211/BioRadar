@@ -670,7 +670,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     )
     session.add(row)
     session.flush()
-    hand_over(session, row, identity)
+    hand_over(session, row, identity, relocated_from=cand.relocated_from)
     if contradicted:
         for r in contradicted + [row]:
             if RECORD_CONFLICT not in (r.dims_reasons or []):
@@ -1314,11 +1314,13 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
     return created
 
 
-def hand_over(session, row, identity):
+def hand_over(session, row, identity, relocated_from=None):
     """T-26: a point read from the upgraded artifact of its version takes the place of the points of the same
     identity read from the artifacts that upgrade replaced - they retire (artifact_upgrade), never a record
     contradiction; a changed value is told to the topic. Only the artifact of the version's current plan, an
-    upgrade's, hands over. Returns the retired points."""
+    upgrade's, hands over. A relocated candidate's point takes the place of exactly the point of the candidate
+    it came from, whatever its group key was (one from before the complete domain has none). Returns the
+    retired points."""
     plans = list(
         session.scalars(
             select(db.RecordRead).where(
@@ -1336,17 +1338,16 @@ def hand_over(session, row, identity):
     replaced = {p.artifact_key for p in plans if p.superseded_by_id is not None} - {row.artifact_key, ""}
     if not current or not replaced:
         return []
+    query = select(db.Measurement).filter_by(
+        workspace_id=row.workspace_id, is_demo=row.is_demo, version_id=row.version_id
+    )
+    if relocated_from is not None:
+        query = query.filter_by(candidate_id=relocated_from)
+    else:
+        query = query.filter_by(period=row.period, **identity)
     old = list(
         session.scalars(
-            select(db.Measurement)
-            .filter_by(
-                workspace_id=row.workspace_id,
-                is_demo=row.is_demo,
-                version_id=row.version_id,
-                period=row.period,
-                **identity,
-            )
-            .where(
+            query.where(
                 db.Measurement.artifact_key.in_(sorted(replaced)),
                 db.Measurement.retired_reason.is_(None),
                 db.Measurement.id != row.id,

@@ -3,6 +3,7 @@ upgraded to a new processor's artifact of the same raw version, and corrections 
 existed are backfilled; both bounded, continued by run id, never by a cleared cursor or a fresh database."""
 
 import hashlib
+import json
 from datetime import UTC, datetime
 
 import pytest
@@ -12,7 +13,7 @@ from test_continuation import QUOTE, SENTENCE, due, effective, model, text_with
 from test_continuation import stand_ins as stand_ins  # noqa: F401 - the fixture
 
 from bioradar import db
-from bioradar.adapters import llm
+from bioradar.adapters import llm, services
 from bioradar.adapters.fabric import FabricError, part
 from bioradar.material import Material
 from bioradar.research import continuation, measure_checks, monitor, upkeep
@@ -235,7 +236,9 @@ def test_a_point_the_upgraded_artifact_did_not_give_again_stays_owed_not_proven_
     assert (a0, v0, why0, by0) == (OLD, "318", None, None) and effective() == ["318"]
     with db.session() as s:
         [item] = s.scalars(select(db.UpkeepItem).where(db.UpkeepItem.outcome == "upgrade_unconfirmed"))
-        assert item.detail["unconfirmed"] == [{"id": id0, "value": "318", "quote_in_new_text": present}]
+        assert item.detail["unconfirmed"] == [
+            {"id": id0, "value": "318", "quote_in_new_text": present, "recheck": None}
+        ]
     assert upgrade(fabric, run["run_id"])["recorded"]["upgrade_unconfirmed"] == 1  # said once, not again
 
 
@@ -348,3 +351,150 @@ def test_corrections_seen_before_record_corrections_existed_are_backfilled_in_bo
 def test_a_run_is_continued_only_as_what_it_is():
     with pytest.raises(ValueError):
         upkeep.backfill_corrections(monitor.settings(), FakeFabric([]), is_demo=True, run_id=999)
+
+
+# ---- working off upgrade_unconfirmed (Codex 772) ----------------------------------------------------------
+
+
+def unconfirmed(monkeypatch, *texts, new=None):
+    """Old state, upgraded; the new artifact read whole by an extractor that gives nothing: owed points."""
+    fabric = old_state(*texts)
+    for p, t in zip(plans(), texts):
+        fabric.v12[p.version_id] = (new or (lambda x: x))(t) + TAIL
+        fabric.ready.add(p.version_id)
+    run = upgrade(fabric)
+    monkeypatch.setattr(llm, "chat_json", model([], by_quote={"不会出现的句子": {}}))
+    tick(fabric)
+    run = upgrade(fabric, run["run_id"])
+    assert run["items"] == {"upgrade_unconfirmed": len(texts)}
+    return fabric, run
+
+
+def recheck(fabric, run, limit=5):
+    return upkeep.recheck_unconfirmed(
+        monitor.settings(), fabric, is_demo=True, run_id=run["run_id"], limit=limit
+    )
+
+
+def test_a_known_fact_still_in_the_new_text_is_relocated_checked_anew_and_takes_the_old_ones_place(
+    stand_ins, monkeypatch
+):
+    calls, checks = stand_ins
+    fabric, run = unconfirmed(monkeypatch, text_with(3000))
+    [old] = points()
+    sent_before = len(checks)
+    run = recheck(fabric, run)
+    assert run["items"] == {"upgrade_unconfirmed": 1, "relocated": 1}
+    with db.session() as s:
+        [c] = s.scalars(
+            select(db.MeasurementCandidate).where(db.MeasurementCandidate.relocated_from.is_not(None))
+        )
+        assert (c.processor_version, c.material_read_id) == (NEW, None)  # no model call read it
+        assert fabric.v12[c.version_id][c.quote_start : c.quote_end] == QUOTE
+    tick(fabric)
+    # a new BioCheck check, of the text Fabric serves for the new artifact
+    assert any(NEW in json.dumps(b["subject"]) for b in checks[sent_before:])
+    with db.session() as s:
+        check = s.scalars(
+            select(db.MeasurementCheck)
+            .where(db.MeasurementCheck.candidate_id == c.id)
+            .order_by(db.MeasurementCheck.id)
+        ).all()[-1]
+        assert check.status == "consistent" and check.gate == "series" and check.request_sha256
+    [(a0, v0, why0, by0, _), (a1, v1, why1, _, id1)] = points()
+    assert (a0, why0, by0) == (OLD, "artifact_upgrade", id1) and (a1, v1, why1) == (NEW, "318", None)
+    assert effective() == ["318"]
+    run = upgrade(fabric, run["run_id"])
+    assert run["state"] == "done" and run["items"]["settled"] == 1
+
+
+def test_a_recheck_the_check_does_not_pass_leaves_the_old_point_owed(stand_ins, monkeypatch):
+    fabric, run = unconfirmed(monkeypatch, text_with(3000))
+    recheck(fabric, run)
+
+    def inconsistent(body, response):
+        if NEW not in json.dumps(body["subject"]):
+            return response  # only the recheck in the new artifact does not pass
+        for it in response["items"]:
+            it.update(status="inconsistent", fields={**it["fields"], "value": {"result": "mismatch"}})
+        return response
+
+    from conftest import biocheck_fake
+
+    post = biocheck_fake(inconsistent)
+    monkeypatch.setattr(services, "biocheck_extraction", lambda s, body: post(body))
+    tick(fabric)
+    [(a0, _, why0, _, id0)] = points()
+    assert (a0, why0) == (OLD, None) and effective() == ["318"]
+    run = upgrade(fabric, run["run_id"])
+    assert run["state"] == "running"
+    with db.session() as s:
+        item = s.scalars(
+            select(db.UpkeepItem)
+            .where(db.UpkeepItem.outcome == "upgrade_unconfirmed")
+            .order_by(db.UpkeepItem.id.desc())
+        ).first()
+        [owed] = item.detail["unconfirmed"]
+        assert owed["id"] == id0 and owed["recheck"]["check"]["status"] == "inconsistent"
+
+
+@pytest.mark.parametrize(
+    "new,outcome",
+    [
+        (lambda t: t.replace(SENTENCE, "。" * len(SENTENCE)), "quote_not_in_new_text"),
+        (lambda t: t + "\n\n" + SENTENCE, "quote_in_several_places"),
+    ],
+)
+def test_a_quote_gone_or_found_twice_is_not_rechecked_and_stays_owed(stand_ins, monkeypatch, new, outcome):
+    fabric, run = unconfirmed(monkeypatch, text_with(3000), new=new)
+    run = recheck(fabric, run)
+    assert run["items"] == {"upgrade_unconfirmed": 1, outcome: 1}
+    assert recheck(fabric, run)["recorded"][outcome] == 1  # the artifact is fixed: not tried again
+    with db.session() as s:
+        assert (
+            s.scalars(
+                select(db.MeasurementCandidate).where(db.MeasurementCandidate.relocated_from.is_not(None))
+            ).all()
+            == []
+        )
+    assert points()[0][2] is None and upgrade(fabric, run["run_id"])["state"] == "running"
+
+
+def test_a_fact_citing_a_context_only_its_old_model_call_was_sent_is_not_rechecked(stand_ins, monkeypatch):
+    fabric, run = unconfirmed(monkeypatch, text_with(3000))
+    with db.session() as s:
+        [c] = s.scalars(select(db.MeasurementCandidate))
+        c.measure = {**c.measure, "sources": {"unit": "heading"}}
+    run = recheck(fabric, run)
+    assert run["items"] == {"upgrade_unconfirmed": 1, "cites_old_send": 1}
+    assert points()[0][2] is None
+
+
+def test_rechecks_are_bounded_and_carry_on_after_a_restart_and_an_unreadable_artifact(stand_ins, monkeypatch):
+    fabric, run = unconfirmed(monkeypatch, text_with(3000), text_with(2500))
+    real = fabric.clean_texts
+    fabric.clean_texts = lambda *a, **k: (_ for _ in ()).throw(FabricError("fabric_http_502", "down"))
+    run = recheck(fabric, run, limit=1)
+    assert run["items"] == {"upgrade_unconfirmed": 2, "recheck_waiting": 1}
+    fabric.clean_texts = real
+    run = recheck(fabric, run, limit=1)  # a fresh call, as after a restart
+    assert run["items"] == {"upgrade_unconfirmed": 2, "relocated": 1}
+    run = recheck(fabric, run, limit=1)
+    assert run["items"] == {"upgrade_unconfirmed": 2, "relocated": 2}
+    assert recheck(fabric, run, limit=5)["recorded"]["relocated"] == 2  # nothing relocated twice
+
+
+def test_a_relocated_fact_takes_the_place_of_its_own_old_point_whatever_its_group_key_was(
+    stand_ins, monkeypatch
+):
+    """Found on the real old-state copy: an old point from before the complete domain (no family, no
+    dims_key) is taken over by the point of the candidate relocated from it, not looked up by group key."""
+    fabric, run = unconfirmed(monkeypatch, text_with(3000))
+    with db.session() as s:
+        [m] = s.scalars(select(db.Measurement))
+        m.family, m.dims_key = "", ""
+    recheck(fabric, run)
+    tick(fabric)
+    [(a0, _, why0, by0, _), (a1, _, why1, _, id1)] = points()
+    assert (a0, why0, by0) == (OLD, "artifact_upgrade", id1) and (a1, why1) == (NEW, None)
+    assert upgrade(fabric, run["run_id"])["state"] == "done"

@@ -3,6 +3,7 @@ python -m bioradar.ops worker    RQ worker that runs analyses
 python -m bioradar.ops monitor   live monitoring loop (BIORADAR_MONITOR_ENABLED=true) plus recovery
 python -m bioradar.ops upgrade-reads --source S --processor P [--limit N] [--run ID] [--demo]
 python -m bioradar.ops backfill-corrections [--limit N] [--run ID] [--demo]
+python -m bioradar.ops recheck-unconfirmed --run ID [--limit N] [--demo]
     T-26 operator-run, bounded upkeep of existing state; prints the run's summary (continue it with --run)"""
 
 import logging
@@ -50,7 +51,8 @@ def upkeep_command(argv):
     a.add_argument("--source")
     a.add_argument("--processor")
     b = sub.add_parser("backfill-corrections")
-    for x in (a, b):
+    c = sub.add_parser("recheck-unconfirmed")
+    for x in (a, b, c):
         x.add_argument("--limit", type=int, default=20)
         x.add_argument("--run", type=int)
         x.add_argument("--demo", action="store_true")
@@ -68,6 +70,10 @@ def upkeep_command(argv):
             limit=args.limit,
             run_id=args.run,
         )
+    elif args.cmd == "recheck-unconfirmed":
+        if args.run is None:
+            p.error("recheck-unconfirmed needs --run (an upgrade-reads run)")
+        out = upkeep.recheck_unconfirmed(s, Fabric(s), is_demo=args.demo, run_id=args.run, limit=args.limit)
     else:
         out = upkeep.backfill_corrections(s, Fabric(s), is_demo=args.demo, limit=args.limit, run_id=args.run)
     print(json.dumps(out, ensure_ascii=False, default=str))
@@ -75,7 +81,7 @@ def upkeep_command(argv):
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    if sys.argv[1] in ("upgrade-reads", "backfill-corrections"):
+    if sys.argv[1] in ("upgrade-reads", "backfill-corrections", "recheck-unconfirmed"):
         upkeep_command(sys.argv[1:])
     else:
         {"worker": worker, "monitor": monitor_loop}[sys.argv[1]]()

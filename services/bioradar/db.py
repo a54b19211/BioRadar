@@ -357,6 +357,9 @@ class MeasurementCandidate(Base):
     )  # [(source, record_id, version_id)] the record corrects
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # the record's availability
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # T-26: a known fact of an older artifact of the version located again in this artifact by its quote (that
+    # candidate's id): no model read it here - its measure is the old reading, checked against this text
+    relocated_from: Mapped[int | None] = mapped_column(Integer, index=True)
 
 
 class MeasurementCheckTask(Base):

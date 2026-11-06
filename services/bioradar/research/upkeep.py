@@ -13,12 +13,22 @@ found nothing is not the fact's absence (Codex r184) - and the run stays open; a
 plan keeps the old points too (upgrade_incomplete). Triage (topics, alerts) is not redone and no observation
 is added.
 
+recheck_unconfirmed (Codex 772) works those owed points off, bounded: an old point's quote found exactly once
+in the new artifact, with no field citing more than its quote, becomes a candidate of the new artifact
+(relocated_from) checked by the usual worker - Fabric's text of that artifact, a new BioCheck check, the usual
+gate; once adopted it takes the old point's place. No model reads anything for it, so a measure citing a
+context only its old model call was sent (a heading, a table header) is not rechecked; neither is a quote that
+is gone or found more than once. Those, and a recheck the check does not pass, stay owed.
+
 backfill_corrections (Codex r167, migration 0010 started empty): the corrections and retractions stated by
 the records seen before record_corrections existed are registered from their fixed versions, dated at the
 record's own time, through the same idempotent monitor.record_corrections.
 
 Each call handles at most `limit` items and records every outcome (upkeep_items, append-only); a Fabric
 that does not answer stops the call with the cursor before the item. A run is continued by id."""
+
+import copy
+import re
 
 from sqlalchemy import func, select
 
@@ -30,6 +40,14 @@ from bioradar.research import continuation, measure_checks, monitor
 
 OPEN_CHECKS = ("queued", "waiting")
 UNSETTLED = ("planned", "upgrade_incomplete", "upgrade_unconfirmed")  # old points not settled yet
+# a known fact's recheck outcome that a later call does not try again (the artifact is fixed)
+RECHECKED = (
+    "relocated",
+    "quote_not_in_new_text",
+    "quote_in_several_places",
+    "cites_old_send",
+    "no_candidate",
+)
 PLAN = ("version_id", "old_read", "new_read", "old_artifact", "new_artifact", "windows")  # an item's identity
 RETRY = ("artifact_not_ready",)  # tried again once the cursor is through
 
@@ -245,6 +263,7 @@ def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
                     "id": m.id,
                     "value": m.value_text,
                     "quote_in_new_text": (m.quote in text) if text is not None else None,
+                    "recheck": _recheck_state(session, m, new),
                 }
                 for m in left
             ]
@@ -253,6 +272,135 @@ def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
                     session, run, key, "upgrade_unconfirmed", **facts, unconfirmed=unconfirmed, readback=why
                 )
                 limit -= 1
+
+
+def _recheck_state(session, m, new):
+    """The recheck of old point m in the new artifact, if any: its candidate, status and latest check."""
+    if not m.candidate_id:
+        return None
+    c = session.scalar(
+        select(db.MeasurementCandidate)
+        .where(
+            db.MeasurementCandidate.relocated_from == m.candidate_id,
+            db.MeasurementCandidate.processor_version == new.processor_version,
+            db.MeasurementCandidate.text_sha256 == new.text_sha256,
+        )
+        .order_by(db.MeasurementCandidate.id.desc())
+        .limit(1)
+    )
+    if c is None:
+        return None
+    check = session.scalar(
+        select(db.MeasurementCheck)
+        .where(db.MeasurementCheck.candidate_id == c.id)
+        .order_by(db.MeasurementCheck.id.desc())
+        .limit(1)
+    )
+    return {
+        "candidate": c.id,
+        "status": c.status,
+        "check": None
+        if check is None
+        else {"status": check.status, "gate": check.gate, "reason": check.gate_reason},
+    }
+
+
+def recheck_unconfirmed(s: Settings, fabric, *, is_demo, run_id, limit=20, now=None):
+    """One bounded step working off an upgrade run's owed old points (see the module text): at most `limit`
+    points, each outcome recorded once per point (key p<point id>). Returns the run's summary."""
+    now = now or db.now()
+    budget = limit
+    with db.session() as session:
+        run = _run(session, s, "upgrade_reads", is_demo, run_id, {})
+        state = latest(session, run)
+        for key, (outcome, d) in list(state.items()):
+            if budget <= 0:
+                break
+            if outcome not in UNSETTLED:
+                continue
+            new = session.get(db.RecordRead, d["new_read"])
+            old = list(
+                session.scalars(
+                    select(db.Measurement)
+                    .where(
+                        db.Measurement.workspace_id == s.workspace_id,
+                        db.Measurement.is_demo == is_demo,
+                        db.Measurement.version_id == new.version_id,
+                        db.Measurement.artifact_key == d["old_artifact"],
+                        db.Measurement.retired_reason.is_(None),
+                    )
+                    .order_by(db.Measurement.id)
+                )
+            )
+            todo = [m for m in old if (state.get(f"p{m.id}") or ("",))[0] not in RECHECKED][:budget]
+            if not todo:
+                continue
+            text, why = continuation._readback(fabric, new, now)
+            for m in todo:
+                budget -= 1
+                pk = f"p{m.id}"
+                if text is None:
+                    _item(session, run, pk, "recheck_waiting", plan=key, readback=why)  # tried again later
+                    continue
+                cand = session.get(db.MeasurementCandidate, m.candidate_id) if m.candidate_id else None
+                if cand is None:
+                    _item(session, run, pk, "no_candidate", plan=key)
+                    continue
+                cited = sorted({v for v in (cand.measure.get("sources") or {}).values() if v != "quote"})
+                if cited:
+                    # sent only with the old model call: no reading of the new artifact sent them
+                    _item(session, run, pk, "cites_old_send", plan=key, old_candidate=cand.id, sources=cited)
+                    continue
+                quote = cand.measure.get("quote") or ""
+                hits = [x.start() for x in re.finditer(re.escape(quote), text)] if quote else []
+                if len(hits) != 1:
+                    outcome_ = "quote_in_several_places" if hits else "quote_not_in_new_text"
+                    _item(session, run, pk, outcome_, plan=key, old_candidate=cand.id, found=len(hits))
+                    continue
+                c = db.MeasurementCandidate(
+                    workspace_id=cand.workspace_id,
+                    is_demo=cand.is_demo,
+                    source=cand.source,
+                    record_id=cand.record_id,
+                    version_id=cand.version_id,
+                    raw_sha256=(new.part or {}).get("raw_sha256") or cand.raw_sha256,
+                    processor_version=new.processor_version,
+                    text_sha256=new.text_sha256,
+                    quote_start=hits[0],
+                    quote_end=hits[0] + len(quote),
+                    measure=copy.deepcopy(cand.measure),
+                    status="pending",
+                    topic_id=cand.topic_id,
+                    direction=cand.direction,
+                    observed_at=cand.observed_at,
+                    material_read_id=None,  # no model call read it in this artifact
+                    corrects=copy.deepcopy(cand.corrects),
+                    relocated_from=cand.id,
+                )
+                session.add(c)
+                session.flush()
+                session.add(
+                    db.MeasurementCheckTask(
+                        candidate_id=c.id,
+                        checker_version=measure_checks.CHECKER,
+                        state="queued",
+                        attempts=0,
+                        next_check_at=db.now(),
+                    )
+                )
+                _item(
+                    session,
+                    run,
+                    pk,
+                    "relocated",
+                    plan=key,
+                    old_candidate=cand.id,
+                    candidate=c.id,
+                    quote_start=c.quote_start,
+                    quote_end=c.quote_end,
+                    artifact=new.artifact_key,
+                )
+        return summary(session, run)
 
 
 def upgrade_reads(
