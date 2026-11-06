@@ -6,7 +6,7 @@ from conftest import FakeFabric, record
 
 from bioradar import db
 from bioradar.adapters import llm
-from bioradar.research import analyses, monitor, schemas
+from bioradar.research import analyses, monitor, schemas, topics
 
 DAY = "2026-09-{:02d}T08:00:00+08:00"
 
@@ -90,7 +90,7 @@ def _topics():
     from bioradar import db
 
     with db.session() as s:
-        return [monitor.topic_view(t) for t in s.scalars(select(db.Topic))]
+        return [topics.topic_view(t) for t in s.scalars(select(db.Topic))]
 
 
 def test_records_whose_triage_failed_are_triaged_again(monkeypatch):
@@ -549,14 +549,14 @@ def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeyp
             seen(day, 1, topic_id=topic.id)
         session.flush()
         at = start + timedelta(days=7)
-        assert monitor.activity(session, s, topic, at, True) is False  # only 6 received days before day 7
+        assert topics.activity(session, s, topic, at, True) is False  # only 6 received days before day 7
         seen(8, 2)
         seen(8, 4, topic_id=topic.id)
         seen(8, 2, topic_id=topic.id, origin="record:x:original")  # reposts of one original count once
         session.flush()
         at = start + timedelta(days=8)
-        assert monitor.activity(session, s, topic, at, True) is True  # 5 > mean 1 + 3 (all days equal)
-        assert monitor.activity(session, s, topic, at, True) is False  # once per day
+        assert topics.activity(session, s, topic, at, True) is True  # 5 > mean 1 + 3 (all days equal)
+        assert topics.activity(session, s, topic, at, True) is False  # once per day
         [event] = list(session.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "activity")))
         assert (event.detail["records"], event.detail["threshold"], len(event.detail["days"])) == (5, 4.0, 7)
         assert "2026-10-04" not in event.detail["days"]
@@ -573,7 +573,7 @@ def test_activity_keys_keep_sources_apart_and_join_a_repost_to_its_original():
     }
     other_source = {"source": "b", "record_id": "R1", "relations": [], "origin_group": None}
     grouped = {"source": "b", "record_id": "R9", "relations": [], "origin_group": "R1"}
-    keys = [monitor.activity_key(d) for d in (original, repost, other_source, grouped)]
+    keys = [topics.activity_key(d) for d in (original, repost, other_source, grouped)]
     assert keys[0] == keys[1]  # the repost is its original, whatever its own group is called
     assert len({keys[0], keys[2], keys[3]}) == 3  # same id in another source, and a group named like an id
 

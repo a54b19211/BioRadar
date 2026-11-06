@@ -31,7 +31,7 @@ from bioradar.config import Settings
 from bioradar.material import Material, of
 from bioradar.research import analyses, measure_checks, prompts, schemas
 
-WINDOW = measure_checks.TRIAGE_WINDOW  # = monitor.TRIAGE_CHARACTERS: window 0 is the triage window
+WINDOW = measure_checks.TRIAGE_WINDOW  # = triage.TRIAGE_CHARACTERS: window 0 is the triage window
 LEASE = timedelta(minutes=2)
 MAX_ATTEMPTS = 3
 RETRY = timedelta(minutes=5)

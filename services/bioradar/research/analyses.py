@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
-from bioradar.research import views
+from bioradar.research import topics, views
 from bioradar.research.pipeline import Failed, Run
 
 LEASE = timedelta(minutes=90)
@@ -359,8 +359,6 @@ def review(
     """Record a person's decision. confirm / reject name a BioCheck sentence of a completed analysis,
     flag_source one of its materials, set_alert a topic's alert. reject and flag_source owe the analysis's
     topic a new analysis (analyst_review); an analysis without a topic only keeps the record."""
-    from bioradar.research import monitor  # monitor imports this module
-
     at = db.now()
     with db.session() as session:
         topic = None
@@ -369,7 +367,7 @@ def review(
             if topic is None or alert is None:
                 raise InvalidInput("set_alert 需要存在的 topic_id 和 alert")
             if topic.alert != alert:
-                monitor.event(session, topic, at, "alert", before=topic.alert, after=alert, by=user.name)
+                topics.event(session, topic, at, "alert", before=topic.alert, after=alert, by=user.name)
                 topic.alert = alert
             analysis_id = sentence = evidence_ref = None
         else:
@@ -393,7 +391,7 @@ def review(
             investigation = session.get(db.Investigation, row.investigation_id)
             topic = session.get(db.Topic, investigation.topic_id) if investigation.topic_id else None
             if action in {"reject", "flag_source"} and topic is not None:
-                monitor.owe(topic, "analyst_review", at)
+                topics.owe(topic, "analyst_review", at)
             alert = None
         record = db.Review(
             user_id=user.id,

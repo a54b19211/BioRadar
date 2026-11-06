@@ -23,7 +23,7 @@ from test_series import fake_triage
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.research import measure_checks, monitor, schemas
+from bioradar.research import measure_checks, monitor, scheduling, schemas, topics, triage
 from bioradar.research.run import investigate
 
 TEXT = "2026年4月，国家药监局共批准注册医疗器械产品318个。"
@@ -241,7 +241,7 @@ def test_revocation_and_recovery_move_a_point_out_of_and_back_into_the_effective
     monitor.tick(is_demo=True, fabric=fabric)  # an ordinary round: nothing forced due
     assert effective_ids() == [] and rows(db.Measurement)[0].id == point.id  # history kept, not current
     with db.session() as s:
-        assert monitor.known_series(s, monitor.settings(), True, datetime(2027, 1, 1, tzinfo=UTC)) == []
+        assert triage.known_series(s, monitor.settings(), True, datetime(2027, 1, 1, tzinfo=UTC)) == []
     fabric.revoked.clear()
     monitor.tick(is_demo=True, fabric=fabric)  # readable again: checked again this same round
     assert effective_ids() == [point.id] and len(rows(db.Measurement)) == 1
@@ -272,7 +272,7 @@ def test_a_series_event_whose_point_left_the_view_is_no_current_conclusion(monke
     [point] = rows(db.Measurement)
     with db.session() as s:
         topic = s.scalars(select(db.Topic)).first()
-        monitor.event(
+        topics.event(
             s,
             topic,
             datetime(2026, 5, 8, tzinfo=UTC),
@@ -283,12 +283,12 @@ def test_a_series_event_whose_point_left_the_view_is_no_current_conclusion(monke
         )
         topic_id = topic.id
     with db.session() as s:
-        assert "已核" in monitor.series_basis(s, topic_id)
+        assert "已核" in scheduling.series_basis(s, topic_id)
     fabric.revoked.add(point.version_id)
     due_now()
     monitor.tick(is_demo=True, fabric=fabric)
     with db.session() as s:
-        assert monitor.series_basis(s, topic_id) == ""
+        assert scheduling.series_basis(s, topic_id) == ""
 
 
 def test_a_point_and_an_interval_of_the_same_month_are_two_series(monkeypatch):
@@ -455,13 +455,13 @@ def test_an_ordinary_round_reads_permission_before_it_reads_series(monkeypatch):
     [point] = rows(db.Measurement)
     fabric.revoked.add(point.version_id)
     seen = {}
-    real = monitor.known_series
+    real = triage.known_series
 
     def spy(session, s, is_demo, clock, limit=40):
         seen["known"] = real(session, s, is_demo, clock, limit)
         return seen["known"]
 
-    monkeypatch.setattr(monitor, "known_series", spy)
+    monkeypatch.setattr(triage, "known_series", spy)
     text = "2026年5月，国家药监局共批准注册医疗器械产品300个。"
     fabric.docs += FakeFabric(
         [record("R2", text, text, available="2026-06-08T08:00:00+08:00")], clean=True
@@ -743,7 +743,7 @@ def test_a_confident_planner_cannot_promote_a_revoked_value(monkeypatch):
     assert state() == before  # no point, candidate, check or effective view changed by the planner's answer
     with db.session() as s:
         topic = s.scalars(select(db.Topic)).first()
-        monitor.event(
+        topics.event(
             s,
             topic,
             datetime(2026, 5, 8, tzinfo=UTC),
@@ -752,7 +752,7 @@ def test_a_confident_planner_cannot_promote_a_revoked_value(monkeypatch):
             metric="m",
             changes=[{"kind": "step", "rows": [point.id]}],
         )
-        assert monitor.series_basis(s, topic.id) == ""  # no deterministic report basis from it
+        assert scheduling.series_basis(s, topic.id) == ""  # no deterministic report basis from it
 
 
 def test_a_confident_planner_cannot_promote_an_unchecked_candidate(monkeypatch):

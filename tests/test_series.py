@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.research import measure_checks, monitor, schemas, series
+from bioradar.research import measure_checks, monitor, schemas, series, triage
 
 # the series kernel: families and dimensions count as proven here (the real gate: test_complete_domain)
 pytestmark = pytest.mark.usefixtures("dims_verified")
@@ -401,7 +401,7 @@ def test_known_series_shown_to_a_replay_are_only_checked_ones_visible_then():
     point("晚", datetime(2026, 1, 20, tzinfo=UTC))
     point("未核", datetime(2026, 1, 2, tzinfo=UTC), checked_=False)  # stored before checking: history only
     with db.session() as s:
-        shown = monitor.known_series(s, monitor.settings(), True, datetime(2026, 1, 10, tzinfo=UTC))
+        shown = triage.known_series(s, monitor.settings(), True, datetime(2026, 1, 10, tzinfo=UTC))
     assert [k["object"] for k in shown] == ["早"]
 
 

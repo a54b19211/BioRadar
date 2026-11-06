@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.research import domain, measure_checks, monitor, schemas
+from bioradar.research import domain, measure_checks, monitor, scheduling, schemas, topics
 
 
 def check(**fields):
@@ -369,7 +369,7 @@ def conflict_topic(monkeypatch, extra):
         points = first.detail["points"]
         for n in range(extra):
             at = monitor.parse_time(first.at) + timedelta(seconds=min(n, 5))
-            monitor.event(
+            topics.event(
                 s,
                 topic,
                 at,
@@ -379,7 +379,7 @@ def conflict_topic(monkeypatch, extra):
                 period="2026-01",
                 points=points,
             )
-            monitor.owe(topic, "record_conflict", at)
+            topics.owe(topic, "record_conflict", at)
         return topic.id
 
 
@@ -415,7 +415,7 @@ def test_a_bounded_conflict_hand_off_settles_only_what_it_handed_and_carries_on(
     with db.session() as s:
         topic = s.get(db.Topic, tid)
         assert topic.pending_reason is None
-        handed_ids = monitor.handed_events(s, tid)
+        handed_ids = scheduling.handed_events(s, tid)
         conflicts = {
             e.id for e in s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "record_conflict"))
         }
@@ -440,7 +440,7 @@ def test_a_correction_batch_hands_repeats_with_their_version_and_leaves_the_rest
         topic = s.get(db.Topic, tid)
         t0 = monitor.parse_time(topic.pending_since or db.now())
         for n in list(range(12)) + [3]:
-            monitor.event(
+            topics.event(
                 s,
                 topic,
                 t0 + timedelta(seconds=min(n, 9)),
@@ -450,12 +450,12 @@ def test_a_correction_batch_hands_repeats_with_their_version_and_leaves_the_rest
                 by_version_id=f"b{n}",
                 reason="source_corrected",
             )
-        batch, given, left = monitor.correction_batch(s, tid, t0)
+        batch, given, left = scheduling.correction_batch(s, tid, t0)
         assert [e.detail["record"] for e in batch] == [f"C{n}" for n in range(10)]
         assert len(given) == 11 and left == t0 + timedelta(seconds=9)
-        monitor.event(
+        topics.event(
             s, topic, db.now(), "analysis", analysis_id=None, reason="source_corrected", handed_events=given
         )
         s.flush()
-        batch, given, left = monitor.correction_batch(s, tid, t0)
+        batch, given, left = scheduling.correction_batch(s, tid, t0)
         assert [e.detail["record"] for e in batch] == ["C10", "C11"] and left is None

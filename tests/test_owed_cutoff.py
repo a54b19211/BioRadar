@@ -10,7 +10,7 @@ from test_pipeline import fake_model, first_policy
 from bioradar import db
 from bioradar.adapters import llm, services
 from bioradar.config import settings
-from bioradar.research import analyses, monitor
+from bioradar.research import analyses, monitor, topics
 from bioradar.research.pipeline import Run
 
 
@@ -32,7 +32,7 @@ def topic(*owed):
         s.add(t)
         s.flush()
         for reason, at in owed:
-            monitor.owe(t, reason, at)
+            topics.owe(t, reason, at)
         return t.id
 
 

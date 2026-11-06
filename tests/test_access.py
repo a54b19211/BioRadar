@@ -8,7 +8,7 @@ from bioradar import app as api_module
 from bioradar import db
 from bioradar.app import app
 from bioradar.config import settings
-from bioradar.research import analyses, monitor
+from bioradar.research import analyses, scheduling
 
 
 def admin_client():
@@ -284,7 +284,7 @@ def test_rejecting_a_sentence_or_flagging_a_material_owes_the_topic_a_review_ana
     with db.session() as s:
         topic = s.get(db.Topic, topic_id)
         assert topic.pending_reason == "analyst_review" and topic.alert == "urgent"
-        basis = monitor.review_basis(s, topic_id, topic.pending_since)
+        basis = scheduling.review_basis(s, topic_id, topic.pending_since)
     assert "报告第 2 句被驳回" in basis and "HR 写反了" in basis and "材料 E1 被标记有误" in basis
     assert "第 1 句" not in basis  # a confirmation is not something to answer
 

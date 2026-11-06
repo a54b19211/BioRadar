@@ -6,7 +6,8 @@ material reads stay as they are; the new plan owes every window, the first too (
 artifact), so none of the old coverage counts for the new artifact. A version is planned only when Fabric
 serves the new artifact processed and bound to this version (otherwise the run records why and tries it
 again once its cursor is through). Points read from the new artifact take the place of the same points of the
-old one (monitor.hand_over: artifact_upgrade; a changed value is told to the topic). Nothing else retires an
+old one (series_store.hand_over: artifact_upgrade; a changed value is told to the topic). Nothing else
+retires an
 old point: once the new plan is complete and its candidates checked, the old points it did not give again stay
 as they are and owed (upgrade_unconfirmed, with whether each quote is still in the new text) - a reading that
 found nothing is not the fact's absence - and the run stays open; a capped, failed or paused new
@@ -22,7 +23,7 @@ is gone or found more than once. Those, and a recheck the check does not pass, s
 
 backfill_corrections (migration 0010 created record_corrections empty): the corrections and retractions stated
 by the records seen before record_corrections existed are registered from their fixed versions, dated at the
-record's own time, through the same idempotent monitor.record_corrections.
+record's own time, through the same idempotent series_store.record_corrections.
 
 Each call does at most `limit` reads or settlements, counted whether an item's state changed or not, and
 records every outcome (upkeep_items, append-only); each pass over items already met (retrying, settling,
@@ -39,7 +40,7 @@ from bioradar import db
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.config import Settings
 from bioradar.material import of
-from bioradar.research import continuation, measure_checks, monitor
+from bioradar.research import continuation, measure_checks, series_store
 
 OPEN_CHECKS = ("queued", "waiting")
 UNSETTLED = ("planned", "upgrade_incomplete", "upgrade_unconfirmed")  # old points not settled yet
@@ -570,7 +571,7 @@ def backfill_corrections(s: Settings, fabric, *, is_demo, limit=50, run_id=None,
                 stated = [
                     r for r in docs[0].get("relations") or [] if r.get("kind") in ("corrects", "retracts")
                 ]
-                made = monitor.record_corrections(session, s, docs, is_demo=is_demo) if stated else 0
+                made = series_store.record_corrections(session, s, docs, is_demo=is_demo) if stated else 0
                 outcome = "recorded" if made else "already_recorded" if stated else "no_correction"
                 _item(session, run, o.id, outcome, version_id=o.version_id, relations=len(stated), made=made)
             run.cursor = max(run.cursor, o.id)

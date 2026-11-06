@@ -9,7 +9,7 @@ from test_monitor import triage_by_title
 from bioradar import db
 from bioradar.adapters import llm
 from bioradar.config import settings
-from bioradar.research import analyses, monitor
+from bioradar.research import analyses, monitor, triage
 
 
 class LatestOnlyFabric(FakeFabric):
@@ -58,7 +58,7 @@ def test_every_deferred_revision_is_triaged_on_its_own_version_and_nobody_starve
     assert {r for r in reasons().values() if r == monitor.DEFERRED} == {monitor.DEFERRED}
     paused[0] = False  # next day: budget back
     rounds = [monitor.tick(is_demo=False, fabric=fabric)["records"] for _ in range(4)]
-    left = [k for k, r in reasons().items() if r in monitor.RETRYABLE]
+    left = [k for k, r in reasons().items() if r in triage.RETRYABLE]
     assert left == [] and sum(rounds) == 3  # A/v1, A/v2 and B, each once
     assert ("A", "a") in reasons() and ("A", "b") in reasons() and ("B", "c") in reasons()
 

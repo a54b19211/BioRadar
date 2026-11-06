@@ -19,6 +19,8 @@ from bioradar import db
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
 from bioradar.research import analyses, continuation, lineage, monitor
+from bioradar.research.clock import parse_time
+from bioradar.research.topics import topic_view
 
 app = FastAPI(title="BioRadar", version="1.0.0")
 COOKIE = "bioradar_session"
@@ -764,7 +766,7 @@ def topics(is_demo: bool = False):
                 select(db.Topic).where(db.Topic.is_demo == is_demo).order_by(db.Topic.last_activity_at.desc())
             )
         )
-    return redact_topics([monitor.topic_view(t) for t in rows])
+    return redact_topics([topic_view(t) for t in rows])
 
 
 @app.get("/api/topics/{topic_id}", dependencies=api)
@@ -773,7 +775,7 @@ def topic(topic_id: str):
         row = s.get(db.Topic, topic_id)
     if row is None:
         raise analyses.NotFound(topic_id)
-    return redact_topics([monitor.topic_view(row, events=True)])[0]
+    return redact_topics([topic_view(row, events=True)])[0]
 
 
 class Tick(BaseModel):
@@ -842,7 +844,7 @@ def source_row(fabric: Fabric, source: str, cursor, now: datetime, quiet_hours: 
     except (FabricError, httpx.HTTPError) as exc:
         row["collection"] = {"state": "unavailable", "error": getattr(exc, "code", type(exc).__name__)}
         row["failed_tasks"], row["latest_published_at"], row["lag"] = [], None, None
-    last = monitor.parse_time(cursor.last_new_at) if cursor and cursor.last_new_at else None
+    last = parse_time(cursor.last_new_at) if cursor and cursor.last_new_at else None
     quiet = last is None or now - last > timedelta(hours=quiet_hours)
     if row["failed_tasks"]:
         row["note"] = "采集任务失败：" + "、".join(t["watch_id"] or "?" for t in row["failed_tasks"])

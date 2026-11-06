@@ -11,7 +11,7 @@ from sqlalchemy import select, update
 
 from bioradar import db
 from bioradar.adapters import llm, services
-from bioradar.research import continuation, measure_checks, monitor, schemas
+from bioradar.research import continuation, measure_checks, monitor, schemas, triage
 
 SENTENCE = "2026年4月，国家药监局共批准注册医疗器械产品318个。"
 QUOTE = "国家药监局共批准注册医疗器械产品318个"
@@ -168,7 +168,7 @@ def ticks(fabric, n):
 
 
 def test_window_zero_is_the_triage_window_and_later_ones_cut_at_real_boundaries():
-    assert monitor.TRIAGE_CHARACTERS == continuation.WINDOW == measure_checks.TRIAGE_WINDOW == 1500
+    assert triage.TRIAGE_CHARACTERS == continuation.WINDOW == measure_checks.TRIAGE_WINDOW == 1500
     text = text_with(3000, n=6000)
     spans = continuation.windows_of(text, 300)
     assert spans[0] == (0, 1500) and spans[-1][1] == len(text)
