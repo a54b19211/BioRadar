@@ -13,8 +13,11 @@
 #   PG_TAG       short name of the check ("migcheck", "pgtest"): label, container name and manifest name
 #   PG_MANIFEST  the container manifest (default: /tmp/radar-<PG_TAG>-<random>.containers.jsonl)
 #   PYTHON       the command that runs a python (default: python3)
-# and may set PG_CONTAINER (container name) and PG_PORT (host port on 127.0.0.1; default: a free one in
-# 19801-19999). After `pg_start` the caller has $ID, $PORT and $PASSWORD; the database is "bioradar".
+# and may set PG_CONTAINER (container name), PG_PORT (host port on 127.0.0.1; default: a free one in
+# 19801-19999), PG_DB_PREFIX (the database is then <prefix>_<random id>, else "bioradar") and PG_MARKER=1
+# (write the run marker into the database: table radar_run_marker with the run id and the container id,
+# which a test run checks before it changes any data). After `pg_start` the caller has $ID, $PORT,
+# $PASSWORD, $DB and $RANDOM_ID.
 # The caller's own cleanup goes in a function named on_exit, run before the container is torn down.
 set -eu
 : "${PG_TAG:?PG_TAG is required}"
@@ -22,6 +25,8 @@ PYTHON=${PYTHON:-python3}
 RANDOM_ID=$(od -An -N4 -tx1 /dev/urandom | tr -d ' \n')
 NAME=${PG_CONTAINER:-radar-$PG_TAG-$RANDOM_ID}
 LABEL=radar-$PG_TAG.run
+DB=${PG_DB_PREFIX:+${PG_DB_PREFIX}_$RANDOM_ID}
+DB=${DB:-bioradar}
 MANIFEST=${PG_MANIFEST:-/tmp/radar-$PG_TAG-$RANDOM_ID.containers.jsonl}
 PORT=${PG_PORT:-$($PYTHON -c '
 import random, socket
@@ -42,7 +47,7 @@ register() {
   ID=$1
   VOLUMES=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$ID" 2>/dev/null || true)
   image=$(docker inspect -f '{{.Config.Image}} {{.Image}}' "$ID" 2>/dev/null || true)
-  record "\"event\":\"created\",\"role\":\"pg\",\"name\":\"$NAME\",\"id\":\"$ID\",\"image\":\"${image% *}\",\"image_id\":\"${image#* }\",\"anonymous_volumes\":[$(echo $VOLUMES | sed 's/\([^ ]*\)/"\1"/g; s/ /,/g')]"
+  record "\"event\":\"created\",\"role\":\"pg\",\"name\":\"$NAME\",\"id\":\"$ID\",\"port\":$PORT,\"database\":\"$DB\",\"image\":\"${image% *}\",\"image_id\":\"${image#* }\",\"anonymous_volumes\":[$(echo $VOLUMES | sed 's/\([^ ]*\)/"\1"/g; s/ /,/g')]"
 }
 teardown() {
   rc=$1
@@ -78,7 +83,7 @@ trap 'exit 143' TERM
 pg_start() {
   record "\"event\":\"run\",\"run\":\"$RANDOM_ID\",\"label\":\"$LABEL=$RANDOM_ID\""
   if out=$(docker run -d --name "$NAME" --label "$LABEL=$RANDOM_ID" -e POSTGRES_PASSWORD="$PASSWORD" \
-    -e POSTGRES_DB=bioradar -p "127.0.0.1:$PORT:5432" postgres:17-alpine); then
+    -e POSTGRES_DB=$DB -p "127.0.0.1:$PORT:5432" postgres:17-alpine); then
     register "$out"
   else
     rc=$?
@@ -90,8 +95,13 @@ pg_start() {
   fi
   echo "postgres:17-alpine as $NAME on 127.0.0.1:$PORT (manifest $MANIFEST)"
   for _ in $(seq 60); do
-    docker exec "$ID" pg_isready -U postgres -d bioradar -h 127.0.0.1 >/dev/null 2>&1 && break
+    docker exec "$ID" pg_isready -U postgres -d "$DB" -h 127.0.0.1 >/dev/null 2>&1 && break
     sleep 1
   done
-  docker exec "$ID" pg_isready -U postgres -d bioradar -h 127.0.0.1 >/dev/null
+  docker exec "$ID" pg_isready -U postgres -d "$DB" -h 127.0.0.1 >/dev/null
+  if [ "${PG_MARKER:-}" = 1 ]; then
+    docker exec "$ID" psql -U postgres -d "$DB" -h 127.0.0.1 -v ON_ERROR_STOP=1 -q -c \
+      "CREATE TABLE radar_run_marker (run_id text NOT NULL, container_id text NOT NULL); \
+       INSERT INTO radar_run_marker VALUES ('$RANDOM_ID', '$ID')" >/dev/null
+  fi
 }

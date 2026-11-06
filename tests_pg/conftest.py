@@ -1,20 +1,20 @@
 """Tests that need a real PostgreSQL (run by scripts/test_pg.sh, `make test-pg`, part of `make check`).
 
-The database is a throwaway container started by the script, with the real migrations applied; the URL comes
-in BIORADAR_TEST_PG_URL. Nothing here skips: run outside the script, the session stops with an error instead
-of passing without having tested anything. The tables the tests write are emptied before each test, and only a
-database on this machine is ever emptied."""
+The database is the throwaway one the script created for this run, with the real migrations applied. Before
+anything else the guard (guard.py) checks that the URL names exactly that database: the run marker the script
+wrote into it, the container id, port and database of its manifest. A URL set by hand, a remote or loopback
+database that is not this run's, or a missing marker stops the session before any statement that changes data.
+Nothing here skips: run outside the script, the session stops with an error."""
 
 import os
-from urllib.parse import urlsplit
 
 import pytest
+from guard import Refused, verify
 
-URL = os.environ.get("BIORADAR_TEST_PG_URL", "")
-if not URL:
-    raise pytest.UsageError("BIORADAR_TEST_PG_URL is not set: run these tests with `make test-pg`")
-if urlsplit(URL).hostname not in ("127.0.0.1", "localhost", "::1"):
-    raise pytest.UsageError("BIORADAR_TEST_PG_URL must name a database on this machine")
+try:
+    URL, DATABASE = verify(os.environ)
+except Refused as refusal:
+    raise pytest.UsageError(f"tests_pg refused to run: {refusal}") from None
 
 os.environ["BIORADAR_DATABASE_URL"] = URL
 os.environ["BIORADAR_LLM_BASE_URL"] = "http://model.invalid"
@@ -35,8 +35,16 @@ LEASED_TABLES = (
 )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def verified_database():
+    """The engine the code under test uses points at the verified database (checked again, with the marker
+    read through that engine's own URL) before the first TRUNCATE."""
+    engine_url = db.engine().url.render_as_string(hide_password=False)
+    assert verify({**os.environ, "BIORADAR_TEST_PG_URL": engine_url}) == (URL, DATABASE)
+
+
 @pytest.fixture(autouse=True)
-def empty_leased_tables():
+def empty_leased_tables(verified_database):
     with db.engine().begin() as connection:
         connection.execute(text(f"TRUNCATE {LEASED_TABLES} RESTART IDENTITY CASCADE"))
     yield

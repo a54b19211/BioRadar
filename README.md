@@ -46,14 +46,14 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 | | 管什么 | 不管什么 |
 |---|---|---|
 | RQ（Redis） | 送达和唤醒：分析建好后 `analyses.dispatch` 入队，worker 取到就跑 | 这一行归谁、会不会跑两遍、过期后怎么办 |
-| 数据库租约（`research/lease.py`） | 归属、幂等、隔离、恢复：`SELECT … FOR UPDATE SKIP LOCKED` 认领并写入 `lease_token` / `lease_until`；过期的工人不能提交结果；工人崩溃后租约过期，下一个认领者接手一次；失败计一次尝试并退避，到上限转终态留待复核 | 把任务送到某个 worker |
+| 数据库租约（`research/lease.py`） | 归属、幂等、隔离、恢复：`SELECT … FOR UPDATE SKIP LOCKED` 认领并写入 `lease_token` / `lease_until`；过期的工人不能提交结果（只对带令牌的任务和窗口；分析没有令牌，没有这层保护）；工人崩溃后租约过期，下一个认领者接手一次；失败计一次尝试并退避，到上限转终态留待复核 | 把任务送到某个 worker |
 
 - 分析（`analyses`）：RQ 派发。`execute` 在行锁里查租约，已有人持有或已结束就直接返回，同一个分析不会同时跑两份；
   monitor 每轮调用 `analyses.recover`，把租约过期（worker 崩溃）或任务没进 Redis 的分析重新入队。分析的租约没有令牌，
   晚到的 worker 最后的写入不核对身份（已知缺口，见 [`docs/decisions/0007`](docs/decisions/0007-rq-dispatch-and-database-lease.md)）。
 - 测量核对任务（`measurement_check_tasks`）和阅读窗口（`record_read_windows`）：不经 RQ，由 monitor 每轮轮询认领，
   结果写入前核对令牌，令牌已不是自己的就丢弃。
-- 这些保证在真实 PostgreSQL 上由 `make test-pg`（`tests_pg/`）验证；SQLite 没有行锁，单元测试证明不了。
+- 这些保证在真实 PostgreSQL 上由 `make test-pg`（`tests_pg/`）验证；SQLite 没有行锁，单元测试证明不了。测试会 `TRUNCATE`，所以只对脚本为本次运行新建的容器和专用库（`radar_pgtest_<随机>`）运行：运行前核对库里的运行标记、容器 ID、端口和库名与清单一致（`tests_pg/guard.py`），手工给的 URL（含回环地址、现役库）一律拒绝。
 
 ## 启动
 

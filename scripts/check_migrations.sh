@@ -20,7 +20,7 @@ PG_MANIFEST=${MIGCHECK_MANIFEST:-}
 . "$ROOT/scripts/pg_container.sh"
 pg_start
 
-export BIORADAR_DATABASE_URL="postgresql+psycopg://postgres:$PASSWORD@127.0.0.1:$PORT/bioradar"
+export BIORADAR_DATABASE_URL="postgresql+psycopg://postgres:$PASSWORD@127.0.0.1:$PORT/$DB"
 export PYTHONPATH="$ROOT/services${PYTHONPATH:+:$PYTHONPATH}"
 cd "$ROOT/db"
 alembic() { $PYTHON -m alembic -c alembic.ini "$@"; }
