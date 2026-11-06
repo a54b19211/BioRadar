@@ -19,7 +19,8 @@ trap 'rm -rf "$WORK" $LEFT' EXIT INT TERM
 VENV="$WORK/venv"
 
 cd "$ROOT"
-UV_PROJECT_ENVIRONMENT="$VENV" "$UV" sync --locked --no-dev --no-editable --python 3.12 --quiet
+# --reinstall-package: uv caches a local project build by pyproject.toml alone; this checkout is built afresh
+UV_PROJECT_ENVIRONMENT="$VENV" "$UV" sync --locked --no-dev --no-editable --reinstall-package bioradar --python 3.12 --quiet
 "$UV" pip install --quiet --python "$VENV/bin/python" --no-index --find-links "$WHEELS" --require-hashes \
   -r requirements-contract.txt
 
@@ -54,6 +55,13 @@ import bioradar
 if str(root) in str(pathlib.Path(bioradar.__file__).resolve()):
     sys.exit(f"bioradar was imported from the checkout, not the venv: {bioradar.__file__}")
 names = [m.name for m in pkgutil.walk_packages(bioradar.__path__, "bioradar.")]
+checkout = sorted(
+    "bioradar." + ".".join(f.relative_to(root / "services" / "bioradar").with_suffix("").parts)
+    for f in (root / "services" / "bioradar").rglob("*.py")
+)
+checkout = sorted(n.removesuffix(".__init__") for n in checkout if n != "bioradar.__init__")
+if sorted(names) != checkout:
+    sys.exit(f"the installed package is not this checkout: {sorted(set(checkout) ^ set(names))}")
 failed = []
 for name in names:
     try:
