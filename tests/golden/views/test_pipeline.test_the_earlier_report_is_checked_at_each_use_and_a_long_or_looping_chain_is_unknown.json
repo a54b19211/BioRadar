@@ -1,0 +1,4117 @@
+{
+ "scenario": "test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_is_unknown",
+ "views": {
+  "first_source_revoked": [
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [
+      {
+       "available_at": null,
+       "material_kind": null,
+       "published_at": null,
+       "record_id": "r",
+       "ref": "E1",
+       "source": "gone",
+       "title": "",
+       "url": null,
+       "verified": true,
+       "version_id": "v",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id3>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "根？",
+     "result": {
+      "draft": "",
+      "plan_basis": null,
+      "stop": null,
+      "withheld": "引用的材料 E1（来源已撤权）、上游轮次（上游链无法追溯完整，授权状态无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+     },
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 根？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n引用的材料 E1（来源已撤权）、上游轮次（上游链无法追溯完整，授权状态无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留\n\n## 材料\n\n- [E1] 来源已撤权（gone r）",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id3>",
+      "question": "根？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id4>",
+     "investigation_id": "<id5>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id1>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "追问？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 追问？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id4>",
+      "investigation_id": "<id5>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id1>",
+      "question": "追问？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id6>",
+     "investigation_id": "<id7>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id4>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第0轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第0轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id6>",
+      "investigation_id": "<id7>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id4>",
+      "question": "第0轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id8>",
+     "investigation_id": "<id9>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id6>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第1轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第1轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id8>",
+      "investigation_id": "<id9>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id6>",
+      "question": "第1轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id10>",
+     "investigation_id": "<id11>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id8>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第2轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第2轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id10>",
+      "investigation_id": "<id11>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id8>",
+      "question": "第2轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id12>",
+     "investigation_id": "<id13>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id10>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第3轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第3轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id12>",
+      "investigation_id": "<id13>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id10>",
+      "question": "第3轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id14>",
+     "investigation_id": "<id15>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id12>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第4轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第4轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id14>",
+      "investigation_id": "<id15>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id12>",
+      "question": "第4轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id16>",
+     "investigation_id": "<id17>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id14>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第5轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第5轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id16>",
+      "investigation_id": "<id17>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id14>",
+      "question": "第5轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id18>",
+     "investigation_id": "<id19>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id16>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第6轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第6轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id18>",
+      "investigation_id": "<id19>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id16>",
+      "question": "第6轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id20>",
+     "investigation_id": "<id21>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id18>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第7轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第7轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id20>",
+      "investigation_id": "<id21>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id18>",
+      "question": "第7轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id22>",
+     "investigation_id": "<id23>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id20>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第8轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第8轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id22>",
+      "investigation_id": "<id23>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id20>",
+      "question": "第8轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id24>",
+     "investigation_id": "<id25>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id22>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第9轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第9轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id24>",
+      "investigation_id": "<id25>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id22>",
+      "question": "第9轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id26>",
+     "investigation_id": "<id27>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id24>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第10轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第10轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id26>",
+      "investigation_id": "<id27>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id24>",
+      "question": "第10轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id28>",
+     "investigation_id": "<id29>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id26>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第11轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第11轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id28>",
+      "investigation_id": "<id29>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id26>",
+      "question": "第11轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id30>",
+     "investigation_id": "<id31>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id28>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第12轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第12轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id30>",
+      "investigation_id": "<id31>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id28>",
+      "question": "第12轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id32>",
+     "investigation_id": "<id33>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id30>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第13轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第13轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id32>",
+      "investigation_id": "<id33>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id30>",
+      "question": "第13轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id34>",
+     "investigation_id": "<id35>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id32>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第14轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第14轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id34>",
+      "investigation_id": "<id35>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id32>",
+      "question": "第14轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id36>",
+     "investigation_id": "<id37>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id34>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第15轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第15轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id36>",
+      "investigation_id": "<id37>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id34>",
+      "question": "第15轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id38>",
+     "investigation_id": "<id39>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id36>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第16轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第16轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id38>",
+      "investigation_id": "<id39>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id36>",
+      "question": "第16轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id40>",
+     "investigation_id": "<id41>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id38>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第17轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第17轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id40>",
+      "investigation_id": "<id41>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id38>",
+      "question": "第17轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id42>",
+     "investigation_id": "<id43>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id40>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第18轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第18轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id42>",
+      "investigation_id": "<id43>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id40>",
+      "question": "第18轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id44>",
+     "investigation_id": "<id45>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id42>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第19轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第19轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id44>",
+      "investigation_id": "<id45>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id42>",
+      "question": "第19轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id46>",
+     "investigation_id": "<id47>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id44>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第20轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第20轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id46>",
+      "investigation_id": "<id47>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id44>",
+      "question": "第20轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id48>",
+     "investigation_id": "<id49>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id46>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第21轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第21轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id48>",
+      "investigation_id": "<id49>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id46>",
+      "question": "第21轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id3>",
+     "investigation_id": "<id50>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id48>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第22轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第22轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id3>",
+      "investigation_id": "<id50>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id48>",
+      "question": "第22轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "readable": [
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [
+      {
+       "available_at": null,
+       "material_kind": null,
+       "published_at": null,
+       "record_id": "r",
+       "ref": "E1",
+       "source": "gone",
+       "title": "t",
+       "url": null,
+       "verified": true,
+       "version_id": "v"
+      }
+     ],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id3>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "根？",
+     "result": {
+      "draft": "",
+      "plan_basis": null,
+      "stop": null,
+      "withheld": "引用的材料 上游轮次（上游链无法追溯完整，授权状态无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+     },
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 根？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n引用的材料 上游轮次（上游链无法追溯完整，授权状态无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留\n\n## 材料\n\n- [E1] t（gone r，版本 v，日期未知）",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id3>",
+      "question": "根？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id4>",
+     "investigation_id": "<id5>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id1>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "追问？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 追问？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id4>",
+      "investigation_id": "<id5>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id1>",
+      "question": "追问？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id6>",
+     "investigation_id": "<id7>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id4>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第0轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第0轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id6>",
+      "investigation_id": "<id7>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id4>",
+      "question": "第0轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id8>",
+     "investigation_id": "<id9>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id6>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第1轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第1轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id8>",
+      "investigation_id": "<id9>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id6>",
+      "question": "第1轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id10>",
+     "investigation_id": "<id11>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id8>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第2轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第2轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id10>",
+      "investigation_id": "<id11>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id8>",
+      "question": "第2轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id12>",
+     "investigation_id": "<id13>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id10>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第3轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第3轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id12>",
+      "investigation_id": "<id13>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id10>",
+      "question": "第3轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id14>",
+     "investigation_id": "<id15>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id12>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第4轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第4轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id14>",
+      "investigation_id": "<id15>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id12>",
+      "question": "第4轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id16>",
+     "investigation_id": "<id17>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id14>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第5轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第5轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id16>",
+      "investigation_id": "<id17>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id14>",
+      "question": "第5轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id18>",
+     "investigation_id": "<id19>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id16>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第6轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第6轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id18>",
+      "investigation_id": "<id19>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id16>",
+      "question": "第6轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id20>",
+     "investigation_id": "<id21>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id18>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第7轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第7轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id20>",
+      "investigation_id": "<id21>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id18>",
+      "question": "第7轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id22>",
+     "investigation_id": "<id23>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id20>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第8轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第8轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id22>",
+      "investigation_id": "<id23>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id20>",
+      "question": "第8轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id24>",
+     "investigation_id": "<id25>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id22>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第9轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第9轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id24>",
+      "investigation_id": "<id25>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id22>",
+      "question": "第9轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id26>",
+     "investigation_id": "<id27>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id24>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第10轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第10轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id26>",
+      "investigation_id": "<id27>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id24>",
+      "question": "第10轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id28>",
+     "investigation_id": "<id29>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id26>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第11轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第11轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id28>",
+      "investigation_id": "<id29>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id26>",
+      "question": "第11轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id30>",
+     "investigation_id": "<id31>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id28>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第12轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第12轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id30>",
+      "investigation_id": "<id31>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id28>",
+      "question": "第12轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id32>",
+     "investigation_id": "<id33>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id30>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第13轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第13轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id32>",
+      "investigation_id": "<id33>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id30>",
+      "question": "第13轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id34>",
+     "investigation_id": "<id35>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id32>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第14轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第14轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id34>",
+      "investigation_id": "<id35>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id32>",
+      "question": "第14轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id36>",
+     "investigation_id": "<id37>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id34>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第15轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第15轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id36>",
+      "investigation_id": "<id37>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id34>",
+      "question": "第15轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id38>",
+     "investigation_id": "<id39>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id36>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第16轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第16轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id38>",
+      "investigation_id": "<id39>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id36>",
+      "question": "第16轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id40>",
+     "investigation_id": "<id41>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id38>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第17轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第17轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id40>",
+      "investigation_id": "<id41>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id38>",
+      "question": "第17轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id42>",
+     "investigation_id": "<id43>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id40>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第18轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第18轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id42>",
+      "investigation_id": "<id43>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id40>",
+      "question": "第18轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id44>",
+     "investigation_id": "<id45>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id42>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第19轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第19轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id44>",
+      "investigation_id": "<id45>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id42>",
+      "question": "第19轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id46>",
+     "investigation_id": "<id47>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id44>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第20轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第20轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id46>",
+      "investigation_id": "<id47>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id44>",
+      "question": "第20轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id48>",
+     "investigation_id": "<id49>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id46>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第21轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第21轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id48>",
+      "investigation_id": "<id49>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id46>",
+      "question": "第21轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id3>",
+     "investigation_id": "<id50>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id48>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第22轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第22轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id3>",
+      "investigation_id": "<id50>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id48>",
+      "question": "第22轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "source_list_unreadable": [
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [
+      {
+       "available_at": null,
+       "material_kind": null,
+       "published_at": null,
+       "record_id": "r",
+       "ref": "E1",
+       "source": "gone",
+       "title": "",
+       "url": null,
+       "verified": true,
+       "version_id": "v",
+       "withheld": "来源授权状态暂时无法确认"
+      }
+     ],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id3>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "根？",
+     "result": {
+      "draft": "",
+      "plan_basis": null,
+      "stop": null,
+      "withheld": "引用的材料 E1（来源授权状态暂时无法确认）、上游轮次（上游链无法追溯完整，授权状态无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+     },
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 根？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n引用的材料 E1（来源授权状态暂时无法确认）、上游轮次（上游链无法追溯完整，授权状态无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留\n\n## 材料\n\n- [E1] 来源授权状态暂时无法确认（gone r）",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id3>",
+      "question": "根？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id4>",
+     "investigation_id": "<id5>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id1>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "追问？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 追问？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id4>",
+      "investigation_id": "<id5>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id1>",
+      "question": "追问？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id6>",
+     "investigation_id": "<id7>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id4>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第0轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第0轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id6>",
+      "investigation_id": "<id7>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id4>",
+      "question": "第0轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id8>",
+     "investigation_id": "<id9>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id6>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第1轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第1轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id8>",
+      "investigation_id": "<id9>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id6>",
+      "question": "第1轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id10>",
+     "investigation_id": "<id11>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id8>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第2轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第2轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id10>",
+      "investigation_id": "<id11>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id8>",
+      "question": "第2轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id12>",
+     "investigation_id": "<id13>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id10>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第3轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第3轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id12>",
+      "investigation_id": "<id13>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id10>",
+      "question": "第3轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id14>",
+     "investigation_id": "<id15>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id12>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第4轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第4轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id14>",
+      "investigation_id": "<id15>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id12>",
+      "question": "第4轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id16>",
+     "investigation_id": "<id17>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id14>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第5轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第5轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id16>",
+      "investigation_id": "<id17>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id14>",
+      "question": "第5轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id18>",
+     "investigation_id": "<id19>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id16>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第6轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第6轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id18>",
+      "investigation_id": "<id19>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id16>",
+      "question": "第6轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id20>",
+     "investigation_id": "<id21>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id18>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第7轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第7轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id20>",
+      "investigation_id": "<id21>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id18>",
+      "question": "第7轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id22>",
+     "investigation_id": "<id23>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id20>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第8轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第8轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id22>",
+      "investigation_id": "<id23>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id20>",
+      "question": "第8轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id24>",
+     "investigation_id": "<id25>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id22>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第9轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第9轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id24>",
+      "investigation_id": "<id25>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id22>",
+      "question": "第9轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id26>",
+     "investigation_id": "<id27>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id24>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第10轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第10轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id26>",
+      "investigation_id": "<id27>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id24>",
+      "question": "第10轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id28>",
+     "investigation_id": "<id29>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id26>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第11轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第11轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id28>",
+      "investigation_id": "<id29>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id26>",
+      "question": "第11轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id30>",
+     "investigation_id": "<id31>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id28>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第12轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第12轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id30>",
+      "investigation_id": "<id31>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id28>",
+      "question": "第12轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id32>",
+     "investigation_id": "<id33>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id30>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第13轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第13轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id32>",
+      "investigation_id": "<id33>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id30>",
+      "question": "第13轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id34>",
+     "investigation_id": "<id35>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id32>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第14轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第14轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id34>",
+      "investigation_id": "<id35>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id32>",
+      "question": "第14轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id36>",
+     "investigation_id": "<id37>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id34>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第15轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第15轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id36>",
+      "investigation_id": "<id37>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id34>",
+      "question": "第15轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id38>",
+     "investigation_id": "<id39>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id36>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第16轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第16轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id38>",
+      "investigation_id": "<id39>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id36>",
+      "question": "第16轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id40>",
+     "investigation_id": "<id41>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id38>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第17轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第17轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id40>",
+      "investigation_id": "<id41>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id38>",
+      "question": "第17轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id42>",
+     "investigation_id": "<id43>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id40>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第18轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第18轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id42>",
+      "investigation_id": "<id43>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id40>",
+      "question": "第18轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id44>",
+     "investigation_id": "<id45>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id42>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第19轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第19轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id44>",
+      "investigation_id": "<id45>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id42>",
+      "question": "第19轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id46>",
+     "investigation_id": "<id47>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id44>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第20轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第20轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id46>",
+      "investigation_id": "<id47>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id44>",
+      "question": "第20轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id48>",
+     "investigation_id": "<id49>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id46>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第21轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第21轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id48>",
+      "investigation_id": "<id49>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id46>",
+      "question": "第21轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id3>",
+     "investigation_id": "<id50>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": "<id48>",
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "第22轮？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 第22轮？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id3>",
+      "investigation_id": "<id50>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": "<id48>",
+      "question": "第22轮？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -1,0 +1,4 @@
+{
+ "outputs": [],
+ "scenario": "test_a_refused_request_is_resent_after_a_pause"
+}

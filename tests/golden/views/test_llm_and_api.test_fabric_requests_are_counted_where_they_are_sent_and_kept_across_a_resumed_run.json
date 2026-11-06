@@ -1,0 +1,4 @@
+{
+ "outputs": [],
+ "scenario": "test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resumed_run"
+}

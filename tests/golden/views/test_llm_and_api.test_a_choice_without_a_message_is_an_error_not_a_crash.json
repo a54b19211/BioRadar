@@ -1,0 +1,4 @@
+{
+ "outputs": [],
+ "scenario": "test_a_choice_without_a_message_is_an_error_not_a_crash"
+}

@@ -1,0 +1,4 @@
+{
+ "outputs": [],
+ "scenario": "test_invalid_json_is_retried_once_with_the_error"
+}

@@ -59,11 +59,15 @@ def final_rows():
 
 
 def normalized(value):
-    """JSON text with run-specific identifiers numbered in order of appearance and times taken from the
-    clock (within a day of now) replaced, so the text depends on behaviour only."""
+    """JSON text with run-specific identifiers (and their 8-character prefixes) numbered in order of
+    appearance and times taken from the clock (within a day of now) replaced, so the text depends on
+    behaviour only."""
     text = json.dumps(value, ensure_ascii=False, sort_keys=True, indent=1, default=str)
-    ids = {}
-    text = UUID.sub(lambda m: ids.setdefault(m.group(), f"<id{len(ids) + 1}>"), text)
+    ids = list(dict.fromkeys(UUID.findall(text)))
+    for n, found in enumerate(ids, 1):
+        text = text.replace(found, f"<id{n}>")
+    for n, found in enumerate(ids, 1):  # an id's first 8 characters, as notices name an earlier round
+        text = text.replace(found[:8], f"<id{n}:8>")
     now = datetime.now(UTC)
 
     def clock(m):

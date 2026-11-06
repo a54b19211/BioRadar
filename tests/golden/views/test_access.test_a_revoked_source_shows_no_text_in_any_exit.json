@@ -1,0 +1,996 @@
+{
+ "outputs": [
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "open_src-1",
+      "ref": "E1",
+      "source": "open_src",
+      "title": "open_src 标题",
+      "url": "https://example.org/open_src",
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+     },
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "gone_src-1",
+      "ref": "E2",
+      "source": "gone_src",
+      "title": "",
+      "url": null,
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+      "withheld": "来源已撤权"
+     }
+    ],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": null,
+    "progress": {
+     "actions": [
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": [
+         "XQ-17"
+        ]
+       },
+       "kind": "search",
+       "source": "open_src"
+      }
+     ],
+     "checks": null,
+     "facts": [
+      {
+       "checks": [],
+       "id": "F1",
+       "quote": "开放原文",
+       "ref": "E1",
+       "stance": "supports",
+       "text": "开放事实"
+      },
+      {
+       "checks": [],
+       "id": "F2",
+       "object": "",
+       "quote": "",
+       "ref": "E2",
+       "stance": "supports",
+       "text": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "notes": [
+      {
+       "code": "query_replaced",
+       "detail": "",
+       "stage": "investigate"
+      }
+     ],
+     "queries": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": [
+        "XQ-17"
+       ]
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "origin": "object:E2",
+       "terms": [],
+       "value": 3
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": []
+      }
+     ],
+     "stop": null
+    },
+    "question": "XQ-17 的进展？",
+    "result": {
+     "assessment": {
+      "alert": "important",
+      "judgments": [
+       {
+        "check": "supported",
+        "conclusion": "",
+        "confidence": "possible",
+        "consequence": "medium",
+        "credibility": "medium",
+        "grounds": [
+         "E2"
+        ],
+        "priority": "high",
+        "question": "",
+        "unproven": ""
+       }
+      ]
+     },
+     "computations": [
+      {
+       "id": "C1",
+       "operands": [
+        {
+         "fact": "F2",
+         "quote": "",
+         "ref": "E2"
+        }
+       ]
+      }
+     ],
+     "draft": "",
+     "mechanism": {
+      "overall": "",
+      "status": "completed"
+     },
+     "report_status": "PASS",
+     "review": {
+      "claims": [
+       {
+        "index": 1,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E1"
+         }
+        ],
+        "text": ""
+       },
+       {
+        "index": 2,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E2"
+         }
+        ],
+        "text": ""
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "REVIEW",
+        "step": ""
+       }
+      ]
+     },
+     "withheld": "引用的材料 E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "manual"
+   }
+  },
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "open_src-1",
+      "ref": "E1",
+      "source": "open_src",
+      "title": "open_src 标题",
+      "url": "https://example.org/open_src",
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+     },
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "gone_src-1",
+      "ref": "E2",
+      "source": "gone_src",
+      "title": "",
+      "url": null,
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+      "withheld": "来源已撤权"
+     }
+    ],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": null,
+    "progress": {
+     "actions": [
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": [
+         "XQ-17"
+        ]
+       },
+       "kind": "search",
+       "source": "open_src"
+      }
+     ],
+     "checks": null,
+     "facts": [
+      {
+       "checks": [],
+       "id": "F1",
+       "quote": "开放原文",
+       "ref": "E1",
+       "stance": "supports",
+       "text": "开放事实"
+      },
+      {
+       "checks": [],
+       "id": "F2",
+       "object": "",
+       "quote": "",
+       "ref": "E2",
+       "stance": "supports",
+       "text": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "notes": [
+      {
+       "code": "query_replaced",
+       "detail": "",
+       "stage": "investigate"
+      }
+     ],
+     "queries": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": [
+        "XQ-17"
+       ]
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "origin": "object:E2",
+       "terms": [],
+       "value": 3
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": []
+      }
+     ],
+     "stop": null
+    },
+    "question": "XQ-17 的进展？",
+    "result": {
+     "assessment": {
+      "alert": "important",
+      "judgments": [
+       {
+        "check": "supported",
+        "conclusion": "",
+        "confidence": "possible",
+        "consequence": "medium",
+        "credibility": "medium",
+        "grounds": [
+         "E2"
+        ],
+        "priority": "high",
+        "question": "",
+        "unproven": ""
+       }
+      ]
+     },
+     "computations": [
+      {
+       "id": "C1",
+       "operands": [
+        {
+         "fact": "F2",
+         "quote": "",
+         "ref": "E2"
+        }
+       ]
+      }
+     ],
+     "draft": "",
+     "mechanism": {
+      "overall": "",
+      "status": "completed"
+     },
+     "report_status": "PASS",
+     "review": {
+      "claims": [
+       {
+        "index": 1,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E1"
+         }
+        ],
+        "text": ""
+       },
+       {
+        "index": 2,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E2"
+         }
+        ],
+        "text": ""
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "REVIEW",
+        "step": ""
+       }
+      ]
+     },
+     "withheld": "引用的材料 E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [
+     {
+      "action": "reject",
+      "alert": null,
+      "analysis_id": "<id1>",
+      "by": "admin",
+      "created_at": "<now>",
+      "evidence_ref": null,
+      "id": 1,
+      "note": "",
+      "sentence": 2,
+      "topic_id": null
+     }
+    ],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "manual"
+   }
+  },
+  {
+   "exit": "redact_summaries",
+   "value": [
+    {
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "question": "XQ-17 的进展？",
+     "result": {
+      "assessment": {
+       "alert": "important",
+       "judgments": [
+        {
+         "check": "supported",
+         "conclusion": "",
+         "confidence": "possible",
+         "consequence": "medium",
+         "credibility": "medium",
+         "grounds": [
+          "E2"
+         ],
+         "priority": "high",
+         "question": "",
+         "unproven": ""
+        }
+       ]
+      },
+      "report_status": "PASS",
+      "usage": null,
+      "withheld": "引用的材料 E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+     },
+     "stage": "plan",
+     "state": "completed",
+     "trigger": "manual"
+    }
+   ]
+  },
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "open_src-1",
+      "ref": "E1",
+      "source": "open_src",
+      "title": "open_src 标题",
+      "url": "https://example.org/open_src",
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+     },
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "gone_src-1",
+      "ref": "E2",
+      "source": "gone_src",
+      "title": "",
+      "url": null,
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+      "withheld": "来源已撤权"
+     }
+    ],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": null,
+    "progress": {
+     "actions": [
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": [
+         "XQ-17"
+        ]
+       },
+       "kind": "search",
+       "source": "open_src"
+      }
+     ],
+     "checks": null,
+     "facts": [
+      {
+       "checks": [],
+       "id": "F1",
+       "quote": "开放原文",
+       "ref": "E1",
+       "stance": "supports",
+       "text": "开放事实"
+      },
+      {
+       "checks": [],
+       "id": "F2",
+       "object": "",
+       "quote": "",
+       "ref": "E2",
+       "stance": "supports",
+       "text": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "notes": [
+      {
+       "code": "query_replaced",
+       "detail": "",
+       "stage": "investigate"
+      }
+     ],
+     "queries": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": [
+        "XQ-17"
+       ]
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "origin": "object:E2",
+       "terms": [],
+       "value": 3
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": []
+      }
+     ],
+     "stop": null
+    },
+    "question": "XQ-17 的进展？",
+    "result": {
+     "assessment": {
+      "alert": "important",
+      "judgments": [
+       {
+        "check": "supported",
+        "conclusion": "",
+        "confidence": "possible",
+        "consequence": "medium",
+        "credibility": "medium",
+        "grounds": [
+         "E2"
+        ],
+        "priority": "high",
+        "question": "",
+        "unproven": ""
+       }
+      ]
+     },
+     "computations": [
+      {
+       "id": "C1",
+       "operands": [
+        {
+         "fact": "F2",
+         "quote": "",
+         "ref": "E2"
+        }
+       ]
+      }
+     ],
+     "draft": "",
+     "mechanism": {
+      "overall": "",
+      "status": "completed"
+     },
+     "report_status": "PASS",
+     "review": {
+      "claims": [
+       {
+        "index": 1,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E1"
+         }
+        ],
+        "text": ""
+       },
+       {
+        "index": 2,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E2"
+         }
+        ],
+        "text": ""
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "REVIEW",
+        "step": ""
+       }
+      ]
+     },
+     "withheld": "引用的材料 E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [
+     {
+      "action": "reject",
+      "alert": null,
+      "analysis_id": "<id1>",
+      "by": "admin",
+      "created_at": "<now>",
+      "evidence_ref": null,
+      "id": 1,
+      "note": "",
+      "sentence": 2,
+      "topic_id": null
+     }
+    ],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "manual"
+   }
+  },
+  {
+   "exit": "redact_topics",
+   "value": [
+    {
+     "alert": "normal",
+     "awakenings": 0,
+     "closed": false,
+     "direction": "pipeline",
+     "first_seen_at": "<now>",
+     "heat": 0.0,
+     "id": "<id3>",
+     "is_demo": true,
+     "last_activity_at": "<now>",
+     "last_analysis_id": null,
+     "pending_reason": null,
+     "state": "emerging",
+     "summary": "",
+     "title": "（专题标题暂不显示）",
+     "withheld": "来源已撤权"
+    }
+   ]
+  },
+  {
+   "exit": "redact_topics",
+   "value": [
+    {
+     "alert": "normal",
+     "awakenings": 0,
+     "closed": false,
+     "direction": "pipeline",
+     "events": [
+      {
+       "at": "<now>",
+       "kind": "created",
+       "record": "gone_src-1",
+       "title": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "first_seen_at": "<now>",
+     "heat": 0.0,
+     "id": "<id3>",
+     "is_demo": true,
+     "last_activity_at": "<now>",
+     "last_analysis_id": null,
+     "observations": [
+      {
+       "alert": "important",
+       "available_at": "<now>",
+       "closure": false,
+       "reason": "",
+       "record_id": "gone_src-1",
+       "source": "gone_src",
+       "title": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "pending_reason": null,
+     "state": "emerging",
+     "summary": "",
+     "title": "（专题标题暂不显示）",
+     "withheld": "来源已撤权"
+    }
+   ]
+  },
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "open_src-1",
+      "ref": "E1",
+      "source": "open_src",
+      "title": "open_src 标题",
+      "url": "https://example.org/open_src",
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv"
+     },
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "gone_src-1",
+      "ref": "E2",
+      "source": "gone_src",
+      "title": "",
+      "url": null,
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+      "withheld": "来源已撤权"
+     }
+    ],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": null,
+    "progress": {
+     "actions": [
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": [
+         "XQ-17"
+        ]
+       },
+       "kind": "search",
+       "source": "open_src"
+      }
+     ],
+     "checks": null,
+     "facts": [
+      {
+       "checks": [],
+       "id": "F1",
+       "quote": "开放原文",
+       "ref": "E1",
+       "stance": "supports",
+       "text": "开放事实"
+      },
+      {
+       "checks": [],
+       "id": "F2",
+       "object": "",
+       "quote": "",
+       "ref": "E2",
+       "stance": "supports",
+       "text": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "notes": [
+      {
+       "code": "query_replaced",
+       "detail": "",
+       "stage": "investigate"
+      }
+     ],
+     "queries": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": [
+        "XQ-17"
+       ]
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "origin": "object:E2",
+       "terms": [],
+       "value": 3
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": []
+      }
+     ],
+     "stop": null
+    },
+    "question": "XQ-17 的进展？",
+    "result": {
+     "assessment": {
+      "alert": "important",
+      "judgments": [
+       {
+        "check": "supported",
+        "conclusion": "",
+        "confidence": "possible",
+        "consequence": "medium",
+        "credibility": "medium",
+        "grounds": [
+         "E2"
+        ],
+        "priority": "high",
+        "question": "",
+        "unproven": ""
+       }
+      ]
+     },
+     "computations": [
+      {
+       "id": "C1",
+       "operands": [
+        {
+         "fact": "F2",
+         "quote": "",
+         "ref": "E2"
+        }
+       ]
+      }
+     ],
+     "draft": "",
+     "mechanism": {
+      "overall": "",
+      "status": "completed"
+     },
+     "report_status": "PASS",
+     "review": {
+      "claims": [
+       {
+        "index": 1,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E1"
+         }
+        ],
+        "text": ""
+       },
+       {
+        "index": 2,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E2"
+         }
+        ],
+        "text": ""
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "REVIEW",
+        "step": ""
+       }
+      ]
+     },
+     "withheld": "引用的材料 E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [
+     {
+      "action": "reject",
+      "alert": null,
+      "analysis_id": "<id1>",
+      "by": "admin",
+      "created_at": "<now>",
+      "evidence_ref": null,
+      "id": 1,
+      "note": "",
+      "sentence": 2,
+      "topic_id": null
+     }
+    ],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "manual"
+   }
+  },
+  {
+   "exit": "redact_topics",
+   "value": [
+    {
+     "alert": "normal",
+     "awakenings": 0,
+     "closed": false,
+     "direction": "pipeline",
+     "events": [
+      {
+       "at": "<now>",
+       "kind": "created",
+       "record": "gone_src-1",
+       "title": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "first_seen_at": "<now>",
+     "heat": 0.0,
+     "id": "<id3>",
+     "is_demo": true,
+     "last_activity_at": "<now>",
+     "last_analysis_id": null,
+     "observations": [
+      {
+       "alert": "important",
+       "available_at": "<now>",
+       "closure": false,
+       "reason": "",
+       "record_id": "gone_src-1",
+       "source": "gone_src",
+       "title": "",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "pending_reason": null,
+     "state": "emerging",
+     "summary": "",
+     "title": "（专题标题暂不显示）",
+     "withheld": "来源已撤权"
+    }
+   ]
+  }
+ ],
+ "scenario": "test_a_revoked_source_shows_no_text_in_any_exit"
+}

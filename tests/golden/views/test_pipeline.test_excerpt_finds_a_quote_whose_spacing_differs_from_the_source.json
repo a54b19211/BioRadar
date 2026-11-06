@@ -1,0 +1,8 @@
+{
+ "scenario": "test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source",
+ "views": {
+  "first_source_revoked": [],
+  "readable": [],
+  "source_list_unreadable": []
+ }
+}

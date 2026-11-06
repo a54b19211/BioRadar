@@ -1,0 +1,671 @@
+{
+ "scenario": "test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so",
+ "views": {
+  "first_source_revoked": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": false,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "clinicaltrials",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": [
+       {
+        "code": "fetch_not_configured",
+        "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+        "stage": "investigate"
+       }
+      ],
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": false,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id3>",
+     "investigation_id": "<id4>",
+     "is_demo": false,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "clinicaltrials",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS？admin-token",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS？admin-token\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id3>",
+      "investigation_id": "<id4>",
+      "is_demo": false,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS？admin-token",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "readable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": false,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "clinicaltrials",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": [
+       {
+        "code": "fetch_not_configured",
+        "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+        "stage": "investigate"
+       }
+      ],
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": false,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id3>",
+     "investigation_id": "<id4>",
+     "is_demo": false,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "clinicaltrials",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS？admin-token",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS？admin-token\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id3>",
+      "investigation_id": "<id4>",
+      "is_demo": false,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS？admin-token",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "source_list_unreadable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": false,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "clinicaltrials",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": [
+       {
+        "code": "fetch_not_configured",
+        "detail": "没有 BIORADAR_FABRIC_ADMIN_TOKEN，不发起新采集",
+        "stage": "investigate"
+       }
+      ],
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": false,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   },
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id3>",
+     "investigation_id": "<id4>",
+     "is_demo": false,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "clinicaltrials",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS？admin-token",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS？admin-token\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id3>",
+      "investigation_id": "<id4>",
+      "is_demo": false,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS？admin-token",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ]
+ }
+}

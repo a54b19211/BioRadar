@@ -1,0 +1,4 @@
+{
+ "outputs": [],
+ "scenario": "test_local_vllm_gets_the_per_call_thinking_switch_its_template_reads"
+}

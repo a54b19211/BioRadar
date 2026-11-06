@@ -1,0 +1,1394 @@
+{
+ "scenario": "test_retries_of_empty_searches_are_capped",
+ "views": {
+  "first_source_revoked": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "无0",
+          "空0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无1",
+          "空1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无2",
+          "空2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无3",
+          "空3"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无4",
+          "空4"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无5",
+          "空5"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无6",
+          "空6"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无7",
+          "空7"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无0",
+         "空0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无1",
+         "空1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无2",
+         "空2"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无3",
+         "空3"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无4",
+         "空4"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无5",
+         "空5"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无6",
+         "空6"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无7",
+         "空7"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无2"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空2"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "什么也搜不到的问题",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 什么也搜不到的问题\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "什么也搜不到的问题",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "readable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "无0",
+          "空0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无1",
+          "空1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无2",
+          "空2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无3",
+          "空3"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无4",
+          "空4"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无5",
+          "空5"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无6",
+          "空6"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无7",
+          "空7"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无0",
+         "空0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无1",
+         "空1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无2",
+         "空2"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无3",
+         "空3"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无4",
+         "空4"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无5",
+         "空5"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无6",
+         "空6"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无7",
+         "空7"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无2"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空2"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "什么也搜不到的问题",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 什么也搜不到的问题\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "什么也搜不到的问题",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "source_list_unreadable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "无0",
+          "空0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无1",
+          "空1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无2",
+          "空2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无3",
+          "空3"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无4",
+          "空4"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无5",
+          "空5"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无6",
+          "空6"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无7",
+          "空7"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空0"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空1"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "无2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "terms": [
+          "空2"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无0",
+         "空0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无1",
+         "空1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无2",
+         "空2"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无3",
+         "空3"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无4",
+         "空4"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无5",
+         "空5"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无6",
+         "空6"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无7",
+         "空7"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空0"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空1"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "无2"
+        ]
+       },
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "空2"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "什么也搜不到的问题",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 什么也搜不到的问题\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "什么也搜不到的问题",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ]
+ }
+}

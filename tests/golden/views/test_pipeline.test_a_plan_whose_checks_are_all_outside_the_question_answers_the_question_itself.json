@@ -1,0 +1,389 @@
+{
+ "scenario": "test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_itself",
+ "views": {
+  "first_source_revoked": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "public_health",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "华南海鲜"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [
+         "武汉",
+         "华南海鲜"
+        ],
+        "id": "Q1",
+        "importance": 0.5,
+        "objects": [],
+        "required": false,
+        "status": "open",
+        "text": "武汉卫健委是否确认华南海鲜市场聚集"
+       },
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q2",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前有哪些异常聚集值得核实？"
+       }
+      ],
+      "facts": [],
+      "notes": [
+       {
+        "code": "plan_exploratory_scope",
+        "detail": "Q1:武汉、华南海鲜；Q2:",
+        "stage": "plan"
+       }
+      ],
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "华南海鲜"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "当前有哪些异常聚集值得核实？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 当前有哪些异常聚集值得核实？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "public_health",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "当前有哪些异常聚集值得核实？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "readable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "public_health",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "华南海鲜"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [
+         "武汉",
+         "华南海鲜"
+        ],
+        "id": "Q1",
+        "importance": 0.5,
+        "objects": [],
+        "required": false,
+        "status": "open",
+        "text": "武汉卫健委是否确认华南海鲜市场聚集"
+       },
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q2",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前有哪些异常聚集值得核实？"
+       }
+      ],
+      "facts": [],
+      "notes": [
+       {
+        "code": "plan_exploratory_scope",
+        "detail": "Q1:武汉、华南海鲜；Q2:",
+        "stage": "plan"
+       }
+      ],
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "华南海鲜"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "当前有哪些异常聚集值得核实？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 当前有哪些异常聚集值得核实？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "public_health",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "当前有哪些异常聚集值得核实？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "source_list_unreadable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "public_health",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "华南海鲜"
+         ]
+        },
+        "found": 0,
+        "gain": 0.0,
+        "kind": "search",
+        "new": 0,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [],
+        "exploratory": [
+         "武汉",
+         "华南海鲜"
+        ],
+        "id": "Q1",
+        "importance": 0.5,
+        "objects": [],
+        "required": false,
+        "status": "open",
+        "text": "武汉卫健委是否确认华南海鲜市场聚集"
+       },
+       {
+        "evidence": [],
+        "exploratory": [],
+        "id": "Q2",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "open",
+        "text": "当前有哪些异常聚集值得核实？"
+       }
+      ],
+      "facts": [],
+      "notes": [
+       {
+        "code": "plan_exploratory_scope",
+        "detail": "Q1:武汉、华南海鲜；Q2:",
+        "stage": "plan"
+       }
+      ],
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "华南海鲜"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "当前有哪些异常聚集值得核实？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 当前有哪些异常聚集值得核实？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "public_health",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "当前有哪些异常聚集值得核实？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ]
+ }
+}

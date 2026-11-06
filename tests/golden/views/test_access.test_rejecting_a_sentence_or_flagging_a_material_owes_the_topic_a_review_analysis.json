@@ -1,0 +1,245 @@
+{
+ "outputs": [
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "open_src-1",
+      "ref": "E1",
+      "source": "open_src",
+      "title": "",
+      "url": null,
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+      "withheld": "来源授权状态暂时无法确认"
+     },
+     {
+      "available_at": null,
+      "material_kind": null,
+      "published_at": null,
+      "record_id": "gone_src-1",
+      "ref": "E2",
+      "source": "gone_src",
+      "title": "",
+      "url": null,
+      "verified": true,
+      "version_id": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+      "withheld": "来源授权状态暂时无法确认"
+     }
+    ],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": null,
+    "progress": {
+     "actions": [
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": []
+       },
+       "kind": "search",
+       "source": "gone_src"
+      },
+      {
+       "args": {
+        "terms": [
+         "XQ-17"
+        ]
+       },
+       "kind": "search",
+       "source": "open_src"
+      }
+     ],
+     "checks": null,
+     "facts": [
+      {
+       "checks": [],
+       "id": "F1",
+       "object": "",
+       "quote": "",
+       "ref": "E1",
+       "stance": "supports",
+       "text": "",
+       "withheld": "来源授权状态暂时无法确认"
+      },
+      {
+       "checks": [],
+       "id": "F2",
+       "object": "",
+       "quote": "",
+       "ref": "E2",
+       "stance": "supports",
+       "text": "",
+       "withheld": "来源授权状态暂时无法确认"
+      }
+     ],
+     "notes": [
+      {
+       "code": "query_replaced",
+       "detail": "",
+       "stage": "investigate"
+      }
+     ],
+     "queries": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": [
+        "XQ-17"
+       ]
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "origin": "object:E2",
+       "terms": [],
+       "value": 3
+      },
+      {
+       "checks": [
+        "Q1"
+       ],
+       "terms": []
+      }
+     ],
+     "stop": null
+    },
+    "question": "XQ-17 的进展？",
+    "result": {
+     "assessment": {
+      "alert": "important",
+      "judgments": [
+       {
+        "check": "supported",
+        "conclusion": "",
+        "confidence": "possible",
+        "consequence": "medium",
+        "credibility": "medium",
+        "grounds": [
+         "E2"
+        ],
+        "priority": "high",
+        "question": "",
+        "unproven": ""
+       }
+      ]
+     },
+     "computations": [
+      {
+       "id": "C1",
+       "operands": [
+        {
+         "fact": "F2",
+         "quote": "",
+         "ref": "E2"
+        }
+       ]
+      }
+     ],
+     "draft": "",
+     "mechanism": {
+      "overall": "",
+      "status": "completed"
+     },
+     "report_status": "PASS",
+     "review": {
+      "claims": [
+       {
+        "index": 1,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E1"
+         }
+        ],
+        "text": ""
+       },
+       {
+        "index": 2,
+        "quotes": [
+         {
+          "found": true,
+          "quote": "",
+          "ref": "E2"
+         }
+        ],
+        "text": ""
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "REVIEW",
+        "step": ""
+       }
+      ]
+     },
+     "withheld": "引用的材料 E1（来源授权状态暂时无法确认）、E2（来源授权状态暂时无法确认） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [
+     {
+      "action": "flag_source",
+      "alert": null,
+      "analysis_id": "<id1>",
+      "by": "li",
+      "created_at": "<now>",
+      "evidence_ref": "E1",
+      "id": 3,
+      "note": "",
+      "sentence": null,
+      "topic_id": "<id3>"
+     },
+     {
+      "action": "reject",
+      "alert": null,
+      "analysis_id": "<id1>",
+      "by": "li",
+      "created_at": "<now>",
+      "evidence_ref": null,
+      "id": 2,
+      "note": "",
+      "sentence": 2,
+      "topic_id": "<id3>"
+     },
+     {
+      "action": "confirm",
+      "alert": null,
+      "analysis_id": "<id1>",
+      "by": "li",
+      "created_at": "<now>",
+      "evidence_ref": null,
+      "id": 1,
+      "note": "",
+      "sentence": 1,
+      "topic_id": "<id3>"
+     }
+    ],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "manual"
+   }
+  }
+ ],
+ "scenario": "test_rejecting_a_sentence_or_flagging_a_material_owes_the_topic_a_review_analysis"
+}

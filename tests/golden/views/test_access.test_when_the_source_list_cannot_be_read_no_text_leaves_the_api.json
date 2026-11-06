@@ -1,0 +1,4 @@
+{
+ "outputs": [],
+ "scenario": "test_when_the_source_list_cannot_be_read_no_text_leaves_the_api"
+}

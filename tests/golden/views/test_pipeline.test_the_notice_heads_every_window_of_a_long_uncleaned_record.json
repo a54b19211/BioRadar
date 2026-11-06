@@ -1,0 +1,8 @@
+{
+ "scenario": "test_the_notice_heads_every_window_of_a_long_uncleaned_record",
+ "views": {
+  "first_source_revoked": [],
+  "readable": [],
+  "source_list_unreadable": []
+ }
+}

@@ -1,0 +1,173 @@
+{
+ "scenario": "test_a_judgment_that_contradicts_the_evidence_is_withdrawn",
+ "views": {
+  "first_source_revoked": [
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "business",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "衡简 H1 经营如何？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 衡简 H1 经营如何？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "business",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "衡简 H1 经营如何？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "readable": [
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "business",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "衡简 H1 经营如何？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 衡简 H1 经营如何？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "business",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "衡简 H1 经营如何？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "source_list_unreadable": [
+   {
+    "detail": {
+     "calls": [],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "business",
+     "error_code": null,
+     "evidence": [],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": null,
+      "checks": null,
+      "facts": null,
+      "notes": null,
+      "queries": null,
+      "stop": null
+     },
+     "question": "衡简 H1 经营如何？",
+     "result": null,
+     "reviews": [],
+     "stage": "plan",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# 衡简 H1 经营如何？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "business",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "衡简 H1 经营如何？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "plan",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ]
+ }
+}

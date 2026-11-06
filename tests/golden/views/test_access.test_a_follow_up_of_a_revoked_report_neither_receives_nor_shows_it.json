@@ -1,0 +1,185 @@
+{
+ "outputs": [
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": "<id3>",
+    "progress": {
+     "actions": null,
+     "checks": [
+      {
+       "exploratory": [],
+       "id": "Q1",
+       "status": "open",
+       "text": ""
+      }
+     ],
+     "facts": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "id": "F1",
+       "object": "",
+       "quote": "本记录列有40人。",
+       "ref": "E1",
+       "stance": "supports",
+       "text": ""
+      }
+     ],
+     "notes": null,
+     "queries": null,
+     "stop": null
+    },
+    "question": "再后续呢？",
+    "result": {
+     "computations": [
+      {
+       "description": "",
+       "operands": [
+        {
+         "quote": "本记录列有40人。",
+         "ref": "E1"
+        }
+       ],
+       "value": 40
+      }
+     ],
+     "draft": "",
+     "plan_basis": {},
+     "report_status": "",
+     "review": {
+      "claims": [
+       {
+        "citations": [
+         "E1"
+        ],
+        "index": 0,
+        "text": "",
+        "verdict": "supported"
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "unchecked",
+        "step": ""
+       }
+      ]
+     },
+     "stop": {
+      "decision": "insufficient",
+      "reason": "step_limit"
+     },
+     "withheld": "引用的材料 上一轮<id3:8>:E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "followup"
+   }
+  },
+  {
+   "exit": "redact",
+   "value": {
+    "calls": [],
+    "completed_at": null,
+    "created_at": "<now>",
+    "cutoff": null,
+    "direction": "pipeline",
+    "error_code": null,
+    "evidence": [],
+    "id": "<id1>",
+    "investigation_id": "<id2>",
+    "is_demo": true,
+    "method": "planner",
+    "parent_id": "<id3>",
+    "progress": {
+     "actions": null,
+     "checks": [
+      {
+       "exploratory": [],
+       "id": "Q1",
+       "status": "open",
+       "text": ""
+      }
+     ],
+     "facts": [
+      {
+       "checks": [
+        "Q1"
+       ],
+       "id": "F1",
+       "object": "",
+       "quote": "本记录列有40人。",
+       "ref": "E1",
+       "stance": "supports",
+       "text": ""
+      }
+     ],
+     "notes": null,
+     "queries": null,
+     "stop": null
+    },
+    "question": "再后续呢？",
+    "result": {
+     "computations": [
+      {
+       "description": "",
+       "operands": [
+        {
+         "quote": "本记录列有40人。",
+         "ref": "E1"
+        }
+       ],
+       "value": 40
+      }
+     ],
+     "draft": "",
+     "plan_basis": {},
+     "report_status": "",
+     "review": {
+      "claims": [
+       {
+        "citations": [
+         "E1"
+        ],
+        "index": 0,
+        "text": "",
+        "verdict": "supported"
+       }
+      ],
+      "versions": [
+       {
+        "draft": "",
+        "status": "unchecked",
+        "step": ""
+       }
+      ]
+     },
+     "stop": {
+      "decision": "insufficient",
+      "reason": "step_limit"
+     },
+     "withheld": "引用的材料 上一轮<id3:8>:E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
+    },
+    "reviews": [],
+    "stage": "plan",
+    "state": "completed",
+    "trigger": "followup"
+   }
+  }
+ ],
+ "scenario": "test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it"
+}
