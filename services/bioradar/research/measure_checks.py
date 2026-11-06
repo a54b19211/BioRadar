@@ -30,9 +30,9 @@ from bioradar.material import of, tables_of
 # measure.v8 / checker v11 / contract v3: as measure.v7, and the dimensions the measure states are located in
 # their cited sources and sent with the item for checker v11 to judge each (extraction_normalize.v4 for the
 # unit); earlier producers and checkers as released
-# checker v13 (Codex r179): each dimension a whole slot of a recognised structure (v12: its qualifying
-# context kept); the producer is unchanged
-CHECKER, CONTRACT = ec.CHECKER_V13, ec.CONTRACT_V3
+# checker v14 (Codex r181): each dimension a whole slot of a recognised structure, bounded only by
+# independently proven neighbours (v13 r179, v12 r178); the producer is unchanged
+CHECKER, CONTRACT = ec.CHECKER_V14, ec.CONTRACT_V3
 PRODUCER = {"name": "bioradar.triage", "version": "measure.v8"}
 # measure.v7 (T-24 complete domain): the measure also names its metric family and the dimensions the record
 # states; a point is compared automatically only in a complete, proven group (research/domain.py)

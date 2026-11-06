@@ -11,7 +11,7 @@ from bioradar.research import schemas
 
 def test_the_producer_and_checker_versions():
     # later producers keep this one's reading; the current versions (test_measure_v5)
-    assert mc.CHECKER == ec.CHECKER_V13 == "biocheck.extraction_rules.v13"
+    assert mc.CHECKER == ec.CHECKER_V14 == "biocheck.extraction_rules.v14"
     assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v8"}
 
 
