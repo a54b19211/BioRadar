@@ -10,14 +10,9 @@ from bioradar.adapters import services
 from bioradar.config import settings
 from bioradar.material import Material, part_key, reread, restore, sha256, tables_of
 from bioradar.research import analyses
-from bioradar.research.pipeline import (
-    Run,
-    adopt,
-    excerpt,
-    hit_spans,
-    report_text,
-    table_header_omitted,
-)
+from bioradar.research.pipeline import Run
+from bioradar.research.run import submit
+from bioradar.research.run.windows import adopt, excerpt, hit_spans, report_text, table_header_omitted
 
 HEADER = (
     "| 序号 | 药品品名 | 标示生产企业名称 | 检验结果 | 不合格项目 |\n| ---- | ---- | ---- | ---- | ---- |\n"
@@ -118,8 +113,8 @@ def test_mechevidence_receives_the_header_or_the_notice(monkeypatch):
         run = Run(row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=None)
         run.p.update(facts=[{"ref": "E1"}], mechanism={"statement": "X 抑制 Y"})
         with db.session() as s:
-            read_id = run.sent(
-                s, "read", "radar", "E1", {"source": "nmpa", "record_id": "R1", "version_id": "v1"}, read
+            read_id = submit.sent(
+                run, s, "read", "radar", "E1", {"source": "nmpa", "record_id": "R1", "version_id": "v1"}, read
             )
             s.add(
                 db.Evidence(

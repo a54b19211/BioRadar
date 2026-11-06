@@ -18,7 +18,7 @@ from sqlalchemy import func, select, text
 from bioradar import db
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
-from bioradar.research import analyses, continuation, monitor
+from bioradar.research import analyses, continuation, lineage, monitor
 
 app = FastAPI(title="BioRadar", version="1.0.0")
 COOKIE = "bioradar_session"
@@ -418,8 +418,8 @@ def hidden_by_analysis(ids, *, own=True) -> dict:
         chains = {}
         for a in ids:
             try:
-                chains[a] = ([a] if own else []) + analyses.lineage(s, a)
-            except analyses.UnknownLineage:  # a chain not followed to its start is not known to be readable
+                chains[a] = ([a] if own else []) + lineage.lineage(s, a)
+            except lineage.UnknownLineage:  # a chain not followed to its start is not known to be readable
                 chains[a], _ = ([a] if own else []), broken.add(a)
         wanted = {x for chain in chains.values() for x in chain}
         rows = (

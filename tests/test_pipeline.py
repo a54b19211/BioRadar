@@ -10,6 +10,7 @@ from bioradar.adapters import llm, services
 from bioradar.config import settings
 from bioradar.research import analyses, schemas
 from bioradar.research.pipeline import Run
+from bioradar.research.run import assess, investigate, read, search, submit
 
 RECORDS = [
     record(
@@ -263,7 +264,7 @@ def test_a_large_scope_is_filtered_locally(monkeypatch):
 
 
 def test_retries_of_empty_searches_are_capped(monkeypatch):
-    from bioradar.research.pipeline import MAX_RETRIES
+    from bioradar.research.run.search import MAX_RETRIES
 
     base = fake_model([])
 
@@ -459,17 +460,17 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
         text="禾屿报告3例", quote="禾屿县本周报告3例发热伴皮疹", stance="supports", object="禾屿县"
     )
     guessed = ReadFact(text="病例增加", quote="本周报告3例", stance="supports", object="澜津市")
-    assert run.object_of(named, "E1") == "禾屿县" and run.object_of(guessed, "E2") == ""
+    assert read.object_of(run, named, "E1") == "禾屿县" and read.object_of(run, guessed, "E2") == ""
     assert run.p["found_objects"] == [{"name": "禾屿县", "ref": "E1", "quote": "禾屿县本周报告3例发热伴皮疹"}]
     assert run.p["objects"] == []  # found objects do not narrow the question
     # Codex r31: a known name still needs this fact's own quote, or two events get joined
     other = ReadFact(text="乙城医院收治2例", quote="乙城医院收治2例", stance="supports", object="禾屿县")
-    assert run.object_of(other, "E3") == ""
+    assert read.object_of(run, other, "E3") == ""
     # background keeps its name but takes no place among the names followed up
     background = ReadFact(
         text="甲城门诊量平稳", quote="甲城门诊本周登记10人", stance="context", object="甲城"
     )
-    assert run.object_of(background, "E4") == "甲城"
+    assert read.object_of(run, background, "E4") == "甲城"
     assert [o["name"] for o in run.p["found_objects"]] == ["禾屿县"]
 
 
@@ -489,15 +490,17 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
         },  # still paging
         notes=[],
     )
-    run.add_query(["芦川发热门诊"], ["Q1"], value=0, origin="read:E1")
-    run.add_query(["登记方法"], ["Q1"], value=0, origin="read:E1")
+    search.add_query(run, ["芦川发热门诊"], ["Q1"], value=0, origin="read:E1")
+    search.add_query(run, ["登记方法"], ["Q1"], value=0, origin="read:E1")
     assert len(run.p["queries"]) == 12
-    run.add_query(["澜津"], ["Q1"], value=3, origin="object:E5")
-    run.add_query(["SIM-RX-26"], ["Q1"], value=2, origin="read:E5")
+    search.add_query(run, ["澜津"], ["Q1"], value=3, origin="object:E5")
+    search.add_query(run, ["SIM-RX-26"], ["Q1"], value=2, origin="read:E5")
     terms = [q["terms"][0] for q in run.p["queries"]]
     assert "澜津" in terms and "SIM-RX-26" in terms
     assert "芦川发热门诊" not in terms and "登记方法" not in terms and "泛词0" in terms  # run searches stay
-    run.add_query(["另一背景词"], ["Q1"], value=0, origin="read:E6")  # worth no more than what is there
+    search.add_query(
+        run, ["另一背景词"], ["Q1"], value=0, origin="read:E6"
+    )  # worth no more than what is there
     assert "另一背景词" not in [q["terms"][0] for q in run.p["queries"]]
     assert [n["code"] for n in run.p["notes"]].count("query_replaced") == 2
 
@@ -519,9 +522,11 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
         },
         notes=[],
     )
-    run.add_query(["背景新词"], ["Q1"], value=0, origin="read:E8")  # background never retires a search
+    search.add_query(
+        run, ["背景新词"], ["Q1"], value=0, origin="read:E8"
+    )  # background never retires a search
     assert "背景新词" not in [q["terms"][0] for q in run.p["queries"]]
-    run.add_query(["新城"], ["Q1"], value=3, origin="object:E9")
+    search.add_query(run, ["新城"], ["Q1"], value=3, origin="object:E9")
     terms = [q["terms"][0] for q in run.p["queries"]]
     assert "新城" in terms and "词0" not in terms and "词3" in terms  # still paging, so it stays
     assert run.p["notes"][-1]["code"] == "query_retired"
@@ -542,9 +547,9 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
         hits=[],
         objects=[],
     )
-    two.add_query(["新城"], ["Q1"], value=3, origin="object:E9")
+    search.add_query(two, ["新城"], ["Q1"], value=3, origin="object:E9")
     assert "词0" in [q["terms"][0] for q in two.p["queries"]]  # b has not searched it yet
-    assert any(c.get("follows_up") for c in two.candidates() if c["args"].get("terms") == ["新城"])
+    assert any(c.get("follows_up") for c in investigate.candidates(two) if c["args"].get("terms") == ["新城"])
 
 
 def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
@@ -672,7 +677,7 @@ def test_the_report_input_keeps_every_quoted_fact_even_far_down_a_long_record():
     """Codex r38: a trial's status fields filled the 4000 characters with context, the loop stopped, and
     the results table the reader had quoted never reached BioCheck."""
     from bioradar.material import Material
-    from bioradar.research.pipeline import excerpt
+    from bioradar.research.run.windows import excerpt
 
     quotes = [f"字段{i}的值是{i * 7}" for i in range(12)]
     text = "".join("背景" * 400 + q for q in quotes)  # each quote 800 characters after the last
@@ -751,19 +756,19 @@ def test_candidates_carry_what_they_are_expected_to_add():
     )
     impact = {
         (c["kind"], tuple(c["args"].get("terms", ())) or c["args"].get("record_id")): c.get("impact")
-        for c in run.candidates()
+        for c in investigate.candidates(run)
     }
     assert impact[("search", ("澜津市",))] == 1.0
     assert abs(impact[("search", ("病例",))] - 0.18) < 1e-9  # three usable records wait
     assert abs(impact[("search", ("背景词",))] - 0.06) < 1e-9  # background terms, and records wait
     assert impact[("read", "e1")] == 1.0 and impact[("read", "bg")] == 0.5
-    assert all("_value" not in c and "_copy" not in c for c in run.candidates())
+    assert all("_value" not in c and "_copy" not in c for c in investigate.candidates(run))
 
 
 def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_is_unknown():
     """Codex r40: revoked between plan and report, the cached answer still sent the report to the writer;
     round 21 of a chain lost its root's limits; a loop must not hang."""
-    from bioradar.research.pipeline import lineage, lineage_sources
+    from bioradar.research.lineage import lineage, lineage_sources
 
     class Listed(FakeFabric):
         def __init__(self, listed):
@@ -809,7 +814,7 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
     with db.session() as s:
         import pytest
 
-        from bioradar.research.pipeline import UnknownLineage
+        from bioradar.research.lineage import UnknownLineage
 
         with pytest.raises(UnknownLineage):
             lineage(s, last.id)
@@ -849,9 +854,9 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
         notes=[],
         checks=[{"id": "Q1", "text": "事件", "required": True, "status": "open", "evidence": []}],
     )
-    first = [c for c in run.candidates() if c["args"].get("browse")]
+    first = [c for c in investigate.candidates(run) if c["args"].get("browse")]
     assert len(first) == 1 and first[0]["args"]["page"] == 0 and first[0]["args"]["terms"] == []
-    run.act(first[0])  # one page: one Fabric request, 100 ids
+    investigate.act(run, first[0])  # one page: one Fabric request, 100 ids
     assert run.p["actions"][-1]["found"] == 100 and len(run.p["hits"]) == 100
     from bioradar.adapters.fabric import FabricError
 
@@ -860,20 +865,20 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
         raise FabricError("fabric_http_503", "down")
 
     real, fabric.search = fabric.search, down
-    second = [c for c in run.candidates() if c["args"].get("browse")]
+    second = [c for c in investigate.candidates(run) if c["args"].get("browse")]
     assert second[0]["args"]["page"] == 1
-    run.act(second[0])
+    investigate.act(run, second[0])
     assert run.p["actions"][-1]["status"] == "failed"
     fabric.search = real
     import json
 
     resumed = Run(row, settings(), fabric=fabric)  # a restart keeps what was browsed and what failed
     resumed.p = json.loads(json.dumps(run.p))
-    again = [c for c in resumed.candidates() if c["args"].get("browse")]
+    again = [c for c in investigate.candidates(resumed) if c["args"].get("browse")]
     assert again and again[0]["args"]["page"] == 1  # the failed page is offered again
-    resumed.act(again[0])
+    investigate.act(resumed, again[0])
     assert len(resumed.p["hits"]) == 110  # 10 more were visible; the 5 later ones were not
-    assert not [c for c in resumed.candidates() if c["args"].get("browse")]
+    assert not [c for c in investigate.candidates(resumed) if c["args"].get("browse")]
     assert [n["code"] for n in resumed.p["notes"]].count("scope_browsed") == 2
     # one material set, one moment: page 2, its retry and the resumed run all read at the first page's time
     assert len(times) == 3 and len(set(times)) == 1 and times[0] is not None
@@ -886,7 +891,9 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
     )
     run = Run(small, settings(), fabric=fabric)
     run.p.update(queries=[], hits=[], actions=[], pages={}, objects=[], notes=[], checks=[])
-    assert not [c for c in run.candidates() if c["args"].get("browse")]  # small sets are listed at plan
+    assert not [
+        c for c in investigate.candidates(run) if c["args"].get("browse")
+    ]  # small sets are listed at plan
 
 
 def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted_them():
@@ -894,7 +901,7 @@ def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted
     record is Fabric's cleaned trial text (v3 3.3): field headings "<名称> <field>:", nested lines as paths.
     Every window of the report input keeps its range in that text (v3 6.1)."""
     from bioradar.material import Material, part_key, reread
-    from bioradar.research.pipeline import excerpt, report_text
+    from bioradar.research.run.windows import excerpt, report_text
 
     lines = [
         "Brief summary.",
@@ -986,11 +993,11 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
     fabric.listed = ["gone", "external_archive"]
     inside = Run(analyses.get(child.id), settings(), fabric=fabric)
     inside.stage = "investigate"
-    candidate = next(c for c in inside.candidates() if c["kind"] == "search")
+    candidate = next(c for c in investigate.candidates(inside) if c["kind"] == "search")
     fabric.listed = ["external_archive"]
     calls_before = len(fabric.calls)
     with pytest.raises(Failed):
-        inside.act(candidate)
+        investigate.act(inside, candidate)
     assert len(fabric.calls) == calls_before  # nothing went to Fabric
     # progress saved before the field existed: an earlier report and past the plan counts as used
     old = Run(analyses.get(child.id), settings(), fabric=fabric)
@@ -1020,7 +1027,7 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
 
 def test_excerpt_finds_a_quote_whose_spacing_differs_from_the_source():
     from bioradar.material import Material
-    from bioradar.research.pipeline import excerpt
+    from bioradar.research.run.windows import excerpt
 
     text = "甲" * 5000 + "PFS的HR\n为 0.69" + "乙" * 5000
     assert "0.69" in excerpt(Material.literal(text), ["PFS的HR为0.69"], limit=2000).text
@@ -1052,7 +1059,7 @@ def test_a_check_about_two_objects_is_not_answered_by_facts_about_one(monkeypatc
     row = analyses.create(question="XQ-17 和 YB-2 的PFS？", direction="pipeline", is_demo=True, enqueue=False)
     result = Run(row, settings(), fabric=FakeFabric(RECORDS)).run()
     assert result["checks"][0]["status"] == "open"
-    from bioradar.research.pipeline import PLANNER_CHECK
+    from bioradar.research.run.investigate import PLANNER_CHECK
 
     assert all(set(c) == set(PLANNER_CHECK) for body in requests for c in body["checks"])
 
@@ -1259,7 +1266,7 @@ def test_no_budget_left_means_the_assessment_stays_unverified(monkeypatch):
     sent = []
     monkeypatch.setattr(services, "biocheck", lambda s, operation, body: sent.append(body))
     judgment = {"conclusion": "收入增长", "grounds": ["E2"], "confidence": "probable"}
-    run.check_assessment({"judgments": [judgment], "hypotheses": []})
+    assess.check_assessment(run, {"judgments": [judgment], "hypotheses": []})
     assert sent == [] and judgment["check"] == "unverified"
     assert run.p["notes"][-1]["code"] == "assessment_biocheck_no_budget"
 
@@ -1320,10 +1327,10 @@ def test_semantic_search_is_offered_in_replays_too(monkeypatch):
         run.p.update(
             queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[]
         )
-        assert any(c["source"] == "weknora" for c in run.candidates())
+        assert any(c["source"] == "weknora" for c in investigate.candidates(run))
     off = Run(row, settings(), fabric=FakeFabric([]))
     off.p.update(queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[])
-    assert not any(c["source"] == "weknora" for c in off.candidates())
+    assert not any(c["source"] == "weknora" for c in investigate.candidates(off))
 
 
 def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_itself(monkeypatch):
@@ -1402,14 +1409,16 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
             hits=hits,
             objects=[],
         )
-        order = [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"]
+        order = [c["args"]["record_id"] for c in investigate.candidates(run) if c["kind"] == "read"]
         assert order == expected, method
         # a resumed run has no texts in memory, only what progress kept: the order must not change
         import json
 
         again = Run(row, settings(), fabric=FakeFabric([]))
         again.p = json.loads(json.dumps(run.p))
-        assert [c["args"]["record_id"] for c in again.candidates() if c["kind"] == "read"] == expected, method
+        assert [
+            c["args"]["record_id"] for c in investigate.candidates(again) if c["kind"] == "read"
+        ] == expected, method
 
 
 def test_same_opening_with_the_opposite_ending_is_not_a_copy():
@@ -1442,12 +1451,12 @@ def test_same_opening_with_the_opposite_ending_is_not_a_copy():
         ],
     )
     expected = ["tail", "bg", "same"]
-    assert [c["args"]["record_id"] for c in run.candidates() if c["kind"] == "read"] == expected
+    assert [c["args"]["record_id"] for c in investigate.candidates(run) if c["kind"] == "read"] == expected
     import json
 
     again = Run(row, settings(), fabric=FakeFabric([]))
     again.p = json.loads(json.dumps(run.p))
-    assert [c["args"]["record_id"] for c in again.candidates() if c["kind"] == "read"] == expected
+    assert [c["args"]["record_id"] for c in investigate.candidates(again) if c["kind"] == "read"] == expected
 
 
 def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unread(monkeypatch):
@@ -1530,7 +1539,7 @@ def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_rea
     """v3 6.1: the materials sent to MechEvidence are recorded per record; each binds to the same parts and
     ranges as the reading window it came from, so it reads back from the fixed-version text."""
     from bioradar.material import of, part_key, reread
-    from bioradar.research.pipeline import adopt
+    from bioradar.research.run.windows import adopt
 
     doc = FakeFabric([record("M1", "机制研究", "甲" * 30000 + "X 抑制 Y。", kind="primary_research")]).docs[0]
     row = analyses.create(question="X 是否抑制 Y？", direction="science", is_demo=True, enqueue=False)
@@ -1538,7 +1547,7 @@ def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_rea
     run.p.update(facts=[{"ref": "E1"}], mechanism={"statement": "X 抑制 Y"})
     material, window = adopt(of(doc), ["抑制"], 2000)
     with db.session() as s:
-        read_id = run.sent(s, "read", "radar", "E1", doc, material)
+        read_id = submit.sent(run, s, "read", "radar", "E1", doc, material)
         s.add(
             db.Evidence(
                 analysis_id=run.id,
@@ -1577,17 +1586,19 @@ def test_every_outbound_attempt_keeps_its_own_record_and_status():
     run = Run(row, settings(), fabric=None)
     doc = FakeFabric(RECORDS).docs[0]
     with db.session() as s:
-        first = run.sent(s, "read", "radar", "E1", doc, of(doc))
-    with run.outbound([first]):
+        first = submit.sent(run, s, "read", "radar", "E1", doc, of(doc))
+    with submit.outbound(run, [first]):
         pass  # the service answered
     with db.session() as s:
-        second = run.sent(s, "read", "radar", "E1", doc, of(doc))  # the worker died; the same read again
-        third = run.sent(s, "report", "biocheck", "E1", doc, of(doc))
-    with run.outbound([second], model=True):
+        second = submit.sent(
+            run, s, "read", "radar", "E1", doc, of(doc)
+        )  # the worker died; the same read again
+        third = submit.sent(run, s, "report", "biocheck", "E1", doc, of(doc))
+    with submit.outbound(run, [second], model=True):
         pass  # no model call was made
-    with pytest.raises(RuntimeError), run.outbound([third]):
+    with pytest.raises(RuntimeError), submit.outbound(run, [third]):
         raise RuntimeError("biocheck down")
-    run.mark([first], "failed")  # a later failure does not undo what was already sent
+    submit.mark(run, [first], "failed")  # a later failure does not undo what was already sent
     with db.session() as s:
         rows = list(s.scalars(select(db.MaterialRead).where(db.MaterialRead.analysis_id == run.id)))
     assert sorted((r.stage, r.attempt, r.status) for r in rows) == [
@@ -1644,7 +1655,7 @@ def test_the_notice_heads_every_window_of_a_long_uncleaned_record():
     report, loses its first line; the notice is put back on every window sent, once."""
     from bioradar.adapters.fabric import UNCLEANED, noticed
     from bioradar.material import Material
-    from bioradar.research.pipeline import adopt, report_text
+    from bioradar.research.run.windows import adopt, report_text
 
     notice = UNCLEANED.format(state="failed")
     lines = ["无关段落" * 50] * 100 + ["关键结果 HR为0.69"]
@@ -1683,9 +1694,9 @@ def test_each_biocheck_request_has_its_own_outbound_record(monkeypatch):
         return {"draft": "稿", "llm_calls": []}
 
     monkeypatch.setattr(services, "biocheck", biocheck)
-    run.service("generate", dict(body))
+    submit.service(run, "generate", dict(body))
     with pytest.raises(RuntimeError):
-        run.service("verify", dict(body))
+        submit.service(run, "verify", dict(body))
     with db.session() as s:
         rows = list(s.scalars(select(db.MaterialRead).where(db.MaterialRead.analysis_id == run.id)))
     assert sorted((r.stage, r.attempt, r.status) for r in rows) == [

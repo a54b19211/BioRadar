@@ -29,6 +29,6 @@ def test_evaluate_rejects_anything_else(expression):
 
 
 def test_code_like_terms_get_letter_roots():
-    from bioradar.research.pipeline import code_roots
+    from bioradar.research.run.plan import code_roots
 
     assert code_roots(["XQ-17", "DEMO-XQ301", "肝毒性", "COVID-19"]) == [["XQ"], ["COVID"]]

@@ -24,6 +24,7 @@ from test_series import fake_triage
 from bioradar import db
 from bioradar.adapters import llm, services
 from bioradar.research import measure_checks, monitor, schemas
+from bioradar.research.run import investigate
 
 TEXT = "2026年4月，国家药监局共批准注册医疗器械产品318个。"
 
@@ -975,9 +976,9 @@ def test_an_analysis_sees_a_revocation_without_any_monitor_round(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
     run = analysis_of(monkeypatch, [point.id], fabric)
-    assert run.series_state()[0]["current"] is True  # the positive control
+    assert investigate.series_state(run)[0]["current"] is True  # the positive control
     fabric.revoked.add(point.version_id)
-    [now] = run.series_state()  # what the next decide request carries; no tick in between
+    [now] = investigate.series_state(run)  # what the next decide request carries; no tick in between
     assert now["current"] is False and now["extraction_check"]["reason"] == "source_unreadable"
     assert effective_ids() == []
 
@@ -993,7 +994,7 @@ def test_an_analysis_treats_an_unknown_authority_as_not_current(monkeypatch):
         raise FabricError("unavailable", "temporary")
 
     monkeypatch.setattr(fabric, "clean_texts", down)
-    [now] = run.series_state()
+    [now] = investigate.series_state(run)
     assert now["current"] is False and now["extraction_check"]["reason"] == "binding_unknown"
 
 
@@ -1017,7 +1018,7 @@ def test_an_analysis_reads_back_only_its_own_values(monkeypatch):
     first, second = rows(db.Measurement)
     run = analysis_of(monkeypatch, [first.id], fabric)
     fabric.calls.clear()
-    run.series_state()
+    investigate.series_state(run)
     read = [c for c in fabric.calls if c[0] == "clean_texts"]
     assert read == [("clean_texts", first.source, (first.version_id,))]  # one bounded read, not all points
 
