@@ -165,6 +165,8 @@ class MaterialRead(Base):
     chars: Mapped[int] = mapped_column(Integer)
     binding: Mapped[dict] = mapped_column(Json)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    # one row per attempt (migration 0006 creates the same constraint on PostgreSQL)
+    __table_args__ = (UniqueConstraint("analysis_id", "llm_call_id", "stage", "ref", "attempt"),)
 
 
 def material_read(material, *, stage, service, ref, source, record_id, version_id, **links) -> MaterialRead:
