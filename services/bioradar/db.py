@@ -315,8 +315,8 @@ class Measurement(Base):
     scope_mode: Mapped[str] = mapped_column(String(30), default="")
     # T-26: the cleaned artifact the point was read from (its candidate's processor and text hash); a point
     # read again from the artifact an upgrade put in its place retires this one (retired_by: that point;
-    # artifact_upgrade), and one the upgraded artifact did not give again retires once that artifact is read
-    # and checked (not_in_upgraded_artifact). A retired point is never effective.
+    # artifact_upgrade). A retired point is never effective. One the upgraded artifact's reading did not give
+    # again is not retired (Codex r184): the upgrade run keeps it owed (upgrade_unconfirmed).
     artifact_key: Mapped[str] = mapped_column(String(200), default="")
     retired_by: Mapped[int | None] = mapped_column(Integer)
     retired_reason: Mapped[str | None] = mapped_column(String(40))

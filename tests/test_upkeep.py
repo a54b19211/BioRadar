@@ -3,7 +3,7 @@ upgraded to a new processor's artifact of the same raw version, and corrections 
 existed are backfilled; both bounded, continued by run id, never by a cleared cursor or a fresh database."""
 
 import hashlib
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from conftest import FakeFabric, record
@@ -203,24 +203,61 @@ def test_a_value_the_upgraded_artifact_reads_differently_replaces_the_old_one_an
         events("record_conflict") == []
     )  # two readings of one raw version, not the record stating two values
     [changed] = events("artifact_value_changed")
-    assert [p["value"] for p in changed["points"]] == ["318", "320"]
+    assert [p["value"] for p in changed["points"]] == ["318", "320"] and changed["reprocessed"] is True
+    with db.session() as s:  # dated when the reprocessing happened, not at the record's time (Codex 770)
+        [e] = s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "artifact_value_changed"))
+        assert monitor.parse_time(e.at) > datetime(2026, 11, 1, tzinfo=UTC)
+        [p0, _] = s.scalars(select(db.Measurement).order_by(db.Measurement.id))
+        assert monitor.parse_time(p0.retired_at) > datetime(2026, 11, 1, tzinfo=UTC)
     assert upgrade(fabric, run["run_id"])["items"] == {"settled": 1}
 
 
-def test_a_point_the_upgraded_artifact_does_not_give_again_retires_once_it_is_read_and_checked(stand_ins):
+@pytest.mark.parametrize("present", [False, True])
+def test_a_point_the_upgraded_artifact_did_not_give_again_stays_owed_not_proven_absent(
+    stand_ins, monkeypatch, present
+):
+    """Codex r184: the new reading found nothing - whether the sentence left the new text or the model gave no
+    item for it - the old point stays as it is and the run stays open, saying whether its quote is still
+    there."""
     fabric = old_state(text_with(3000))
     [old] = plans()
-    fabric.v12[old.version_id] = text_with(3000, sentence="。" * len(SENTENCE)) + TAIL
+    sentence = SENTENCE if present else "。" * len(SENTENCE)
+    fabric.v12[old.version_id] = text_with(3000, sentence=sentence) + TAIL
     fabric.ready.add(old.version_id)
     run = upgrade(fabric)
-    assert points()[0][2] is None  # still the old artifact's point while the new one is being read
+    if present:  # the extractor gives no item although the sentence is there
+        monkeypatch.setattr(llm, "chat_json", model([], by_quote={"不会出现的句子": {}}))
+    tick(fabric)
+    assert plans()[1].state == "complete"
+    run = upgrade(fabric, run["run_id"])
+    assert run["items"] == {"upgrade_unconfirmed": 1} and run["state"] == "running"
+    [(a0, v0, why0, by0, id0)] = points()
+    assert (a0, v0, why0, by0) == (OLD, "318", None, None) and effective() == ["318"]
+    with db.session() as s:
+        [item] = s.scalars(select(db.UpkeepItem).where(db.UpkeepItem.outcome == "upgrade_unconfirmed"))
+        assert item.detail["unconfirmed"] == [{"id": id0, "value": "318", "quote_in_new_text": present}]
+    assert upgrade(fabric, run["run_id"])["recorded"]["upgrade_unconfirmed"] == 1  # said once, not again
+
+
+def test_a_partial_upgrade_read_on_settles_once_complete(stand_ins):
+    """Codex r184: capped, then extended and read to the end - the same run settles and is done."""
+    fabric = old_state(text_with(3000))
+    [old] = plans()
+    fabric.v12[old.version_id] = text_with(3000) + TAIL
+    fabric.ready.add(old.version_id)
+    run = upgrade(fabric)
+    new_id = plans()[1].id
+    with db.session() as s:
+        for w in s.scalars(select(db.RecordReadWindow).where(db.RecordReadWindow.read_id == new_id)):
+            w.state = "capped" if w.window_index else "sent"  # as Codex's probe: window 0 counted read
+        continuation._settle(s, s.get(db.RecordRead, new_id))
+    assert upgrade(fabric, run["run_id"])["items"] == {"upgrade_incomplete": 1}
+    with db.session() as s:
+        assert continuation.extend(s, new_id, 50) > 0
     tick(fabric)
     run = upgrade(fabric, run["run_id"])
     assert run["items"] == {"settled": 1} and run["state"] == "done"
-    [(a0, v0, why0, by0, id0)] = points()
-    assert (a0, why0, by0) == (OLD, "not_in_upgraded_artifact", None) and effective() == []
-    [retired] = events("artifact_points_retired")
-    assert retired["retired"] == [id0]
+    assert [p[2] for p in points()] == ["artifact_upgrade", None]
 
 
 def test_a_new_plan_read_only_in_part_keeps_the_old_points_and_says_so(stand_ins, monkeypatch):

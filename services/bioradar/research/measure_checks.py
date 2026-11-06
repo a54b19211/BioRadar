@@ -1190,10 +1190,8 @@ def comparability(session, m, at=None):
     reasons = []
     if m.domain_basis != "topic":
         reasons.append("domain_unknown")
-    if m.retired_reason:
-        reasons.append(
-            "superseded_by_artifact"
-        )  # T-26: read again from an upgraded artifact, or not given by it
+    if m.retired_reason:  # T-26: read again from an upgraded artifact
+        reasons.append("superseded_by_artifact")
     by = session.get(db.Measurement, m.superseded_by) if m.superseded_by is not None else None
     by = by if by is not None and seen(by) else None
     if by is not None or m.id in withdrawn(session, [m.id], at):

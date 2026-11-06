@@ -670,7 +670,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     )
     session.add(row)
     session.flush()
-    hand_over(session, row, identity, at)
+    hand_over(session, row, identity)
     if contradicted:
         for r in contradicted + [row]:
             if RECORD_CONFLICT not in (r.dims_reasons or []):
@@ -1314,7 +1314,7 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
     return created
 
 
-def hand_over(session, row, identity, at):
+def hand_over(session, row, identity):
     """T-26: a point read from the upgraded artifact of its version takes the place of the points of the same
     identity read from the artifacts that upgrade replaced - they retire (artifact_upgrade), never a record
     contradiction; a changed value is told to the topic. Only the artifact of the version's current plan, an
@@ -1358,11 +1358,14 @@ def hand_over(session, row, identity, at):
     changed = [o for o in old if o.value_text != row.value_text]
     holder = session.get(db.Topic, row.domain_id) if changed and row.domain_basis == "topic" else None
     if holder is not None:
+        # a reprocessing of the same raw version, dated now: a replay before it never sees it, and it is
+        # never a change of the source at the record's time (Codex 770)
         event(
             session,
             holder,
-            at,
+            db.now(),
             "artifact_value_changed",
+            reprocessed=True,
             record=row.record_id,
             version=row.version_id,
             period=row.period,

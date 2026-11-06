@@ -6,10 +6,12 @@ material reads stay as they are; the new plan owes every window, the first too (
 artifact), so none of the old coverage counts for the new artifact. A version is planned only when Fabric
 serves the new artifact processed and bound to this version (otherwise the run records why and tries it
 again once its cursor is through). Points read from the new artifact take the place of the same points of the
-old one (monitor.hand_over: artifact_upgrade; a changed value is told to the topic). Once the new plan is
-complete and its candidates checked, the old artifact's points it did not give again retire
-(not_in_upgraded_artifact); a capped, failed or paused new plan keeps the old points and says
-upgrade_incomplete. Triage (topics, alerts) is not redone and no observation is added.
+old one (monitor.hand_over: artifact_upgrade; a changed value is told to the topic). Nothing else retires an
+old point: once the new plan is complete and its candidates checked, the old points it did not give again stay
+as they are and owed (upgrade_unconfirmed, with whether each quote is still in the new text) - a reading that
+found nothing is not the fact's absence (Codex r184) - and the run stays open; a capped, failed or paused new
+plan keeps the old points too (upgrade_incomplete). Triage (topics, alerts) is not redone and no observation
+is added.
 
 backfill_corrections (Codex r167, migration 0010 started empty): the corrections and retractions stated by
 the records seen before record_corrections existed are registered from their fixed versions, dated at the
@@ -27,7 +29,8 @@ from bioradar.material import of
 from bioradar.research import continuation, measure_checks, monitor
 
 OPEN_CHECKS = ("queued", "waiting")
-UNSETTLED = ("planned", "upgrade_incomplete")  # an upgrade whose old points are not settled yet
+UNSETTLED = ("planned", "upgrade_incomplete", "upgrade_unconfirmed")  # old points not settled yet
+PLAN = ("version_id", "old_read", "new_read", "old_artifact", "new_artifact", "windows")  # an item's identity
 RETRY = ("artifact_not_ready",)  # tried again once the cursor is through
 
 
@@ -162,14 +165,15 @@ def _readable(fabric, old, processor, is_demo, now):
     return "plan", {"doc": doc}, False
 
 
-def _settle_upgrades(s, run_id, is_demo, limit):
-    """Old points of upgrades whose new plan is read and checked: the ones not given again retire."""
+def _settle_upgrades(s, fabric, run_id, is_demo, limit, now):
+    """Upgrades whose new plan is read and checked: settled when every old point was taken over, else owed."""
     with db.session() as session:
         run = session.get(db.UpkeepRun, run_id)
         for key, (outcome, d) in list(latest(session, run).items()):
             if outcome not in UNSETTLED or limit <= 0:
                 continue
             new = session.get(db.RecordRead, d["new_read"])
+            base = {k: d[k] for k in PLAN if k in d}
             if new.state == "reading":
                 continue
             if new.state != "complete":
@@ -180,7 +184,9 @@ def _settle_upgrades(s, run_id, is_demo, limit):
                         run,
                         key,
                         "upgrade_incomplete",
-                        **{**d, "state": new.state, "reason": new.reason},
+                        **base,
+                        state=new.state,
+                        reason=new.reason,
                     )
                     limit -= 1
                 continue
@@ -214,22 +220,6 @@ def _settle_upgrades(s, run_id, is_demo, limit):
                     )
                 )
             )
-            at = db.now()
-            for m in left:
-                m.retired_reason, m.retired_at = "not_in_upgraded_artifact", at
-            for topic_id in sorted({m.domain_id for m in left if m.domain_basis == "topic"}):
-                topic = session.get(db.Topic, topic_id)
-                if topic is not None:
-                    monitor.event(
-                        session,
-                        topic,
-                        at,
-                        "artifact_points_retired",
-                        version=new.version_id,
-                        artifact=d["old_artifact"],
-                        by_artifact=new.artifact_key,
-                        retired=[m.id for m in left if m.domain_id == topic_id],
-                    )
             handed = session.scalars(
                 points.where(
                     db.Measurement.artifact_key == d["old_artifact"],
@@ -237,18 +227,32 @@ def _settle_upgrades(s, run_id, is_demo, limit):
                 )
             ).all()
             new_points = session.scalars(points.where(db.Measurement.artifact_key == new.artifact_key)).all()
-            _item(
-                session,
-                run,
-                key,
-                "settled",
-                **d,
+            facts = dict(
+                base,
                 state=new.state,
                 handed_over=sorted(m.id for m in handed),
-                retired_not_given=sorted(m.id for m in left),
                 new_points=sorted(m.id for m in new_points),
             )
-            limit -= 1
+            if not left:
+                _item(session, run, key, "settled", **facts)
+                limit -= 1
+                continue
+            # read whole, yet some old points were not given again: not proven absent (Codex r184) - they stay
+            # as they are, owed a reading of the new artifact that gives them again; the run stays open
+            text, why = continuation._readback(fabric, new, now)
+            unconfirmed = [
+                {
+                    "id": m.id,
+                    "value": m.value_text,
+                    "quote_in_new_text": (m.quote in text) if text is not None else None,
+                }
+                for m in left
+            ]
+            if outcome != "upgrade_unconfirmed" or d.get("unconfirmed") != unconfirmed:
+                _item(
+                    session, run, key, "upgrade_unconfirmed", **facts, unconfirmed=unconfirmed, readback=why
+                )
+                limit -= 1
 
 
 def upgrade_reads(
@@ -314,7 +318,7 @@ def upgrade_reads(
                     )
             if fresh:
                 run.cursor = max(run.cursor, old.id)
-    _settle_upgrades(s, run_id, is_demo, limit)
+    _settle_upgrades(s, fabric, run_id, is_demo, limit, now)
     with db.session() as session:
         run = session.get(db.UpkeepRun, run_id)
         more = session.scalar(_old_plans(s, source, processor, is_demo, run.cursor).limit(1))
