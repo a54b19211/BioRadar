@@ -1,0 +1,41 @@
+# Functions allowed over 80 lines or complexity 20 (scripts/code_metrics.py --check), each with its reason.
+# Format: <path>:<qualified name>  <reason>. The check fails on an entry no longer needed: the list only shrinks.
+#
+# The measurement chain moves to Fabric's derived-data layer (v3 6.1, audit P3: extraction, BioCheck checking,
+# corrections and upkeep become Fabric's, Radar keeps the investigation's own selection). Splitting code that
+# is about to move would be done twice; until then it is covered by test_measure_checks, test_series*,
+# test_complete_domain, test_upkeep, test_continuation and the T-24 / v11 chains against real BioCheck.
+services/bioradar/research/measure_checks.py:_in_source  measurement chain, moves to Fabric (P3)
+services/bioradar/research/measure_checks.py:_states  measurement chain, moves to Fabric (P3)
+services/bioradar/research/measure_checks.py:build  measurement chain, moves to Fabric (P3)
+services/bioradar/research/measure_checks.py:cited_sources  measurement chain, moves to Fabric (P3)
+services/bioradar/research/measure_checks.py:enqueue  measurement chain, moves to Fabric (P3)
+services/bioradar/research/measure_checks.py:locate  measurement chain, moves to Fabric (P3)
+services/bioradar/research/measure_checks.py:run  measurement chain, moves to Fabric (P3)
+services/bioradar/research/upkeep.py:_readable  measurement chain upkeep, moves to Fabric (P3)
+services/bioradar/research/upkeep.py:_settle_upgrades  measurement chain upkeep, moves to Fabric (P3)
+services/bioradar/research/upkeep.py:recheck_unconfirmed  measurement chain upkeep, moves to Fabric (P3)
+services/bioradar/research/upkeep.py:upgrade_reads  measurement chain upkeep, moves to Fabric (P3)
+services/bioradar/research/continuation.py:_read  continuation reading of measures, moves with the chain (P3)
+services/bioradar/research/continuation.py:plan  continuation reading of measures, moves with the chain (P3)
+services/bioradar/research/domain.py:series_gate  the comparable-domain gate (ADR 0003), one rule table per family; moves with the chain (P3)
+services/bioradar/research/series.py:evaluate  series comparison, split with the series-store split once the chain has moved (P3)
+services/bioradar/research/series_store.py:adopt  storing a checked point; its source-level part moves to Fabric (P3), the rest is split then
+#
+# The Fabric adapter assembles a record's material from four Fabric layers on the client side (audit P5); it
+# shrinks to one call when Fabric serves the readable material in one response (wave 2, Fabric catalog API).
+services/bioradar/adapters/fabric.py:document  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
+services/bioradar/adapters/fabric.py:Fabric.attach_clean_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
+services/bioradar/adapters/fabric.py:Fabric.attach_attachment_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
+# The LLM JSON client is consolidated across Radar, BioCheck and MechEvidence (audit P5, out of this wave).
+services/bioradar/adapters/llm.py:chat_json  LLM client consolidation across the three services (P5)
+#
+# Not split in cleanup wave 1 (no move pending); next in line, covered by test_monitor, test_owed_cutoff,
+# test_access, test_deferred_revisions.
+services/bioradar/research/monitor.py:tick  the round's order in one place; split pending (wave 2)
+services/bioradar/research/scheduling.py:start_analyses  split pending (wave 2)
+services/bioradar/research/triage.py:new_documents  split pending (wave 2)
+services/bioradar/research/triage.py:observe  split pending (wave 2)
+services/bioradar/research/triage.py:route  one rule table of program routing; split pending (wave 2)
+services/bioradar/research/analyses.py:create  split pending (wave 2)
+services/bioradar/research/analyses.py:review  split pending (wave 2)
