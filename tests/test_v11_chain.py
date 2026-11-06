@@ -102,7 +102,7 @@ def spec(rid, month, value, population="成人", lead="", dims=None):
 
 def test_a_complete_group_proven_by_v11_compares_across_periods(monkeypatch):
     points, checks, events, states, dims = feed(monkeypatch, [spec("A1", 1, 10), spec("A2", 2, 12)])
-    assert {c.checker_version for c in checks.values()} == {"biocheck.extraction_rules.v15"}
+    assert {c.checker_version for c in checks.values()} == {"biocheck.extraction_rules.v16"}
     assert all(c.status == "consistent" for c in checks.values())
     assert dims["A2"] == {
         "disease": "checked",
@@ -174,7 +174,7 @@ def test_an_institution_claimed_as_the_product_and_a_number_as_a_denominator_def
     [check] = rows(db.MeasurementCheck)
     [point] = rows(db.Measurement)
     got = check.response["items"][0]["dims"]
-    assert check.status == "consistent" and check.checker_version == "biocheck.extraction_rules.v15"
+    assert check.status == "consistent" and check.checker_version == "biocheck.extraction_rules.v16"
     assert (
         got["product_or_class"]["reason"] == got["denominator_definition"]["reason"] == "dim_kind_not_proven"
     )

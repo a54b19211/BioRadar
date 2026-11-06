@@ -31,9 +31,9 @@ ROW_QUOTE = "| 医院B | 新增病例31例 |"
 
 
 def test_the_producer_and_checker_versions():
-    assert mc.CHECKER == ec.CHECKER_V15 and mc.PRODUCER == {
+    assert mc.CHECKER == ec.CHECKER_V16 and mc.PRODUCER == {
         "name": "bioradar.triage",
-        "version": "measure.v8",
+        "version": "measure.v9",
     }
 
 

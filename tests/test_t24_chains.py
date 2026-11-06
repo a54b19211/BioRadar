@@ -146,7 +146,7 @@ def test_late_reports_revise_only_the_month_they_name_and_a_replay_before_them_s
 ):
     before, after = run(monkeypatch, "炭疽", "public_health", bulletins())
     assert after == before  # a restart over the same bulletins adds nothing
-    assert before["checks"] == [("biocheck.extraction_rules.v15", "consistent")]
+    assert before["checks"] == [("biocheck.extraction_rules.v16", "consistent")]
     assert [(r, p, v, s) for r, p, v, s, _ in before["points"]] == [
         ("B1", "2026-01", "10", True),
         ("B2", "2026-02", "12", False),
@@ -223,7 +223,7 @@ def test_a_restated_quarter_is_redone_alone_and_a_replay_before_the_restatement_
 ):
     before, after = run(monkeypatch, "甲公司产能", "business", quarters())
     assert after == before
-    assert before["checks"] == [("biocheck.extraction_rules.v15", "consistent")]
+    assert before["checks"] == [("biocheck.extraction_rules.v16", "consistent")]
     assert [(r, p, v, s) for r, p, v, s, _ in before["points"]] == [
         ("Q1", "2026Q1", "120", False),
         ("Q2", "2026Q2", "130", True),

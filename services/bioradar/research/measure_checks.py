@@ -30,10 +30,11 @@ from bioradar.material import of, tables_of
 # measure.v8 / checker v11 / contract v3: as measure.v7, and the dimensions the measure states are located in
 # their cited sources and sent with the item for checker v11 to judge each (extraction_normalize.v4 for the
 # unit); earlier producers and checkers as released
-# checker v15 (Codex 783): v14 with output measures - a reporting-period date basis, a magnitude-and-
-# classifier unit kept whole, actual output as a flow (T-24 industrial); the producer is unchanged
-CHECKER, CONTRACT = ec.CHECKER_V15, ec.CONTRACT_V3
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v8"}
+# measure.v9 / checker v16 (Codex r186, real NMPA): the period literal must be the whole written period by
+# extraction_normalize.v5 - a complete date ending the line before (a notice's 发布时间) is its own;
+# checker v16 = v15 (output measures, Codex 783) with the same rule
+CHECKER, CONTRACT = ec.CHECKER_V16, ec.CONTRACT_V3
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v9"}
 # measure.v7 (T-24 complete domain): the measure also names its metric family and the dimensions the record
 # states; a point is compared automatically only in a complete, proven group (research/domain.py)
 # measure.v6 (B r2): a measure may cite the source of its period / object / scope / denominator literal - the
@@ -293,8 +294,9 @@ def locate(text, q0, q1, m, cited=None):
             if at is None:
                 return None, f"{name}_literal_not_located"
         spans[name] = (at, at + len(literal))
-    if "period" in spans and not norm.period_span_whole(text, *spans["period"]):
-        # "2018" of "In January 2018" or "Since 2018" is part of another period (extraction_normalize.v2)
+    if "period" in spans and not norm.period_span_whole_v5(text, *spans["period"]):
+        # "2018" of "In January 2018" or "Since 2018" is part of another period (extraction_normalize.v5: not
+        # the day ending a complete date on the line before)
         return None, "period_literal_not_the_whole_period"
     unit = m.get("unit_text") or ""
     if unit:
