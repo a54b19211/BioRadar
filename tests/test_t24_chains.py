@@ -146,7 +146,7 @@ def test_late_reports_revise_only_the_month_they_name_and_a_replay_before_them_s
 ):
     before, after = run(monkeypatch, "炭疽", "public_health", bulletins())
     assert after == before  # a restart over the same bulletins adds nothing
-    assert before["checks"] == [("biocheck.extraction_rules.v14", "consistent")]
+    assert before["checks"] == [("biocheck.extraction_rules.v15", "consistent")]
     assert [(r, p, v, s) for r, p, v, s, _ in before["points"]] == [
         ("B1", "2026-01", "10", True),
         ("B2", "2026-02", "12", False),
@@ -165,38 +165,38 @@ def test_late_reports_revise_only_the_month_they_name_and_a_replay_before_them_s
 
 # ---- industrial: quarterly output, one quarter restated --------------------------------------------------
 
-QHEAD = "## 按报告期统计\n\n"
+QHEAD = "## 甲公司\n\n### 按报告期统计\n\n"  # the company a section of its own, the basis its heading
 
 
-def output_measure(text, q, value, lead=""):
+def output_measure(text, q, value, lead="", obj="苏州工厂", scope="苏州工厂", entity=True):
     cn = "一二三四"[q - 1]
     sentence = text[text.index(f"{lead}2026年第{cn}季度") + len(lead) :]
     sentence = sentence[: sentence.index("。")]
+    dims = [schemas.Dim(kind="date_basis", text="按报告期统计", source="window")]
+    if entity:
+        dims.insert(0, schemas.Dim(kind="entity", text="甲公司", source="window"))
     return schemas.Measure(
-        object_text="甲公司苏州工厂",
-        metric_text="实际产出注射剂产量",
+        object_text=obj,
+        metric_text="实际产出的注射剂产量",
         value_text=str(value),
         unit_text="万支",
         period_text=f"2026年第{cn}季度",
         period=f"2026Q{q}",
         period_type="interval",
         kind="flow",
-        scope_text="苏州工厂",
+        scope_text=scope,
         qualifier="exact",
         modality="actual",
         status="reported",
         quote=sentence,
         family="capacity",
-        dims=[
-            schemas.Dim(kind="entity", text="甲公司"),
-            schemas.Dim(kind="date_basis", text="按报告期统计", source="window"),
-        ],
+        dims=dims,
     )
 
 
-def qline(q, value):
+def qline(q, value, site="苏州工厂"):
     cn = "一二三四"[q - 1]
-    return f"2026年第{cn}季度，甲公司苏州工厂实际产出注射剂产量{value}万支。"
+    return f"2026年第{cn}季度，{site}实际产出的注射剂产量为{value}万支。"
 
 
 def quarters():
@@ -218,25 +218,51 @@ def quarters():
     ]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="checker v14 does not check output wording: date basis 按报告期统计, unit 万支, flow wording "
-    "产出/产量, an entity followed by its site (T-24 gap, proposed for checker v15)",
-)
 def test_a_restated_quarter_is_redone_alone_and_a_replay_before_the_restatement_sees_the_old_value(
     monkeypatch,
 ):
     before, after = run(monkeypatch, "甲公司产能", "business", quarters())
     assert after == before
-    assert before["checks"] == [("biocheck.extraction_rules.v14", "consistent")]
+    assert before["checks"] == [("biocheck.extraction_rules.v15", "consistent")]
     assert [(r, p, v, s) for r, p, v, s, _ in before["points"]] == [
-        ("Q1", "2026年第一季度", "120", False),
-        ("Q2", "2026年第二季度", "130", True),
-        ("Q3", "2026年第三季度", "128", False),
-        ("Q3", "2026年第二季度", "125", False),
-        ("Q4", "2026年第四季度", "140", False),
+        ("Q1", "2026Q1", "120", False),
+        ("Q2", "2026Q2", "130", True),
+        ("Q3", "2026Q3", "128", False),
+        ("Q3", "2026Q2", "125", False),
+        ("Q4", "2026Q4", "140", False),
     ]
-    restated = datetime(2026, 10, 22, tzinfo=UTC)
+    assert all(
+        reasons == [] for *_, reasons in before["points"]
+    )  # entity, stage, coverage, date basis proven
+    # Q3 revises Q2 only; Q4 compares with Q3 and the revised Q2 is not redone again
+    # Q3 brings its own quarter, then the revision of Q2 with Q3 compared again against the revised Q2; Q4
+    # only compares forward - the revised quarter is not redone again
+    assert before["series"] == [
+        ("Q2", ["step"]),
+        ("Q3", ["step"]),
+        ("Q3", ["revised", "step"]),
+        ("Q4", ["new_high", "step", "streak_up"]),
+    ]
+    restated = datetime(2026, 10, 22, tzinfo=UTC)  # after Q3 (sqlite in tests keeps no time zone)
     early = datetime(2026, 8, 1, tzinfo=UTC)
-    assert "withdrawn_by_correction" in comparability_at("Q2", "2026年第二季度", restated)["reasons"]
-    assert "withdrawn_by_correction" not in comparability_at("Q2", "2026年第二季度", early)["reasons"]
+    assert "withdrawn_by_correction" in comparability_at("Q2", "2026Q2", restated)["reasons"]
+    assert "withdrawn_by_correction" not in comparability_at("Q2", "2026Q2", early)["reasons"]
+
+
+def test_the_company_written_fused_with_its_site_is_kept_but_never_compared(monkeypatch):
+    """Codex 783: the original business sentence - 甲公司苏州工厂 - proves no entity under v15 either; its
+    points are kept, checked, and out of comparison with the entity gap; no series step is computed from
+    them."""
+    head = "## 按报告期统计\n\n"
+    specs = []
+    for n, (q, v) in enumerate(((1, 120), (2, 130)), 1):
+        text = head + qline(q, v, site="甲公司苏州工厂")
+        m = output_measure(text, q, v, obj="甲公司苏州工厂", scope="甲公司苏州工厂", entity=False)
+        m = m.model_copy(update={"dims": [schemas.Dim(kind="entity", text="甲公司")] + list(m.dims)})
+        specs.append((f"F{n}", f"2026-0{3 * n + 1}-20T08:00:00+08:00", text, [m], ()))
+    before, after = run(monkeypatch, "甲公司产能", "business", specs)
+    assert after == before and len(before["points"]) == 2
+    assert all(
+        any(r.startswith("dim_") and "entity" in r for r in reasons) for *_, reasons in before["points"]
+    )
+    assert before["series"] == []

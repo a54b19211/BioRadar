@@ -89,7 +89,7 @@ def test_a_consistent_exact_actual_answer_is_stored_as_checked_and_reads_back_eq
     assert (check.gate, check.status, check.checker_version, point.check_id) == (
         "series",
         "consistent",
-        ec.CHECKER_V14,
+        ec.CHECKER_V15,
         check.id,
     )
     body = calls[0]
@@ -250,9 +250,9 @@ def test_revocation_and_recovery_move_a_point_out_of_and_back_into_the_effective
 def test_a_checker_upgrade_takes_points_out_until_the_new_checker_confirms_them(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
-    v8 = "biocheck.extraction_rules.v15"  # a hypothetical next checker (v14 is the current one)
-    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V14])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V14])
+    v8 = "biocheck.extraction_rules.v16"  # a hypothetical next checker (v15 is the current one)
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V15])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V15])
     monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V3)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
     monkeypatch.setattr(ec, "DIM_CHECKERS", ec.DIM_CHECKERS | {v8})  # it answers dimensions too
@@ -625,7 +625,7 @@ def test_an_analysis_records_each_point_with_the_check_that_admitted_it(monkeypa
     with db.session() as s:
         got = measure_checks.series_points(s, [point.id])
     assert got[0]["value"] == "318" and got[0]["extraction_check"]["gate"] == "series"
-    assert got[0]["extraction_check"]["checker_version"] == ec.CHECKER_V14
+    assert got[0]["extraction_check"]["checker_version"] == ec.CHECKER_V15
     fabric.revoked.add(point.version_id)
     monitor.tick(is_demo=True, fabric=fabric)
     with db.session() as s:
@@ -725,7 +725,7 @@ def test_the_planner_receives_the_current_state_of_each_value(monkeypatch):
     assert sent["current"] is True and sent["value"] == "318" and sent["record_id"] == point.record_id
     assert (
         sent["extraction_check"]["gate"] == "series"
-        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V14
+        and sent["extraction_check"]["checker_version"] == ec.CHECKER_V15
     )
 
 
@@ -930,9 +930,9 @@ def test_after_an_upgrade_every_reader_cites_the_current_check(monkeypatch):
     fabric, _ = one(monkeypatch, [measure()])
     [point] = rows(db.Measurement)
     first = point.check_id
-    v8 = "biocheck.extraction_rules.v15"  # the next checker
-    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V14])
-    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V14])
+    v8 = "biocheck.extraction_rules.v16"  # the next checker
+    monkeypatch.setitem(ec.KIND_RESULTS, v8, ec.KIND_RESULTS[ec.CHECKER_V15])
+    monkeypatch.setitem(ec.NO_LOCATION_RESULTS, v8, ec.NO_LOCATION_RESULTS[ec.CHECKER_V15])
     monkeypatch.setitem(ec.CONTRACT_OF, v8, ec.CONTRACT_V3)
     monkeypatch.setattr(ec, "CHECKERS", frozenset(ec.KIND_RESULTS))
     monkeypatch.setattr(ec, "DIM_CHECKERS", ec.DIM_CHECKERS | {v8})  # it answers dimensions too
