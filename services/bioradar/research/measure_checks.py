@@ -895,8 +895,9 @@ def latest_check():
 
 
 def effective_clause():
-    """SQL condition: the point's candidate's latest check under the current checker put it in the series."""
-    return db.Measurement.candidate_id.in_(
+    """SQL condition: the point's candidate's latest check under the current checker put it in the series, and
+    no point read from an upgraded artifact took its place (T-26)."""
+    return db.Measurement.retired_reason.is_(None) & db.Measurement.candidate_id.in_(
         select(db.MeasurementCheck.candidate_id).where(
             db.MeasurementCheck.id == latest_check(), db.MeasurementCheck.gate == "series"
         )
@@ -1189,6 +1190,10 @@ def comparability(session, m, at=None):
     reasons = []
     if m.domain_basis != "topic":
         reasons.append("domain_unknown")
+    if m.retired_reason:
+        reasons.append(
+            "superseded_by_artifact"
+        )  # T-26: read again from an upgraded artifact, or not given by it
     by = session.get(db.Measurement, m.superseded_by) if m.superseded_by is not None else None
     by = by if by is not None and seen(by) else None
     if by is not None or m.id in withdrawn(session, [m.id], at):
@@ -1208,7 +1213,7 @@ def comparability(session, m, at=None):
         reasons.append("cross_domain_correction")
     gaps = list(m.dims_reasons or [])  # the family and required dimensions not proven (series_domain.v2)
     reasons += gaps
-    blocked = {"domain_unknown", "withdrawn_by_correction"} & set(reasons) or gaps
+    blocked = {"domain_unknown", "withdrawn_by_correction", "superseded_by_artifact"} & set(reasons) or gaps
     return {
         "version": COMPARABILITY,
         "state": "not_comparable" if blocked else "comparable",

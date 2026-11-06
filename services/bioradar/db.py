@@ -30,6 +30,11 @@ def new_id() -> str:
     return str(uuid.uuid4())
 
 
+def artifact_key(processor_version, text_sha256) -> str:
+    """One cleaned artifact of a fixed version: its processor and text hash ("" when not one, T-26)."""
+    return f"{processor_version}:{text_sha256}" if processor_version and text_sha256 else ""
+
+
 def now() -> datetime:
     return datetime.now(UTC)
 
@@ -243,7 +248,8 @@ class Measurement(Base):
             "family",
             "dims_key",
             "value_text",
-            name="measurements_version_series_period_domain_value_key",
+            "artifact_key",
+            name="measurements_version_series_period_domain_value_artifact_key",
         ),
         Index("ix_measurements_domain", "workspace_id", "is_demo", "domain_basis", "domain_id"),
         Index(
@@ -307,6 +313,14 @@ class Measurement(Base):
     period_type: Mapped[str] = mapped_column(String(10), default="")
     period_precision: Mapped[str] = mapped_column(String(10), default="")
     scope_mode: Mapped[str] = mapped_column(String(30), default="")
+    # T-26: the cleaned artifact the point was read from (its candidate's processor and text hash); a point
+    # read again from the artifact an upgrade put in its place retires this one (retired_by: that point;
+    # artifact_upgrade), and one the upgraded artifact did not give again retires once that artifact is read
+    # and checked (not_in_upgraded_artifact). A retired point is never effective.
+    artifact_key: Mapped[str] = mapped_column(String(200), default="")
+    retired_by: Mapped[int | None] = mapped_column(Integer)
+    retired_reason: Mapped[str | None] = mapped_column(String(40))
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class MeasurementCandidate(Base):
@@ -366,7 +380,11 @@ class RecordRead(Base):
     read)."""
 
     __tablename__ = "record_reads"
-    __table_args__ = (UniqueConstraint("workspace_id", "is_demo", "version_id"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "is_demo", "version_id", "artifact_key", name="record_reads_version_artifact_key"
+        ),
+    )
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     workspace_id: Mapped[str] = mapped_column(String(100))
     is_demo: Mapped[bool] = mapped_column(Boolean)
@@ -388,6 +406,11 @@ class RecordRead(Base):
     direction: Mapped[str] = mapped_column(String(30), default="public_health")
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     relations: Mapped[list] = mapped_column(Json, default=list)
+    # T-26: one plan per cleaned artifact of a version; an upgrade's plan names the plan it replaces, which is
+    # kept as it was (windows, attempts, material reads) and no longer read on
+    artifact_key: Mapped[str] = mapped_column(String(200), default="")
+    supersedes_id: Mapped[int | None] = mapped_column(Integer)
+    superseded_by_id: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
@@ -420,6 +443,36 @@ class RecordReadAttempt(Base):
     llm_call_id: Mapped[int | None] = mapped_column(Integer)
     measures_found: Mapped[int | None] = mapped_column(Integer)
     measures_enqueued: Mapped[int | None] = mapped_column(Integer)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class UpkeepRun(Base):
+    """T-26: one operator-run, bounded upkeep of existing state (upgrade_reads, backfill_corrections): its
+    parameters, how far its cursor went, its state and outcome counts. Continued by id after a restart."""
+
+    __tablename__ = "upkeep_runs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    kind: Mapped[str] = mapped_column(String(40))
+    params: Mapped[dict] = mapped_column(Json, default=dict)
+    cursor: Mapped[int] = mapped_column(Integer, default=0)
+    state: Mapped[str] = mapped_column(String(20), default="running")  # running | done
+    counts: Mapped[dict] = mapped_column(Json, default=dict)  # outcome -> times recorded (retries included)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class UpkeepItem(Base):
+    """Append-only: what one upkeep run did with one item (a reading plan, an observation) each time."""
+
+    __tablename__ = "upkeep_items"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("upkeep_runs.id"), index=True)
+    key: Mapped[str] = mapped_column(String(400))
+    outcome: Mapped[str] = mapped_column(String(60))
+    detail: Mapped[dict] = mapped_column(Json, default=dict)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

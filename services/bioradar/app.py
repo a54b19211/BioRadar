@@ -705,6 +705,10 @@ def measure_coverage(
                 "record_id": r.record_id,
                 "processor_version": r.processor_version,
                 "text_sha256": r.text_sha256,
+                "artifact_key": r.artifact_key,
+                "current": r.superseded_by_id is None,  # T-26: a replaced plan is kept, not read on
+                "supersedes_id": r.supersedes_id,
+                "superseded_by_id": r.superseded_by_id,
             }
             for r in rows
         ]

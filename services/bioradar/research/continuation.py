@@ -100,19 +100,25 @@ def _clean_part(material: Material):
     return part, None
 
 
-def plan(session, s: Settings, doc, topic, direction, at, is_demo):
-    """The reading plan of one triaged version (once per version). Window 0 is what triage read."""
-    exists = session.scalar(
-        select(db.RecordRead.id).where(
-            db.RecordRead.workspace_id == s.workspace_id,
-            db.RecordRead.is_demo == is_demo,
-            db.RecordRead.version_id == doc["version_id"],
-        )
-    )
-    if exists:
-        return None
+def plan(session, s: Settings, doc, topic, direction, at, is_demo, supersedes=None):
+    """The reading plan of one triaged version (once per version). Window 0 is what triage read.
+    supersedes (T-26): the plan of another cleaned artifact of this version that this artifact's plan replaces
+    - one per artifact; every window is owed, the first too (triage read the other artifact), so nothing
+    of the old plan's coverage counts for this one; the old plan is kept as it is and no longer read on."""
     material = of(doc)
     part, why = _clean_part(material)
+    if supersedes is not None and part is None:
+        return None  # an upgrade replaces a plan only with a plan of one cleaned artifact
+    key = db.artifact_key((part or {}).get("processor_version"), (part or {}).get("text_sha256"))
+    exists = select(db.RecordRead.id).where(
+        db.RecordRead.workspace_id == s.workspace_id,
+        db.RecordRead.is_demo == is_demo,
+        db.RecordRead.version_id == doc["version_id"],
+    )
+    if supersedes is not None:
+        exists = exists.where(db.RecordRead.artifact_key == key)
+    if session.scalar(exists.limit(1)):
+        return None
     n = len(material)
     read = db.RecordRead(
         workspace_id=s.workspace_id,
@@ -127,10 +133,12 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
         total_chars=n,
         window_chars=WINDOW,
         overlap_chars=s.continuation_overlap_chars,
-        topic_id=topic.id if topic else None,
+        topic_id=topic.id if topic else (supersedes.topic_id if supersedes is not None else None),
         direction=direction or "public_health",
         observed_at=at,
         relations=doc.get("relations") or [],
+        artifact_key=key,
+        supersedes_id=supersedes.id if supersedes is not None else None,
     )
     if part is None:
         read.state, read.reason, read.windows_total, read.read_until = "not_planned", why, 0, min(WINDOW, n)
@@ -149,7 +157,8 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
         .limit(1)
     )
     for k, (a, b) in enumerate(spans):
-        state = "sent" if k == 0 else "pending" if k <= s.continuation_max_windows else "capped"
+        first = k == 0 and supersedes is None  # triage read window 0 of this artifact, not of an upgrade's
+        state = "sent" if first else "pending" if k <= s.continuation_max_windows else "capped"
         session.add(
             db.RecordReadWindow(
                 read_id=read.id,
@@ -161,11 +170,15 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo):
                 next_at=db.now(),
             )
         )
-    session.add(
-        db.RecordReadAttempt(
-            read_id=read.id, window_index=0, outcome="sent_by_triage", material_read_id=triage_read
+    if supersedes is None:
+        session.add(
+            db.RecordReadAttempt(
+                read_id=read.id, window_index=0, outcome="sent_by_triage", material_read_id=triage_read
+            )
         )
-    )
+    else:
+        read.read_until = 0  # nothing of this artifact was read yet
+        supersedes.superseded_by_id = read.id
     session.flush()
     _settle(session, read)
     return read
@@ -187,6 +200,7 @@ def _claim(s, is_demo, now, taken, per_round, per_call):
                 db.RecordRead.workspace_id == s.workspace_id,
                 db.RecordRead.is_demo == is_demo,
                 db.RecordRead.state == "reading",
+                db.RecordRead.superseded_by_id.is_(None),  # a replaced plan is not read on (T-26)
                 db.RecordReadWindow.state.in_(TO_READ),
                 db.RecordReadWindow.next_at <= now,
                 or_(db.RecordReadWindow.lease_until.is_(None), db.RecordReadWindow.lease_until < now),
@@ -527,7 +541,7 @@ def resume(session, read_id):
     """A paused plan (permission withdrawn) reads on once its source is readable again: its unreadable windows
     go back to pending."""
     read = session.get(db.RecordRead, read_id)
-    if read is None or read.state != "paused_unreadable":
+    if read is None or read.state != "paused_unreadable" or read.superseded_by_id is not None:
         return False
     for w in session.scalars(
         select(db.RecordReadWindow).where(
@@ -544,7 +558,7 @@ def extend(session, read_id, windows):
     """Read on past the cap: the next `windows` capped windows (lowest first) become owed again - an explicit
     continuation or a later budget; nothing beyond the cap is ever dropped. Returns how many were reopened."""
     read = session.get(db.RecordRead, read_id)
-    if read is None or read.state not in ("capped", "reading"):
+    if read is None or read.state not in ("capped", "reading") or read.superseded_by_id is not None:
         return 0
     capped = list(
         session.scalars(
@@ -624,6 +638,7 @@ def periodic_resume(session, s, fabric, is_demo, now):
                 db.RecordRead.workspace_id == s.workspace_id,
                 db.RecordRead.is_demo == is_demo,
                 db.RecordRead.state == "paused_unreadable",
+                db.RecordRead.superseded_by_id.is_(None),
             )
             .limit(20)
         )

@@ -628,12 +628,14 @@ def adopt(session, s: Settings, cand, final, check_id):
         kept = [RECORD_CONFLICT] if RECORD_CONFLICT in (existing.dims_reasons or []) else []
         existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"] + kept  # a contradiction stays
         return existing, []
+    art = db.artifact_key(cand.processor_version, cand.text_sha256)
+    identity = {k: v for k, v in key.items() if k not in unplaced}
+    # one artifact's reading of the version: another artifact of the same raw version is not the record
+    # stating a second value - an upgrade's point takes the old one's place instead (hand_over, T-26)
     stated = list(
         session.scalars(
             select(db.Measurement).filter_by(
-                version_id=cand.version_id,
-                period=period_text,
-                **{k: v for k, v in key.items() if k not in unplaced},
+                version_id=cand.version_id, period=period_text, artifact_key=art, **identity
             )
         )
     )
@@ -664,9 +666,11 @@ def adopt(session, s: Settings, cand, final, check_id):
         check_id=check_id,
         dims=gate["dims"],
         dims_reasons=gate["reasons"],
+        artifact_key=art,
     )
     session.add(row)
     session.flush()
+    hand_over(session, row, identity, at)
     if contradicted:
         for r in contradicted + [row]:
             if RECORD_CONFLICT not in (r.dims_reasons or []):
@@ -1308,6 +1312,64 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
         analyses.dispatch(row.id)
         created.append(row.id)
     return created
+
+
+def hand_over(session, row, identity, at):
+    """T-26: a point read from the upgraded artifact of its version takes the place of the points of the same
+    identity read from the artifacts that upgrade replaced - they retire (artifact_upgrade), never a record
+    contradiction; a changed value is told to the topic. Only the artifact of the version's current plan, an
+    upgrade's, hands over. Returns the retired points."""
+    plans = list(
+        session.scalars(
+            select(db.RecordRead).where(
+                db.RecordRead.workspace_id == row.workspace_id,
+                db.RecordRead.is_demo == row.is_demo,
+                db.RecordRead.version_id == row.version_id,
+            )
+        )
+    )
+    current = [
+        p
+        for p in plans
+        if p.superseded_by_id is None and p.supersedes_id is not None and p.artifact_key == row.artifact_key
+    ]
+    replaced = {p.artifact_key for p in plans if p.superseded_by_id is not None} - {row.artifact_key, ""}
+    if not current or not replaced:
+        return []
+    old = list(
+        session.scalars(
+            select(db.Measurement)
+            .filter_by(
+                workspace_id=row.workspace_id,
+                is_demo=row.is_demo,
+                version_id=row.version_id,
+                period=row.period,
+                **identity,
+            )
+            .where(
+                db.Measurement.artifact_key.in_(sorted(replaced)),
+                db.Measurement.retired_reason.is_(None),
+                db.Measurement.id != row.id,
+            )
+        )
+    )
+    for o in old:
+        o.retired_by, o.retired_reason, o.retired_at = row.id, "artifact_upgrade", db.now()
+    changed = [o for o in old if o.value_text != row.value_text]
+    holder = session.get(db.Topic, row.domain_id) if changed and row.domain_basis == "topic" else None
+    if holder is not None:
+        event(
+            session,
+            holder,
+            at,
+            "artifact_value_changed",
+            record=row.record_id,
+            version=row.version_id,
+            period=row.period,
+            points=[{"id": o.id, "value": o.value_text, "artifact": o.artifact_key} for o in changed]
+            + [{"id": row.id, "value": row.value_text, "artifact": row.artifact_key}],
+        )
+    return old
 
 
 def record_corrections(session, s: Settings, docs, *, is_demo: bool) -> int:
