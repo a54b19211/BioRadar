@@ -53,7 +53,7 @@ def test_anything_else_is_still_refused(sources):
 def test_chat_json_keeps_the_answer_and_its_mappings(monkeypatch):
     sent = []
 
-    def post(settings_, body, call, limit=None):
+    def post(settings_, body, call, limit=None, before_send=None):
         sent.append(body)
         call["requests"] = call.get("requests", 0) + 1
         return {

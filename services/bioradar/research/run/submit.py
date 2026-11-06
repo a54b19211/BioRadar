@@ -63,18 +63,54 @@ def mark(run: "Run", ids, status):
 
 @contextmanager
 def outbound(run: "Run", ids, *, model=False):
-    """Around one outbound call: withheld when the run's own sources stopped it before the call, failed if
-    it raises otherwise; else sent, or for a model call not_sent when no call was made (no budget left)."""
+    """Around one outbound call: withheld when the run's own sources stopped it before anything went out;
+    for a model call stopped after some of its requests went out, sent (what went out stays recorded as
+    sent) plus a withheld attempt for the blocked request; failed if it raises otherwise; else sent, or for a
+    model call not_sent when no call was made (no budget left)."""
     before = run.calls_used
     try:
         yield
     except Withheld:
-        mark(run, ids, "withheld")
+        if model and run.calls_used != before:
+            mark(run, ids, "sent")
+            withheld_attempt(run, ids)
+        else:
+            mark(run, ids, "withheld")
         raise
     except BaseException:
         mark(run, ids, "failed")
         raise
     mark(run, ids, "not_sent" if model and run.calls_used == before else "sent")
+
+
+def withheld_attempt(run: "Run", ids):
+    """A new attempt row, status withheld, for each material whose next request was blocked: the same
+    material as the row before it, which stays as it is."""
+    with db.session() as s:
+        for row in list(s.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids)))):
+            attempt = s.scalar(
+                select(func.max(db.MaterialRead.attempt)).where(
+                    db.MaterialRead.analysis_id == row.analysis_id,
+                    db.MaterialRead.stage == row.stage,
+                    db.MaterialRead.ref == row.ref,
+                )
+            )
+            s.add(
+                db.MaterialRead(
+                    analysis_id=row.analysis_id,
+                    stage=row.stage,
+                    service=row.service,
+                    ref=row.ref,
+                    attempt=attempt + 1,
+                    status="withheld",
+                    source=row.source,
+                    record_id=row.record_id,
+                    version_id=row.version_id,
+                    sha256=row.sha256,
+                    chars=row.chars,
+                    binding=row.binding,
+                )
+            )
 
 
 def material_of(run: "Run", row):
