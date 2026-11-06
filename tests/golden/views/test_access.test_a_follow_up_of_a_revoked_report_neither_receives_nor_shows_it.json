@@ -56,7 +56,10 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "plan_basis": {},
+     "publishable": true,
      "report_status": "",
      "review": {
       "claims": [
@@ -145,7 +148,10 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "plan_basis": {},
+     "publishable": true,
      "report_status": "",
      "review": {
       "claims": [

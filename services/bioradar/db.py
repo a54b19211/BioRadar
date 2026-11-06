@@ -146,8 +146,10 @@ class MaterialRead(Base):
     range, hash and Fabric locators, or the literal radar text (bioradar.material). Append-only: each attempt
     is its own row (attempt 1, 2 ... per analysis, stage and ref), never replaced, with its status: prepared
     (recorded before the call), sent (the model call was made or the service answered), not_sent (no call:
-    budget) or failed (the call raised). A prepared row left behind by a worker that died says the material
-    may have gone out. The text itself is not stored again: reread() rebuilds it from the parts."""
+    budget), withheld (stopped before the call: a source of the run's own evidence is no longer readable, or
+    that cannot be confirmed) or failed (the call raised). A prepared row left behind by a worker that died
+    says the material may have gone out. The text itself is not stored again: reread() rebuilds it from the
+    parts."""
 
     __tablename__ = "material_reads"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -157,7 +159,8 @@ class MaterialRead(Base):
     service: Mapped[str] = mapped_column(String(30))  # radar | biocheck | mechevidence
     ref: Mapped[str] = mapped_column(String(20))  # E1 ... in an analysis, R1 ... in a triage batch
     attempt: Mapped[int] = mapped_column(Integer, default=1)
-    status: Mapped[str] = mapped_column(String(20), default="prepared")  # prepared | sent | not_sent | failed
+    # prepared | sent | not_sent | withheld | failed
+    status: Mapped[str] = mapped_column(String(20), default="prepared")
     source: Mapped[str] = mapped_column(String(80))
     record_id: Mapped[str] = mapped_column(String(400))
     version_id: Mapped[str] = mapped_column(String(128))

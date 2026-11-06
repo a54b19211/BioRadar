@@ -202,8 +202,10 @@ def ask_reader(run: "Run", ref, hit, doc, text, read_id):
             for c in run.p["checks"]
         ],
     }
+    # the record itself and every record a known fact came from go out with this call
+    carries = {hit["source"]} | run.sources_of(f["ref"] for f in run.p["facts"] if f["checks"])
     with submit.outbound(run, [read_id], model=True):
-        return run.ask("read", prompts.READ, payload, schemas.Reading)
+        return run.ask("read", prompts.READ, payload, schemas.Reading, carries=carries)
 
 
 def record_facts(run: "Run", reading, ref, text, checks):

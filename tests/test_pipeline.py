@@ -1541,9 +1541,10 @@ def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_rea
     from bioradar.material import of, part_key, reread
     from bioradar.research.run.windows import adopt
 
-    doc = FakeFabric([record("M1", "机制研究", "甲" * 30000 + "X 抑制 Y。", kind="primary_research")]).docs[0]
+    fabric = FakeFabric([record("M1", "机制研究", "甲" * 30000 + "X 抑制 Y。", kind="primary_research")])
+    doc = fabric.docs[0]
     row = analyses.create(question="X 是否抑制 Y？", direction="science", is_demo=True, enqueue=False)
-    run = Run(row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=None)
+    run = Run(row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=fabric)
     run.p.update(facts=[{"ref": "E1"}], mechanism={"statement": "X 抑制 Y"})
     material, window = adopt(of(doc), ["抑制"], 2000)
     with db.session() as s:

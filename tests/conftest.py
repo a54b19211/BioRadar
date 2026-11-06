@@ -138,6 +138,10 @@ class FakeFabric:
         found = [d for d in self.docs if d["source"] == source and d["version_id"] in wanted]
         return found, sorted(wanted - {d["version_id"] for d in found})
 
+    def sources(self):
+        """Fabric's readable-source list: every source this fake holds records of."""
+        return {"sources": [{"source_id": s} for s in sorted({d["source"] for d in self.docs})]}
+
     def head(self, source, *, is_demo):
         return max([0] + [d["seq"] for d in self.docs if d["source"] == source])
 

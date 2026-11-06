@@ -283,6 +283,9 @@ class Result(TypedDict, total=False):
     """What a finished run stores in `analyses.result` (Run.result(), plus what analyses.execute adds)."""
 
     report_status: Annotated[str, SHOWN]
+    publishable: Annotated[bool, SHOWN]  # the publication gate (views.publication): only a PASS report
+    hold: Annotated[str | None, SHOWN]  # pending_verification while not publishable
+    hold_reason: Annotated[str | None, SHOWN]
     draft: Annotated[str, SHOWN]
     review: Annotated[ResultReview, SHOWN]
     assessment: Annotated[dict[str, Any] | None, SHOWN]

@@ -3,6 +3,8 @@ MechEvidence - as real slices of the same part with their own ranges, also after
 again; when the header does not fit, the window says so; a search hit is placed by its bound artifact range,
 not by the first matching text."""
 
+from types import SimpleNamespace
+
 from sqlalchemy import select
 
 from bioradar import db
@@ -110,7 +112,10 @@ def test_mechevidence_receives_the_header_or_the_notice(monkeypatch):
         target = text.index(row_of(text, 250))
         read, window = adopt(material, ["抑制"], 1500, hits=[(target, target + 10)])
         row = analyses.create(question="是否不合格？", direction="science", is_demo=True, enqueue=False)
-        run = Run(row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=None)
+        listed = SimpleNamespace(sources=lambda: {"sources": [{"source_id": "nmpa"}]})  # nmpa is readable
+        run = Run(
+            row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=listed
+        )
         run.p.update(facts=[{"ref": "E1"}], mechanism={"statement": "X 抑制 Y"})
         with db.session() as s:
             read_id = submit.sent(

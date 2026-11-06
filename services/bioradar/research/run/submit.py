@@ -10,6 +10,7 @@ from bioradar import db
 from bioradar.adapters import services
 from bioradar.adapters.fabric import noticed
 from bioradar.material import Material, restore
+from bioradar.research.run import Withheld
 
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
@@ -62,11 +63,14 @@ def mark(run: "Run", ids, status):
 
 @contextmanager
 def outbound(run: "Run", ids, *, model=False):
-    """Around one outbound call: failed if it raises; otherwise sent, or for a model call not_sent when no
-    call was made (no budget left)."""
+    """Around one outbound call: withheld when the run's own sources stopped it before the call, failed if
+    it raises otherwise; else sent, or for a model call not_sent when no call was made (no budget left)."""
     before = run.calls_used
     try:
         yield
+    except Withheld:
+        mark(run, ids, "withheld")
+        raise
     except BaseException:
         mark(run, ids, "failed")
         raise
@@ -110,6 +114,7 @@ def service(run: "Run", operation, body):
                 if r.ref in carried
             ]
     with outbound(run, ids):
+        run.confirm_sources({e.get("source") for e in body.get("evidence", [])} - {None})
         response = services.biocheck(run.s, operation, body)
     run.log(response.pop("llm_calls", []), "biocheck")
     return response

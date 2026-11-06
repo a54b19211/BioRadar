@@ -157,10 +157,13 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "mechanism": {
       "overall": "",
       "status": "completed"
      },
+     "publishable": true,
      "report_status": "PASS",
      "review": {
       "claims": [

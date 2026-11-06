@@ -37,6 +37,68 @@ def shown(value, tp):
     return value
 
 
+# Enum-like fields kept when model-written text is withheld; every other string is blanked (also a
+# judgment's own question: the model writes it and may quote the material).
+KEEP = {
+    "id",
+    "ref",
+    "index",
+    "check",
+    "status",
+    "verdict",
+    "confidence",
+    "credibility",
+    "consequence",
+    "priority",
+    "alert",
+    "level",
+    "stance",
+    "kind",
+    "grounds",
+    "citations",
+    "found",
+}
+
+
+def blank(value):
+    """Model-written text derived from the materials, with the words removed and the structure kept."""
+    if isinstance(value, dict):
+        return {k: (v if k in KEEP else blank(v)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [blank(v) for v in value]
+    return "" if isinstance(value, str) else value
+
+
+def publication(status, reason=None) -> dict:
+    """v3 6.2: whether a report may be delivered, decided by the program - never by a model or the planner:
+    only a report BioCheck's last check passed (PASS). Any other (the check did not run, did not answer, or
+    found problems) is held, publishable false with hold pending_verification and the reason; the run keeps
+    its draft and assessment for re-verification, and the external views show the hold instead of them."""
+    if status == "PASS":
+        return {"publishable": True, "hold": None, "hold_reason": None}
+    if not reason:
+        reason = "not_checked" if status in (None, "NOT_RUN") else f"biocheck_{str(status).lower()}"
+    return {"publishable": False, "hold": "pending_verification", "hold_reason": reason}
+
+
+def gated(result):
+    """A result as the external views may show it. A held report is not shown as a finished one: its draft
+    and assessment are left out and the sentence checks and kept versions lose their words (numbers,
+    verdicts and references stay). A result stored before the gate is judged by its report status."""
+    if not result or "report_status" not in result:
+        return result
+    result = dict(result)
+    if "publishable" not in result:
+        result.update(publication(result["report_status"], (result.get("review") or {}).get("reason")))
+    if result["publishable"] is False:
+        if "draft" in result:
+            result["draft"] = ""
+        result["assessment"] = None
+        if result.get("review"):
+            result["review"] = blank(result["review"])
+    return result
+
+
 PROGRESS = {k: tp for k, tp in typing.get_type_hints(RunState, include_extras=True).items() if is_shown(tp)}
 
 
@@ -47,5 +109,14 @@ def progress(stored: dict | None) -> dict:
 
 
 def result(stored: dict | None) -> dict | None:
-    """The shown keys of a stored result, as far as they are there."""
-    return shown(stored, Result)
+    """The shown keys of a stored result, as far as they are there, behind the publication gate."""
+    return gated(shown(stored, Result))
+
+
+def summary(stored: dict | None) -> dict:
+    """What the analysis list shows of a result: its status, usage and assessment, behind the gate."""
+    out = {k: (stored or {}).get(k) for k in ("report_status", "usage", "assessment")}
+    if stored is None or "report_status" not in stored:
+        return out
+    gate = gated({**out, **{k: stored[k] for k in ("publishable", "hold", "hold_reason") if k in stored}})
+    return gate

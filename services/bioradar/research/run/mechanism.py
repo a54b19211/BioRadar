@@ -50,6 +50,7 @@ def mechanism(run: "Run"):
     ]
     try:
         with submit.outbound(run, sent_ids):
+            run.confirm_sources({r.source for r in rows})
             response = services.mechevidence(
                 run.s,
                 {

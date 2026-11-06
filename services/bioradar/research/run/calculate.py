@@ -27,6 +27,7 @@ def compute(run: "Run"):
             ],
         },
         schemas.Calculations,
+        carries=run.sources_of(f["ref"] for f in numeric),
     )
     facts = {f["id"]: f for f in numeric}
     for calc in (result.calculations if result else [])[:10]:

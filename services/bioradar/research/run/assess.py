@@ -92,6 +92,7 @@ def ask_assessment(run: "Run", report):
             ],
         },
         schemas.Assessment,
+        carries={r.source for r in rows},  # the draft and the list of every record read
     )
 
 

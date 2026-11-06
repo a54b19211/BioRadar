@@ -18,10 +18,11 @@ from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import Settings
 from bioradar.research import state
 from bioradar.research.lineage import lineage_sources
-from bioradar.research.run import Failed, assess, calculate, investigate, mechanism, plan, report
+from bioradar.research.run import Failed, Withheld, assess, calculate, investigate, mechanism, plan, report
 from bioradar.research.state import RunState
+from bioradar.research.views import publication
 
-__all__ = ["DEMO_SETTING", "STAGES", "Failed", "Run"]
+__all__ = ["DEMO_SETTING", "STAGES", "Failed", "Run", "Withheld"]
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
 DEMO_SETTING = (
@@ -86,15 +87,19 @@ class Run:
     def calls_left(self):
         return self.input["budget"]["max_llm_calls"] - self.calls_used
 
-    def ask(self, stage, system, payload, model_cls, **options):
+    def ask(self, stage, system, payload, model_cls, *, carries=(), **options):
+        """One model call; `carries`: the sources of the run's own evidence the payload holds, each confirmed
+        readable right before the call (confirm_sources)."""
         self.upstream_still_readable()
         if self.calls_left() <= 0:
             self.note("llm_budget", stage)
             return None
+        self.confirm_sources(carries)
         options["max_requests"] = self.calls_left()
         parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
         self.log([call])
         if call["error"] == "output_invalid" and self.calls_left() > 0:  # one retry; it is usually a one-off
+            self.confirm_sources(carries)
             options["max_requests"] = self.calls_left()
             parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
             self.log([call])
@@ -163,7 +168,27 @@ class Run:
         """The report input BioCheck writes and checks from; assess verifies its own text against it too."""
         return report.report_input(self)
 
-    # ---- the earlier round's report ------------------------------------------------------------
+    # ---- the run's own sources and the earlier round's report ---------------------------------
+
+    def confirm_sources(self, sources):
+        """v3 6.1: before a model or service call carries the run's own evidence out, Fabric must confirm that
+        every source that evidence was read from is still readable now - asked at each call, first run or
+        resumed, never remembered. A revoked source or a source list that cannot be read stops the run
+        (Withheld) before anything is sent."""
+        wanted = set(sources)
+        if not wanted:
+            return
+        try:
+            readable = {r["source_id"] for r in self.fabric.sources()["sources"]}
+        except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError, AttributeError):
+            raise Withheld("source_access_unconfirmed") from None
+        if not wanted <= readable:
+            raise Withheld("source_access_withdrawn")
+
+    def sources_of(self, refs):
+        """The sources the evidence refs (E1 ...) were read from."""
+        known = self.p.get("refs", {})
+        return {known[r].split("|", 1)[0] for r in refs if r in known}
 
     def upstream_still_readable(self):
         """Raise when the plan used the earlier report and its sources can no longer be read. Checked
@@ -225,6 +250,8 @@ class Run:
         report = self.p.get("report") or {}
         return {
             "report_status": report.get("status", "NOT_RUN"),
+            # v3 6.2: whether the report may be delivered, decided here by the program
+            **publication(report.get("status", "NOT_RUN"), report.get("reason")),
             "draft": report.get("draft", ""),
             "review": {
                 k: report.get(k)

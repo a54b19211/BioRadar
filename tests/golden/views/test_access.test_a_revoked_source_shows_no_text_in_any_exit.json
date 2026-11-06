@@ -154,10 +154,13 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "mechanism": {
       "overall": "",
       "status": "completed"
      },
+     "publishable": true,
      "report_status": "PASS",
      "review": {
       "claims": [
@@ -354,10 +357,13 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "mechanism": {
       "overall": "",
       "status": "completed"
      },
+     "publishable": true,
      "report_status": "PASS",
      "review": {
       "claims": [
@@ -447,6 +453,9 @@
         }
        ]
       },
+      "hold": null,
+      "hold_reason": null,
+      "publishable": true,
       "report_status": "PASS",
       "usage": null,
       "withheld": "引用的材料 E2（来源已撤权） 现在不可读：报告正文、逐句核验、判断与机制评价的文字暂不显示，编号和状态保留"
@@ -611,10 +620,13 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "mechanism": {
       "overall": "",
       "status": "completed"
      },
+     "publishable": true,
      "report_status": "PASS",
      "review": {
       "claims": [
@@ -889,10 +901,13 @@
       }
      ],
      "draft": "",
+     "hold": null,
+     "hold_reason": null,
      "mechanism": {
       "overall": "",
       "status": "completed"
      },
+     "publishable": true,
      "report_status": "PASS",
      "review": {
       "claims": [

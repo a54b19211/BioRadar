@@ -261,9 +261,7 @@ def view(row: db.Analysis, *, full=False) -> dict:
         "cutoff": row.input.get("cutoff"),
         "created_at": row.created_at.isoformat(),
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
-        "result": views.result(row.result)
-        if full
-        else {k: (row.result or {}).get(k) for k in ("report_status", "usage", "assessment")},
+        "result": views.result(row.result) if full else views.summary(row.result),
     }
     if full:
         value["progress"] = views.progress(row.progress)

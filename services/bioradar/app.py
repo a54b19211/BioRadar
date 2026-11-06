@@ -21,6 +21,7 @@ from bioradar.config import settings
 from bioradar.research import analyses, continuation, lineage, monitor
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import topic_view
+from bioradar.research.views import KEEP, blank
 from bioradar.text import squash
 
 app = FastAPI(title="BioRadar", version="1.0.0")
@@ -235,38 +236,6 @@ def withheld(source: str, readable: set[str] | None) -> str | None:
     if readable is None:
         return "来源授权状态暂时无法确认"
     return None if source in readable else "来源已撤权"
-
-
-# Enum-like fields kept when model-written text is withheld; every other string is blanked (also a
-# judgment's own question: the model writes it and may quote the material).
-KEEP = {
-    "id",
-    "ref",
-    "index",
-    "check",
-    "status",
-    "verdict",
-    "confidence",
-    "credibility",
-    "consequence",
-    "priority",
-    "alert",
-    "level",
-    "stance",
-    "kind",
-    "grounds",
-    "citations",
-    "found",
-}
-
-
-def blank(value):
-    """Model-written text derived from the materials, with the words removed and the structure kept."""
-    if isinstance(value, dict):
-        return {k: (v if k in KEEP else blank(v)) for k, v in value.items()}
-    if isinstance(value, list):
-        return [blank(v) for v in value]
-    return "" if isinstance(value, str) else value
 
 
 # What the program itself writes: identifiers, sources, codes and times. Under an earlier round's revoked
@@ -633,6 +602,17 @@ def evidence(analysis_id: str, ref: str):
     return item
 
 
+def held_notice(result) -> str:
+    """The export's line for a report the gate holds (views.publication): never its draft as a finished
+    report."""
+    if result.get("publishable") is not False:
+        return ""
+    return (
+        f"（报告待核：{result.get('hold_reason') or '未通过核验'}。未通过 BioCheck 核验的稿件不作为成稿导出，"
+        "原稿和评估保留，待重新核验）"
+    )
+
+
 @app.get("/api/analyses/{analysis_id}/export", dependencies=api, response_class=PlainTextResponse)
 def export(analysis_id: str):
     value = redact(analyses.view(analyses.get(analysis_id), full=True))
@@ -643,7 +623,7 @@ def export(analysis_id: str):
         f"- 方法：{value['method']}　状态：{value['state']}　核验：{result.get('report_status', 'NOT_RUN')}",
         f"- 截止时间：{value['cutoff'] or '当前'}　模型调用：{result.get('usage', {}).get('llm_calls', 0)}",
         "",
-        result.get("withheld") or result.get("draft") or "（没有生成报告）",
+        result.get("withheld") or held_notice(result) or result.get("draft") or "（没有生成报告）",
         "",
         "## 材料",
         "",
