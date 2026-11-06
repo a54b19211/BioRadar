@@ -173,3 +173,20 @@ def test_a_fixed_version_read_needs_explicit_well_formed_metadata():
         fixed_version_is(dict(base, available_at="2999-01-01T00:00:00+00:00"), "s", "C1", V_OLD, True, None)
         is False
     )
+
+
+def test_a_reason_owed_many_times_after_the_cutoff_is_one_mark_and_settles_in_parts(monkeypatch):
+    """Codex r172: 25 daily occurrences of one reason; partial settlements at successive cutoffs never repeat
+    the mark (pending_reason stays one reason, well within its column) nor settle what comes later."""
+    t = topic(*(("series_change", day(n)) for n in range(1, 26)))
+    for n, cutoff in enumerate((2, 3, 10, 24), 1):
+        assert len(start(monkeypatch, day(cutoff))) == 1
+        reason, since, asked = state(t)
+        assert (reason, since) == ("series_change", day(cutoff + 1)), (cutoff, reason, since)
+        assert len(asked) == n
+    assert len(start(monkeypatch, day(26))) == 1 and state(t)[0] is None
+    with db.session() as s:
+        owed = list(
+            s.scalars(select(db.TopicEvent).where(db.TopicEvent.topic_id == t, db.TopicEvent.kind == "owed"))
+        )
+    assert len(owed) < 25 * 6  # carried once per remaining occurrence per settlement, not multiplied

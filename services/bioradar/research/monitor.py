@@ -1147,7 +1147,8 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             topic.last_analysis_id = row.id
             asked = reason.split("+")
             unplaced = [r for r in (topic.pending_reason or "").split("+") if r and r not in asked]
-            unplaced += [r for r, _ in later if r not in unplaced]  # occurrences after the cutoff stay owed
+            # occurrences after the cutoff stay owed: one mark per reason, each occurrence a dated owed event
+            unplaced += [r for r in dict.fromkeys(r for r, _ in later) if r not in unplaced]
             if cutoff is not None and unplaced:
                 # later reasons (and any that cannot be placed in time) are still owed, from their own time
                 times = [parse_time(at) for r, at in later]
