@@ -218,3 +218,23 @@ def test_a_dimension_citing_a_source_never_sent_is_kept_unlocated_and_the_value_
     [d] = [d for d in points["A1"].dims if d["kind"] == "date_basis"]
     assert (d["state"], d["why"]) == ("stated_unchecked", "source_not_sent_to_model")
     assert "dim_unchecked:date_basis" in states["A1"]["reasons"]
+
+
+def test_a_dimension_written_in_an_adjacent_table_is_not_this_values(monkeypatch):
+    """Codex 730: a population found in a neighbouring table (sent in the window, located once) is not the
+    value's own - neither its sentence nor its ancestor heading: unsupported, the point stays out."""
+    table = "| 人群 | 说明 |\n| --- | --- |\n| 成人 | 18岁及以上 |\n\n"
+    text = f"## 按报告日统计\n\n{table}2026年1月，医院A在湖北省共报告炭疽确诊病例10例。"
+    stated = [
+        schemas.Dim(kind="disease", text="炭疽"),
+        schemas.Dim(kind="population", text="成人", source="window"),
+        schemas.Dim(kind="date_basis", text="按报告日统计", source="window"),
+    ]
+    m = measure_of(text, 1, 10, population="", dims=stated)
+    points, checks, events, states, dims = feed(monkeypatch, [("T1", text, m)])
+    [check] = checks.values()
+    assert check.status == "consistent"
+    got = check.response["items"][0]["dims"]
+    assert got["population"]["reason"] == "dim_relation_not_rule_checkable"  # a population word, not its
+    assert got["date_basis"]["result"] == "match"
+    assert dims["T1"]["population"] == "stated_unchecked" and states["T1"]["state"] == "not_comparable"
