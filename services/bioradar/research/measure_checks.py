@@ -34,7 +34,9 @@ from bioradar.material import of, tables_of
 # extraction_normalize.v5 - a complete date ending the line before (a notice's 发布时间) is its own;
 # checker v16 = v15 (output measures, Codex 783) with the same rule
 CHECKER, CONTRACT = ec.CHECKER_V16, ec.CONTRACT_V3
-PRODUCER = {"name": "bioradar.triage", "version": "measure.v9"}
+PRODUCER = {"name": "bioradar.triage", "version": "measure.v10"}
+# measure.v10 (Codex, first real local-Qwen window): the prompt names the keys of sources exactly; the four
+# aliases <field>_text are mapped mechanically inside sources only, recorded in llm_outputs (schemas)
 # measure.v7 (T-24 complete domain): the measure also names its metric family and the dimensions the record
 # states; a point is compared automatically only in a complete, proven group (research/domain.py)
 # measure.v6 (B r2): a measure may cite the source of its period / object / scope / denominator literal - the

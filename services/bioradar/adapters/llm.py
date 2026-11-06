@@ -1,5 +1,6 @@
 """The radar's own model calls. One function, OpenAI-compatible /chat/completions."""
 
+import hashlib
 import json
 import time
 
@@ -41,12 +42,17 @@ BACKOFF = (5, 20, 60)  # seconds before each resend; seen 2026-11-03: DeepSeek 5
 def post(settings: Settings, body: dict, call: dict, limit: int | None = None) -> dict:
     for wait in (*BACKOFF, None):
         call["requests"] = call.get("requests", 0) + 1
-        response = httpx.post(
-            settings.llm_base_url.rstrip("/") + "/chat/completions",
-            headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-            json=body,
-            timeout=settings.llm_timeout_seconds,
-        )
+        try:
+            response = httpx.post(
+                settings.llm_base_url.rstrip("/") + "/chat/completions",
+                headers={"Authorization": f"Bearer {settings.llm_api_key}"},
+                json=body,
+                timeout=settings.llm_timeout_seconds,
+            )
+        except httpx.HTTPError as exc:  # no answer to this request (a timeout, a dropped connection)
+            call.setdefault("http", []).append(type(exc).__name__)
+            raise
+        call.setdefault("http", []).append(response.status_code)  # one entry per request, kept
         if response.status_code not in REFUSED or wait is None or (limit and call["requests"] >= limit):
             break
         time.sleep(wait)
@@ -124,8 +130,19 @@ def chat_json(
         if call["finish_reason"] == "length" and not content.strip():
             call["error"] = "output_empty_after_limit"
             break
+        output = {
+            "attempt": attempt + 1,
+            "content": content,
+            "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
+            "mappings": [],
+        }
+        call.setdefault("outputs", []).append(output)  # every answer as given, kept (llm_outputs)
         try:
-            parsed = model_cls.model_validate(json.loads(content))
+            raw = json.loads(content)
+            aliases = getattr(model_cls, "source_aliases", None)
+            if aliases is not None:
+                raw, output["mappings"] = aliases(raw)  # measure.v10: mechanical, recorded
+            parsed = model_cls.model_validate(raw)
         except (json.JSONDecodeError, ValidationError) as exc:
             call["error"], call["detail"] = "output_invalid", str(exc)[:300]
             messages += [

@@ -1,0 +1,93 @@
+{
+  "items": [
+    {
+      "index": 1,
+      "measures": [
+        {
+          "object_text": "confirmed cases",
+          "metric_text": "confirmed cases",
+          "value_text": "seven",
+          "unit_text": "",
+          "period_text": "Since the resurgence of the outbreak on 10 April 2020",
+          "period": "2020-04-10/2020-05-19",
+          "period_type": "interval",
+          "scope_text": "from Kasanga, Malepe and Kanzulinzuli Health Areas in Beni Health Zone",
+          "denominator_text": "",
+          "kind": "cumulative",
+          "qualifier": "exact",
+          "modality": "actual",
+          "status": "reported",
+          "quote": "Since the resurgence of the outbreak on 10 April 2020, seven confirmed cases have been reported from Kasanga, Malepe and Kanzulinzuli Health Areas in Beni Health Zone.",
+          "family": "case_count",
+          "dims": [
+            {
+              "kind": "disease",
+              "text": "Ebola virus disease (EVD)",
+              "source": "quote"
+            }
+          ],
+          "sources": {
+            "period_text": "quote",
+            "scope_text": "quote"
+          }
+        },
+        {
+          "object_text": "contacts",
+          "metric_text": "contacts",
+          "value_text": "90",
+          "unit_text": "",
+          "period_text": "On 18 May",
+          "period": "2020-05-18",
+          "period_type": "point",
+          "scope_text": "who remained under surveillance",
+          "denominator_text": "",
+          "kind": "stock",
+          "qualifier": "exact",
+          "modality": "actual",
+          "status": "reported",
+          "quote": "On 18 May, all 90 contacts who remained under surveillance completed their 21-day follow up.",
+          "family": "case_count",
+          "dims": [
+            {
+              "kind": "population",
+              "text": "contacts",
+              "source": "quote"
+            }
+          ],
+          "sources": {
+            "period_text": "quote",
+            "scope_text": "quote"
+          }
+        },
+        {
+          "object_text": "people",
+          "metric_text": "people",
+          "value_text": "1486",
+          "unit_text": "",
+          "period_text": "since 10 April 2020",
+          "period": "2020-04-10/2020-05-19",
+          "period_type": "interval",
+          "scope_text": "in Beni and Karisimbi",
+          "denominator_text": "",
+          "kind": "cumulative",
+          "qualifier": "exact",
+          "modality": "actual",
+          "status": "reported",
+          "quote": "A total of 1486 people have been vaccinated in Beni and Karisimbi since 10 April 2020.",
+          "family": "milestone_count",
+          "dims": [
+            {
+              "kind": "milestone_definition",
+              "text": "vaccinated",
+              "source": "quote"
+            }
+          ],
+          "sources": {
+            "period_text": "quote",
+            "scope_text": "quote"
+          }
+        }
+      ]
+    }
+  ]
+}

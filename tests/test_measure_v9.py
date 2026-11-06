@@ -59,7 +59,7 @@ def test_a_notice_with_its_publication_date_above_the_body_is_built_and_checked(
         assert c.status == "checked" and c.reason is None
         [check] = s.scalars(select(db.MeasurementCheck))
         assert (check.checker_version, check.status) == ("biocheck.extraction_rules.v16", "consistent")
-        assert check.request["items"][0]["producer"]["version"] == "measure.v9"
+        assert check.request["items"][0]["producer"]["version"] == "measure.v10"
         assert check.response["items"][0]["fields"]["period"]["result"] == "match"
         [p] = s.scalars(select(db.Measurement))
         assert (p.period, p.value_text) == ("2026-03", "272")

@@ -414,9 +414,12 @@ def triage(s: Settings, docs, topics, watch=None, known=None, reads=None):
             completion_tokens=u.get("completion_tokens", 0),
             total_tokens=u.get("total_tokens", 0),
             seconds=call["seconds"],
+            requests=call.get("requests") or 1,
+            http=call.get("http"),
         )
         session.add(row)
         session.flush()
+        db.keep_outputs(session, row, call)
         for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
             r.llm_call_id, r.status = row.id, "sent"
     items = {item.index: item for item in (result.items if result else []) if 1 <= item.index <= len(docs)}

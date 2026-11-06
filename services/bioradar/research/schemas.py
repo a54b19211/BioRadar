@@ -202,9 +202,11 @@ class Measure(BaseModel):
         Literal["quote", "window", "heading", "table_header", "table_title"],
     ] = Field(
         default_factory=dict,
-        description="period/object/scope/denominator 的 *_text 抄自哪里：quote（就在 quote 里）、"
-        "window（窗口正文别处）、heading / table_header / table_title（随窗口给出的上下文）；"
-        "在 quote 里可以不填。只能写这次实际给你的材料",
+        description="键只能是 period、object、scope、denominator 这四个（不要写成 period_text 等），"
+        "值只能是 quote（就在 quote 里）、window（窗口正文别处）、heading / table_header / table_title"
+        "（随窗口给出的上下文），表示对应的 period_text / object_text / scope_text / denominator_text"
+        "抄自哪里；"
+        '在 quote 里可以不填。只能写这次实际给你的材料。例：{"period": "heading", "scope": "quote"}',
     )
 
 
@@ -247,11 +249,51 @@ class ExtractItem(BaseModel):
     )
 
 
+# measure.v10 (Codex): the only aliases mapped, mechanically, inside a measure's `sources` - each
+# <field>_text to its <field>; with the canonical key present too nothing is mapped (the alias then fails)
+SOURCE_ALIASES = {
+    "period_text": "period",
+    "object_text": "object",
+    "scope_text": "scope",
+    "denominator_text": "denominator",
+}
+
+
+def map_source_aliases(data):
+    """(data, mappings) - data with the aliases of every measure's sources renamed in place, and one mapping
+    {item, measure, from, to} per key renamed (item and measure are 0-based positions in the output). Values,
+    unknown keys and everything else are left as they are, for validation to judge."""
+    mappings = []
+    items = data.get("items") if isinstance(data, dict) else None
+    for i, item in enumerate(items if isinstance(items, list) else []):
+        measures = item.get("measures") if isinstance(item, dict) else None
+        for m_at, m in enumerate(measures if isinstance(measures, list) else []):
+            sources = m.get("sources") if isinstance(m, dict) else None
+            if not isinstance(sources, dict):
+                continue
+            aliased = [k for k in sources if k in SOURCE_ALIASES]
+            if any(SOURCE_ALIASES[k] in sources for k in aliased):
+                continue  # canonical and alias together: rejected by validation, never merged
+            renamed = {}
+            for k, v in sources.items():
+                if k in SOURCE_ALIASES:
+                    mappings.append({"item": i, "measure": m_at, "from": k, "to": SOURCE_ALIASES[k]})
+                    renamed[SOURCE_ALIASES[k]] = v
+                else:
+                    renamed[k] = v
+            m["sources"] = renamed
+    return data, mappings
+
+
 class Extraction(BaseModel):
+    source_aliases = staticmethod(map_source_aliases)
+
     """T-31: the measures of each continuation window (every window gets one item)."""
 
     items: list[ExtractItem]
 
 
 class Triage(BaseModel):
+    source_aliases = staticmethod(map_source_aliases)
+
     items: list[TriageItem]

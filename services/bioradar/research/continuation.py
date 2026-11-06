@@ -409,9 +409,12 @@ def _read(s, fabric, keys, token, now):
             completion_tokens=u.get("completion_tokens", 0),
             total_tokens=u.get("total_tokens", 0),
             seconds=call["seconds"],
+            requests=call.get("requests") or 1,
+            http=call.get("http"),
         )
         session.add(llm_row)
         session.flush()
+        db.keep_outputs(session, llm_row, call)
         for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(all_ids))):
             r.llm_call_id, r.status = llm_row.id, "sent" if result else "failed"
         for i, ((key, rid, material, a, b), mid) in enumerate(zip(windows, mids), 1):

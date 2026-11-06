@@ -12,7 +12,7 @@ def test_the_producer_and_checker_versions():
     # measure.v3 / v8 on its own commit (8d1412b); from measure.v4 / v9 on, normalize v2 (test_measure_v4)
     # later producers keep this one's reading; the current versions (test_measure_v5)
     assert mc.CHECKER == ec.CHECKER_V16 == "biocheck.extraction_rules.v16"
-    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v9"}
+    assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v10"}
 
 
 @pytest.mark.parametrize(

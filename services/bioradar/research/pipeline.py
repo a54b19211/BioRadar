@@ -478,21 +478,23 @@ class Run:
             for c in calls:
                 usage = c.get("usage") or {}
                 prompt, completion = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
-                s.add(
-                    db.LlmCall(
-                        analysis_id=self.id,
-                        stage=c.get("stage", "?"),
-                        service=c.get("service", service),
-                        model=c.get("model"),
-                        finish_reason=c.get("finish_reason"),
-                        prompt_tokens=prompt,
-                        completion_tokens=completion,
-                        total_tokens=usage.get("total_tokens") or prompt + completion,
-                        seconds=c.get("seconds") or 0,
-                        error=c.get("error"),
-                        requests=c.get("requests") or 1,
-                    )
+                row = db.LlmCall(
+                    analysis_id=self.id,
+                    stage=c.get("stage", "?"),
+                    service=c.get("service", service),
+                    model=c.get("model"),
+                    finish_reason=c.get("finish_reason"),
+                    prompt_tokens=prompt,
+                    completion_tokens=completion,
+                    total_tokens=usage.get("total_tokens") or prompt + completion,
+                    seconds=c.get("seconds") or 0,
+                    error=c.get("error"),
+                    requests=c.get("requests") or 1,
+                    http=c.get("http"),
                 )
+                s.add(row)
+                s.flush()
+                db.keep_outputs(s, row, c)
         self.calls_used += sum(c.get("requests") or 1 for c in calls)
 
     def calls_left(self):

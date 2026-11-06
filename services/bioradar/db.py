@@ -106,7 +106,38 @@ class LlmCall(Base):
     seconds: Mapped[float] = mapped_column(Float, default=0)
     error: Mapped[str | None] = mapped_column(String(100))
     requests: Mapped[int] = mapped_column(Integer, default=1)  # HTTP requests behind it (format retry = 2)
+    # measure.v10 (Codex r192): each of those requests' outcome - the HTTP status, or the error that left it
+    # without an answer; the tokens are the answered ones' only
+    http: Mapped[list | None] = mapped_column(Json)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class LlmOutput(Base):
+    """One answer of a model call as given (measure.v10, Codex): its content and sha256, and the mechanical
+    mappings applied before validation ({item, measure, from, to}); one row per attempt, append-only."""
+
+    __tablename__ = "llm_outputs"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    llm_call_id: Mapped[int] = mapped_column(ForeignKey("llm_calls.id"), index=True)
+    attempt: Mapped[int] = mapped_column(Integer)
+    content_sha256: Mapped[str] = mapped_column(String(64))
+    content: Mapped[str] = mapped_column(Text)
+    mappings: Mapped[list] = mapped_column(Json, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+def keep_outputs(session, llm_row, call):
+    """The LlmOutput rows of one call record (llm.chat_json's "outputs"), for an LlmCall already flushed."""
+    for o in call.get("outputs") or []:
+        session.add(
+            LlmOutput(
+                llm_call_id=llm_row.id,
+                attempt=o["attempt"],
+                content_sha256=o["sha256"],
+                content=o["content"],
+                mappings=o.get("mappings") or [],
+            )
+        )
 
 
 class MaterialRead(Base):
