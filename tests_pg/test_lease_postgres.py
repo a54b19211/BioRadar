@@ -1,0 +1,411 @@
+"""The lease on a real PostgreSQL: the row locks, SKIP LOCKED and the token check that SQLite cannot show.
+
+The code under test is the production one: measure_checks._claim / run (check tasks), continuation._claim
+(read windows) and analyses.execute / recover (analyses), all on the tables the migrations created. Workers
+are threads, each with its own connection from the engine's pool."""
+
+import threading
+import time
+import uuid
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
+
+import pytest
+from sqlalchemy import select, text, update
+
+from bioradar import db
+from bioradar.research import analyses, continuation, lease, measure_checks
+
+CHECKER = measure_checks.CHECKER
+TASK_KEY = "candidate_id = :c AND checker_version = :v"
+S = SimpleNamespace(workspace_id="w")
+
+
+def utc_now():
+    return datetime.now(UTC)
+
+
+def race(fn, workers=2):
+    """Start `workers` calls of fn at the same moment and return their results."""
+    barrier = threading.Barrier(workers)
+
+    def go():
+        barrier.wait(10)
+        return fn()
+
+    with ThreadPoolExecutor(workers) as pool:
+        return [f.result(60) for f in [pool.submit(go) for _ in range(workers)]]
+
+
+def returns_within(seconds, fn, *args):
+    """fn(*args) in another thread; TimeoutError if still blocked after the time (e.g. on a row lock)."""
+    pool = ThreadPoolExecutor(1)
+    try:
+        return pool.submit(fn, *args).result(seconds)
+    finally:
+        pool.shutdown(wait=False)
+
+
+# ---- check tasks ---------------------------------------------------------------------------------------
+
+
+def add_tasks(n):
+    """n due check tasks; the first is the one that has been due longest."""
+    with db.session() as s:
+        candidates = [
+            db.MeasurementCandidate(
+                workspace_id="w",
+                is_demo=False,
+                source="src",
+                record_id=f"r{i}",
+                version_id=f"v{i}",
+                measure={},
+                observed_at=utc_now(),
+            )
+            for i in range(n)
+        ]
+        s.add_all(candidates)
+        s.flush()
+        ids = [c.id for c in candidates]
+        for i, cid in enumerate(ids):
+            s.add(
+                db.MeasurementCheckTask(
+                    candidate_id=cid,
+                    checker_version=CHECKER,
+                    state="queued",
+                    next_check_at=utc_now() - timedelta(minutes=10 - i),
+                )
+            )
+    return ids
+
+
+def task_of(cid):
+    with db.session() as s:
+        row = s.get(db.MeasurementCheckTask, (cid, CHECKER))
+        s.expunge(row)
+        return row
+
+
+def set_lease(cid, token, until):
+    with db.session() as s:
+        s.execute(
+            update(db.MeasurementCheckTask)
+            .where(db.MeasurementCheckTask.candidate_id == cid)
+            .values(lease_token=token, lease_until=until)
+        )
+
+
+def expire(cid):
+    """The worker holding the task has gone: its lease ran out an hour ago."""
+    set_lease(cid, task_of(cid).lease_token, utc_now() - timedelta(hours=1))
+
+
+def claim_task():
+    return measure_checks._claim(False, utc_now())
+
+
+def test_two_workers_racing_for_one_row_only_one_wins():
+    (cid,) = add_tasks(1)
+    for _ in range(25):
+        set_lease(cid, None, None)
+        results = race(claim_task)
+        winners = [r for r in results if r is not None]
+        assert len(winners) == 1 and winners[0][0] == cid
+        row = task_of(cid)
+        assert row.lease_token == winners[0][1] and utc_now() < row.lease_until
+
+
+def test_a_row_locked_by_another_transaction_is_skipped_not_waited_for():
+    first, second = add_tasks(2)
+    lock = f"SELECT 1 FROM measurement_check_tasks WHERE {TASK_KEY} FOR UPDATE"
+    with db.engine().connect() as holder:
+        holder.execute(text(lock), {"c": first, "v": CHECKER})
+        got = returns_within(10, claim_task)  # the oldest due row is locked: the next one is taken at once
+        assert got is not None and got[0] == second
+        set_lease(second, None, None)
+        holder.execute(text(lock), {"c": second, "v": CHECKER})
+        assert returns_within(10, claim_task) is None  # every due row is locked: nothing, and no waiting
+        assert task_of(first).lease_token is None and task_of(second).lease_token is None
+        holder.rollback()
+    got = claim_task()  # the locks are gone: the oldest due row is taken again
+    assert got is not None and got[0] == first
+
+
+def test_a_claimed_row_is_not_claimable_until_its_lease_runs_out():
+    (cid,) = add_tasks(1)
+    crashed = claim_task()
+    assert crashed is not None and claim_task() is None
+    expire(cid)
+    winners = [r for r in race(claim_task) if r is not None]
+    assert len(winners) == 1 and winners[0][1] != crashed[1]  # taken over once, under a fresh token
+    assert task_of(cid).attempts == 0  # a worker that vanished is not a failed attempt
+    assert claim_task() is None
+
+
+def fabric_that(before):
+    """A Fabric whose read of the cleaned text runs `before()` (the other workers' moves while this one is
+    away) and then fails, which run() settles as an unchecked attempt."""
+
+    def clean_texts(*args, **kwargs):
+        before()
+        raise RuntimeError("Fabric is down")
+
+    return SimpleNamespace(clean_texts=clean_texts)
+
+
+def run_checks(fabric):
+    def adopt(*args, **kwargs):
+        raise AssertionError("no point is adopted in these runs")
+
+    return measure_checks.run(None, fabric, is_demo=False, adopt=adopt, client_post=lambda body: {})
+
+
+def checks_written():
+    with db.session() as s:
+        return list(s.scalars(select(db.MeasurementCheck)))
+
+
+def test_a_worker_that_keeps_its_lease_commits_its_result():
+    (cid,) = add_tasks(1)
+    run_checks(fabric_that(lambda: None))
+    row = task_of(cid)
+    assert (row.state, row.attempts, row.lease_token, row.lease_until) == ("waiting", 1, None, None)
+    assert [(c.status, c.error_code) for c in checks_written()] == [("unchecked", "fabric_unavailable")]
+
+
+def test_a_worker_whose_lease_ran_out_cannot_commit_its_result():
+    (cid,) = add_tasks(1)
+    taken_over = {}
+
+    def another_worker_takes_over():
+        expire(cid)  # this worker took longer than its lease ...
+        taken_over["claim"] = claim_task()  # ... so a second worker claimed the row meanwhile
+
+    run_checks(fabric_that(another_worker_takes_over))
+    assert taken_over["claim"] is not None
+    row = task_of(cid)
+    assert row.lease_token == taken_over["claim"][1]  # the new holder's lease is untouched
+    assert (row.state, row.attempts) == ("queued", 0)  # nothing of the late worker was written
+    assert checks_written() == []
+    with db.session() as s:  # and the new holder can still settle it
+        mine = lease.own(s, db.MeasurementCheckTask, (cid, CHECKER), taken_over["claim"][1], utc_now())
+        assert mine is not None
+        wait = lease.backoff(mine.attempts, measure_checks.BACKOFF)
+        measure_checks._finish(mine, utc_now(), "waiting", wait)
+    assert (task_of(cid).state, task_of(cid).attempts, task_of(cid).lease_token) == ("waiting", 1, None)
+
+
+# ---- read windows: the same lease, with a fair order ---------------------------------------------------
+
+
+def add_plan(source, windows, created):
+    """A reading plan of `windows` due windows; `created` orders the plans (arrival order)."""
+    with db.session() as s:
+        read = db.RecordRead(
+            workspace_id="w",
+            is_demo=False,
+            source=source,
+            record_id=f"rec-{source}-{created}",
+            version_id=f"v-{source}-{created}",
+            part={},
+            total_chars=1000,
+            window_chars=100,
+            overlap_chars=10,
+            windows_total=windows,
+            state="reading",
+            observed_at=utc_now(),
+            created_at=utc_now() - timedelta(hours=1) + timedelta(seconds=created),
+            artifact_key=f"{source}{created}",
+        )
+        s.add(read)
+        s.flush()
+        for i in range(windows):
+            s.add(
+                db.RecordReadWindow(
+                    read_id=read.id,
+                    window_index=i,
+                    start_char=i * 100,
+                    end_char=i * 100 + 100,
+                    state="pending",
+                    next_at=utc_now() - timedelta(minutes=1),
+                )
+            )
+        return read.id
+
+
+def claim_windows(taken=None, per_round=10, per_call=10):
+    return continuation._claim(S, False, utc_now(), {} if taken is None else taken, per_round, per_call)
+
+
+def window_of(key):
+    with db.session() as s:
+        row = s.get(db.RecordReadWindow, key)
+        s.expunge(row)
+        return row
+
+
+def test_two_workers_racing_for_windows_never_take_the_same_window():
+    plan = add_plan("a", 6, 0)
+    for _ in range(10):
+        with db.session() as s:
+            s.execute(update(db.RecordReadWindow).values(lease_token=None, lease_until=None))
+        (keys1, token1), (keys2, token2) = race(lambda: claim_windows(per_call=3))
+        assert not set(keys1) & set(keys2) and token1 != token2
+        for keys, token in ((keys1, token1), (keys2, token2)):
+            assert all(window_of(k).lease_token == token for k in keys)
+        with db.session() as s:
+            window = db.RecordReadWindow
+            leased = s.scalars(select(window).where(window.lease_token.is_not(None)))
+            assert len(list(leased)) == len(keys1) + len(keys2) <= 6
+    assert plan
+
+
+def test_windows_are_locked_with_skip_locked_too():
+    plan = add_plan("a", 2, 0)
+    lock = "SELECT 1 FROM record_read_windows WHERE read_id = :r FOR UPDATE"
+    with db.engine().connect() as holder:
+        holder.execute(text(lock), {"r": plan})  # both windows locked by another transaction
+        keys, token = returns_within(10, claim_windows)
+        assert keys == []
+        holder.rollback()
+    keys, token = claim_windows()
+    assert sorted(keys) == [(plan, 0), (plan, 1)]
+
+
+def test_a_window_whose_lease_ran_out_belongs_to_the_next_claimer_only():
+    plan = add_plan("a", 1, 0)
+    (key,), old = claim_windows()
+    assert claim_windows()[0] == []  # still leased
+    with db.session() as s:
+        s.execute(update(db.RecordReadWindow).values(lease_until=utc_now() - timedelta(hours=1)))
+    results = race(claim_windows)
+    winners = [r for r in results if r[0]]
+    assert len(winners) == 1 and winners[0][0] == [key] and winners[0][1] != old
+    with db.session() as s:
+        assert lease.own(s, db.RecordReadWindow, key, old, utc_now()) is None  # the old holder is fenced out
+        assert lease.own(s, db.RecordReadWindow, key, winners[0][1], utc_now()) is not None
+    assert plan
+
+
+def test_windows_are_taken_round_robin_over_sources_and_plans_with_a_cap_per_plan():
+    a1 = add_plan("a", 4, 0)
+    a2 = add_plan("a", 2, 1)
+    b1 = add_plan("b", 4, 2)
+    taken = {}
+    keys, _ = claim_windows(taken, per_round=2, per_call=6)
+    # a source after the other, inside a source the plan that was not served last; each plan's lowest windows
+    assert keys == [(a1, 0), (b1, 0), (a2, 0), (b1, 1), (a1, 1), (a2, 1)]
+    assert taken == {a1: 2, a2: 2, b1: 2}
+    assert claim_windows(taken, per_round=2, per_call=6)[0] == []  # the cap holds across calls of one round
+    keys, _ = claim_windows({}, per_round=2, per_call=6)  # the next round goes on with the windows left
+    assert keys == [(a1, 2), (b1, 2), (a1, 3), (b1, 3)]
+
+
+# ---- analyses: a lease without a token ---------------------------------------------------------------------
+
+
+def add_analysis(state, lease_until=None, age=timedelta(0)):
+    with db.session() as s:
+        investigation = db.Investigation(workspace_id="w", question="q", direction="science", is_demo=True)
+        s.add(investigation)
+        s.flush()
+        row = db.Analysis(
+            investigation_id=investigation.id,
+            trigger="manual",
+            method="baseline",
+            state=state,
+            input={"question": "q"},
+            input_hash=uuid.uuid4().hex,
+            lease_until=lease_until,
+            created_at=utc_now() - age,
+        )
+        s.add(row)
+        s.flush()
+        return row.id
+
+
+def analysis_of(analysis_id):
+    with db.session() as s:
+        row = s.get(db.Analysis, analysis_id)
+        s.expunge(row)
+        return row
+
+
+class FakeRun:
+    """Stands for the pipeline: counts its runs; `gate`, when set, holds a run until the test lets it go."""
+
+    runs = 0
+    started = threading.Event()
+    gate = None
+
+    def __init__(self, row, config):
+        pass
+
+    def run(self):
+        type(self).runs += 1
+        type(self).started.set()
+        if type(self).gate is not None:
+            assert type(self).gate.wait(30)
+        time.sleep(0.2)
+        return {"report": "done"}
+
+
+@pytest.fixture
+def fake_run(monkeypatch):
+    monkeypatch.setattr(FakeRun, "runs", 0)
+    monkeypatch.setattr(FakeRun, "started", threading.Event())
+    monkeypatch.setattr(FakeRun, "gate", None)
+    monkeypatch.setattr(analyses, "Run", FakeRun)
+    return FakeRun
+
+
+def test_two_workers_racing_for_one_analysis_run_it_once(fake_run):
+    analysis_id = add_analysis("queued")
+    race(lambda: analyses.execute(analysis_id))
+    assert fake_run.runs == 1
+    row = analysis_of(analysis_id)
+    assert (row.state, row.lease_until) == ("completed", None) and row.result == {"report": "done"}
+
+
+def test_a_second_worker_does_not_run_an_analysis_whose_lease_holds(fake_run):
+    analysis_id = add_analysis("queued")
+    fake_run.gate = threading.Event()
+    first = threading.Thread(target=analyses.execute, args=(analysis_id,))
+    first.start()
+    try:
+        assert fake_run.started.wait(30)
+        assert analysis_of(analysis_id).state == "running"
+        returns_within(10, analyses.execute, analysis_id)  # the row lock is free again; the lease says taken
+        assert fake_run.runs == 1
+    finally:
+        fake_run.gate.set()
+        first.join(60)
+    assert analysis_of(analysis_id).state == "completed"
+
+
+@pytest.fixture
+def queue(monkeypatch):
+    """Redis stand-in: what recover() dispatched is what is waiting in the queue."""
+    sent = []
+    monkeypatch.setattr(analyses, "dispatch", sent.append)
+    monkeypatch.setattr(analyses, "waiting_in_queue", lambda analysis_id: analysis_id in sent)
+    return sent
+
+
+def test_an_analysis_whose_worker_crashed_is_requeued_once(queue):
+    crashed = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    working = add_analysis("running", lease_until=utc_now() + timedelta(minutes=5))
+    assert analyses.recover() == 1 and queue == [crashed]
+    assert analyses.recover() == 0 and queue == [crashed]  # re-queued rows are not re-queued again
+    row = analysis_of(crashed)
+    assert (row.state, row.lease_until) == ("queued", None)
+    assert analysis_of(working).state == "running"  # a live lease is left alone
+
+
+def test_a_job_that_never_reached_the_queue_is_dispatched_once(queue):
+    lost = add_analysis("queued", age=timedelta(minutes=30))
+    fresh = add_analysis("queued")  # young: its job may still be on its way
+    assert analyses.recover() == 1 and queue == [lost]
+    assert analyses.recover() == 0 and queue == [lost]
+    assert analysis_of(fresh).state == "queued"

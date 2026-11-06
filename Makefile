@@ -8,12 +8,13 @@ TEST_ENV = $(if $(wildcard $(BIOCHECK_SRC)/app/service.py),BIORADAR_TEST_BIOCHEC
 COMPOSE = docker compose --env-file ops/.env -f ops/compose.yaml
 NODE = docker run --rm --network host --user $$(id -u):$$(id -g) -e npm_config_cache=/tmp/npm-cache -e HTTP_PROXY -e HTTPS_PROXY -v "$$(pwd):/app" -w /app/apps/web node:22-bookworm-slim
 
-.PHONY: help init bootstrap dev stop status migrate test lint metrics web-check check check-install check-migrations
+.PHONY: help init bootstrap dev stop status migrate test test-pg lint metrics web-check check check-install check-migrations
 help:
 	@echo 'make bootstrap   .venv from uv.lock only (uv sync --frozen, Python 3.12)'
 	@echo 'make init        create ops/.env with a random database password and login'
 	@echo 'make dev         start postgres, redis, api, worker, monitor and web in Docker'
-	@echo 'make check       run the checks: test, lint, metrics, web-check'
+	@echo 'make test-pg     the lease tests on a throwaway PostgreSQL 17 container (tests_pg/; needs Docker, none skipped)'
+	@echo 'make check       run the checks: test, test-pg, lint, metrics, web-check'
 	@echo 'make check-install  fresh venv from the declared pins; import every bioradar module'
 	@echo 'make check-migrations  upgrade / downgrade / upgrade on a throwaway PostgreSQL 17 container'
 init:
@@ -30,13 +31,15 @@ migrate:
 	$(COMPOSE) run --rm migrate
 test:
 	$(TEST_ENV) $(UV) run --frozen pytest -q
+test-pg:
+	PYTHON="$(UV) run --frozen python" sh scripts/test_pg.sh
 lint:
-	$(UV) run --frozen ruff check services tests db/migrations scripts
+	$(UV) run --frozen ruff check services tests tests_pg db/migrations scripts
 metrics:
 	$(UV) run --frozen python scripts/code_metrics.py --check
 web-check:
 	$(NODE) sh -c 'npm ci && npm run check && npm run build'
-check: test lint metrics web-check
+check: test test-pg lint metrics web-check
 check-install:
 	UV=$(UV) sh scripts/check_install.sh
 check-migrations:
