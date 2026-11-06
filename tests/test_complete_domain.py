@@ -330,3 +330,28 @@ def test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contrad
                 assert sorted(x["value"] for x in e.detail["points"]) == ["10", "30"]
             else:
                 assert "record_internal_conflict" not in points[0].dims_reasons
+
+
+def test_the_analysis_a_record_contradiction_triggers_receives_both_points_and_the_pinned_version(
+    monkeypatch,
+):
+    """Codex r180: the queued analysis gets both points (their check and comparability state) and the record
+    at
+    the version that contradicts itself as a pinned seed; the question names both values."""
+    test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contradiction(monkeypatch)
+    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
+    monitor.start_analyses(monitor.settings(), is_demo=True, cutoff=None)
+    with db.session() as s:
+        points = list(s.scalars(select(db.Measurement).where(db.Measurement.record_id == "R30")))
+        [e] = s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "record_conflict"))
+        analysis = s.get(db.Analysis, s.get(db.Topic, e.topic_id).last_analysis_id)
+        got = analysis.input
+    assert {p.id for p in points} <= {x["measurement_id"] for x in got["series_points"]}
+    assert all(
+        x["comparability"]["state"] == "not_comparable"
+        for x in got["series_points"]
+        if x["measurement_id"] in {p.id for p in points}
+    )
+    pinned = [x for x in got["seed_records"] if x.get("version_id") == points[0].version_id]
+    assert [x["record_id"] for x in pinned] == ["R30"]
+    assert "原文内部矛盾" in got["question"] and "10例" in got["question"] and "30例" in got["question"]

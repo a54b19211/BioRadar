@@ -894,6 +894,55 @@ def correction_events(session, topic_id, since, at=None, limit=10):
     return out
 
 
+def conflict_basis(session, topic_id, since, at=None, limit=10):
+    """(question text, pinned seeds, point ids) of the record contradictions a topic is owed an analysis for
+    (Codex r180): each record at the version that states one identity with two values, both values and their
+    quotes; as of the cutoff, at most `limit` events, one seed per (source, record, version)."""
+    rows = session.scalars(
+        visible(select(db.TopicEvent), db.TopicEvent.at, at)
+        .where(
+            db.TopicEvent.topic_id == topic_id,
+            db.TopicEvent.kind == "record_conflict",
+            db.TopicEvent.at >= since,
+        )
+        .order_by(db.TopicEvent.id)
+        .limit(limit)
+    )
+    lines, seeds, ids, seen = [], [], [], set()
+    for e in rows:
+        d = e.detail
+        points = [session.get(db.Measurement, x["id"]) for x in d.get("points") or []]
+        points = [p for p in points if p is not None]
+        if not points:
+            continue
+        ids += [p.id for p in points if p.id not in ids]
+        key = (points[0].source, d["record"], d.get("version"))
+        if key not in seen:
+            seen.add(key)
+            seeds.append(
+                {
+                    "source": points[0].source,
+                    "record_id": d["record"],
+                    "version_id": d.get("version"),
+                    "title": "原文内部矛盾",
+                }
+            )
+        values = "；".join(f"{p.value_text}{p.unit}（原句：{p.quote}）" for p in points)
+        lines.append(
+            f"记录 {d['record']}（版本 {d.get('version')}）对 {d.get('period')} 的同一指标"
+            f"给出不同数值：{values}"
+        )
+    text = (
+        (
+            "\n原文内部矛盾，两个值都已保留、都不参与比较，请读这一版原文核实：\n"
+            + "\n".join(f"- {line}" for line in lines)
+        )
+        if lines
+        else ""
+    )
+    return text, seeds, ids
+
+
 def correction_seeds(session, topic_id, since, at=None):
     """The correcting records themselves, as sources the analysis must read (Codex r167): a correction that
     withdrew a point is named even when its replacement never passed checking."""
@@ -1164,6 +1213,16 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 seeds += correction_seeds(
                     session, topic_id, since, cutoff
                 )  # pinned: never merged with a head
+            if "record_conflict" in reason.split("+"):
+                text, pinned, ids = conflict_basis(session, topic_id, owed_topic.pending_since, cutoff)
+                question += text
+                seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
+                known = {p["measurement_id"] for p in points}
+                points = list(points) + [
+                    p
+                    for p in measure_checks.series_points(session, ids, cutoff)
+                    if p["measurement_id"] not in known
+                ]
             row = analyses.create(
                 question=question,
                 direction=topic.direction,
