@@ -398,7 +398,7 @@ def _read(s, fabric, keys, token, now):
             completion_tokens=u.get("completion_tokens", 0),
             total_tokens=u.get("total_tokens", 0),
             seconds=call["seconds"],
-            requests=call.get("requests") or 1,
+            requests=db.request_count(call),
             http=call.get("http"),
         )
         session.add(llm_row)

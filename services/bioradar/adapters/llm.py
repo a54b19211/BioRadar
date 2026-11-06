@@ -39,8 +39,20 @@ REFUSED = (429, 503)
 BACKOFF = (5, 20, 60)  # seconds before each resend; seen 2026-11-03: DeepSeek 503 for ~25 minutes
 
 
-def post(settings: Settings, body: dict, call: dict, limit: int | None = None) -> dict:
+class SendBlocked(Exception):
+    """Raised by a caller's before_send: this request may not go out (`reason`); the ones before it did."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
+
+
+def post(settings: Settings, body: dict, call: dict, limit: int | None = None, before_send=None) -> dict:
+    """POST one request, resent after a refusal; before_send(requests already sent in this call) runs right
+    before every send and may raise SendBlocked."""
     for wait in (*BACKOFF, None):
+        if before_send is not None:
+            before_send(call.get("requests", 0))
         call["requests"] = call.get("requests", 0) + 1
         try:
             response = httpx.post(
@@ -70,9 +82,13 @@ def chat_json(
     max_tokens: int = 4096,
     thinking: bool = False,
     max_requests: int | None = None,
+    before_send=None,
 ):
     """Return (parsed object or None, call record). Never raises for model-side failures. `max_requests`
-    caps the HTTP requests (format retry and resends included) at what the caller's budget has left."""
+    caps the HTTP requests (format retry and resends included) at what the caller's budget has left.
+    `before_send(sent)` runs right before every HTTP request - the first, a resend, the format retry - with
+    the number already sent; when it raises SendBlocked the call stops there: error send_blocked, `blocked`
+    the reason, and everything about the requests already sent (count, usage, outputs) as it was."""
     messages = [
         {"role": "system", "content": system + "\n\n只返回一个JSON对象，字段：\n" + describe(model_cls)},
         {"role": "user", "content": json.dumps(payload, ensure_ascii=False)},
@@ -107,7 +123,10 @@ def chat_json(
             break
         call["attempts"] = attempt + 1
         try:
-            data = post(settings, body, call, max_requests)
+            data = post(settings, body, call, max_requests, before_send)
+        except SendBlocked as exc:
+            call["error"], call["blocked"] = "send_blocked", exc.reason
+            break
         except httpx.TimeoutException:
             call["error"] = "timeout"  # not resent: the provider may have billed it
             break

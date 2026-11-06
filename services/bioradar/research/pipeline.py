@@ -73,36 +73,42 @@ class Run:
                     finish_reason=c.get("finish_reason"),
                     prompt_tokens=prompt,
                     completion_tokens=completion,
-                    total_tokens=usage.get("total_tokens") or prompt + completion,
+                    total_tokens=db.total_tokens(usage),
                     seconds=c.get("seconds") or 0,
                     error=c.get("error"),
-                    requests=c.get("requests") or 1,
+                    requests=db.request_count(c),
                     http=c.get("http"),
                 )
                 s.add(row)
                 s.flush()
                 db.keep_outputs(s, row, c)
-        self.calls_used += sum(c.get("requests") or 1 for c in calls)
+        self.calls_used += sum(db.request_count(c) for c in calls)
 
     def calls_left(self):
         return self.input["budget"]["max_llm_calls"] - self.calls_used
 
-    def ask(self, stage, system, payload, model_cls, *, carries=(), **options):
-        """One model call; `carries`: the sources of the run's own evidence the payload holds, each confirmed
-        readable right before the call (confirm_sources)."""
+    def ask(self, stage, system, payload, model_cls, *, carries=(), uses_previous=False, **options):
+        """One model call; `carries`: the sources of the run's own evidence the payload holds;
+        `uses_previous`: the payload holds the earlier round's report. Every HTTP request of the call - the
+        first, a resend after a refusal, the client's format retry, this method's one retry - goes out only
+        after Fabric confirmed every source it carries (carried: the run's own and the earlier rounds') right
+        before it (confirm_sources; the first one here, the later ones through chat_json's before_send). A
+        blocked request stops the run (Withheld) after the requests already sent are logged as they were."""
         self.upstream_still_readable()
         if self.calls_left() <= 0:
             self.note("llm_budget", stage)
             return None
+        carries = self.carried(carries, uses_previous)
+        options["before_send"] = self.recheck(carries)
         self.confirm_sources(carries)
         options["max_requests"] = self.calls_left()
         parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
-        self.log([call])
+        self.settle(call)
         if call["error"] == "output_invalid" and self.calls_left() > 0:  # one retry; it is usually a one-off
             self.confirm_sources(carries)
             options["max_requests"] = self.calls_left()
             parsed, call = llm.chat_json(self.s, stage, system, payload, model_cls, **options)
-            self.log([call])
+            self.settle(call)
         if call["error"]:
             self.note(call["error"], f"{stage} {call.get('detail', '')}")
         return parsed
@@ -184,6 +190,42 @@ class Run:
             raise Withheld("source_access_unconfirmed") from None
         if not wanted <= readable:
             raise Withheld("source_access_withdrawn")
+
+    def carried(self, carries, uses_previous=False):
+        """Every source a request carries: the run's own evidence it holds, and the sources of all earlier
+        rounds when it holds the earlier report (the plan) or comes from a run that used it (every later
+        stage: its checks, terms and scope grew out of that report). A chain of rounds that cannot be
+        followed is never "no sources": the request is not sent."""
+        wanted = set(carries)
+        used = uses_previous or (self.stage != "plan" and self.p.get("used_previous", True))
+        if self.input.get("previous_report") and used:
+            chain = lineage_sources(self.id)
+            if chain is None:
+                raise Withheld("source_access_unconfirmed")
+            wanted |= chain
+        return wanted
+
+    def recheck(self, carries):
+        """chat_json's before_send: every request after a call's first (confirmed just before the call) asks
+        Fabric again; None when the call carries none of the run's evidence."""
+        if not carries:
+            return None
+
+        def before_send(sent):
+            if sent:
+                try:
+                    self.confirm_sources(carries)
+                except Withheld as exc:
+                    raise llm.SendBlocked(exc.code) from None
+
+        return before_send
+
+    def settle(self, call):
+        """Log a model call as far as it went out (a call stopped before its first request counts 0), then
+        stop the run if a request of it was blocked."""
+        self.log([call])
+        if call.get("blocked"):
+            raise Withheld(call["blocked"])
 
     def sources_of(self, refs):
         """The sources the evidence refs (E1 ...) were read from."""

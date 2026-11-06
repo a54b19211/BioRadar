@@ -6,7 +6,8 @@
 - Code: `research/views.py` (`publication`, `gated`, `summary`), `research/pipeline.py`
   (`Run.result`, `Run.confirm_sources`, `Run.ask(carries=)`), `research/run/submit.py` (`service`,
   `outbound`), `research/run/{read,calculate,mechanism,assess}.py`, `app.py` (`held_notice`, `export`)
-- Tests: `tests/test_chain1_defects.py` (the two former strict xfails and four around them)
+- Tests: `tests/test_chain1_defects.py` (the two former strict xfails and four around them),
+  `tests/test_send_recheck.py` (every request re-checked, through the real llm client)
 
 ## (a) Only a report BioCheck passed is deliverable
 
@@ -32,8 +33,8 @@ without the words; the hold, its reason, the numbers, computations and mechanism
 prints `（报告待核：<reason>。…）` instead of the draft and no judgments. Results stored before the gate are
 judged by their `report_status` the same way.
 
-**Not decided here.** A follow-up still receives its parent's draft as the earlier report when the parent was
-held (`analyses.create`); whether a held report may seed the next round is left to review. The web app shows
+**Follow-ups.** A held report is still handed to a follow-up, labelled pending, as leads to verify only
+(ADR 0006). The web app shows
 the empty draft; showing the hold reason there is a page change (刘金彦) not made in this wave.
 
 ## (b) The run's own sources are confirmed readable before anything carries them out
@@ -52,8 +53,15 @@ source list and requires every source of that evidence to be in it (`Run.confirm
 | MechEvidence | the records sent |
 | BioCheck generate / verify / revise, and the verification of judgments | the records in the request |
 
-A model call is checked after the budget check (no Fabric request when no call would be made) and again
-before its one format retry. If a source is no longer listed the run stops with `source_access_withdrawn`; if
+The check runs before every real HTTP request that carries the evidence, not once per logical call: for
+a model call right before its first request (after the budget check, so no Fabric request when no call
+would be made), and through the llm client's `before_send` hook before every later one - a resend after
+a refusal (429/503), the client's format retry, and `Run.ask`'s own retry. When a later request is
+blocked, the requests already sent keep their record exactly (`llm_calls` count, usage, HTTP statuses,
+`llm_outputs`; error `send_blocked`), the material they carried stays `sent`, and only the blocked request
+gets a new `material_reads` attempt with status `withheld`. The BioCheck and MechEvidence clients send one
+request each, with no retry on the radar side; their own internal model calls are theirs to guard.
+If a source is no longer listed the run stops with `source_access_withdrawn`; if
 the list cannot be read, with `source_access_unconfirmed` - unknown is never "readable". Nothing is sent and
 no call is spent (call counts and budgets are untouched). The material prepared for a stopped call is
 recorded with the new `material_reads.status` `withheld`; earlier rows, saved progress and recovery state

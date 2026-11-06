@@ -6,6 +6,25 @@ from sqlalchemy import select
 from bioradar import db
 
 LINEAGE_DEPTH = 500  # rounds followed back; a longer, looping or broken chain counts as unknown
+# put above a pending earlier report's draft for BioCheck, whose request model has no field for it
+PENDING_LABEL = (
+    "【上一轮报告未通过 BioCheck 核验（report_status={status}），只能作为待核线索，不能作为已核实的依据】\n"
+)
+
+
+def previous_check(previous: dict) -> dict:
+    """The earlier report's verification as a follow-up hands it on: its report_status, and whether it is
+    pending - held by the publication gate (anything but PASS), or recorded before the status was kept, so
+    unknown. A pending report may still steer the follow-up, only as leads to verify (ADR 0006)."""
+    status = previous.get("report_status")
+    return {"report_status": status or "unknown", "pending": status != "PASS"}
+
+
+def previous_for_biocheck(previous: dict) -> dict:
+    """The earlier report as BioCheck gets it: the draft (labelled when pending), its date and its check."""
+    check = previous_check(previous)
+    label = PENDING_LABEL.format(status=check["report_status"]) if check["pending"] else ""
+    return {**previous, "draft": label + previous["draft"], **check}
 
 
 class UnknownLineage(Exception):

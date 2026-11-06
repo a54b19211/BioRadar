@@ -97,6 +97,8 @@ def create(
                 value["previous_report"] = {
                     "draft": parent.result["draft"],
                     "date": parent.completed_at.isoformat() if parent.completed_at else None,
+                    # its verification travels with it: a held report is handed on as pending (lineage)
+                    "report_status": parent.result.get("report_status"),
                 }
         digest = input_hash(value)
         existing = session.scalar(

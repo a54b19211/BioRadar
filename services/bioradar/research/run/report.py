@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from bioradar.adapters.fabric import noticed
 from bioradar.adapters.services import ServiceError
+from bioradar.research.lineage import previous_for_biocheck
 from bioradar.research.run import submit
 from bioradar.research.run.assess import hypothesis_stance
 from bioradar.research.run.windows import report_text
@@ -60,7 +61,7 @@ def report_input(run: "Run"):
     }
     previous = run.previous_report()
     if previous:
-        body["previous_report"] = previous
+        body["previous_report"] = previous_for_biocheck(previous)
     if run.p.get("hypotheses"):
         body["hypotheses"] = hypotheses_input(run, {e["id"] for e in evidence})
     return body

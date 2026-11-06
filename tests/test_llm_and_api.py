@@ -21,7 +21,9 @@ def reply(content, finish="stop"):
 def test_local_vllm_gets_the_per_call_thinking_switch_its_template_reads(monkeypatch):
     bodies = []
     monkeypatch.setattr(
-        llm, "post", lambda s, body, call, limit=None: bodies.append(body) or reply('{"value": 1}')
+        llm,
+        "post",
+        lambda s, body, call, limit=None, before_send=None: bodies.append(body) or reply('{"value": 1}'),
     )
     local = settings().model_copy(update={"llm_provider": "vllm"})
     llm.chat_json(local, "t", "sys", {}, Answer)
@@ -33,7 +35,9 @@ def test_local_vllm_gets_the_per_call_thinking_switch_its_template_reads(monkeyp
 def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
     bodies = []
     replies = iter([reply('{"value": "x"}'), reply('{"value": 2}')])
-    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: bodies.append(body) or next(replies))
+    monkeypatch.setattr(
+        llm, "post", lambda s, body, call, limit=None, before_send=None: bodies.append(body) or next(replies)
+    )
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed.value == 2 and call["attempts"] == 2 and call["usage"]["total_tokens"] == 10
     assert "不合格" in bodies[1]["messages"][-1]["content"]
@@ -41,13 +45,13 @@ def test_invalid_json_is_retried_once_with_the_error(monkeypatch):
 
 
 def test_empty_output_at_limit_is_reported_not_retried(monkeypatch):
-    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: reply("", "length"))
+    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None, before_send=None: reply("", "length"))
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "output_empty_after_limit" and call["attempts"] == 1
 
 
 def test_timeout_is_not_resent(monkeypatch):
-    def slow(s, body, call, limit=None):
+    def slow(s, body, call, limit=None, before_send=None):
         raise httpx.ReadTimeout("slow")
 
     monkeypatch.setattr(llm, "post", slow)
@@ -91,13 +95,15 @@ def test_resends_stop_at_the_request_budget(monkeypatch):
 
 def test_a_choice_without_a_message_is_an_error_not_a_crash(monkeypatch):
     for reply_ in ({"choices": [None]}, {"choices": [{"message": None}]}):
-        monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None, reply_=reply_: reply_)
+        monkeypatch.setattr(
+            llm, "post", lambda s, body, call, limit=None, before_send=None, reply_=reply_: reply_
+        )
         parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
         assert parsed is None and call["error"] == "response_without_choices"
 
 
 def test_a_200_without_choices_is_an_error_not_a_crash(monkeypatch):
-    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: None)
+    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None, before_send=None: None)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "response_without_choices"
 
