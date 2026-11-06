@@ -46,6 +46,7 @@ step() { echo "== $*"; }
 
 step "upgrade head"
 alembic upgrade head
+alembic current
 step "schema of the migrations compared with the models"
 $PYTHON - <<'EOF'
 import sys
@@ -65,6 +66,8 @@ print("  migrated schema matches the models")
 EOF
 step "downgrade base"
 alembic downgrade base
+echo "  current revision: [$(alembic current 2>/dev/null)] (empty = base)"
 step "upgrade head again"
 alembic upgrade head
+alembic current
 echo "migrations ok: upgrade head -> downgrade base -> upgrade head on PostgreSQL 17"
