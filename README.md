@@ -11,8 +11,8 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 | 部分 | 维护人 | 位置 |
 | --- | --- | --- |
-| 运行、接入、部署 | 李明洋 | `services/bioradar/app.py`、`config.py`、`db.py`、`ops.py`、`adapters/`、`research/analyses.py`、`db/`、`ops/` |
-| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py` |
+| 运行、接入、部署 | 李明洋 | `services/bioradar/app.py`、`config.py`、`db.py`、`ops.py`、`text.py`、`adapters/`、`research/analyses.py`、`research/views.py`、`research/lease.py`、`research/clock.py`、`research/lineage.py`、`db/`、`ops/` |
+| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`run/`（各阶段）、`state.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py`、`topics.py`、`triage.py`、`series_store.py`、`scheduling.py` |
 | 页面、导出、验收评测 | 刘金彦 | `apps/web/`、`scripts/scenarios.py` |
 | 资料、版本、材料关系 | 徐子雯（图谱：唐蔚雯） | 仓库 ZK_Data-Fabric-test |
 | 下一步选择与停止 | 李明洋 / 孙博文 | 仓库 query-planner |
@@ -118,12 +118,19 @@ curl -b c.txt localhost:18100/api/analyses/<id>
 ## 检查
 
 ```sh
-make check              # = make test + make lint + make web-check
+make check              # = make test + make lint + make metrics + make web-check
+make check-install      # 在 /tmp 用声明的版本新建环境，核对四处契约版本一致，逐个导入 bioradar 模块
+make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head
 ```
+
+`make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`）；超过的函数必须在
+`scripts/metrics_exceptions.txt` 写明理由，清单只减不增。`tests/golden/` 是行为基线：每个流程场景存盘的
+progress、证据和外发记录，以及对外视图（详情、列表、导出）逐字节比对；有意改行为时用
+`BIORADAR_GOLDEN_UPDATE=1` 重新生成，并在同一个提交里审阅差异。设计取舍记在 `docs/decisions/`。
 
 改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
 
-测量核对（T-29 P3）的真实链路测试会走真实的 BioCheck v7 规则，需要一个 BioCheck 检出：
+测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出：
 `BIORADAR_TEST_BIOCHECK_SRC=../BioCheck BIORADAR_TEST_BIOCHECK_PYTHON=../BioCheck/.venv/bin/python make test`。不设这两个变量时，这些测试显示为跳过，不会算作通过。
 
 ## 验收实验
@@ -205,3 +212,4 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
 - **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 仍是 `82bad7b`，雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
+- **整洁度第一波（2026-11-06）之后还剩的**：测量链路（`measure_checks`、`upkeep`、`continuation`、`series_store.adopt`、`domain`）按 v3 6.1 迁到 Fabric 派生数据层，之后再拆这些长函数；Fabric 提供一次返回可读材料的接口和来源目录（`fetchable`、附件、登记差分），雷达删掉 `FETCHABLE`、`ATTACHMENT_SOURCES`、`REGISTRY_DIFF_SOURCES`、`native_kind` 和适配器里的四段拼接；三个服务共用一份 LLM 客户端。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。

@@ -23,8 +23,8 @@
 
 | 部分 | 维护人 | 文件 |
 | --- | --- | --- |
-| 运行、接入、预算、部署 | 李明洋 | `app.py`、`config.py`、`db.py`、`ops.py`、`adapters/`、`research/analyses.py`、`db/`、`ops/` |
-| 研究方法：调查流程、提示词、计算、监测与专题规则 | 孙博文 | `research/pipeline.py`、`research/prompts.py`、`research/schemas.py`、`research/compute.py`、`research/monitor.py` |
+| 运行、接入、预算、部署 | 李明洋 | `app.py`、`config.py`、`db.py`、`ops.py`、`text.py`、`adapters/`、`research/analyses.py`、`research/views.py`、`research/lease.py`、`research/clock.py`、`research/lineage.py`、`db/`、`ops/` |
+| 研究方法：调查流程、提示词、计算、监测与专题规则 | 孙博文 | `research/pipeline.py`、`research/run/`、`research/state.py`、`research/prompts.py`、`research/schemas.py`、`research/compute.py`、`research/monitor.py`、`research/topics.py`、`research/triage.py`、`research/series_store.py`、`research/scheduling.py` |
 | 页面、导出、效果评测 | 刘金彦 | `apps/web/`、`scripts/scenarios.py` |
 
 一个文件一个维护人。跨模块先对齐输入输出，各改各的。
@@ -38,7 +38,9 @@
 
 ## 研究执行
 
-- 主动提问、追问、专题自动分析、历史回放都走 `research/analyses.py` → `research/pipeline.py`。
+- 主动提问、追问、专题自动分析、历史回放都走 `research/analyses.py` → `research/pipeline.py`（`Run`：阶段表、存盘、记账；各阶段在 `research/run/`）。
+- 进度的每个键在 `research/state.py`（RunState）里声明；对外视图只输出标了 SHOWN 的字段（`research/views.py`），新字段默认不外露。
+- 只有 BioCheck 核验 PASS 的报告可交付，其余标为待核（`publishable: false`、`hold: pending_verification`）；每次带证据的外发前向 Fabric 确认来源仍可读（见 `docs/decisions/0005`）。
 - 每个阶段结束保存一次进度；中断后从保存的阶段继续，正在进行的那次调用会重发一次（已知成本）。
 - 历史回放必须带截止时间，Fabric 只返回截止前可见的版本。不得用后来才知道的名称或结局作检索词。
 - 保留 baseline（固定流程）作对照。改 planner 方法时不悄悄改 baseline 的顺序和范围。
