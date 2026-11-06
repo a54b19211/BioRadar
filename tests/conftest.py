@@ -1,4 +1,7 @@
-"""Tests run on SQLite with fake Fabric, model and services; no network, no Docker."""
+"""Tests run on SQLite with fake Fabric, model and services; no network, no Docker.
+
+The session owns one temporary directory (the SQLite file). It is removed when the session ends, whether the
+tests passed, failed or were interrupted; a directory a killed process left behind is not touched here."""
 
 import itertools
 import os
@@ -6,7 +9,9 @@ import tempfile
 
 import pytest
 
-os.environ["BIORADAR_DATABASE_URL"] = "sqlite:///" + os.path.join(tempfile.mkdtemp(), "test.db")
+# the object also removes the directory by itself if the interpreter exits without running the hooks below
+SESSION_TMP = tempfile.TemporaryDirectory(prefix="bioradar-tests-")
+os.environ["BIORADAR_DATABASE_URL"] = "sqlite:///" + os.path.join(SESSION_TMP.name, "test.db")
 os.environ["BIORADAR_LLM_BASE_URL"] = "http://model.invalid"
 os.environ["BIORADAR_LLM_MODEL"] = "fake"
 os.environ["BIORADAR_DEV_CREDENTIAL"] = "test-login"
@@ -17,6 +22,12 @@ os.environ["BIORADAR_BIOCHECK_URL"] = "http://biocheck.invalid"
 from bioradar import db  # noqa: E402
 
 SEQ = itertools.count(1)
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Close the connections, then delete this session's own directory (exactly the one it created)."""
+    db.engine().dispose()
+    SESSION_TMP.cleanup()
 
 
 @pytest.fixture(autouse=True)
