@@ -3,6 +3,7 @@ metric family is determined and whose required dimensions are all proven - check
 field with its full phrase. Gate cases D1-D12 on stored check records; grouping on a stand-in for checker v11
 (stated dimensions counted as checked) - the real v11 chain is still to be verified (Codex 730)."""
 
+from datetime import timedelta
 from types import SimpleNamespace
 
 from conftest import FakeFabric, biocheck_fake, record
@@ -355,3 +356,106 @@ def test_the_analysis_a_record_contradiction_triggers_receives_both_points_and_t
     pinned = [x for x in got["seed_records"] if x.get("version_id") == points[0].version_id]
     assert [x["record_id"] for x in pinned] == ["R30"]
     assert "原文内部矛盾" in got["question"] and "10例" in got["question"] and "30例" in got["question"]
+
+
+def conflict_topic(monkeypatch, extra):
+    """The R30 contradiction plus `extra` more record_conflict events naming the same two points, the later
+    ones sharing one time (Codex r182)."""
+    monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
+    test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contradiction(monkeypatch)
+    with db.session() as s:
+        [first] = s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "record_conflict"))
+        topic = s.get(db.Topic, first.topic_id)
+        points = first.detail["points"]
+        for n in range(extra):
+            at = monitor.parse_time(first.at) + timedelta(seconds=min(n, 5))
+            monitor.event(
+                s,
+                topic,
+                at,
+                "record_conflict",
+                record=f"X{n}",
+                version=f"v{n}",
+                period="2026-01",
+                points=points,
+            )
+            monitor.owe(topic, "record_conflict", at)
+        return topic.id
+
+
+def conflict_rounds(tid, rounds):
+    """Run start_analyses up to `rounds` times (each a fresh call, as after a restart); the contradiction
+    records each analysis of the topic was handed, and whether the topic was still owed between rounds."""
+    owed = []
+    for _ in range(rounds):
+        monitor.start_analyses(monitor.settings(), is_demo=True, cutoff=None)
+        with db.session() as s:
+            pending = s.get(db.Topic, tid).pending_reason
+        if not pending:
+            break
+        owed.append(pending)
+    with db.session() as s:
+        batches = [
+            [x["record_id"] for x in a.input["seed_records"] if x.get("title") == "原文内部矛盾"]
+            for a in s.scalars(select(db.Analysis).order_by(db.Analysis.id))
+            if a.input.get("topic_id", tid) == tid
+        ]
+    return [b for b in batches if b], owed
+
+
+def test_a_bounded_conflict_hand_off_settles_only_what_it_handed_and_carries_on(monkeypatch):
+    """Codex r182: 12 contradictions (six at one time) - batches of at most 10, every record handed exactly
+    once across fresh start_analyses calls, the reason owed until the last one is handed."""
+    tid = conflict_topic(monkeypatch, 11)
+    batches, owed = conflict_rounds(tid, 4)
+    handed = [r for b in batches for r in b]
+    assert all(len(b) <= 10 for b in batches) and len(batches) == 2, batches
+    assert sorted(handed) == sorted(set(handed)) and set(handed) == {"R30"} | {f"X{n}" for n in range(11)}
+    assert owed and all("record_conflict" in p for p in owed)
+    with db.session() as s:
+        topic = s.get(db.Topic, tid)
+        assert topic.pending_reason is None
+        handed_ids = monitor.handed_events(s, tid)
+        conflicts = {
+            e.id for e in s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "record_conflict"))
+        }
+        assert conflicts <= handed_ids
+
+
+def test_a_conflict_hand_off_of_many_batches_keeps_events_of_one_time_apart(monkeypatch):
+    """Codex r182: 22 contradictions, seventeen at one time - three batches, none skipped, none repeated."""
+    tid = conflict_topic(monkeypatch, 21)
+    batches, owed = conflict_rounds(tid, 5)
+    handed = [r for b in batches for r in b]
+    assert sorted(len(b) for b in batches) in ([2, 10, 10], [1, 10, 10]), batches
+    assert sorted(handed) == sorted(set(handed)) and {f"X{n}" for n in range(21)} <= set(handed)
+    assert len(owed) == len(batches) - 1
+
+
+def test_a_correction_batch_hands_repeats_with_their_version_and_leaves_the_rest_owed(monkeypatch):
+    """Codex r182: twelve correcting record versions (one repeated) - a batch of ten with the repeat, the
+    earliest time of the two left over, and once handed the next batch is exactly those two."""
+    tid = conflict_topic(monkeypatch, 0)
+    with db.session() as s:
+        topic = s.get(db.Topic, tid)
+        t0 = monitor.parse_time(topic.pending_since or db.now())
+        for n in list(range(12)) + [3]:
+            monitor.event(
+                s,
+                topic,
+                t0 + timedelta(seconds=min(n, 9)),
+                "correction",
+                record=f"C{n}",
+                by_source="s",
+                by_version_id=f"b{n}",
+                reason="source_corrected",
+            )
+        batch, given, left = monitor.correction_batch(s, tid, t0)
+        assert [e.detail["record"] for e in batch] == [f"C{n}" for n in range(10)]
+        assert len(given) == 11 and left == t0 + timedelta(seconds=9)
+        monitor.event(
+            s, topic, db.now(), "analysis", analysis_id=None, reason="source_corrected", handed_events=given
+        )
+        s.flush()
+        batch, given, left = monitor.correction_batch(s, tid, t0)
+        assert [e.detail["record"] for e in batch] == ["C10", "C11"] and left is None

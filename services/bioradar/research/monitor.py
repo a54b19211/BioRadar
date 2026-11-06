@@ -869,9 +869,21 @@ def visible(query, column, at):
     return query if at is None else query.where(column <= at)
 
 
-def correction_events(session, topic_id, since, at=None, limit=10):
-    """The correction events of a topic since it was owed, as of the cutoff: one per correcting record version
-    (bounded), oldest first."""
+def handed_events(session, topic_id):
+    """The ids of the events earlier analyses of the topic were handed (Codex r182)."""
+    out = set()
+    for e in session.scalars(
+        select(db.TopicEvent).where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "analysis")
+    ):
+        out.update(e.detail.get("handed_events") or [])
+    return out
+
+
+def correction_batch(session, topic_id, since, at=None, limit=10):
+    """(events, handed ids, earliest time of what is left over or None) of the topic's correction events not
+    handed to an analysis yet, as of the cutoff: at most `limit` correcting record versions, oldest first; the
+    repeats of one in the batch are handed with it (Codex r182)."""
+    handed = handed_events(session, topic_id)
     rows = session.scalars(
         visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(
@@ -881,33 +893,49 @@ def correction_events(session, topic_id, since, at=None, limit=10):
         )
         .order_by(db.TopicEvent.id)
     )
-    out, seen = [], set()
+    out, given, keys, left = [], [], set(), None
     for e in rows:
+        if e.id in handed:
+            continue
         d = e.detail
         key = (d.get("by_source"), d["record"], d.get("by_version_id"), d.get("reason"))
-        if key in seen:
+        if key not in keys and len(out) >= limit:
+            left = min(left, parse_time(e.at)) if left else parse_time(e.at)
             continue
-        seen.add(key)
-        out.append(e)
-        if len(out) >= limit:
-            break
-    return out
+        if key not in keys:
+            keys.add(key)
+            out.append(e)
+        given.append(e.id)
+    return out, given, left
+
+
+def correction_events(session, topic_id, since, at=None, limit=10):
+    """The correction events of a topic since it was owed and not handed yet, as of the cutoff: one per
+    correcting record version (bounded), oldest first."""
+    return correction_batch(session, topic_id, since, at, limit)[0]
 
 
 def conflict_basis(session, topic_id, since, at=None, limit=10):
-    """(question text, pinned seeds, point ids) of the record contradictions a topic is owed an analysis for
-    (Codex r180): each record at the version that states one identity with two values, both values and their
-    quotes; as of the cutoff, at most `limit` events, one seed per (source, record, version)."""
-    rows = session.scalars(
-        visible(select(db.TopicEvent), db.TopicEvent.at, at)
-        .where(
-            db.TopicEvent.topic_id == topic_id,
-            db.TopicEvent.kind == "record_conflict",
-            db.TopicEvent.at >= since,
+    """(question text, pinned seeds, point ids, handed event ids, earliest time of what is left over or None)
+    of the record contradictions a topic is owed an analysis for (Codex r180/r182): each record at the version
+    that states one identity with two values, both values and their quotes; as of the cutoff, the `limit`
+    oldest events not handed to an analysis yet, one seed per (source, record, version)."""
+    handed = handed_events(session, topic_id)
+    rows = [
+        e
+        for e in session.scalars(
+            visible(select(db.TopicEvent), db.TopicEvent.at, at)
+            .where(
+                db.TopicEvent.topic_id == topic_id,
+                db.TopicEvent.kind == "record_conflict",
+                db.TopicEvent.at >= since,
+            )
+            .order_by(db.TopicEvent.id)
         )
-        .order_by(db.TopicEvent.id)
-        .limit(limit)
-    )
+        if e.id not in handed
+    ]
+    rows, rest = rows[:limit], rows[limit:]
+    left = min(parse_time(e.at) for e in rest) if rest else None
     lines, seeds, ids, seen = [], [], [], set()
     for e in rows:
         d = e.detail
@@ -940,14 +968,14 @@ def conflict_basis(session, topic_id, since, at=None, limit=10):
         if lines
         else ""
     )
-    return text, seeds, ids
+    return text, seeds, ids, [e.id for e in rows], left
 
 
-def correction_seeds(session, topic_id, since, at=None):
+def correction_seeds(session, topic_id, since, at=None, events=None):
     """The correcting records themselves, as sources the analysis must read (Codex r167): a correction that
     withdrew a point is named even when its replacement never passed checking."""
     seeds, seen = [], set()
-    for e in correction_events(session, topic_id, since, at):
+    for e in events if events is not None else correction_events(session, topic_id, since, at):
         d = e.detail
         key = (d.get("by_source"), d["record"], d.get("by_version_id"))
         if d.get("by_source") and key not in seen:
@@ -964,13 +992,13 @@ def correction_seeds(session, topic_id, since, at=None):
     return seeds
 
 
-def correction_basis(session, topic_id, since, at=None) -> str:
+def correction_basis(session, topic_id, since, at=None, events=None) -> str:
     """The corrections Fabric stated for this topic's points, as of the cutoff (T-24, Codex r166/r167): which
     notice withdrew which values - whether or not a replacement passed checking - and, when the replacement
     was placed in another topic, that the program did not use it here. The notices are seeds of the
     analysis."""
     lines = []
-    for e in correction_events(session, topic_id, since, at):
+    for e in events if events is not None else correction_events(session, topic_id, since, at):
         d = e.detail
         old = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(d["withdrawn"])))
         olds = "、".join(f"{m.period} {m.value_text}{m.unit}（记录 {m.record_id}）" for m in old)
@@ -1207,14 +1235,25 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             if "analyst_review" in reason.split("+"):
                 question += review_basis(session, topic_id, owed_topic.pending_since)
             seeds = [{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records]
-            if {"cross_domain_correction", "source_corrected"} & set(reason.split("+")):
+            handed, leftover = [], {}  # what this analysis is given; what stays owed, from when (Codex r182)
+            corrected = [r for r in reason.split("+") if r in {"cross_domain_correction", "source_corrected"}]
+            if corrected:
                 since = owed_topic.pending_since
-                question += correction_basis(session, topic_id, since, cutoff)
+                batch, given, left = correction_batch(session, topic_id, since, cutoff)
+                handed += given
+                if left is not None:
+                    leftover.update(dict.fromkeys(corrected, left))
+                question += correction_basis(session, topic_id, since, cutoff, events=batch)
                 seeds += correction_seeds(
-                    session, topic_id, since, cutoff
+                    session, topic_id, since, cutoff, events=batch
                 )  # pinned: never merged with a head
             if "record_conflict" in reason.split("+"):
-                text, pinned, ids = conflict_basis(session, topic_id, owed_topic.pending_since, cutoff)
+                text, pinned, ids, given, left = conflict_basis(
+                    session, topic_id, owed_topic.pending_since, cutoff
+                )
+                handed += given
+                if left is not None:
+                    leftover["record_conflict"] = left
                 question += text
                 seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
                 known = {p["measurement_id"] for p in points}
@@ -1247,9 +1286,25 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
                 topic.pending_since = min(times) if times else topic.pending_since
             else:
                 topic.pending_reason = topic.pending_since = None
-            event(session, topic, cutoff or db.now(), "analysis", analysis_id=row.id, reason=reason)
+            if leftover:
+                # the events this bounded hand-off did not reach stay owed, from the earliest of them
+                kept = [r for r in (topic.pending_reason or "").split("+") if r]
+                times = list(leftover.values()) + ([parse_time(topic.pending_since)] if kept else [])
+                topic.pending_reason = "+".join(kept + [r for r in leftover if r not in kept])[:200]
+                topic.pending_since = min(times)
+            event(
+                session,
+                topic,
+                cutoff or db.now(),
+                "analysis",
+                analysis_id=row.id,
+                reason=reason,
+                handed_events=sorted(set(handed)),
+            )
             for r, at in later:  # still owed after this analysis, from their own time
                 event(session, topic, at, "owed", reason=r, carried=True)
+            for r, at in leftover.items():  # dated after the analysis event, so the next round sees them
+                event(session, topic, at, "owed", reason=r, carried=True, left_over=True)
         analyses.dispatch(row.id)
         created.append(row.id)
     return created
