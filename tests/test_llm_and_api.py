@@ -20,7 +20,9 @@ def reply(content, finish="stop"):
 
 def test_local_vllm_gets_the_per_call_thinking_switch_its_template_reads(monkeypatch):
     bodies = []
-    monkeypatch.setattr(llm, "post", lambda s, body, call, limit=None: bodies.append(body) or reply('{"value": 1}'))
+    monkeypatch.setattr(
+        llm, "post", lambda s, body, call, limit=None: bodies.append(body) or reply('{"value": 1}')
+    )
     local = settings().model_copy(update={"llm_provider": "vllm"})
     llm.chat_json(local, "t", "sys", {}, Answer)
     llm.chat_json(local, "t", "sys", {}, Answer, thinking=True)
@@ -213,35 +215,76 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
         body = json.loads(request.content)
         sent.append((request.method, request.url.path, request.headers["authorization"], body))
         result = {
-            "source_id": "who_don", "source_record_id": "D1", "version_id": "v-visible", "is_demo": True,
-            "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}], "rerank_score": 0.8,
-            "indexed_as": {"version_id": "v-first"}, "start": 10, "end": 17, "artifact": ARTIFACT,
+            "source_id": "who_don",
+            "source_record_id": "D1",
+            "version_id": "v-visible",
+            "is_demo": True,
+            "text": "布病 聚集 报告",
+            "locators": [{"start": 0, "end": 7}],
+            "rerank_score": 0.8,
+            "indexed_as": {"version_id": "v-first"},
+            "start": 10,
+            "end": 17,
+            "artifact": ARTIFACT,
         }
         execution = {
-            "candidates": 3, "verified": 1, "returned": 1, "insufficient": True,
+            "candidates": 3,
+            "verified": 1,
+            "returned": 1,
+            "insufficient": True,
             "rerank": {"state": "succeeded"},
-            "recall": [{"source_scopes": ["public_health", "research"], "execution": {"keyword": "succeeded", "vector": "succeeded",
-                                                                       "degraded": False}}],
+            "recall": [
+                {
+                    "source_scopes": ["public_health", "research"],
+                    "execution": {"keyword": "succeeded", "vector": "succeeded", "degraded": False},
+                }
+            ],
         }
-        return httpx.Response(200, json={"results": [result], "execution": execution,
-                                         "excluded": {"counts": {"not_visible_at_cutoff": 2}, "items": []},
-                                         "coverage": {"who_don": {"ready_records": 67}}})
+        return httpx.Response(
+            200,
+            json={
+                "results": [result],
+                "execution": execution,
+                "excluded": {"counts": {"not_visible_at_cutoff": 2}, "items": []},
+                "coverage": {"who_don": {"ready_records": 67}},
+            },
+        )
 
     s = settings().model_copy(update={"fabric_read_token": "read-token", "semantic_search": True})
-    fabric = Fabric(s, client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)))
+    fabric = Fabric(
+        s, client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler))
+    )
     cutoff = datetime(2026, 9, 30, tzinfo=UTC)
-    hits, summary = fabric.semantic_search("布病 聚集", scopes=("public_health", "research"), is_demo=True,
-                                           cutoff=cutoff)
+    hits, summary = fabric.semantic_search(
+        "布病 聚集", scopes=("public_health", "research"), is_demo=True, cutoff=cutoff
+    )
     method, path, auth, body = sent[0]
     assert (method, path, auth) == ("POST", "/api/history/search", "Bearer read-token")
     assert body["mode"] == "public_history_reconstruction" and body["cutoff"] == cutoff.isoformat()
     assert body["scopes"] == ["public_health", "research"] and body["is_demo"] is True
-    assert hits == [{"source": "who_don", "record_id": "D1", "version_id": "v-visible", "score": 0.8,
-                     "text": "布病 聚集 报告", "locators": [{"start": 0, "end": 7}], "range": [10, 17],
-                     "artifact": ARTIFACT}]  # the hit keeps the artifact it was verified against
+    assert hits == [
+        {
+            "source": "who_don",
+            "record_id": "D1",
+            "version_id": "v-visible",
+            "score": 0.8,
+            "text": "布病 聚集 报告",
+            "locators": [{"start": 0, "end": 7}],
+            "range": [10, 17],
+            "artifact": ARTIFACT,
+        }
+    ]  # the hit keeps the artifact it was verified against
     assert summary["excluded"] == {"not_visible_at_cutoff": 2} and summary["insufficient"] is True
-    assert summary["recall"] == [{"scopes": ["public_health", "research"], "keyword": "succeeded", "vector": "succeeded",
-                                  "embedding": None, "degraded": False, "degraded_reasons": None}]
+    assert summary["recall"] == [
+        {
+            "scopes": ["public_health", "research"],
+            "keyword": "succeeded",
+            "vector": "succeeded",
+            "embedding": None,
+            "degraded": False,
+            "degraded_reasons": None,
+        }
+    ]
     assert fabric.requests["search"] == {"n": 1, "errors": 0}
 
 
@@ -259,8 +302,11 @@ def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
 
     v, previous = "v" * 64, "u" * 64
     clean = "Brief summary.\n状态 status: COMPLETED\n分期 phase: PHASE3\n入组人数 enrollment: 31"
-    diff = {"state": "processed", "from_version_id": previous,
-            "changes": [{"field": "status", "description": "状态 RECRUITING → COMPLETED", "material": True}]}
+    diff = {
+        "state": "processed",
+        "from_version_id": previous,
+        "changes": [{"field": "status", "description": "状态 RECRUITING → COMPLETED", "material": True}],
+    }
     processors = {"clean": "datafabric.clean_text.v11"}
 
     def handler(request):
@@ -273,19 +319,35 @@ def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
                     "state": "processed",
                     "clean": {"processor_version": processors["clean"], "status": "parsed", "text": clean},
                 }
-                for i in ids if i == v and named in (None, processors["clean"])
+                for i in ids
+                if i == v and named in (None, processors["clean"])
             }
             return httpx.Response(200, json={"versions": versions})
         if path.endswith("/registry-changes"):
-            return httpx.Response(200, json={"processor_version": "datafabric.registry_diff.v1",
-                                             "versions": {i: diff for i in ids if i == v}})
+            return httpx.Response(
+                200,
+                json={
+                    "processor_version": "datafabric.registry_diff.v1",
+                    "versions": {i: diff for i in ids if i == v},
+                },
+            )
         return httpx.Response(404, json={"detail": {"code": "version_not_found"}})
 
-    fabric = Fabric(settings(), client=httpx.Client(base_url="http://fabric.invalid",
-                                                    transport=httpx.MockTransport(handler)))
-    record = {"source_id": "clinicaltrials", "source_record_id": "NCT00073242", "version_id": v,
-              "is_demo": False, "record_kind": "trial", "title": "Leptin", "clean_text": "Brief summary.",
-              "parser_version": "p1", "facts": {"status": "COMPLETED"}}
+    fabric = Fabric(
+        settings(),
+        client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)),
+    )
+    record = {
+        "source_id": "clinicaltrials",
+        "source_record_id": "NCT00073242",
+        "version_id": v,
+        "is_demo": False,
+        "record_kind": "trial",
+        "title": "Leptin",
+        "clean_text": "Brief summary.",
+        "parser_version": "p1",
+        "facts": {"status": "COMPLETED"},
+    }
     doc = document(record)
     assert doc["text"] == "Brief summary." and doc["material"].parts()[0]["kind"] == "projection_text"
     fabric.complete([doc], is_demo=False, mode="current", cutoff=datetime.now(UTC).isoformat())
@@ -355,22 +417,37 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
 
     v = "v" * 64
     old_text = "旧处理器正文 status: COMPLETED\n第二段"
-    old = {"processor_version": "datafabric.clean_text.v8", "status": "parsed", "text": old_text,
-           "text_sha256": hashlib.sha256(old_text.encode()).hexdigest(),
-           "segments": [
-               {"start": 0, "end": 7, "kind": "field", "source": {"json_pointer": "/briefSummary"}},
-               {"start": 7, "end": len(old_text), "kind": "field", "source": {"json_pointer": "/status"}},
-           ]}
+    old = {
+        "processor_version": "datafabric.clean_text.v8",
+        "status": "parsed",
+        "text": old_text,
+        "text_sha256": hashlib.sha256(old_text.encode()).hexdigest(),
+        "segments": [
+            {"start": 0, "end": 7, "kind": "field", "source": {"json_pointer": "/briefSummary"}},
+            {"start": 7, "end": len(old_text), "kind": "field", "source": {"json_pointer": "/status"}},
+        ],
+    }
     asked = []
 
     def handler(request):
         path, params = request.url.path, request.url.params
         if path.startswith("/api/history/versions/"):
-            return httpx.Response(200, json={
-                "source_id": "clinicaltrials", "source_record_id": "NCT1", "version_id": v, "is_demo": True,
-                "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
-                "raw_sha256": "r" * 64, "record_kind": "trial", "title": "T", "clean_text": "投影正文",
-                "parser_version": "p1", "facts": {}})
+            return httpx.Response(
+                200,
+                json={
+                    "source_id": "clinicaltrials",
+                    "source_record_id": "NCT1",
+                    "version_id": v,
+                    "is_demo": True,
+                    "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
+                    "raw_sha256": "r" * 64,
+                    "record_kind": "trial",
+                    "title": "T",
+                    "clean_text": "投影正文",
+                    "parser_version": "p1",
+                    "facts": {},
+                },
+            )
         if path.endswith("/clean-text"):
             asked.append(params.get("processor_version"))
             named = params.get("processor_version")
@@ -380,8 +457,10 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
             return httpx.Response(200, json={"versions": {}})
         return httpx.Response(404, json={"detail": {"code": "version_not_found"}})
 
-    fabric = Fabric(settings(), client=httpx.Client(base_url="http://fabric.invalid",
-                                                    transport=httpx.MockTransport(handler)))
+    fabric = Fabric(
+        settings(),
+        client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)),
+    )
     wanted = {"processor_version": old["processor_version"], "text_sha256": old["text_sha256"]}
     docs, _ = fabric.read_versions("clinicaltrials", [("NCT1", v)], is_demo=True, artifacts={v: wanted})
     doc = docs[0]
@@ -399,8 +478,9 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
     assert again["segments"][0]["locators"] == stored["segments"][0]["locators"]
     assert reread(stored, fabric.part_texts) == window.text
     # the artifact the hit named changed (another hash): not read in its place, and not counted as cleaned
-    docs, _ = fabric.read_versions("clinicaltrials", [("NCT1", v)], is_demo=True,
-                                   artifacts={v: dict(wanted, text_sha256="0" * 64)})
+    docs, _ = fabric.read_versions(
+        "clinicaltrials", [("NCT1", v)], is_demo=True, artifacts={v: dict(wanted, text_sha256="0" * 64)}
+    )
     assert docs[0]["text"].endswith("投影正文") and "artifact_changed" in docs[0]["text"]
     assert docs[0]["clean_text_state"] == "artifact_changed"
     assert docs[0]["text_level"] == "uncleaned_projection"
@@ -418,19 +498,34 @@ def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one
     from bioradar.adapters.fabric import Fabric
 
     v, v1_text, v2_text = "a" * 64, "附件 v1 正文", "附件 v2 正文"
-    v1 = {"processor_version": "datafabric.attachment_parse.v1", "status": "parsed", "text": v1_text,
-          "basis": "mineru", "text_sha256": hashlib.sha256(v1_text.encode()).hexdigest()}
+    v1 = {
+        "processor_version": "datafabric.attachment_parse.v1",
+        "status": "parsed",
+        "text": v1_text,
+        "basis": "mineru",
+        "text_sha256": hashlib.sha256(v1_text.encode()).hexdigest(),
+    }
     have_v1 = {"on": False}
 
     def handler(request):
         path, params = request.url.path, request.url.params
         if path.startswith("/api/history/versions/"):
-            return httpx.Response(200, json={
-                "source_id": "nmpa", "source_record_id": "P1#attachment=x.xls", "version_id": v,
-                "is_demo": True,
-                "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
-                "raw_sha256": "r" * 64, "record_kind": "document", "title": "附件", "clean_text": "",
-                "parser_version": "p1", "facts": {"role": "attachment", "parent_record_id": "P1"}})
+            return httpx.Response(
+                200,
+                json={
+                    "source_id": "nmpa",
+                    "source_record_id": "P1#attachment=x.xls",
+                    "version_id": v,
+                    "is_demo": True,
+                    "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
+                    "raw_sha256": "r" * 64,
+                    "record_kind": "document",
+                    "title": "附件",
+                    "clean_text": "",
+                    "parser_version": "p1",
+                    "facts": {"role": "attachment", "parent_record_id": "P1"},
+                },
+            )
         if path.endswith("/clean-text"):
             named = params.get("processor_version")
             ok = have_v1["on"] and named == v1["processor_version"]
@@ -438,13 +533,27 @@ def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one
             return httpx.Response(200, json={"versions": versions})
         if path.endswith("/derived-text"):
             current = "datafabric.attachment_parse.v2"
-            return httpx.Response(200, json={"processor_version": current, "versions": {
-                v: {"state": "processed", "status": "parsed", "text": v2_text, "parse_method": "mineru",
-                    "attachment_of": [{"parent_record_id": "P1", "parent_version_id": "p" * 64}]}}})
+            return httpx.Response(
+                200,
+                json={
+                    "processor_version": current,
+                    "versions": {
+                        v: {
+                            "state": "processed",
+                            "status": "parsed",
+                            "text": v2_text,
+                            "parse_method": "mineru",
+                            "attachment_of": [{"parent_record_id": "P1", "parent_version_id": "p" * 64}],
+                        }
+                    },
+                },
+            )
         return httpx.Response(404, json={"detail": {"code": "version_not_found"}})
 
-    fabric = Fabric(settings(), client=httpx.Client(base_url="http://fabric.invalid",
-                                                    transport=httpx.MockTransport(handler)))
+    fabric = Fabric(
+        settings(),
+        client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)),
+    )
     wanted = {"processor_version": v1["processor_version"], "text_sha256": v1["text_sha256"]}
     docs, _ = fabric.read_versions("nmpa", [("P1#attachment=x.xls", v)], is_demo=True, artifacts={v: wanted})
     assert v2_text not in docs[0]["text"] and docs[0]["clean_text_state"] != "processed"

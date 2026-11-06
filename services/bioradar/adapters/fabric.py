@@ -258,6 +258,7 @@ def fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff=None) -
     bound = datetime.now(UTC) if cutoff is None else _aware(cutoff)
     return at is not None and bound is not None and at <= bound
 
+
 class Fabric:
     def __init__(self, settings: Settings, client: httpx.Client | None = None):
         self.settings = settings
@@ -294,7 +295,9 @@ class Fabric:
         count["n"] += 1
         try:
             response = self.client.post(
-                path, json=body, headers={"Authorization": f"Bearer {token or self.settings.fabric_read_token}"}
+                path,
+                json=body,
+                headers={"Authorization": f"Bearer {token or self.settings.fabric_read_token}"},
             )
         except httpx.HTTPError:
             count["errors"] += 1
@@ -310,11 +313,11 @@ class Fabric:
         return response.json()
 
     def semantic_search(self, query, *, scopes, is_demo, cutoff=None, now=None, top_k=10):
-        """WeKnora recall verified by Fabric (POST /api/history/search). Every hit was checked at this mode and
-        cutoff: source permission, the version visible then, and that the chunk is that version's fixed text.
-        Returns (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the visible
-        version; summary: excluded counts by reason, whether fewer than top_k came back, per-scope recall
-        channels and index coverage. Missing hits do not mean the material does not exist."""
+        """WeKnora recall verified by Fabric (POST /api/history/search). Every hit was checked at this mode
+        and cutoff: source permission, the version visible then, and that the chunk is that version's fixed
+        text. Returns (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the
+        visible version; summary: excluded counts by reason, whether fewer than top_k came back, per-scope
+        recall channels and index coverage. Missing hits do not mean the material does not exist."""
         mode = HISTORY if cutoff else CURRENT
         data = self._post(
             "/api/history/search",
@@ -552,9 +555,12 @@ class Fabric:
             common = {"is_demo": p["is_demo"], "mode": CURRENT, "cutoff": now}
             try:
                 if p["kind"] == "clean_text":
-                    entry = self.clean_texts(
-                        p["source"], [p["version_id"]], processor_version=p["processor_version"], **common
-                    ).get(p["version_id"]) or {}
+                    entry = (
+                        self.clean_texts(
+                            p["source"], [p["version_id"]], processor_version=p["processor_version"], **common
+                        ).get(p["version_id"])
+                        or {}
+                    )
                     clean = entry.get("clean") or {}
                     if clean.get("processor_version") == p["processor_version"]:
                         out[key] = clean.get("text") or ""

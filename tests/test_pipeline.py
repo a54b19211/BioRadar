@@ -160,8 +160,11 @@ def test_analysis_end_to_end(monkeypatch):
     # every record was read once; each BioCheck request that carried its report window is its own record
     # (write, check, then the check of the conclusions), all sent
     assert {(r.stage, r.attempt, r.status) for r in reads} == {
-        ("read", 1, "sent"), ("report:generate", 1, "sent"), ("report:verify", 1, "sent"),
-        ("report:verify", 2, "sent")}
+        ("read", 1, "sent"),
+        ("report:generate", 1, "sent"),
+        ("report:verify", 1, "sent"),
+        ("report:verify", 2, "sent"),
+    }
     for r in reads:
         resolve = lambda parts: {part_key(q): texts[q["version_id"]] for q in parts}  # noqa: E731
         text = reread(r.binding, resolve)
@@ -910,8 +913,14 @@ def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted
         ]
     lines += ["outcomeMeasures[13] title: 次要终点; type: SECONDARY", "主要申办方 lead_sponsor: name: X"]
     text = "\n".join(lines)
-    part = {"kind": "clean_text", "source": "clinicaltrials", "record_id": "NCT1", "version_id": "v" * 64,
-            "is_demo": True, "processor_version": "datafabric.clean_text.v11"}
+    part = {
+        "kind": "clean_text",
+        "source": "clinicaltrials",
+        "record_id": "NCT1",
+        "version_id": "v" * 64,
+        "is_demo": True,
+        "processor_version": "datafabric.clean_text.v11",
+    }
     record = Material.part(text, part)
     sent = report_text(record, ["Brief summary."])
     head = sent.text.split("\n…\n")[0]
@@ -1300,7 +1309,8 @@ def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
 
 
 def test_semantic_search_is_offered_in_replays_too(monkeypatch):
-    """v3 3.6: Fabric verifies every WeKnora hit at the analysis cutoff, so a replay can search semantically."""
+    """v3 3.6: Fabric verifies every WeKnora hit at the analysis cutoff, so a replay can search
+    semantically."""
     s = settings().model_copy(update={"semantic_search": True})
     for cutoff in (None, "2026-09-30T00:00:00+08:00"):
         row = analyses.create(
@@ -1529,10 +1539,20 @@ def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_rea
     material, window = adopt(of(doc), ["抑制"], 2000)
     with db.session() as s:
         read_id = run.sent(s, "read", "radar", "E1", doc, material)
-        s.add(db.Evidence(analysis_id=run.id, ref="E1", source=doc["source"], record_id=doc["record_id"],
-                          version_id=doc["version_id"], title=doc["title"], material_kind="primary_research",
-                          verified=True, text=material.text,
-                          meta={"material_read_id": read_id, "window": window}))
+        s.add(
+            db.Evidence(
+                analysis_id=run.id,
+                ref="E1",
+                source=doc["source"],
+                record_id=doc["record_id"],
+                version_id=doc["version_id"],
+                title=doc["title"],
+                material_kind="primary_research",
+                verified=True,
+                text=material.text,
+                meta={"material_read_id": read_id, "window": window},
+            )
+        )
     bodies = []
     monkeypatch.setattr(services, "mechevidence", lambda s, body: bodies.append(body) or {"llm_calls": []})
     run.mechanism()
@@ -1588,16 +1608,26 @@ def test_text_the_cleaning_layer_did_not_produce_says_so_to_every_receiver(monke
     sent, biocheck = [], []
     monkeypatch.setattr(llm, "chat_json", fake_model(sent))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
-    monkeypatch.setattr(services, "biocheck", lambda s, op, body: biocheck.append(body) or (
-        {"draft": "同一试验更正后PFS的HR为0.69[E1]。", "llm_calls": []} if op == "generate"
-        else {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": []}))
+    monkeypatch.setattr(
+        services,
+        "biocheck",
+        lambda s, op, body: (
+            biocheck.append(body)
+            or (
+                {"draft": "同一试验更正后PFS的HR为0.69[E1]。", "llm_calls": []}
+                if op == "generate"
+                else {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": []}
+            )
+        ),
+    )
     fabric = FakeFabric(RECORDS)
     for d in fabric.docs:  # what Fabric.attach_clean_text does when the cleaning layer has nothing
         d["material"] = Material.literal(UNCLEANED.format(state="failed")) + d["material"]
         d["text"], d["clean_text_state"] = d["material"].text, "failed"
         d["text_level"] = "uncleaned_projection"
-    row = analyses.create(question="XQ-17 的PFS结果现在应怎样判断？", direction="pipeline", is_demo=True,
-                          enqueue=False)
+    row = analyses.create(
+        question="XQ-17 的PFS结果现在应怎样判断？", direction="pipeline", is_demo=True, enqueue=False
+    )
     result = Run(row, settings(), fabric=fabric).run()
     notice = UNCLEANED.format(state="failed").strip()
     reads = [p["material"]["text"] for _, p, _ in sent if isinstance(p, dict) and "material" in p]
@@ -1641,8 +1671,9 @@ def test_each_biocheck_request_has_its_own_outbound_record(monkeypatch):
     row = analyses.create(question="审计？", direction="pipeline", is_demo=True, enqueue=False)
     run = Run(row, settings(), fabric=None)
     doc = FakeFabric(RECORDS).docs[0]
-    evidence = SimpleNamespace(ref="E1", source=doc["source"], record_id=doc["record_id"],
-                               version_id=doc["version_id"], meta={})
+    evidence = SimpleNamespace(
+        ref="E1", source=doc["source"], record_id=doc["record_id"], version_id=doc["version_id"], meta={}
+    )
     run.report_windows = [(evidence, of(doc))]
     body = {"evidence": [{"id": "E1", "text": doc["text"]}]}
 
