@@ -1,4 +1,4 @@
-"""record corrections (T-24, Codex r166): a correction or retraction Fabric states for a record, with the
+"""record corrections: a correction or retraction Fabric states for a record, with the
 time it became visible - its own lifecycle, apart from whether a replacement value passes checking. Starts
 empty: the corrections of records already observed are recorded again when those records are read again."""
 

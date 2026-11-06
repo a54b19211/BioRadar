@@ -1,4 +1,4 @@
-"""measurement domain (T-24): the comparable domain of a checked point - basis and id. An existing point whose
+"""measurement domain: the comparable domain of a checked point - basis and id. An existing point whose
 candidate was placed in a topic gets that topic (the record's placement, as adopt now reads it; not
 measurements.topic_id, which a series-opened topic also set); every other existing point gets basis "unknown":
 stored and effective, nothing computed from it."""

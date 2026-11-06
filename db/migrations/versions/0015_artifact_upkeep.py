@@ -1,4 +1,4 @@
-"""reading plans and points per cleaned artifact, upkeep runs (T-26). A version's reading plan is one per
+"""reading plans and points per cleaned artifact, upkeep runs. A version's reading plan is one per
 artifact (processor + text hash): an upgrade's plan replaces the old one, which is kept. A point carries the
 artifact it was read from (from its candidate) and can be retired in favour of a reading of an upgraded
 artifact. upkeep_runs / upkeep_items record operator-run, bounded upkeep (upgrade_reads,
@@ -96,7 +96,7 @@ def upgrade():
 
 def _keep_audit(checks):
     """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
-    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    never deleted by an ordinary downgrade. checks: [(sql counting the rows, what they are)]."""
     bind = op.get_bind()
     held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
     held = [f"{n} {what}" for n, what in held if n]
@@ -107,7 +107,7 @@ def _keep_audit(checks):
 
 
 def downgrade():
-    # refused while upkeep runs, retirements or plan hand-overs are recorded (audit, Codex r193); the older
+    # refused while upkeep runs, retirements or plan hand-overs are recorded (audit); the older
     # constraints could not hold a second artifact's plan or an upgraded reading of one value anyway
     _keep_audit(
         [

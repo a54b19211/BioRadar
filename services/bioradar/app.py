@@ -267,7 +267,7 @@ def blank(value):
 
 
 # What the program itself writes: identifiers, sources, codes and times. Under an earlier round's revoked
-# report every other string is withheld, in whatever field it sits (Codex r45).
+# report every other string is withheld, in whatever field it sits.
 PROGRAM = KEEP | {"source", "record_id", "version_id", "origin", "code", "stage", "browse", "decision"}
 PROGRAM_STRING = re.compile(r"[A-Z]{1,3}\d{1,4}|\d{4}-\d{2}-\d{2}([T ][0-9:.+\-Z]*)?")  # E3, Q1, F12; a time
 
@@ -331,7 +331,7 @@ def redact(value: dict) -> dict:
     for q in progress.get("queries") or []:
         if not safe(q["terms"], q.get("origin", "")):
             q["terms"] = []
-    # the plan's checks were written with the earlier round's report in view (Codex r40)
+    # the plan's checks were written with the earlier round's report in view
     if inherited:
         for c in (progress.get("checks") or []) + ((value.get("result") or {}).get("checks") or []):
             if not safe([c.get("text", "")], ""):
@@ -361,7 +361,7 @@ def redact(value: dict) -> dict:
         r["note"] = ""
     if inherited:
         # The round's own model text grew out of the earlier report too, so all of it goes, not field by
-        # field (Codex r45: a fact's text named the earlier project while its quote came from a record still
+        # field (a fact's text named the earlier project while its quote came from a record still
         # readable). What stays as decided above: quotes whose own record is readable, the terms and check
         # texts found safe, the plan basis left, the stop reason and the user's question.
         facts = progress.get("facts") or []
@@ -551,7 +551,7 @@ class Followup(BaseModel):
 def followup(analysis_id: str, body: Followup):
     parent = analyses.get(analysis_id)
     # a report whose sources (through its earlier rounds) cannot be read now is not handed on; the run
-    # checks again when it uses it (Codex r38)
+    # checks again when it uses it
     previous = parent.id not in hidden_by_analysis([parent.id])
     row = analyses.create(
         previous=previous,
@@ -686,7 +686,7 @@ def investigations(limit: int = 30):
 def measure_coverage(
     is_demo: bool = False, version_id: str | None = None, state: str | None = None, limit: int = 100
 ):
-    """T-31, read-only: per fixed version of this workspace, what of its cleaned text a model read, what is
+    """Read-only: per fixed version of this workspace, what of its cleaned text a model read, what is
     unread and why (pending, budget spent, paused - permission withdrawn, failed, capped, skipped), and the
     plans by state. Read is not "every fact extracted"."""
     s = settings()
@@ -706,7 +706,7 @@ def measure_coverage(
                 "processor_version": r.processor_version,
                 "text_sha256": r.text_sha256,
                 "artifact_key": r.artifact_key,
-                "current": r.superseded_by_id is None,  # T-26: a replaced plan is kept, not read on
+                "current": r.superseded_by_id is None,  # a replaced plan is kept, not read on
                 "supersedes_id": r.supersedes_id,
                 "superseded_by_id": r.superseded_by_id,
             }

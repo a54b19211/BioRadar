@@ -1,6 +1,6 @@
-"""llm_outputs (measure.v10, Codex): every answer of a model call as given - content and sha256 - with the
+"""llm_outputs (measure.v10): every answer of a model call as given - content and sha256 - with the
 mechanical mappings applied before validation, pointing at its llm_calls row. Append-only; empty at first.
-llm_calls.http (Codex r192): each HTTP request's outcome; existing rows keep NULL (not known then)."""
+llm_calls.http: each HTTP request's outcome; existing rows keep NULL (not known then)."""
 
 import sqlalchemy as sa
 from alembic import op
@@ -28,7 +28,7 @@ def upgrade():
 
 def _keep_audit(checks):
     """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
-    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    never deleted by an ordinary downgrade. checks: [(sql counting the rows, what they are)]."""
     bind = op.get_bind()
     held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
     held = [f"{n} {what}" for n, what in held if n]

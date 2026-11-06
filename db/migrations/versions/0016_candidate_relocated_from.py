@@ -1,4 +1,4 @@
-"""measurement candidates relocated from an older artifact (T-26): a known fact of an older artifact of the
+"""measurement candidates relocated from an older artifact: a known fact of an older artifact of the
 version located again in an upgraded artifact by its quote names the candidate it came from. Existing rows
 have none."""
 
@@ -18,7 +18,7 @@ def upgrade():
 
 def _keep_audit(checks):
     """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
-    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    never deleted by an ordinary downgrade. checks: [(sql counting the rows, what they are)]."""
     bind = op.get_bind()
     held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
     held = [f"{n} {what}" for n, what in held if n]

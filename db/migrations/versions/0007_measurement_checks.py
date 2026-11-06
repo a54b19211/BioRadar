@@ -1,4 +1,4 @@
-"""measurement checks (T-29 P3): candidates, check tasks, append-only checks; measurements bound to a check.
+"""measurement checks: candidates, check tasks, append-only checks; measurements bound to a check.
 
 Existing measurements keep their rows and get check_id NULL: they are history, never in the effective view
 (they were stored before any check and carry no literal texts to check now)."""

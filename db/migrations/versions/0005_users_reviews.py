@@ -1,4 +1,4 @@
-"""People who sign in, with roles, and their reviews of machine results (T-14)."""
+"""People who sign in, with roles, and their reviews of machine results."""
 
 import sqlalchemy as sa
 from alembic import op

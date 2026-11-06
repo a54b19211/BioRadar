@@ -1,4 +1,4 @@
-"""T-31: bounded continuation reading of a fixed version's cleaned text.
+"""Bounded continuation reading of a fixed version's cleaned text.
 
 Triage reads a record's first window. A record is not "read" because of that: every fixed version
 triaged gets a reading plan (record_reads) over its cleaned artifact - windows of WINDOW characters, each
@@ -102,7 +102,7 @@ def _clean_part(material: Material):
 
 def plan(session, s: Settings, doc, topic, direction, at, is_demo, supersedes=None):
     """The reading plan of one triaged version (once per version). Window 0 is what triage read.
-    supersedes (T-26): the plan of another cleaned artifact of this version that this artifact's plan replaces
+    supersedes: the plan of another cleaned artifact of this version that this artifact's plan replaces
     - one per artifact; every window is owed, the first too (triage read the other artifact), so nothing
     of the old plan's coverage counts for this one; the old plan is kept as it is and no longer read on."""
     material = of(doc)
@@ -200,7 +200,7 @@ def _claim(s, is_demo, now, taken, per_round, per_call):
                 db.RecordRead.workspace_id == s.workspace_id,
                 db.RecordRead.is_demo == is_demo,
                 db.RecordRead.state == "reading",
-                db.RecordRead.superseded_by_id.is_(None),  # a replaced plan is not read on (T-26)
+                db.RecordRead.superseded_by_id.is_(None),  # a replaced plan is not read on
                 db.RecordReadWindow.state.in_(TO_READ),
                 db.RecordReadWindow.next_at <= now,
                 or_(db.RecordReadWindow.lease_until.is_(None), db.RecordReadWindow.lease_until < now),
@@ -479,7 +479,7 @@ CAPTION = re.compile(r"\s*(?:Table|TABLE)\s+\d+|\s*表\s*\d+")
 def _contexts(material, a, b):
     """The context of window [a, b) as bound slices, each with its display offset: the nearest heading before
     it, and - when the window starts inside a table's rows - that table's header and the "Table N" / "表N"
-    caption line right above the table (B r2). {name: (at, Material) or (None, None)}."""
+    caption line right above the table. {name: (at, Material) or (None, None)}."""
     out = {"heading": (None, None), "table_header": (None, None), "table_title": (None, None)}
     h = _heading(material.text, a)
     if h:

@@ -1,4 +1,4 @@
-"""Cross-period series (孙博文维护研究方法; T-24).
+"""Cross-period series (孙博文维护研究方法).
 
 A measurement is one value of one metric of one object for one period, quoted from one fixed record version.
 Every triaged record can leave measurements, so values that mean nothing alone (one more filling line, an

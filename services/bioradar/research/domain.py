@@ -1,4 +1,4 @@
-"""The complete comparable domain of a checked point (T-24, design T-24-完整域-r2, Codex 725/730/r171).
+"""The complete comparable domain of a checked point (docs/decisions/0003-complete-comparable-domain.md).
 
 A number is compared automatically only inside a group whose metric family is determined and every dimension
 that family requires is proven: either checked by the checker (v11, per dimension) or carried by a field the
@@ -49,13 +49,13 @@ INDICATOR = {
         r"产能|产线|生产线|灌装线|产量|装置|capacity|production lines?|plants?\b|output", re.IGNORECASE
     ),
 }
-# an indication the matched metric itself names makes indication a required dimension (Codex r171)
+# an indication the matched metric itself names makes indication a required dimension
 INDICATION_CUE = re.compile(r"适应症|适应证|indication|用于治疗|用于[^，。,;；]{1,20}的治疗", re.IGNORECASE)
 # a matched field carries a dimension only in its own role: the metric phrase names the case definition, the
 # milestone, the stage or the indication; the scope is the coverage. The whole field literal is kept as the
 # dimension's value, so a negation, a plan or a subgroup written with it stays part of it. A matched object or
 # denominator proves its literal only, never a business role (product, entity, denominator definition): those
-# are stated dimensions, checked by checker v11 (Codex r171)
+# are stated dimensions, checked by checker v11
 CARRIED_BY = {
     "case_definition": (
         "metric",
@@ -85,7 +85,7 @@ def _norm(text):
 def group_key(family, dims):
     """The group identity: "sha256:" + the hex digest of the canonical JSON [family, [[kind, norm], ...]]
     (pairs sorted, UTF-8, no spaces) - an identity of the full dimension values kept in Measurement.dims,
-    fixed length, never truncated; no character inside a value can make two groups one (Codex r171)."""
+    fixed length, never truncated; no character inside a value can make two groups one."""
     body = json.dumps(
         [family, sorted([d["kind"], d["norm"]] for d in dims)], ensure_ascii=False, separators=(",", ":")
     )
@@ -149,7 +149,7 @@ def series_gate(measure, final, check):
         required.append("denominator_definition")
     if family == "milestone_count" and ("indication" in stated or INDICATION_CUE.search(metric)):
         # the measure or the matched metric itself names an indication: it must be proven, never dropped
-        # because the model left it out (Codex r171)
+        # because the model left it out
         required.append("indication")
     dims, reasons = [], []
     for kind in required:
@@ -177,7 +177,7 @@ def series_gate(measure, final, check):
         if dim is None and kind in stated:
             got = answered.get(kind) or {}
             if got.get("result") == "match" and got.get("span"):
-                # checker v11: its literal, its relation to the value and its role, from the text (Codex 740)
+                # checker v11: its literal, its relation to the value and its role, from the text
                 dim = {
                     "kind": kind,
                     "norm": _norm(stated[kind]["text"]),

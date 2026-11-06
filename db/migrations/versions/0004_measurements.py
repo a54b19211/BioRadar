@@ -1,5 +1,5 @@
-"""Measurements: quoted values per object, metric and period, accumulated from every triaged record (T-24);
-observations keep the key daily activity counts once, so a repost and its original are one (T-15)."""
+"""Measurements: quoted values per object, metric and period, accumulated from every triaged record;
+observations keep the key daily activity counts once, so a repost and its original are one."""
 
 import sqlalchemy as sa
 from alembic import op

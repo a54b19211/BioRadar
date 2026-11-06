@@ -1,4 +1,4 @@
-"""candidate material read (T-29 B, Codex 711): the material_read of the window a candidate was read from.
+"""candidate material read: the material_read of the window a candidate was read from.
 Existing candidates keep NULL: the send they came from was not recorded with them, so no source of theirs can
 be shown sent - they keep the measure.v5 locating rules and cite no other source."""
 

@@ -15,7 +15,7 @@ HISTORY = "public_history_reconstruction"
 
 
 # Fabric answers for a fixed version that cannot be read with this permission, scope and cutoff
-# (source_not_available: the source as a whole is not readable for this reader now - a revocation, T-29 P4)
+# (source_not_available: the source as a whole is not readable for this reader now - a revocation)
 NOT_VISIBLE = {
     "version_not_found",
     "observation_basis_not_visible",
@@ -106,7 +106,7 @@ def locators(clean: dict) -> list:
     ]
 
 
-# Put above a version's own projection text when the cleaning layer's text is not there (Codex r85): a fixed
+# Put above a version's own projection text when the cleaning layer's text is not there: a fixed
 # template filled with the state code only.
 UNCLEANED = "【清洗层正文不可用（{state}）：以下是该版本自带的投影正文，未经清洗，可能不完整】\n\n"
 
@@ -215,7 +215,7 @@ def document(record: dict) -> dict:
         "parent_record_id": (record.get("facts") or {}).get("parent_record_id"),
         "attachment_text": None,  # filled by Fabric.attach_attachment_text
         # program-derived text put into this document (registry diff block, parsed attachment text), with what
-        # it was derived from, so the evidence record can point back to the inputs (Codex r58/r59)
+        # it was derived from, so the evidence record can point back to the inputs
         "derived": [],
         # what the cleaning layer gave for this version (Fabric.attach_clean_text): processed, or why not;
         # and which of its texts was chosen: the current processor's, or the artifact a search hit named
@@ -244,7 +244,7 @@ def _aware(value):
 
 
 def fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff=None) -> bool:
-    """Whether a document returned for a fixed-version read is exactly what was named (Codex r169/r170): the
+    """Whether a document returned for a fixed-version read is exactly what was named: the
     same source, record and version, an explicit boolean demo kind equal to the one asked for, and a
     timezone-aware available_at no later than the read's bound - its cutoff, or now for a live read. Anything
     missing, mistyped or malformed is not a verified read."""
@@ -263,7 +263,7 @@ class Fabric:
     def __init__(self, settings: Settings, client: httpx.Client | None = None):
         self.settings = settings
         self.client = client or httpx.Client(base_url=settings.fabric_url, timeout=30)
-        # HTTP requests actually sent, per endpoint: counts only, no parameters, tokens or texts (Codex r44)
+        # HTTP requests actually sent, per endpoint: counts only, no parameters, tokens or texts
         self.requests = {}
 
     def _get(self, path, params, token=None):
@@ -389,7 +389,7 @@ class Fabric:
     def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None, artifacts=None):
         """Fixed versions [(record_id, version_id)] → (documents, versions no longer readable). Used where the
         radar owes work on one particular version (a deferred or failed triage): reading the record again
-        would return its current head instead, and the owed version would never be done (Codex r62).
+        would return its current head instead, and the owed version would never be done.
         artifacts {version_id: {processor_version, text_sha256}}: read that cleaned artifact of the version
         (a search hit's), not whatever the current processor made of it."""
         mode = HISTORY if cutoff else CURRENT
@@ -415,10 +415,10 @@ class Fabric:
             try:
                 doc = document(item)
             except (KeyError, TypeError, ValueError, AttributeError):
-                # a raw record that cannot be read as a HistoryRecord is never that version (Codex r171)
+                # a raw record that cannot be read as a HistoryRecord is never that version
                 raise FabricError("version_identity_mismatch", f"{record_id}@{version_id[:12]}") from None
             if not fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff):
-                # the read named one version: anything else is never that version's text (Codex r169)
+                # the read named one version: anything else is never that version's text
                 raise FabricError("version_identity_mismatch", f"{record_id}@{version_id[:12]}")
             doc["artifact_wanted"] = (artifacts or {}).get(version_id) or None
             docs.append(doc)
@@ -487,7 +487,7 @@ class Fabric:
         and every registry field, untruncated): the artifact a search hit named when there is one (exactly
         that processor and text hash, never a newer one in its place), otherwise the current processor's. Not
         processed, or not that artifact any more: the version's own projection text stays, `clean_text_state`
-        says why and the text level says it is not cleaned text (Codex 470: never counted as cleaned or as
+        says why and the text level says it is not cleaned text (never counted as cleaned or as
         full text). Attachment versions get their parsed text from attach_attachment_text unless a hit named
         their artifact."""
         groups = {}
@@ -612,8 +612,8 @@ class Fabric:
                     wanted = d.get("artifact_wanted")
                     if wanted:
                         # a search hit named this attachment's artifact: attach_clean_text read exactly it, or
-                        # said it is not there; the current processor's text never takes its place (Codex
-                        # r86). Read, it keeps its inputs: the artifact and the parent pages it belongs to.
+                        # said it is not there; the current processor's text never takes its place.
+                        # Read, it keeps its inputs: the artifact and the parent pages it belongs to.
                         if d.get("clean_text_choice") == "search_hit":
                             d["derived"] = list(d.get("derived") or []) + [
                                 {

@@ -1,4 +1,4 @@
-"""record reads (T-31): the reading plan of each triaged fixed version, its windows and every attempt.
+"""record reads: the reading plan of each triaged fixed version, its windows and every attempt.
 
 Versions triaged before this migration have no plan: only their first window was read. They are not given one
 here (that would claim a plan was made at triage time); the coverage report counts them as "no plan"."""

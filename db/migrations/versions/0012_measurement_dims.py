@@ -1,7 +1,7 @@
-"""measurement dims (T-24 complete domain r2): the metric family, the required dimensions with their state and
-proof, their group key, and the gaps that keep a point out of automatic comparison. Existing points get no
-family and the gap family_not_determined: stored and effective, never compared automatically again until they
-are checked with their dimensions."""
+"""measurement dims (the complete comparable domain): the metric family, the required dimensions with their
+state and proof, their group key, and the gaps that keep a point out of automatic comparison. Existing points
+get no family and the gap family_not_determined: stored and effective, never compared automatically again
+until they are checked with their dimensions."""
 
 import sqlalchemy as sa
 from alembic import op

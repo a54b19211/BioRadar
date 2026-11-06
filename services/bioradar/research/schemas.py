@@ -123,7 +123,7 @@ class Assessment(BaseModel):
 
 
 class Dim(BaseModel):
-    """One dimension of the business domain a value belongs to, as the record writes it (T-24)."""
+    """One dimension of the business domain a value belongs to, as the record writes it."""
 
     kind: Literal[
         "disease",
@@ -151,7 +151,7 @@ class Dim(BaseModel):
 
 
 class Measure(BaseModel):
-    """One measured value as the record states it (T-24 / T-29 P3). Each *_text is copied verbatim from the
+    """One measured value as the record states it. Each *_text is copied verbatim from the
     record and only used to find where it is written; the value checked and stored is the final one: the
     number written in value_text, the period in its normalized form, object / metric / scope as written (no
     synonyms). A measure enters a series only after BioCheck confirms every field at its place."""
@@ -249,7 +249,7 @@ class ExtractItem(BaseModel):
     )
 
 
-# measure.v10 (Codex): the only aliases mapped, mechanically, inside a measure's `sources` - each
+# the only aliases mapped, mechanically, inside a measure's `sources` - each
 # <field>_text to its <field>; with the canonical key present too nothing is mapped (the alias then fails)
 SOURCE_ALIASES = {
     "period_text": "period",
@@ -288,7 +288,7 @@ def map_source_aliases(data):
 class Extraction(BaseModel):
     source_aliases = staticmethod(map_source_aliases)
 
-    """T-31: the measures of each continuation window (every window gets one item)."""
+    """The measures of each continuation window (every window gets one item)."""
 
     items: list[ExtractItem]
 

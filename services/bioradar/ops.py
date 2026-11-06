@@ -4,7 +4,7 @@ python -m bioradar.ops monitor   live monitoring loop (BIORADAR_MONITOR_ENABLED=
 python -m bioradar.ops upgrade-reads --source S --processor P [--limit N] [--run ID] [--demo]
 python -m bioradar.ops backfill-corrections [--limit N] [--run ID] [--demo]
 python -m bioradar.ops recheck-unconfirmed --run ID [--limit N] [--demo]
-    T-26 operator-run, bounded upkeep of existing state; prints the run's summary (continue it with --run)"""
+    operator-run, bounded upkeep of existing state; prints the run's summary (continue it with --run)"""
 
 import logging
 import sys

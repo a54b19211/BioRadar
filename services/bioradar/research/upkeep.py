@@ -1,6 +1,6 @@
-"""T-26: operator-run, bounded upkeep of existing state - never a cleared cursor or a fresh database.
+"""Operator-run, bounded upkeep of existing state - never a cleared cursor or a fresh database.
 
-upgrade_reads (Codex 708): the versions of one source read from another processor's cleaned artifact get a
+upgrade_reads: the versions of one source read from another processor's cleaned artifact get a
 reading plan of `processor`'s artifact of the same raw version. The old plan, its windows, attempts and
 material reads stay as they are; the new plan owes every window, the first too (triage read the old
 artifact), so none of the old coverage counts for the new artifact. A version is planned only when Fabric
@@ -9,19 +9,19 @@ again once its cursor is through). Points read from the new artifact take the pl
 old one (monitor.hand_over: artifact_upgrade; a changed value is told to the topic). Nothing else retires an
 old point: once the new plan is complete and its candidates checked, the old points it did not give again stay
 as they are and owed (upgrade_unconfirmed, with whether each quote is still in the new text) - a reading that
-found nothing is not the fact's absence (Codex r184) - and the run stays open; a capped, failed or paused new
+found nothing is not the fact's absence - and the run stays open; a capped, failed or paused new
 plan keeps the old points too (upgrade_incomplete). Triage (topics, alerts) is not redone and no observation
 is added.
 
-recheck_unconfirmed (Codex 772) works those owed points off, bounded: an old point's quote found exactly once
+recheck_unconfirmed works those owed points off, bounded: an old point's quote found exactly once
 in the new artifact, with no field citing more than its quote, becomes a candidate of the new artifact
 (relocated_from) checked by the usual worker - Fabric's text of that artifact, a new BioCheck check, the usual
 gate; once adopted it takes the old point's place. No model reads anything for it, so a measure citing a
 context only its old model call was sent (a heading, a table header) is not rechecked; neither is a quote that
 is gone or found more than once. Those, and a recheck the check does not pass, stay owed.
 
-backfill_corrections (Codex r167, migration 0010 started empty): the corrections and retractions stated by
-the records seen before record_corrections existed are registered from their fixed versions, dated at the
+backfill_corrections (migration 0010 created record_corrections empty): the corrections and retractions stated
+by the records seen before record_corrections existed are registered from their fixed versions, dated at the
 record's own time, through the same idempotent monitor.record_corrections.
 
 Each call does at most `limit` reads or settlements, counted whether an item's state changed or not, and
@@ -61,7 +61,7 @@ def _order(key):
 
 def _rotation(keys, after):
     """`keys` in order, starting after `after` and wrapping round: a pass that resumes where the last call
-    stopped (Codex r185/r186), so an item that stays unreadable never holds back the ones after it."""
+    stopped, so an item that stays unreadable never holds back the ones after it."""
     keys = sorted(keys, key=_order)
     if not after:
         return keys
@@ -209,7 +209,7 @@ def _readable(fabric, old, processor, is_demo, now):
 def _settle_upgrades(s, fabric, run_id, is_demo, budget, now):
     """Upgrades whose new plan is read and checked: settled when every old point was taken over, else owed.
     Every upgrade looked at costs one of the call's budget, its state changed or not, and the pass resumes
-    after the last one looked at (Codex r185). Returns the budget left."""
+    after the last one looked at. Returns the budget left."""
     with db.session() as session:
         run = session.get(db.UpkeepRun, run_id)
         state = latest(session, run)
@@ -283,7 +283,7 @@ def _settle_upgrades(s, fabric, run_id, is_demo, budget, now):
             if not left:
                 _item(session, run, key, "settled", **facts)
                 continue
-            # read whole, yet some old points were not given again: not proven absent (Codex r184) - they stay
+            # read whole, yet some old points were not given again: not proven absent - they stay
             # as they are, owed a reading of the new artifact that gives them again; the run stays open
             text, why = continuation._readback(fabric, new, now)
             unconfirmed = [
@@ -337,7 +337,7 @@ def recheck_unconfirmed(s: Settings, fabric, *, is_demo, run_id, limit=20, now=N
     """One bounded step working off an upgrade run's owed old points (see the module text): at most `limit`
     points handled, each outcome recorded per point (key p<point id>), one fair pass over (upgrade, point)
     that resumes after the last point handled - a point whose new artifact Fabric does not serve now stays
-    owed (recheck_waiting) and never holds back the points after it (Codex r186). Returns the run's
+    owed (recheck_waiting) and never holds back the points after it. Returns the run's
     summary."""
     now = now or db.now()
     budget = limit
@@ -440,7 +440,7 @@ def upgrade_reads(
 ):
     """One bounded step of an upgrade run (see the module text): at most `limit` Fabric reads or settlements
     in all - planning, retrying what was not ready, settling - each a fair pass resumed where the last call
-    stopped (Codex r185/r186). Returns the run's summary."""
+    stopped. Returns the run's summary."""
     now = now or db.now()
     budget = limit
     with db.session() as session:

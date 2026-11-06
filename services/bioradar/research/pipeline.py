@@ -114,7 +114,7 @@ def squash(text):
     return re.sub(r"\s+", "", text or "")
 
 
-# Said at the head of a window that holds table rows without their table's header (Codex 524): a fixed
+# Said at the head of a window that holds table rows without their table's header: a fixed
 # template with the count only. Those values must not be read by column name.
 TABLE_HEADER_OMITTED = (
     "【表头未提供（table_header_omitted）：本窗口有 {n} 处表格行没有带上所在表格的表头（列名），"
@@ -134,7 +134,7 @@ def with_omitted(window, omitted):
 
 
 def hit_spans(material, positions):
-    """Display spans of a verified search hit's passage in this material (Codex 524): by the hit's bound
+    """Display spans of a verified search hit's passage in this material: by the hit's bound
     identity - version, processor version and artifact hash - and its range in that artifact, mapped through
     the part's segments (a heading or notice before the text only shifts the display). Without a range, the
     hit text stands in only if it occurs exactly once. Returns (spans, unresolved reasons)."""
@@ -218,8 +218,8 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
     """Report input: windows around the quoted facts, so BioCheck sees the context of every cited fact.
     Every quote goes in first; the room left then widens each quote, shortest first, to its whole line
     (a registry field's title-only quote such as "Total Energy Expenditure" is useless without the values
-    on that line, Codex r40), and what is still left widens the quotes not yet widened (first 100 before
-    and 900 after, since values follow their titles). Nothing quoted is dropped for context (Codex r38).
+    on that line), and what is still left widens the quotes not yet widened (first 100 before
+    and 900 after, since values follow their titles). Nothing quoted is dropped for context.
     Material in, Material out: each window keeps its original range."""
     text = material.text
     if len(text) <= limit:
@@ -231,7 +231,7 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
         if hit:
             spans.append([hit.start(), hit.end()])
 
-    # a quoted table row needs its table's header (Codex 524): real slices of the same part, taken right
+    # a quoted table row needs its table's header: real slices of the same part, taken right
     # after the quotes and before any widening; one that does not fit or is not in this material is said
     fixed, omitted = [], 0
 
@@ -289,7 +289,7 @@ def excerpt(material, quotes, limit=EXCERPT_CHARACTERS):
     return with_omitted(Material.join("\n…\n", [material.slice(a, b) for a, b in merged(windows)]), omitted)
 
 
-# A trial registry's fields the writer gets whether or not a fact quoted them (Codex r41): what the trial
+# A trial registry's fields the writer gets whether or not a fact quoted them: what the trial
 # is now and its primary results. Fabric's cleaner (v3 3.3) renders each field as a line
 # "<名称> <field>:" with its nested values on the lines below as ASCII paths, so a field is the lines
 # from its heading to the next.
@@ -375,7 +375,7 @@ class UnknownLineage(Exception):
 def lineage(session, analysis_id: str, depth=LINEAGE_DEPTH) -> list[str]:
     """The analysis's earlier rounds, nearest first (a follow-up's parent, its parent, ...). Raises
     UnknownLineage when the chain loops, breaks off at a missing row or is longer than `depth`: an
-    unfinished walk must never pass for "no earlier sources" (Codex r40: round 21 lost its root's limits)."""
+    unfinished walk must never pass for "no earlier sources" (round 21 lost its root's limits)."""
     found, current = [], session.get(db.Analysis, analysis_id)
     while current is not None and current.parent_id:
         if current.parent_id in found or current.parent_id == analysis_id or len(found) >= depth:
@@ -545,7 +545,7 @@ class Run:
         while self.stage != "done":
             # once the plan used the earlier report, every later stage carries what came from it (checks,
             # search terms, the report's research scope); if that report's sources can no longer be read,
-            # the run stops with the reason instead of passing those on (Codex r41)
+            # the run stops with the reason instead of passing those on
             if self.stage != "plan":
                 self.upstream_still_readable()
             steps[self.stage]()
@@ -555,7 +555,7 @@ class Run:
     def upstream_still_readable(self):
         """Raise when the plan used the earlier report and its sources can no longer be read. Checked
         before every model call, Fabric action and professional-service request, not only at stage starts
-        (Codex r43: revoked mid-investigation, the plan's terms still reached Fabric). Calls already sent
+        (revoked mid-investigation, the plan's terms still reached Fabric). Calls already sent
         are not taken back. Progress saved before used_previous existed, with an earlier report and past
         the plan, counts as having used it: a missing field is not "not used"."""
         if not self.input.get("previous_report") or self.stage == "plan":
@@ -567,7 +567,7 @@ class Run:
     def previous_report(self):
         """The earlier round's report, only while every source it was written from (through all earlier
         rounds) can still be read. Checked at each use (plan, then report), since a source can be revoked
-        while the run goes on (Codex r38, r40); not checked once and remembered."""
+        while the run goes on; not checked once and remembered."""
         if not self.input.get("previous_report"):
             return None
         sources = lineage_sources(self.id)
@@ -608,7 +608,7 @@ class Run:
         if plan is None or not plan.checks:
             raise Failed("plan_failed")
         planned = [o.name.strip() for o in plan.objects[:8]]
-        # T-22: where each planned name comes from, decided here and not reported by the model: the
+        # where each planned name comes from, decided here and not reported by the model: the
         # question, the previous report (a draft, not an original record), or nowhere (exploratory). Only
         # names from the question become objects; the others may steer searching but never narrow what
         # counts as relevant. plan_basis records every planned name's basis and plan_removed the objects
@@ -709,7 +709,7 @@ class Run:
             retries=0,
         )
         for seed in self.input.get("seed_records", []):
-            # a correction notice is pinned to the version that corrected (Codex r168); other seeds are not
+            # a correction notice is pinned to the version that corrected; other seeds are not
             self.add_hit(
                 seed["source"],
                 seed["record_id"],
@@ -739,9 +739,8 @@ class Run:
         """One page (FABRIC_PAGE ids) of the fixed material set: its records visible at the cutoff become
         reading candidates, read later like any other hit. One Fabric request per action, so an action's
         cost does not grow with the set; the pages done are kept in progress for a resumed run, and a
-        page that failed is offered again (Codex r42). In current mode every page, retry and resumed run
-        reads at the time of the source's first browse, kept in progress before the first request
-        (Codex r44)."""
+        page that failed is offered again. In current mode every page, retry and resumed run
+        reads at the time of the source's first browse, kept in progress before the first request."""
         ids = self.scope[page * FABRIC_PAGE : (page + 1) * FABRIC_PAGE]
         at = self.p.setdefault("browse_at", {}).setdefault(source, datetime.now(UTC).isoformat())
         docs, _ = self.fabric.search(
@@ -767,7 +766,7 @@ class Run:
         return len(docs), new
 
     def graph(self, checks):
-        """T-20: the question's own objects looked up in Tang's reviewed graph (read only, through Fabric).
+        """The question's own objects looked up in Tang's reviewed graph (read only, through Fabric).
         Graph records visible at the cutoff that mention the exact name are resolved; each candidate keeps
         its identity status (unresolved stays unresolved) and the records it was read from become reading
         candidates, re-read from Fabric at the cutoff like any other hit. Nothing is merged or inferred."""
@@ -942,7 +941,7 @@ class Run:
         def named(title):
             return any(o in (title or "") for o in objects)
 
-        # T-21 reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits
+        # Reading order (planner only; the baseline keeps its fixed order). Fabric returns literal hits
         # in record-id order, so without this a tie is read alphabetically. coverage: the share of this
         # plan's search terms found in the record's text, a cheap ordering feature, not relevance or truth.
         terms = list(dict.fromkeys(squash(t) for q in self.p["queries"] for t in q["terms"]))
@@ -1077,7 +1076,7 @@ class Run:
                 }
                 if p.get("extraction_check")
                 else None,
-                # a layer apart from the check: whether the value may be compared now (T-24)
+                # a layer apart from the check: whether the value may be compared now
                 "comparability": p["comparability"],
             }
             for p in points
@@ -1099,7 +1098,7 @@ class Run:
                     "reads_left": max(0, budget["max_reads"] - reads),
                 },
                 "policy": self.input["method"],
-                # T-29 P3: the series values the question rests on, quality state re-read now (read only)
+                # the series values the question rests on, quality state re-read now (read only)
                 "series": self.series_state(),
             }
             self.upstream_still_readable()
@@ -1175,9 +1174,9 @@ class Run:
             for hit in hits:
                 if hit["source"] in self.input["sources"]:
                     refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
-                    # read exactly the cleaned artifact the hit was verified against (Codex 470)
+                    # read exactly the cleaned artifact the hit was verified against
                     artifacts[hit["version_id"]] = hit.get("artifact") or None
-                    # where in that artifact the hit is: the read window takes that passage first (Codex 524)
+                    # where in that artifact the hit is: the read window takes that passage first
                     art = hit.get("artifact") or {}
                     place = {
                         "version_id": hit["version_id"],
@@ -1204,7 +1203,7 @@ class Run:
         else:
             page = self.p["pages"].get(key, {})
             # current mode: a next page is read at the time of its first page (Fabric rejects the cursor
-            # otherwise: invalid_cursor on live Europe PMC, T-19)
+            # otherwise: invalid_cursor on live Europe PMC)
             at = page.get("at") if kind == "next_page" else None
             at = datetime.fromisoformat(at) if at else datetime.now(UTC)
             docs, cursor = self.fabric.search(
@@ -1257,7 +1256,7 @@ class Run:
         hit["read"] = True
         doc = self.docs.get(doc_key(hit))
         if doc is None and pinned:
-            # exactly the version that corrected (Codex r168), as visible at the cutoff - never the head
+            # exactly the version that corrected, as visible at the cutoff - never the head
             found, _ = self.fabric.read_versions(
                 source, [(record_id, pinned)], is_demo=self.input["is_demo"], cutoff=self.cutoff
             )
@@ -1327,7 +1326,7 @@ class Run:
                         # the material_reads row binding this text to its parts (v3 6.1), and whether the
                         # cleaning layer's text was read or, not processed yet, the version's own text
                         "material_read_id": read_id,
-                        # table rows kept without their column header (said in the text too, Codex 524)
+                        # table rows kept without their column header (said in the text too)
                         "table_header_omitted": omitted,
                         "clean_text_state": doc.get("clean_text_state"),
                         "clean_text_choice": doc.get("clean_text_choice"),
@@ -1603,7 +1602,7 @@ class Run:
     def sent(self, session, stage, service, ref, origin, material):
         """Record one record's material as it is about to go to a model or service (v3 6.1): a new row, status
         prepared, the next attempt for this stage and ref; returns its id. Earlier attempts stay as they are
-        (Codex r85: a retry never erases what an earlier attempt sent). origin: a document or evidence row."""
+        (a retry never erases what an earlier attempt sent). origin: a document or evidence row."""
         attempt = session.scalar(
             select(func.coalesce(func.max(db.MaterialRead.attempt), 0)).where(
                 db.MaterialRead.analysis_id == self.id,
@@ -1793,7 +1792,7 @@ class Run:
             for r in self.p["relations"]
             if r["kind"] in {"corrects", "retracts"} and (pair := bound(r))
         ]
-        # T-23: reposts and supplements keep their own field (they do not supersede anything); the end not
+        # reposts and supplements keep their own field (they do not supersede anything); the end not
         # read is named by record and marked unread instead of being guessed from a title or a site
         relations = []
         for r in self.p["relations"]:
@@ -1870,7 +1869,7 @@ class Run:
         self.upstream_still_readable()  # every BioCheck request carries the scope built from earlier work
         body["max_llm_calls"] = max(1, self.calls_left() - 1)
         # every request that carries the records is its own outbound record (stage report:<operation>, its
-        # own attempt and status): a later failed request is never hidden by an earlier sent one (Codex r86)
+        # own attempt and status): a later failed request is never hidden by an earlier sent one
         ids = []
         if "evidence" in body:
             sent = {e.get("id") for e in body["evidence"]}

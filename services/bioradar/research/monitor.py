@@ -212,8 +212,8 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
         # Records still owed a triage (the call failed, or the daily automatic budget deferred it) are read
         # again (live mode: the change cursor moved on), using at most half of the round. Not while the
         # budget is used up: they would only be deferred again.
-        # Owed work is on one fixed version: read that version, not the record's current head (Codex r62:
-        # an older deferred version read by record id never got done and blocked the queue head).
+        # Owed work is on one fixed version: read that version, not the record's current head (an
+        # older deferred version read by record id never got done and blocked the queue head).
         failed = {}
         for source, record_id, version_id in session.execute(
             select(db.Observation.source, db.Observation.record_id, db.Observation.version_id)
@@ -353,7 +353,7 @@ def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40)
 
 def triage(s: Settings, docs, topics, watch=None, known=None, reads=None):
     """One triage call for a batch of records. reads: when given, a list filled with the material_read id of
-    each record's window, in order - the send each candidate was read from (B r2)."""
+    each record's window, in order - the send each candidate was read from."""
     watch = watch or {}
     # what the model reads of each record, with the notice when it is not the cleaned text
     windows = [noticed(of(d).slice(0, TRIAGE_CHARACTERS), d.get("clean_text_state")) for d in docs]
@@ -521,7 +521,7 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
                     window=(0, TRIAGE_CHARACTERS),
                     material_read_id=reads[n] if n < len(reads) else None,
                 )
-                if item:  # its first window was read: the windows after it are owed (T-31)
+                if item:  # its first window was read: the windows after it are owed
                     continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
                 if topic is None:
                     continue
@@ -581,10 +581,10 @@ RECORD_CONFLICT = "record_internal_conflict"
 
 
 def adopt(session, s: Settings, cand, final, check_id):
-    """Store one checked point (T-24 series logic over the effective view) and compare it with its series as
+    """Store one checked point (series logic over the effective view) and compare it with its series as
     visible at the record's time. A correction of an earlier record (of the named version, when Fabric names
     one) replaces that record's value for the same series and period. A series is one key in one comparable
-    domain (T-24): the topic the record was placed in. A point of unknown domain (no topic) is stored and
+    domain: the topic the record was placed in. A point of unknown domain (no topic) is stored and
     effective but nothing is computed from it, and no topic is opened from it - a shared object/metric name is
     not a business identity. Writes a `series` topic event per change.
     Returns (point or None, topic ids owed)."""
@@ -594,7 +594,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     bounds = period_bounds(period, at)
     if bounds is None:
         return None, []
-    # the comparable domain (T-24): the topic the record was placed in; without one the domain is unknown
+    # the comparable domain: the topic the record was placed in; without one the domain is unknown
     domain_basis, domain_id = ("topic", cand.topic_id) if cand.topic_id else ("unknown", None)
     # and the complete domain (r2): family and required dimensions, proven or not, from this point's check
     gate = domain.series_gate(
@@ -619,14 +619,14 @@ def adopt(session, s: Settings, cand, final, check_id):
     unplaced = (
         "domain_basis",
         "domain_id",
-    )  # a retried triage: the same point in the same group (Codex r171)
+    )  # a retried triage: the same point in the same group
     existing = session.scalar(select(db.Measurement).filter_by(candidate_id=cand.id))
     if existing is not None:
         # checked again (recovery, checker upgrade): the point stands and now cites its current check; its
         # stored
         # values are compared with this check's final values again; nothing new to compute for the series
         existing.check_id = check_id
-        # as this check proves them: family, group key, dimensions and gaps move together (Codex r171)
+        # as this check proves them: family, group key, dimensions and gaps move together
         existing.family, existing.dims_key = key["family"], key["dims_key"]
         kept = [RECORD_CONFLICT] if RECORD_CONFLICT in (existing.dims_reasons or []) else []
         existing.dims, existing.dims_reasons = gate["dims"], gate["reasons"] + kept  # a contradiction stays
@@ -634,7 +634,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     art = db.artifact_key(cand.processor_version, cand.text_sha256)
     identity = {k: v for k, v in key.items() if k not in unplaced}
     # one artifact's reading of the version: another artifact of the same raw version is not the record
-    # stating a second value - an upgrade's point takes the old one's place instead (hand_over, T-26)
+    # stating a second value - an upgrade's point takes the old one's place instead (hand_over)
     stated = list(
         session.scalars(
             select(db.Measurement).filter_by(
@@ -645,7 +645,7 @@ def adopt(session, s: Settings, cand, final, check_id):
     if any(r.value_text == final["value"] for r in stated):
         return None, []  # the same point of this version from another candidate (a retried triage)
     # the same record version states this identity with another value: a contradiction inside the record -
-    # both values kept, neither compared (Codex r177); never "the first one wins"
+    # both values kept, neither compared; never "the first one wins"
     contradicted = stated
     m = cand.measure
     row = db.Measurement(
@@ -695,7 +695,7 @@ def adopt(session, s: Settings, cand, final, check_id):
             )
             owe(holder, "record_conflict", at)
     # a correction Fabric states is about the fact, not a comparison: it withdraws the corrected point in
-    # whatever domain that point is (T-24, Codex 695); only the comparison stays within one domain
+    # whatever domain that point is; only the comparison stays within one domain
     undomained = {k: v for k, v in key.items() if k not in domainless}
     crossed = []
     for source, record_id, version_id in cand.corrects or []:
@@ -735,12 +735,11 @@ def adopt(session, s: Settings, cand, final, check_id):
         owed.append(old_topic.id)
     if domain_basis == "unknown":
         # stored and effective, but not comparable: no difference, trend or conflict is computed from a point
-        # whose domain is not known, and no topic is opened from it (T-24)
+        # whose domain is not known, and no topic is opened from it
         return row, owed
     if row.dims_reasons:
         # not a complete, proven domain (family or a required dimension unknown or unchecked), or a value the
         # same record contradicts: stored and effective, a lead with its gaps - nothing computed
-        # (Codex 725/r177)
         return row, owed
     grain = series.grain(row.period)
     rows = [
@@ -758,10 +757,10 @@ def adopt(session, s: Settings, cand, final, check_id):
             measure_checks.effective(session, s, cand.is_demo, **key).where(db.Measurement.available_at <= at)
         )
         if series.grain(r.period) == grain  # a year is not compared with a quarter
-        and not r.dims_reasons  # only proven points: a gap in its domain makes no baseline (Codex r178)
+        and not r.dims_reasons  # only proven points: a gap in its domain makes no baseline
     ]
     # a point whose record a stated correction withdrew by then leaves the series - whether or not a
-    # replacement passed checking, and whatever domain it went to (Codex r166); a replacement inside this
+    # replacement passed checking, and whatever domain it went to; a replacement inside this
     # domain is left to series.points, which also reports what it revised
     inside = {r["id"] for r in rows}
     out = measure_checks.withdrawn(session, [r["id"] for r in rows if r["id"] != row.id], at)
@@ -821,7 +820,7 @@ def adopt(session, s: Settings, cand, final, check_id):
 def series_basis_points(session, topic_id, at=None) -> list:
     """The structured record of the points the latest series event used, each with whether it is current and
     its latest check (series_basis states them only when all are current). As of `at` (a cutoff): the latest
-    series event visible then, never one computed later (Codex r167)."""
+    series event visible then, never one computed later."""
     last = session.scalar(
         visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
@@ -835,7 +834,7 @@ def series_basis_points(session, topic_id, at=None) -> list:
 def series_basis(session, topic_id, at=None) -> str:
     """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
     and records, so the investigation starts from what the program found instead of searching blind. As of
-    `at` (a cutoff): the latest series event visible then (Codex r167)."""
+    `at` (a cutoff): the latest series event visible then."""
     last = session.scalar(
         visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
@@ -877,7 +876,7 @@ def visible(query, column, at):
 
 
 def handed_events(session, topic_id):
-    """The ids of the events earlier analyses of the topic were handed (Codex r182)."""
+    """The ids of the events earlier analyses of the topic were handed."""
     out = set()
     for e in session.scalars(
         select(db.TopicEvent).where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "analysis")
@@ -889,7 +888,7 @@ def handed_events(session, topic_id):
 def correction_batch(session, topic_id, since, at=None, limit=10):
     """(events, handed ids, earliest time of what is left over or None) of the topic's correction events not
     handed to an analysis yet, as of the cutoff: at most `limit` correcting record versions, oldest first; the
-    repeats of one in the batch are handed with it (Codex r182)."""
+    repeats of one in the batch are handed with it."""
     handed = handed_events(session, topic_id)
     rows = session.scalars(
         visible(select(db.TopicEvent), db.TopicEvent.at, at)
@@ -924,7 +923,7 @@ def correction_events(session, topic_id, since, at=None, limit=10):
 
 def conflict_basis(session, topic_id, since, at=None, limit=10):
     """(question text, pinned seeds, point ids, handed event ids, earliest time of what is left over or None)
-    of the record contradictions a topic is owed an analysis for (Codex r180/r182): each record at the version
+    of the record contradictions a topic is owed an analysis for: each record at the version
     that states one identity with two values, both values and their quotes; as of the cutoff, the `limit`
     oldest events not handed to an analysis yet, one seed per (source, record, version)."""
     handed = handed_events(session, topic_id)
@@ -979,7 +978,7 @@ def conflict_basis(session, topic_id, since, at=None, limit=10):
 
 
 def correction_seeds(session, topic_id, since, at=None, events=None):
-    """The correcting records themselves, as sources the analysis must read (Codex r167): a correction that
+    """The correcting records themselves, as sources the analysis must read: a correction that
     withdrew a point is named even when its replacement never passed checking."""
     seeds, seen = [], set()
     for e in events if events is not None else correction_events(session, topic_id, since, at):
@@ -1000,7 +999,7 @@ def correction_seeds(session, topic_id, since, at=None, events=None):
 
 
 def correction_basis(session, topic_id, since, at=None, events=None) -> str:
-    """The corrections Fabric stated for this topic's points, as of the cutoff (T-24, Codex r166/r167): which
+    """The corrections Fabric stated for this topic's points, as of the cutoff: which
     notice withdrew which values - whether or not a replacement passed checking - and, when the replacement
     was placed in another topic, that the program did not use it here. The notices are seeds of the
     analysis."""
@@ -1044,7 +1043,7 @@ def activity_key(doc) -> str:
 
 
 def activity(session, s: Settings, topic, at, is_demo) -> bool:
-    """T-15, a naive baseline of information activity (not case incidence): the topic's records on the day
+    """A naive baseline of information activity (not case incidence): the topic's records on the day
     of `at`, each counted once by its activity_key, against the previous 7 days the monitor received anything
     at all; days with no records from any source (collection stopped or missing) are left out, not zero.
     Above mean + 3 standard deviations (mean + 3 when they are all equal) is an anomaly; fewer than 7
@@ -1088,14 +1087,13 @@ def activity(session, s: Settings, topic, at, is_demo) -> bool:
 
 def owe(topic, reason, at):
     """Record, in the same transaction as the change, that this topic is owed an analysis - each new reason
-    also as a dated "owed" event, so an analysis at a cutoff can take only the reasons visible then
-    (Codex 718)."""
+    also as a dated "owed" event, so an analysis at a cutoff can take only the reasons visible then."""
     if topic.pending_reason is None:
         topic.pending_reason, topic.pending_since = reason, at
     elif reason not in topic.pending_reason.split("+"):
         topic.pending_reason = (topic.pending_reason + "+" + reason)[:200]
     # every occurrence is dated, also of a reason already owed: an answer at a cutoff between two occurrences
-    # must not settle the later one (Codex r169)
+    # must not settle the later one
     session = object_session(topic)
     if session is not None:
         event(session, topic, at, "owed", reason=reason)
@@ -1198,7 +1196,7 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
         topic_id, reason = owed_topic.id, owed_topic.pending_reason
         later = []
         if cutoff is not None:
-            # a replay takes only the debt visible at its cutoff; what is owed later stays owed (Codex 718)
+            # a replay takes only the debt visible at its cutoff; what is owed later stays owed
             with db.session() as session:
                 visible_reasons, later = owed_at(session, session.get(db.Topic, topic_id), cutoff)
             if not visible_reasons:
@@ -1242,7 +1240,7 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             if "analyst_review" in reason.split("+"):
                 question += review_basis(session, topic_id, owed_topic.pending_since)
             seeds = [{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records]
-            handed, leftover = [], {}  # what this analysis is given; what stays owed, from when (Codex r182)
+            handed, leftover = [], {}  # what this analysis is given; what stays owed, from when
             corrected = [r for r in reason.split("+") if r in {"cross_domain_correction", "source_corrected"}]
             if corrected:
                 since = owed_topic.pending_since
@@ -1318,7 +1316,7 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
 
 
 def hand_over(session, row, identity, relocated_from=None):
-    """T-26: a point read from the upgraded artifact of its version takes the place of the points of the same
+    """A point read from the upgraded artifact of its version takes the place of the points of the same
     identity read from the artifacts that upgrade replaced - they retire (artifact_upgrade), never a record
     contradiction; a changed value is told to the topic. Only the artifact of the version's current plan, an
     upgrade's, hands over. A relocated candidate's point takes the place of exactly the point of the candidate
@@ -1363,7 +1361,7 @@ def hand_over(session, row, identity, relocated_from=None):
     holder = session.get(db.Topic, row.domain_id) if changed and row.domain_basis == "topic" else None
     if holder is not None:
         # a reprocessing of the same raw version, dated now: a replay before it never sees it, and it is
-        # never a change of the source at the record's time (Codex 770)
+        # never a change of the source at the record's time
         event(
             session,
             holder,
@@ -1380,7 +1378,7 @@ def hand_over(session, row, identity, relocated_from=None):
 
 
 def record_corrections(session, s: Settings, docs, *, is_demo: bool) -> int:
-    """Record each correction or retraction a new record states (T-24, Codex r166), visible from the record's
+    """Record each correction or retraction a new record states, visible from the record's
     time, apart from whether its replacement value passes checking; the topics of the points it withdraws get
     a "correction" event and are owed an analysis (source_corrected). Idempotent. Returns how many new."""
     made = 0
@@ -1525,7 +1523,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage, plan=continuation.plan)
     with db.session() as session:  # plans paused by a withdrawn permission read on once it is back
         continuation.periodic_resume(session, s, fabric, is_demo, db.now())
-    if not paused:  # continuation windows are model calls too (T-31)
+    if not paused:  # continuation windows are model calls too
         continuation.run(s, fabric, is_demo=is_demo, budget=budget)
     for topic_id, reason in measure_checks.run(s, fabric, is_demo=is_demo, adopt=adopt).items():
         reasons.setdefault(topic_id, reason)

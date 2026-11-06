@@ -97,7 +97,7 @@ TRIAGE = (
 )
 
 
-# T-31: the windows after a record's first one, for measures only - the same measure rules as triage.
+# the windows after a record's first one, for measures only - the same measure rules as triage.
 _MEASURE_RULES = next(line for line in TRIAGE.splitlines() if line.startswith("- measures："))
 EXTRACT = (
     BASE

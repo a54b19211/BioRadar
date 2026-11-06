@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     # each one at the analysis cutoff (source permission, the version visible then, the fixed text) and only
     # then reranks; replays can use it too. Off: no semantic search.
     semantic_search: bool = False
-    graph_lookup: bool = False  # look question objects up in Tang's reviewed graph through Fabric (T-20)
+    graph_lookup: bool = False  # look question objects up in Tang's reviewed graph through Fabric
 
     # Professional services. Empty URL means the step is skipped and reported as not run.
     planner_url: str = ""
@@ -63,7 +63,7 @@ class Settings(BaseSettings):
     # Soft ceiling on today's automatic work (live triage + topic analyses); manual questions are exempt.
     # In-flight work may overshoot by one triage batch and the analyses already running.
     daily_auto_tokens: int = 3_000_000
-    # T-31 continuation reading: the windows after a record's first (triage) window, for measures only.
+    # Continuation reading: the windows after a record's first (triage) window, for measures only.
     continuation_enabled: bool = True
     continuation_overlap_chars: int = 300  # each window repeats this much of the previous one
     continuation_per_round: int = (

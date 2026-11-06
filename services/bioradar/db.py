@@ -31,7 +31,7 @@ def new_id() -> str:
 
 
 def artifact_key(processor_version, text_sha256) -> str:
-    """One cleaned artifact of a fixed version: its processor and text hash ("" when not one, T-26)."""
+    """One cleaned artifact of a fixed version: its processor and text hash ("" when not one)."""
     return f"{processor_version}:{text_sha256}" if processor_version and text_sha256 else ""
 
 
@@ -106,14 +106,14 @@ class LlmCall(Base):
     seconds: Mapped[float] = mapped_column(Float, default=0)
     error: Mapped[str | None] = mapped_column(String(100))
     requests: Mapped[int] = mapped_column(Integer, default=1)  # HTTP requests behind it (format retry = 2)
-    # measure.v10 (Codex r192): each of those requests' outcome - the HTTP status, or the error that left it
+    # each of those requests' outcome - the HTTP status, or the error that left it
     # without an answer; the tokens are the answered ones' only
     http: Mapped[list | None] = mapped_column(Json)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class LlmOutput(Base):
-    """One answer of a model call as given (measure.v10, Codex): its content and sha256, and the mechanical
+    """One answer of a model call as given (measure.v10): its content and sha256, and the mechanical
     mappings applied before validation ({item, measure, from, to}); one row per attempt, append-only."""
 
     __tablename__ = "llm_outputs"
@@ -223,12 +223,12 @@ class Observation(Base):
     alert: Mapped[str] = mapped_column(String(20))  # none | normal | important | urgent
     closure: Mapped[bool] = mapped_column(Boolean, default=False)
     reason: Mapped[str] = mapped_column(Text, default="")
-    # what daily activity counts once (T-15): a repost's original, else the same-origin group, else itself
+    # what daily activity counts once: a repost's original, else the same-origin group, else itself
     activity_key: Mapped[str | None] = mapped_column(String(700))
 
 
 class RecordCorrection(Base):
-    """A correction or retraction Fabric states for a record (T-24, Codex r166): recorded when the correcting
+    """A correction or retraction Fabric states for a record: recorded when the correcting
     record is seen, apart from whether any replacement value passes checking. From visible_at on, the target
     record's points (of the named version, when Fabric names one) are withdrawn from comparison; a reader
     with an earlier cutoff does not see it."""
@@ -260,7 +260,7 @@ class RecordCorrection(Base):
 
 
 class Measurement(Base):
-    """One quoted value of one metric of one object for one period, from one fixed record version (T-24).
+    """One quoted value of one metric of one object for one period, from one fixed record version.
     Series are read with available_at <= the clock, so a replay never sees a later value."""
 
     __tablename__ = "measurements"
@@ -306,11 +306,11 @@ class Measurement(Base):
     # stock (level at a date) | flow (added in the period) | cumulative | rate | other: never compared across
     kind: Mapped[str] = mapped_column(String(20), default="other")
     scope: Mapped[str] = mapped_column(String(200), default="")  # coverage / population, e.g. 5个哨点
-    # the domain the point belongs to (T-24): only points of one known domain are one series. basis "topic":
+    # the domain the point belongs to: only points of one known domain are one series. basis "topic":
     # domain_id is the topic the record was placed in; "unknown": nothing is computed from the point
     domain_basis: Mapped[str] = mapped_column(String(20), default="unknown")
     domain_id: Mapped[str | None] = mapped_column(String(64))
-    # the complete domain (T-24 r2): the metric family, each required dimension with its state and proof, the
+    # the complete domain: the metric family, each required dimension with its state and proof, the
     # group key they make, and the gaps that keep the point out of automatic comparison (empty = comparable)
     family: Mapped[str] = mapped_column(String(30), default="")
     dims: Mapped[list] = mapped_column(Json, default=list)
@@ -334,7 +334,7 @@ class Measurement(Base):
     topic_id: Mapped[str | None] = mapped_column(ForeignKey("topics.id"), index=True)
     # set when a correction of this record gives the same object/metric/period again
     superseded_by: Mapped[int | None] = mapped_column(Integer)
-    # T-29 P3: the candidate and the check it was adopted from (NULL: a point from before checking, never in
+    # the candidate and the check it was adopted from (NULL: a point from before checking, never in
     # the effective view); the exact checked numbers as decimal text (value/denominator floats are only
     # written when they read back equal); the period's type and precision and the scope mode, all series keys
     candidate_id: Mapped[int | None] = mapped_column(Integer, index=True)
@@ -344,10 +344,10 @@ class Measurement(Base):
     period_type: Mapped[str] = mapped_column(String(10), default="")
     period_precision: Mapped[str] = mapped_column(String(10), default="")
     scope_mode: Mapped[str] = mapped_column(String(30), default="")
-    # T-26: the cleaned artifact the point was read from (its candidate's processor and text hash); a point
+    # the cleaned artifact the point was read from (its candidate's processor and text hash); a point
     # read again from the artifact an upgrade put in its place retires this one (retired_by: that point;
     # artifact_upgrade). A retired point is never effective. One the upgraded artifact's reading did not give
-    # again is not retired (Codex r184): the upgrade run keeps it owed (upgrade_unconfirmed).
+    # again is not retired: the upgrade run keeps it owed (upgrade_unconfirmed).
     artifact_key: Mapped[str] = mapped_column(String(200), default="")
     retired_by: Mapped[int | None] = mapped_column(Integer)
     retired_reason: Mapped[str | None] = mapped_column(String(40))
@@ -355,7 +355,7 @@ class Measurement(Base):
 
 
 class MeasurementCandidate(Base):
-    """One measure as triage gave it (T-29 P3): the literal texts that locate it, the final values to check,
+    """One measure as triage gave it: the literal texts that locate it, the final values to check,
     the
     fixed artifact it was read from (from the material binding, re-read from Fabric before any check). Only a
     consistent check whose stored values read back equal makes it a series point; otherwise it stays here as a
@@ -381,14 +381,14 @@ class MeasurementCandidate(Base):
         String(30)
     )  # triage's direction, for a topic a series opens
     # the material_read of the window this candidate was read from (and so its model call and attempt): the
-    # sources a measure cites are looked up in that send only, never in another send of the same text (B r2)
+    # sources a measure cites are looked up in that send only, never in another send of the same text
     material_read_id: Mapped[int | None] = mapped_column(ForeignKey("material_reads.id"), index=True)
     corrects: Mapped[list | None] = mapped_column(
         Json
     )  # [(source, record_id, version_id)] the record corrects
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # the record's availability
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    # T-26: a known fact of an older artifact of the version located again in this artifact by its quote (that
+    # a known fact of an older artifact of the version located again in this artifact by its quote (that
     # candidate's id): no model read it here - its measure is the old reading, checked against this text
     relocated_from: Mapped[int | None] = mapped_column(Integer, index=True)
 
@@ -408,7 +408,7 @@ class MeasurementCheckTask(Base):
 
 
 class RecordRead(Base):
-    """T-31: the reading plan of one fixed version's cleaned artifact: its windows, how far it was read
+    """The reading plan of one fixed version's cleaned artifact: its windows, how far it was read
     and why it stopped. state: reading | complete | capped | paused_unreadable | failed | not_planned
     (reason says why: a composite material or not a cleaned artifact - then only the triage window was
     read)."""
@@ -440,7 +440,7 @@ class RecordRead(Base):
     direction: Mapped[str] = mapped_column(String(30), default="public_health")
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     relations: Mapped[list] = mapped_column(Json, default=list)
-    # T-26: one plan per cleaned artifact of a version; an upgrade's plan names the plan it replaces, which is
+    # one plan per cleaned artifact of a version; an upgrade's plan names the plan it replaces, which is
     # kept as it was (windows, attempts, material reads) and no longer read on
     artifact_key: Mapped[str] = mapped_column(String(200), default="")
     supersedes_id: Mapped[int | None] = mapped_column(Integer)
@@ -481,7 +481,7 @@ class RecordReadAttempt(Base):
 
 
 class UpkeepRun(Base):
-    """T-26: one operator-run, bounded upkeep of existing state (upgrade_reads, backfill_corrections): its
+    """One operator-run, bounded upkeep of existing state (upgrade_reads, backfill_corrections): its
     parameters, how far its cursor went, its state and outcome counts. Continued by id after a restart."""
 
     __tablename__ = "upkeep_runs"

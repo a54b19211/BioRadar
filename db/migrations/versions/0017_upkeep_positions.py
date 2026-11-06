@@ -1,4 +1,4 @@
-"""upkeep run positions (T-26, Codex r185/r186): where each pass of a run over items already met (retrying
+"""upkeep run positions: where each pass of a run over items already met (retrying
 what was not ready, settling, rechecking) resumes, so an item that stays unreadable never holds back the
 others. Existing runs start their passes from the beginning."""
 
@@ -22,7 +22,7 @@ def upgrade():
 
 def _keep_audit(checks):
     """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
-    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    never deleted by an ordinary downgrade. checks: [(sql counting the rows, what they are)]."""
     bind = op.get_bind()
     held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
     held = [f"{n} {what}" for n, what in held if n]

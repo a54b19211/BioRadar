@@ -72,7 +72,7 @@ def create(
         "cutoff": cutoff,
         "seed_records": list(seed_records),
         "scope_record_ids": list(dict.fromkeys(scope_record_ids)),
-        # T-29 P3: the checked points the question states, each with the check that admitted it (read only)
+        # the checked points the question states, each with the check that admitted it (read only)
         "series_points": list(series_points),
         "budget": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
     }

@@ -1,12 +1,13 @@
-"""T-29 P3: a measure from triage becomes a series point only through its own extraction check.
+"""A measure from triage becomes a series point only through its own extraction check.
 
 triage -> enqueue(): a candidate per measure, bound to the fixed clean artifact the quote was read from (the
 material binding), with its literal texts and final values, and a check task for the current checker.
 run(): each due task re-reads that artifact from Fabric (fixed version + processor, hash recomputed, read
-permission now), locates every literal in it (never guessed), sends one contract-v2 request to BioCheck
-(checker v7) outside any transaction, judges the answer with the shared extraction-contract verdict, appends
-the check, and only a consistent item whose values are exact and actual is handed to `adopt` (the series
-logic); a stored point must read back equal to what was checked. Everything else stays a candidate.
+permission now), locates every literal in it (never guessed), sends one request under the current contract
+(CONTRACT / CHECKER below) to BioCheck outside any transaction, judges the answer with the shared
+extraction-contract verdict, appends the check, and only a consistent item whose values are exact and actual
+is handed to `adopt` (the series logic); a stored point must read back equal to what was checked. Everything
+else stays a candidate.
 effective(): the measurements whose candidate's latest check under the current checker put them in the
 series - points from before checking, points not yet checked by the current checker and points whose
 artifact is no longer readable are history, not current."""
@@ -27,23 +28,16 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.material import of, tables_of
 
-# measure.v8 / checker v11 / contract v3: as measure.v7, and the dimensions the measure states are located in
-# their cited sources and sent with the item for checker v11 to judge each (extraction_normalize.v4 for the
-# unit); earlier producers and checkers as released
-# measure.v9 / checker v16 (Codex r186, real NMPA): the period literal must be the whole written period by
-# extraction_normalize.v5 - a complete date ending the line before (a notice's 发布时间) is its own;
-# checker v16 = v15 (output measures, Codex 783) with the same rule
+# The producer (triage's measure prompt and rules) and the checker its measures are checked by. A change of
+# what triage extracts or of how it is checked is a new version, and what earlier versions produced is kept
+# as history, never rewritten (docs/decisions/0002-measure-producer-and-checker-versions.md).
 CHECKER, CONTRACT = ec.CHECKER_V16, ec.CONTRACT_V3
 PRODUCER = {"name": "bioradar.triage", "version": "measure.v10"}
-# measure.v10 (Codex, first real local-Qwen window): the prompt names the keys of sources exactly; the four
-# aliases <field>_text are mapped mechanically inside sources only, recorded in llm_outputs (schemas)
-# measure.v7 (T-24 complete domain): the measure also names its metric family and the dimensions the record
-# states; a point is compared automatically only in a complete, proven group (research/domain.py)
-# measure.v6 (B r2): a measure may cite the source of its period / object / scope / denominator literal - the
-# quote, the window, or a context the window sent; it is looked up there only, in the candidate's own send
+# a measure may cite the source of its period / object / scope / denominator literal - the quote, the
+# window, or a context the window sent; it is looked up there only, in the candidate's own send
 SOURCE_FIELDS = ("period", "object", "scope", "denominator")
 CONTEXT_SOURCES = ("heading", "table_header", "table_title")
-TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan, T-31)
+TRIAGE_WINDOW = 1500  # what triage reads of a record (window 0 of its reading plan)
 LEASE = timedelta(minutes=2)
 BACKOFF = (60, 300, 1800, 7200)  # seconds between attempts after a service or Fabric failure
 PARKED = timedelta(
@@ -178,7 +172,7 @@ def cited_sources(session, candidate, wanted=None):
 
 def cited_dim_sources(session, candidate):
     """({source: ranges}, {source: why}) for the sources the stated dimensions cite, each resolved on its own:
-    one not sent with this candidate, or stale, only leaves its dimensions unlocated (Codex 740)."""
+    one not sent with this candidate, or stale, only leaves its dimensions unlocated."""
     found, failed = {}, {}
     for name in sorted({d.get("source") for d in candidate.measure.get("dims") or []} - {None, "quote"}):
         got, why = cited_sources(session, candidate, wanted={name})
@@ -463,7 +457,7 @@ def build(candidate, text, cited=None, dims_failed=None):
             }
         ],
     }
-    # the dimensions stated but not sendable stay with the candidate's final values, with why (Codex 740)
+    # the dimensions stated but not sendable stay with the candidate's final values, with why
     final = dict(final, dims_unlocated=dims_unlocated)
     return (body, final), None
 
@@ -475,7 +469,7 @@ def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False, window=
     """Candidates (and their check tasks) for the measures of one triaged record. Returns how many.
     window (start, end): the characters the model actually read; a quote is located only inside them - its
     offset there tells a repeated sentence apart, and a quote the model cannot have read is not built.
-    overlap: the item is a continuation window (T-31), which repeats part of the window before it: a measure
+    overlap: the item is a continuation window, which repeats part of the window before it: a measure
     of the same artifact (processor, text hash) at the same span, value and metric is that statement found
     again, not a second reading. Nothing is reused across cleaned artifacts.
     material_read_id: the material_read of the window the measures were read from (its call and attempt)."""
@@ -532,7 +526,7 @@ def enqueue(session, s, doc, item, topic, at, is_demo, *, overlap=False, window=
                 for c in same
             )
         ):
-            continue  # the same statement found again (T-31: a window overlapping the one that found it)
+            continue  # the same statement found again (a window overlapping the one that found it)
         candidate = db.MeasurementCandidate(
             workspace_id=s.workspace_id,
             is_demo=is_demo,
@@ -900,7 +894,7 @@ def latest_check():
 
 def effective_clause():
     """SQL condition: the point's candidate's latest check under the current checker put it in the series, and
-    no point read from an upgraded artifact took its place (T-26)."""
+    no point read from an upgraded artifact took its place."""
     return db.Measurement.retired_reason.is_(None) & db.Measurement.candidate_id.in_(
         select(db.MeasurementCheck.candidate_id).where(
             db.MeasurementCheck.id == latest_check(), db.MeasurementCheck.gate == "series"
@@ -943,7 +937,7 @@ def json_safe(value):
     return json.loads(json.dumps(value, default=str))
 
 
-# ---- current permission and binding at consumption (Codex r137) --------------------------------------------
+# ---- current permission and binding at consumption ------------------------------------------------------
 
 
 def _latest_checks(session, is_demo, measurement_ids=None):
@@ -1105,7 +1099,7 @@ def reextract(s, fabric, *, is_demo, triage, limit=10, plan=None):
     observation,
     topic or alert side effects): the measures found become ordinary candidates and are checked as any other.
     A version no longer readable is marked reextract_failed with the reason. Returns how many were done.
-    plan(session, s, doc, topic, direction, at, is_demo): the reading plan of the version re-read (T-31),
+    plan(session, s, doc, topic, direction, at, is_demo): the reading plan of the version re-read,
     so its windows after the first are owed like any triaged version's."""
     with db.session() as session:
         owed = list(
@@ -1157,7 +1151,7 @@ COMPARABILITY = "series_domain.v2"
 
 def withdrawn(session, ids, at=None):
     """The ids of the points (of `ids`) whose record a correction or retraction Fabric stated withdraws as of
-    `at` (None: now, every recorded correction) - whatever became of the replacement value (Codex r166)."""
+    `at` (None: now, every recorded correction) - whatever became of the replacement value."""
     if not ids:
         return set()
     query = (
@@ -1181,7 +1175,7 @@ def withdrawn(session, ids, at=None):
 
 
 def comparability(session, m, at=None):
-    """Whether point m may be compared with the others of its series now (T-24), apart from whether its
+    """Whether point m may be compared with the others of its series now, apart from whether its
     extraction is checked: "provisional" - one known domain, the topic its record was placed in, the business
     subject (disease, product, cohort, counting basis) not yet checked; "not_comparable" - of no known domain,
     or withdrawn by a correction. cross_domain_correction marks a correction across topics, on the withdrawn
@@ -1194,7 +1188,7 @@ def comparability(session, m, at=None):
     reasons = []
     if m.domain_basis != "topic":
         reasons.append("domain_unknown")
-    if m.retired_reason:  # T-26: read again from an upgraded artifact
+    if m.retired_reason:  # read again from an upgraded artifact
         reasons.append("superseded_by_artifact")
     by = session.get(db.Measurement, m.superseded_by) if m.superseded_by is not None else None
     by = by if by is not None and seen(by) else None
@@ -1229,7 +1223,7 @@ def comparability(session, m, at=None):
 def series_points(session, ids, at=None):
     """The structured, read-only record of the points an analysis rests on, as they stand now: each with its
     exact value, whether it is in the effective series (current: its extraction is checked), its latest check
-    under the current checker, and - a layer apart - whether it may be compared now (comparability, T-24).
+    under the current checker, and - a layer apart - whether it may be compared now (comparability).
     The planner reads this; nothing it answers can change it."""
     keep = is_effective(session, ids)
     out = []

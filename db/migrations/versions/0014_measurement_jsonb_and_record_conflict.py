@@ -1,4 +1,4 @@
-"""measurement JSONB and record conflict (Codex r175, r177). dims / dims_reasons become JSONB on PostgreSQL,
+"""measurement JSONB and record conflict. dims / dims_reasons become JSONB on PostgreSQL,
 as
 the model declares them (0012 declared JSON). A point's stored identity includes its value: one record version
 stating one identity with two values keeps both (as a contradiction, never compared) - the group key is

@@ -1,4 +1,4 @@
-"""measurement domain key (Codex r171): one version may state the same base metric for two groups (two
+"""measurement domain key: one version may state the same base metric for two groups (two
 products, two cohorts) - the point's identity includes its family and dimension group key. Existing points
 keep theirs (family "" and the key 0012 left them), so no existing row changes."""
 
