@@ -20,5 +20,20 @@ def upgrade():
     op.alter_column("upkeep_runs", "positions", server_default=None)  # the ORM sets it
 
 
+def _keep_audit(checks):
+    """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
+    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    bind = op.get_bind()
+    held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
+    held = [f"{n} {what}" for n, what in held if n]
+    if held:
+        raise RuntimeError(
+            "downgrade refused, audit kept: " + "; ".join(held) + " - back up and settle first"
+        )
+
+
 def downgrade():
+    _keep_audit(
+        [("SELECT count(*) FROM upkeep_runs WHERE positions <> '{}'::jsonb", "upkeep runs with positions")]
+    )
     op.drop_column("upkeep_runs", "positions")

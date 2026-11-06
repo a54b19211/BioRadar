@@ -16,6 +16,26 @@ def upgrade():
     op.create_index("ix_measurement_candidates_relocated_from", "measurement_candidates", ["relocated_from"])
 
 
+def _keep_audit(checks):
+    """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
+    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    bind = op.get_bind()
+    held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
+    held = [f"{n} {what}" for n, what in held if n]
+    if held:
+        raise RuntimeError(
+            "downgrade refused, audit kept: " + "; ".join(held) + " - back up and settle first"
+        )
+
+
 def downgrade():
+    _keep_audit(
+        [
+            (
+                "SELECT count(*) FROM measurement_candidates WHERE relocated_from IS NOT NULL",
+                "relocated candidates (relocated_from)",
+            )
+        ]
+    )
     op.drop_index("ix_measurement_candidates_relocated_from", "measurement_candidates")
     op.drop_column("measurement_candidates", "relocated_from")

@@ -26,6 +26,27 @@ def upgrade():
     )
 
 
+def _keep_audit(checks):
+    """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
+    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    bind = op.get_bind()
+    held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
+    held = [f"{n} {what}" for n, what in held if n]
+    if held:
+        raise RuntimeError(
+            "downgrade refused, audit kept: " + "; ".join(held) + " - back up and settle first"
+        )
+
+
 def downgrade():
+    _keep_audit(
+        [
+            ("SELECT count(*) FROM llm_outputs", "model answers kept (llm_outputs)"),
+            (
+                "SELECT count(*) FROM llm_calls WHERE http IS NOT NULL",
+                "llm_calls with request outcomes (http)",
+            ),
+        ]
+    )
     op.drop_table("llm_outputs")
     op.drop_column("llm_calls", "http")

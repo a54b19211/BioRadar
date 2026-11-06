@@ -94,9 +94,33 @@ def upgrade():
         op.alter_column(table, "artifact_key", server_default=None)
 
 
+def _keep_audit(checks):
+    """Refuse the downgrade (the run rolls back, version and rows kept) while any of these hold rows: audit is
+    never deleted by an ordinary downgrade (Codex r193). checks: [(sql counting the rows, what they are)]."""
+    bind = op.get_bind()
+    held = [(bind.execute(sa.text(sql)).scalar() or 0, what) for sql, what in checks]
+    held = [f"{n} {what}" for n, what in held if n]
+    if held:
+        raise RuntimeError(
+            "downgrade refused, audit kept: " + "; ".join(held) + " - back up and settle first"
+        )
+
+
 def downgrade():
-    # fails (and rolls back) once an upgrade planned a second artifact of a version, or a point and its
-    # upgraded reading share one value: the older constraints cannot hold both - back up and settle first
+    # refused while upkeep runs, retirements or plan hand-overs are recorded (audit, Codex r193); the older
+    # constraints could not hold a second artifact's plan or an upgraded reading of one value anyway
+    _keep_audit(
+        [
+            ("SELECT count(*) FROM upkeep_runs", "upkeep runs"),
+            ("SELECT count(*) FROM upkeep_items", "upkeep items"),
+            ("SELECT count(*) FROM measurements WHERE retired_reason IS NOT NULL", "retired points"),
+            (
+                "SELECT count(*) FROM record_reads"
+                " WHERE supersedes_id IS NOT NULL OR superseded_by_id IS NOT NULL",
+                "plans handed over between artifacts",
+            ),
+        ]
+    )
     op.drop_table("upkeep_items")
     op.drop_table("upkeep_runs")
     op.drop_constraint("measurements_version_series_period_domain_value_artifact_key", "measurements")
