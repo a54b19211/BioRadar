@@ -10,6 +10,7 @@ import httpx
 
 from bioradar.adapters.fabric import FabricError
 from bioradar.research import prompts, schemas
+from bioradar.research.lineage import previous_check
 from bioradar.research.run import Failed, search
 from bioradar.research.run.search import FABRIC_PAGE, clean_terms
 from bioradar.text import squash
@@ -85,6 +86,7 @@ def ask_plan(run: "Run"):
     run.p["used_previous"] = bool(previous)
     if previous:
         payload["previous_report"] = previous["draft"][:3000]
+        payload["previous_report_check"] = previous_check(previous)
     model = run.ask("plan", prompts.PLAN, payload, schemas.Plan)
     if model is None or not model.checks:
         raise Failed("plan_failed")

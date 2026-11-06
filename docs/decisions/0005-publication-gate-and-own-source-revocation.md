@@ -33,8 +33,8 @@ without the words; the hold, its reason, the numbers, computations and mechanism
 prints `（报告待核：<reason>。…）` instead of the draft and no judgments. Results stored before the gate are
 judged by their `report_status` the same way.
 
-**Not decided here.** A follow-up still receives its parent's draft as the earlier report when the parent was
-held (`analyses.create`); whether a held report may seed the next round is left to review. The web app shows
+**Follow-ups.** A held report is still handed to a follow-up, labelled pending, as leads to verify only
+(ADR 0006). The web app shows
 the empty draft; showing the hold reason there is a page change (刘金彦) not made in this wave.
 
 ## (b) The run's own sources are confirmed readable before anything carries them out
