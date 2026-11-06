@@ -122,7 +122,7 @@ make bootstrap          # .venv 只按 uv.lock 安装
 make test               # 全部测试（SQLite；BioCheck 检出在 BIOCHECK_SRC 时含真实 BioCheck 规则）
 make check              # = make test + make lint + make metrics + make web-check
 make check-install      # 在 /tmp 用声明的版本新建环境，核对四处契约版本一致，逐个导入 bioradar 模块
-make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head
+make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
 
 `make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`）；超过的函数必须在
