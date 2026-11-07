@@ -75,6 +75,7 @@ def browse(run: "Run", source, page, checks):
         (),
         is_demo=run.input["is_demo"],
         cutoff=run.cutoff,
+        mode=run.replay_mode,
         record_ids=ids,
         limit=len(ids),
         now=datetime.fromisoformat(at),
@@ -135,8 +136,10 @@ def semantic(run: "Run", terms):
         scopes=SEARCH_SCOPES.get(run.input["direction"], ("research",)),
         is_demo=run.input["is_demo"],
         cutoff=run.cutoff,
+        mode=run.replay_mode,
     )
-    run.p.setdefault("weknora", []).append({"terms": terms, **summary})
+    # the retrieval receipt: what was asked, the mode and cutoff it was read at (in the summary), the run kind
+    run.p.setdefault("weknora", []).append({"terms": terms, "run_kind": run.run_kind, **summary})
     for scope in summary["recall"]:
         if scope.get("degraded"):
             run.note("weknora_scope", f"{','.join(scope['scopes'] or [])}: degraded")
@@ -151,7 +154,12 @@ def semantic(run: "Run", terms):
     docs = []
     for src, pairs in refs.items():
         found, missing = run.fabric.read_versions(
-            src, list(pairs), is_demo=run.input["is_demo"], cutoff=run.cutoff, artifacts=artifacts
+            src,
+            list(pairs),
+            is_demo=run.input["is_demo"],
+            cutoff=run.cutoff,
+            mode=run.replay_mode,
+            artifacts=artifacts,
         )
         for version_id in missing:  # revoked or withdrawn between the search and the read
             run.note("weknora_version_unreadable", f"{src}: {version_id[:12]}")
@@ -189,6 +197,7 @@ def literal(run: "Run", candidate, key):
         candidate["args"]["terms"],
         is_demo=run.input["is_demo"],
         cutoff=run.cutoff,
+        mode=run.replay_mode,
         cursor=page.get("cursor") if kind == "next_page" else None,
         record_ids=run.scope if len(run.scope) <= FABRIC_PAGE else (),
         limit=FABRIC_PAGE if len(run.scope) > FABRIC_PAGE else 10,

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import func, select
 
 from bioradar import db, guard, jobs
+from bioradar.adapters.fabric import CURRENT, MODES
 from bioradar.config import settings
 from bioradar.research import lease, topics, views
 from bioradar.research.pipeline import Failed, Run
@@ -48,6 +49,26 @@ def input_hash(value: dict) -> str:
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
 
+def _check_input(direction, method, cutoff, replay_mode):
+    """What a new task is refused for before anything is stored. A named replay mode is one of the three;
+    current is the live state, so it has no cutoff, and the two replay modes replay a moment, so they need
+    one."""
+    if direction not in DIRECTIONS:
+        raise InvalidInput("direction")
+    if method not in {"planner", "baseline"}:
+        raise InvalidInput("method")
+    if cutoff and datetime.fromisoformat(cutoff).tzinfo is None:
+        raise InvalidInput("cutoff_needs_timezone")
+    if replay_mode is None:
+        return
+    if replay_mode not in MODES:
+        raise InvalidInput("replay_mode")
+    if replay_mode == CURRENT and cutoff:
+        raise InvalidInput("replay_mode_current_has_no_cutoff")
+    if replay_mode != CURRENT and not cutoff:
+        raise InvalidInput("replay_mode_needs_cutoff")
+
+
 def create(
     *,
     question,
@@ -56,6 +77,7 @@ def create(
     is_demo=False,
     sources=None,
     cutoff=None,
+    replay_mode=None,
     investigation_id=None,
     parent_id=None,
     trigger="manual",
@@ -73,14 +95,11 @@ def create(
     parent's report out (the follow-up of a report whose sources cannot be read now).
     capabilities: a function returning Fabric's SourceCapabilities (raising CapabilitiesUnavailable). Given,
     the sources are checked against what Fabric offers for selection: a source named by the caller that is
-    not offered is SourceNotSelectable; one that only comes from the configured defaults is left out."""
+    not offered is SourceNotSelectable; one that only comes from the configured defaults is left out.
+    replay_mode: which materials are visible (fabric.MODES); None names none, so a cutoff means the public
+    history reconstruction. Kept with the input and handed on to follow-ups."""
     s = settings()
-    if direction not in DIRECTIONS:
-        raise InvalidInput("direction")
-    if method not in {"planner", "baseline"}:
-        raise InvalidInput("method")
-    if cutoff and datetime.fromisoformat(cutoff).tzinfo is None:
-        raise InvalidInput("cutoff_needs_timezone")
+    _check_input(direction, method, cutoff, replay_mode)
     chosen = _selectable(capabilities, list(sources or []), s.demo_sources if is_demo else s.sources)
     value = {
         "question": question.strip(),
@@ -95,6 +114,8 @@ def create(
         "series_points": list(series_points),
         "budget": {"max_steps": s.max_steps, "max_reads": s.max_reads, "max_llm_calls": s.max_llm_calls},
     }
+    if replay_mode is not None:  # a task that names none keeps the input (and hash) it always had
+        value["replay_mode"] = replay_mode
     if session is not None:
         enqueue = False
     with nullcontext(session) if session is not None else db.session() as session:

@@ -13,7 +13,16 @@ from bioradar.config import Settings
 from bioradar.material import Material, part_key
 
 CURRENT = "current"
+OPERATIONAL = "operational_replay"
 HISTORY = "public_history_reconstruction"
+MODES = (CURRENT, OPERATIONAL, HISTORY)
+
+
+def read_mode(mode, cutoff):
+    """The mode a read runs in: the one the caller names. A caller that names none gets what a cutoff has
+    always meant here, the public history reconstruction, and without a cutoff the current state. A mode is
+    never swapped for another on the way."""
+    return mode or (HISTORY if cutoff else CURRENT)
 
 
 # Fabric answers for a fixed version that cannot be read with this permission, scope and cutoff
@@ -322,19 +331,21 @@ class Fabric:
             raise FabricError(code or f"fabric_http_{response.status_code}", str(error)[:300])
         return response.json()
 
-    def semantic_search(self, query, *, scopes, is_demo, cutoff=None, now=None, top_k=10):
+    def semantic_search(self, query, *, scopes, is_demo, cutoff=None, now=None, top_k=10, mode=None):
         """WeKnora recall verified by Fabric (POST /api/history/search). Every hit was checked at this mode
         and cutoff: source permission, the version visible then, and that the chunk is that version's fixed
         text. Returns (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the
-        visible version; summary: excluded counts by reason, whether fewer than top_k came back, per-scope
-        recall channels and index coverage. Missing hits do not mean the material does not exist."""
-        mode = HISTORY if cutoff else CURRENT
+        visible version; summary: the mode and cutoff it was read at, excluded counts by reason, whether fewer
+        than top_k came back, per-scope recall channels and index coverage. Missing hits do not mean the
+        material does not exist."""
+        mode = read_mode(mode, cutoff)
+        at = (cutoff or now or datetime.now(UTC)).isoformat()
         data = self._post(
             "/api/history/search",
             {
                 "query": query[:2000],
                 "mode": mode,
-                "cutoff": (cutoff or now or datetime.now(UTC)).isoformat(),
+                "cutoff": at,
                 "scopes": list(scopes),
                 "is_demo": is_demo,
                 "top_k": top_k,
@@ -357,6 +368,8 @@ class Fabric:
         ]
         execution = data.get("execution") or {}
         summary = {
+            "mode": mode,
+            "cutoff": at,
             "excluded": (data.get("excluded") or {}).get("counts") or {},
             "insufficient": execution.get("insufficient"),
             "candidates": execution.get("candidates"),
@@ -375,13 +388,25 @@ class Fabric:
         }
         return hits, summary
 
-    def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=(), now=None):
+    def search(
+        self,
+        source,
+        terms,
+        *,
+        is_demo,
+        cutoff=None,
+        cursor=None,
+        limit=10,
+        record_ids=(),
+        now=None,
+        mode=None,
+    ):
         """One page of records matching all terms. cutoff=None means current mode at `now` (default: this
         moment); Fabric binds a page cursor to that time, so later pages must pass the same `now`."""
         params = {
             "source_id": source,
             "is_demo": str(is_demo).lower(),
-            "mode": HISTORY if cutoff else CURRENT,
+            "mode": read_mode(mode, cutoff),
             "cutoff": (cutoff or now or datetime.now(UTC)).isoformat(),
             "limit": limit,
         }
@@ -396,13 +421,13 @@ class Fabric:
         self.complete(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         return docs, data.get("next_cursor")
 
-    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None, artifacts=None):
+    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None, artifacts=None, mode=None):
         """Fixed versions [(record_id, version_id)] → (documents, versions no longer readable). Used where the
         radar owes work on one particular version (a deferred or failed triage): reading the record again
         would return its current head instead, and the owed version would never be done.
         artifacts {version_id: {processor_version, text_sha256}}: read that cleaned artifact of the version
         (a search hit's), not whatever the current processor made of it."""
-        mode = HISTORY if cutoff else CURRENT
+        mode = read_mode(mode, cutoff)
         at = (cutoff or now or datetime.now(UTC)).isoformat()
         docs, missing = [], []
         for record_id, version_id in refs:
@@ -435,7 +460,7 @@ class Fabric:
         self.complete(docs, is_demo=is_demo, mode=mode, cutoff=at)
         return docs, missing
 
-    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None) -> bool:
+    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None, mode=None) -> bool:
         """Whether this exact fixed version can be read now (at the cutoff, for a replay): Fabric's
         current answer for the identity named, nothing else. False: revoked, withdrawn from view or not
         visible then. Raises FabricError / httpx.HTTPError when Fabric cannot answer (not an answer of
@@ -448,7 +473,7 @@ class Fabric:
                     "source_id": source,
                     "source_record_id": record_id,
                     "is_demo": str(is_demo).lower(),
-                    "mode": HISTORY if cutoff else CURRENT,
+                    "mode": read_mode(mode, cutoff),
                     "cutoff": at,
                 },
             )
@@ -750,7 +775,7 @@ class Fabric:
                             if c.get("material")
                         ]
 
-    def graph_resolve(self, doc, name, *, cutoff=None):
+    def graph_resolve(self, doc, name, *, cutoff=None, mode=None):
         """Tang's reviewed graph (read only): entity candidates for an exact name in one graph record, each
         with its identity status and the fixed record versions it was read from (node evidence)."""
         return self._get(
@@ -759,7 +784,7 @@ class Fabric:
                 "source_id": doc["source"],
                 "source_record_id": doc["record_id"],
                 "is_demo": str(doc["is_demo"]).lower(),
-                "mode": HISTORY if cutoff else CURRENT,
+                "mode": read_mode(mode, cutoff),
                 "cutoff": (cutoff or datetime.now(UTC)).isoformat(),
                 "name": name,
             },

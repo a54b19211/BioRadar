@@ -34,6 +34,7 @@ class Fab:
     readable = {"open_src"}
     hidden: set = set()
     down = False
+    modes: list = []  # the mode each visibility question named
 
     def __init__(self, _settings=None):
         pass
@@ -43,14 +44,15 @@ class Fab:
             raise FabricError("fabric_http_503", "down")
         return sources_receipt(Fab.readable)
 
-    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None):
+    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None, mode=None):
         if Fab.down:
             raise FabricError("fabric_http_503", "down")
+        Fab.modes.append(mode)
         return version_id not in Fab.hidden
 
 
 def reset_fabric():
-    Fab.readable, Fab.hidden, Fab.down = {"open_src"}, set(), False
+    Fab.readable, Fab.hidden, Fab.down, Fab.modes = {"open_src"}, set(), False, []
 
 
 def service_client(monkeypatch):
@@ -74,14 +76,26 @@ def materials(sources=("open_src",)):
     ]
 
 
-def started(*, token="tok", max_attempts=4, seconds=600, sources=("open_src",), key=KEY, evaluator=EVALUATOR):
+def started(
+    *,
+    token="tok",
+    max_attempts=4,
+    seconds=600,
+    sources=("open_src",),
+    key=KEY,
+    evaluator=EVALUATOR,
+    cutoff=None,
+    replay_mode="current",
+):
     """An analysis whose execution holds a lease (token) and an authorization issued for one evaluation of
     it. Returns (analysis id, authorization ref)."""
     row = analyses.create(question="机制证据怎样？", direction="science", is_demo=True, enqueue=False)
     if token is not None:
         with db.session() as s:
             lease.take([s.get(db.Analysis, row.id)], token, db.now(), lease.ANALYSIS_LEASE)
-    run = SimpleNamespace(id=row.id, lease_token=token, cutoff=None, input={"is_demo": True})
+    run = SimpleNamespace(
+        id=row.id, lease_token=token, cutoff=cutoff, replay_mode=replay_mode, input={"is_demo": True}
+    )
     with db.session() as s:
         issued = attempts.issue(
             s,

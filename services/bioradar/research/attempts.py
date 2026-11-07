@@ -25,7 +25,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
-from bioradar.adapters.fabric import CURRENT, HISTORY, FabricError
+from bioradar.adapters.fabric import FabricError
 from bioradar.research import lease
 from bioradar.research.clock import utc
 
@@ -88,7 +88,7 @@ def issue(
             materials=materials,
             sources=sorted(sources),
             is_demo=bool(run.input["is_demo"]),
-            mode=HISTORY if run.cutoff else CURRENT,
+            mode=run.replay_mode,
             cutoff=run.cutoff,
             expires_at=expires,
             max_attempts=max_attempts,
@@ -168,7 +168,12 @@ def _fabric_says(fabric, auth) -> str | None:
         for material in auth.materials:
             for part in material["parts"]:
                 seen = fabric.version_visible(
-                    part["source"], part["record_id"], part["version_id"], is_demo=auth.is_demo, cutoff=cutoff
+                    part["source"],
+                    part["record_id"],
+                    part["version_id"],
+                    is_demo=auth.is_demo,
+                    cutoff=cutoff,
+                    mode=auth.mode,
                 )
                 if not seen:
                     return "version_not_visible"

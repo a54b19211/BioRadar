@@ -173,6 +173,7 @@ def cached(run: "Run", key: str, evaluator: dict, bound: list[Bound], sources: s
                     part["version_id"],
                     is_demo=run.input["is_demo"],
                     cutoff=run.cutoff,
+                    mode=run.replay_mode,
                 )
                 if not seen:
                     return None

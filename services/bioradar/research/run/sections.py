@@ -196,6 +196,7 @@ def visibility_section(gaps: list[SectionItem], inp: dict, rows) -> Section:
     ]
     items: list[SectionItem] = [
         {"text": f"截止时间：{inp.get('cutoff') or '当前'}"},
+        *([{"text": f"回放模式：{inp['replay_mode']}"}] if inp.get("replay_mode") else []),
         {"text": f"读取材料 {len(rows)} 份，逐份清单见附录", "count": len(rows)},
         *({"text": f"{n} {what}", "count": n} for n, what in key_gaps if n),
     ]

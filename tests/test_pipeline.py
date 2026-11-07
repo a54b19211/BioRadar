@@ -1504,7 +1504,7 @@ def test_question_objects_found_in_the_reviewed_graph_bring_their_source_records
     fabric = FakeFabric(RECORDS + [graph_record])
     asked = []
 
-    def graph_resolve(doc, name, *, cutoff=None):
+    def graph_resolve(doc, name, *, cutoff=None, mode=None):
         asked.append((doc["record_id"], name))
         evidence = {"source_id": "external_archive", "source_record_id": "N1", "version_id": "v" * 64}
         node = {"id": "n1", "name": "XQ-17", "identity_status": "unresolved", "evidence": [evidence]}

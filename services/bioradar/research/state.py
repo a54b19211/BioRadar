@@ -287,7 +287,7 @@ class RunState(TypedDict, total=False):
     browse_at: dict[str, str]  # source -> time every page of its fixed material set is read at
     browsed: dict[str, list[int]]  # source -> pages of the fixed material set done
     hit_positions: dict[str, list[HitPosition]]  # "source|record_id" -> verified search-hit passages
-    weknora: list[dict[str, Any]]  # each semantic search: its terms and Fabric's summary
+    weknora: list[dict[str, Any]]  # each semantic search: terms, run kind, Fabric's summary with mode, cutoff
     found_objects: list[FoundObject]
     stop: Annotated[Stop, SHOWN]
     # compute, mechanism, report, assess

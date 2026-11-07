@@ -17,7 +17,7 @@ from sqlalchemy import func, select
 from bioradar import db
 from bioradar.adapters import llm
 from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
-from bioradar.adapters.fabric import Fabric, FabricError
+from bioradar.adapters.fabric import Fabric, FabricError, read_mode
 from bioradar.config import Settings
 from bioradar.research import lease, state
 from bioradar.research.lineage import lineage_sources
@@ -97,6 +97,16 @@ class Run:
     def cutoff(self):
         value = self.input.get("cutoff")
         return datetime.fromisoformat(value) if value else None
+
+    @property
+    def replay_mode(self):
+        """The mode of every Fabric read this run makes: the one the task named, else what its cutoff has
+        always meant (fabric.read_mode)."""
+        return read_mode(self.input.get("replay_mode"), self.cutoff)
+
+    # How the result came about, kept apart from the mode: a run the worker executes now is online. A
+    # recompute of an earlier moment (replay_recompute) would be another path, which does not exist here.
+    run_kind = "online"
 
     def note(self, code, detail=""):
         self.p.setdefault("notes", []).append(

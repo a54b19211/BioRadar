@@ -103,6 +103,7 @@ class FakeFabric:
 
         self.docs = [document(r) for r in records]
         self.calls = []
+        self.modes = []  # (read, mode) as the radar named the mode; None: it named none
         self.revoked, self.tampered = set(), set()
         if clean:
             for d in self.docs:
@@ -136,8 +137,21 @@ class FakeFabric:
             }
         return out
 
-    def search(self, source, terms, *, is_demo, cutoff=None, cursor=None, limit=10, record_ids=(), now=None):
+    def search(
+        self,
+        source,
+        terms,
+        *,
+        is_demo,
+        cutoff=None,
+        cursor=None,
+        limit=10,
+        record_ids=(),
+        now=None,
+        mode=None,
+    ):
         self.calls.append(("search", source, tuple(terms), tuple(record_ids)))
+        self.modes.append(("search", mode))
         self.times = getattr(self, "times", []) + [(tuple(terms), cursor, now)]
         found = [
             d
@@ -154,8 +168,9 @@ class FakeFabric:
         page = found[start : start + limit]
         return page, (str(start + limit) if start + limit < len(found) else None)
 
-    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None):
+    def read_versions(self, source, refs, *, is_demo, cutoff=None, now=None, mode=None):
         self.calls.append(("read_versions", source, tuple(refs)))
+        self.modes.append(("read_versions", mode))
         wanted = {v for _, v in refs}
         found = [d for d in self.docs if d["source"] == source and d["version_id"] in wanted]
         return found, sorted(wanted - {d["version_id"] for d in found})
@@ -210,9 +225,11 @@ class FakeFabric:
     def measurements(self, source, version_ids, **read):
         return self.measured.measurements(source, version_ids, **read)
 
-    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None):
+    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None, mode=None):
         """Whether the fixed version can be read now, or at the cutoff (not before it was available)."""
         from bioradar.research.monitor import parse_time
+
+        self.modes.append(("version_visible", mode))
 
         doc = next(
             (

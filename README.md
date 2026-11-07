@@ -132,7 +132,9 @@ curl -b c.txt -X POST localhost:18100/api/analyses -H 'content-type: application
 curl -b c.txt localhost:18100/api/analyses/<id>
 ```
 
-历史回放：加上 `"cutoff": "2019-12-31T00:00:00+08:00"`（必须带时区）。
+历史回放：加上 `"cutoff": "2019-12-31T00:00:00+08:00"`（必须带时区）。哪些资料可见由 `"replay_mode"` 定：
+`current`（不带 cutoff）、`operational_replay`（当时系统实际已有的）、`public_history_reconstruction`（有公开可得证明的）；
+后两种必须带 cutoff。不给 `replay_mode` 时，有 cutoff 按 `public_history_reconstruction`，没有按 `current`。追问沿用上一轮的模式。
 
 ## 检查
 

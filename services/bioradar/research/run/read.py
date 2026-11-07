@@ -61,7 +61,11 @@ def document(run: "Run", hit, pinned):
     if doc is None and pinned:
         # exactly the version that corrected, as visible at the cutoff - never the head
         found, _ = run.fabric.read_versions(
-            source, [(record_id, pinned)], is_demo=run.input["is_demo"], cutoff=run.cutoff
+            source,
+            [(record_id, pinned)],
+            is_demo=run.input["is_demo"],
+            cutoff=run.cutoff,
+            mode=run.replay_mode,
         )
         if not found:
             raise FabricError("record_not_visible", f"{record_id}@{pinned[:12]}")
@@ -73,7 +77,13 @@ def document(run: "Run", hit, pinned):
         doc = run.docs[doc_key(hit)] = found[0]
     if doc is None:
         found, _ = run.fabric.search(
-            source, (), is_demo=run.input["is_demo"], cutoff=run.cutoff, record_ids=[record_id], limit=1
+            source,
+            (),
+            is_demo=run.input["is_demo"],
+            cutoff=run.cutoff,
+            mode=run.replay_mode,
+            record_ids=[record_id],
+            limit=1,
         )
         if not found:
             raise FabricError("record_not_visible", record_id)

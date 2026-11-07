@@ -215,6 +215,7 @@ def first_candidates(run: "Run", required):
                 (),
                 is_demo=run.input["is_demo"],
                 cutoff=run.cutoff,
+                mode=run.replay_mode,
                 record_ids=run.scope,
                 limit=len(run.scope),
             )
@@ -235,9 +236,17 @@ def graph(run: "Run", checks):
         entry = {"object": name, "graph_records": [], "candidates": [], "refs": []}
         try:
             records, _ = run.fabric.search(
-                "reviewed_graph", [name], is_demo=run.input["is_demo"], cutoff=run.cutoff, limit=5
+                "reviewed_graph",
+                [name],
+                is_demo=run.input["is_demo"],
+                cutoff=run.cutoff,
+                mode=run.replay_mode,
+                limit=5,
             )
-            resolutions = [(r, run.fabric.graph_resolve(r, name, cutoff=run.cutoff)) for r in records]
+            resolutions = [
+                (r, run.fabric.graph_resolve(r, name, cutoff=run.cutoff, mode=run.replay_mode))
+                for r in records
+            ]
         except (FabricError, httpx.HTTPError) as exc:
             run.note("graph_unavailable", f"{name}: {getattr(exc, 'code', type(exc).__name__)}")
             continue
