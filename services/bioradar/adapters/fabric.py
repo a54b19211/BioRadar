@@ -122,8 +122,6 @@ def noticed(window, state):
     return window if window.text.startswith(notice) else Material.literal(notice) + window
 
 
-# Sources whose versions Fabric's processing layer diffs field by field against the previous version.
-REGISTRY_DIFF_SOURCES = {"clinicaltrials"}
 REGISTRY_CHANGE_LINES = 12
 # The radar's rendering of a registry diff is part of what a model reads: its version is in the binding, and
 # a change to registry_change_block() needs a new one so earlier bindings still read back.
@@ -211,7 +209,7 @@ def document(record: dict) -> dict:
         }
         if record.get("record_kind") == "trial"
         else None,
-        "registry_diff": None,  # filled by Fabric.attach_registry_changes for REGISTRY_DIFF_SOURCES
+        "registry_diff": None,  # filled by Fabric.attach_registry_changes for sources that declare the diff
         # an attachment version (Fabric legacy_site_crawler): its text comes from the processing layer
         "role": (record.get("facts") or {}).get("role"),
         "parent_record_id": (record.get("facts") or {}).get("parent_record_id"),
@@ -655,12 +653,16 @@ class Fabric:
 
     def attach_registry_changes(self, docs, *, is_demo, mode, cutoff):
         """Put each trial version's diff against the previous version on the document: `registry_diff`, a
-        block at the top of the text, and one event per material change. When Fabric cannot answer (an
-        older Fabric without the endpoint, a timeout) the documents stay exactly as before, marked
-        unavailable, so reading never fails because of the diff."""
+        block at the top of the text, and one event per material change. Only for the sources Fabric
+        declares a registry diff for (capabilities). When Fabric cannot answer (an older Fabric without the
+        endpoint, a timeout) the documents stay exactly as before, marked unavailable, so reading never
+        fails because of the diff."""
         by_source = {}
         for d in docs:
-            if d["source"] in REGISTRY_DIFF_SOURCES:
+            if self.caps is None and d.get("registry") is not None:
+                # Fabric's capabilities are unknown: a trial gets no diff, and it says so
+                d["registry_diff"] = {"state": "capability_unknown"}
+            elif self.caps is not None and self.caps.registry_diff(d["source"]):
                 by_source.setdefault(d["source"], []).append(d)
         for source, group in by_source.items():
             for start in range(0, len(group), 100):

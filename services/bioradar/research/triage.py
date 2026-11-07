@@ -8,7 +8,7 @@ from sqlalchemy import delete, func, select
 
 from bioradar import db, guard
 from bioradar.adapters import llm
-from bioradar.adapters.fabric import NOT_VISIBLE, REGISTRY_DIFF_SOURCES, Fabric, FabricError, noticed
+from bioradar.adapters.fabric import NOT_VISIBLE, Fabric, FabricError, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
 from bioradar.research import analyses, continuation, measure_checks, prompts, schemas
@@ -45,7 +45,7 @@ def route(doc) -> str | None:
     -> attachment_unparsed, recorded as a gap. An attachment is never triaged with an empty text."""
     if doc.get("role") == "attachment":
         return _route_attachment(doc)
-    if doc["source"] not in REGISTRY_DIFF_SOURCES or doc.get("retry"):
+    if doc.get("registry_diff") is None or doc.get("retry"):  # no diff declared for the source, or a retry
         return None
     return _route_registry(doc)
 
