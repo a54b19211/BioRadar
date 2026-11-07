@@ -6,6 +6,7 @@ for model calls already, so the step is reported as failed instead."""
 
 import httpx
 
+from bioradar import guard
 from bioradar.config import Settings
 
 
@@ -19,6 +20,7 @@ class ServiceError(Exception):
 def _post(service, url, token, path, body, timeout):
     if not url:
         raise ServiceError(service, "not_configured")
+    guard.check()
     try:
         response = httpx.post(
             url.rstrip("/") + path, json=body, timeout=timeout, headers={"Authorization": f"Bearer {token}"}

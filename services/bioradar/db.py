@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
+from bioradar import guard
 from bioradar.config import settings
 
 Json = JSON().with_variant(JSONB(), "postgresql")
@@ -615,5 +616,7 @@ def _sessions():
 
 @contextmanager
 def session():
+    guard.check()
     with _sessions()() as s, s.begin():
         yield s
+        guard.check()  # right before the commit: a revoked piece of work commits nothing

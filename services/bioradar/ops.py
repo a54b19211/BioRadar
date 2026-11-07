@@ -10,7 +10,7 @@ import logging
 import sys
 import time
 
-from bioradar import jobs
+from bioradar import guard, jobs
 from bioradar.config import settings
 from bioradar.research import analyses, monitor
 from bioradar.research.leader import Leader
@@ -29,11 +29,14 @@ def monitor_round(leader, s=None) -> bool:
     if not leader.acquire():
         log.info("monitor: another process holds the monitor lock, this round is skipped")
         return False
-    if s.monitor_enabled:
-        log.info("monitor %s", monitor.tick(is_demo=False))
-    recovered = analyses.recover()
-    if recovered:
-        log.info("re-queued %s analyses", recovered)
+    with guard.holding(
+        leader.assert_held
+    ):  # a dropped lock connection stops the round at its next send or write
+        if s.monitor_enabled:
+            log.info("monitor %s", monitor.tick(is_demo=False))
+        recovered = analyses.recover()
+        if recovered:
+            log.info("re-queued %s analyses", recovered)
     return True
 
 

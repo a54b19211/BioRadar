@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import httpx
 
+from bioradar import guard
 from bioradar.config import Settings
 from bioradar.material import Material, part_key
 
@@ -262,7 +263,9 @@ def fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff=None) -
 class Fabric:
     def __init__(self, settings: Settings, client: httpx.Client | None = None):
         self.settings = settings
-        self.client = client or httpx.Client(base_url=settings.fabric_url, timeout=30)
+        self.client = client or httpx.Client(
+            base_url=settings.fabric_url, timeout=30, event_hooks={"request": [lambda request: guard.check()]}
+        )
         # HTTP requests actually sent, per endpoint: counts only, no parameters, tokens or texts
         self.requests = {}
 

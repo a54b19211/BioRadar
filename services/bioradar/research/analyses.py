@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import func, select
 
-from bioradar import db, jobs
+from bioradar import db, guard, jobs
 from bioradar.config import settings
 from bioradar.research import lease, topics, views
 from bioradar.research.pipeline import Failed, Run
@@ -156,6 +156,7 @@ def waiting_in_queue(analysis_id: str) -> bool:
 
 
 def dispatch(analysis_id: str):
+    guard.check()
     queue().enqueue(
         "bioradar.research.analyses.execute",
         analysis_id,

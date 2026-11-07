@@ -5,10 +5,14 @@ import threading
 import time
 from types import SimpleNamespace
 
+import httpx
 import pytest
-from sqlalchemy import text
+from sqlalchemy import select, text
 
-from bioradar import db, ops
+from bioradar import db, guard, ops
+from bioradar.adapters import llm, services
+from bioradar.adapters.fabric import Fabric
+from bioradar.config import settings
 from bioradar.research import analyses, monitor
 from bioradar.research.leader import Leader
 
@@ -92,3 +96,75 @@ def test_two_monitor_loops_do_not_both_tick_and_recover(monkeypatch, leaders):
     acted = sorted(sum(r) for r in results.values())
     assert acted == [0, 5]  # one process did every round, the other none
     assert calls == {"tick": 5, "recover": 5}
+
+
+# ---- the lock connection drops while a round is running ---------------------------------------------------
+
+
+def drop_lock_connection(leader):
+    """The leader's session ends on the server side (killed); returns once the backend is gone."""
+    pid = leader._connection.execute(text("SELECT pg_backend_pid()")).scalar()
+    with db.engine().connect() as admin:
+        admin.execute(text("SELECT pg_terminate_backend(:p)"), {"p": pid})
+        admin.commit()
+        deadline = time.monotonic() + 10
+        while admin.execute(
+            text("SELECT count(*) FROM pg_stat_activity WHERE pid = :p"), {"p": pid}
+        ).scalar():
+            assert time.monotonic() < deadline, "the backend did not end"
+            time.sleep(0.02)
+            admin.rollback()
+
+
+def test_a_round_whose_lock_connection_drops_sends_and_writes_nothing_more(monkeypatch, leaders):
+    sent = []
+    monkeypatch.setattr(httpx, "post", lambda *a, **k: sent.append("post"))
+    monkeypatch.setattr(analyses, "queue", lambda: sent.append("queue"))
+    outcomes = {}
+
+    def after_the_drop(name, action):
+        try:
+            action()
+        except guard.Revoked:
+            outcomes[name] = "revoked"
+        else:
+            outcomes[name] = "went through"
+
+    def write(question):
+        with db.session() as s:
+            s.add(db.Investigation(workspace_id="w", question=question, direction="science", is_demo=True))
+
+    def write_dropped_before_commit():
+        with db.session() as s:
+            s.add(
+                db.Investigation(
+                    workspace_id="w", question="before commit", direction="science", is_demo=True
+                )
+            )
+            s.flush()
+            drop_lock_connection(leader)
+
+    leader = leaders()
+
+    def tick(is_demo=False):
+        write("while leader")  # an ordinary write of the round
+        after_the_drop("commit", write_dropped_before_commit)
+        after_the_drop("write", lambda: write("after the drop"))
+        after_the_drop("model", lambda: llm.post(settings(), {}, {}))
+        after_the_drop("biocheck", lambda: services.biocheck(settings(), "verify", {}))
+        after_the_drop("fabric", lambda: Fabric(settings()).sources())
+        after_the_drop("dispatch", lambda: analyses.dispatch("an-analysis"))
+        return {}
+
+    monkeypatch.setattr(monitor, "tick", tick)
+    with pytest.raises(guard.Revoked):  # the round ends instead of going on to recover
+        ops.monitor_round(leader, SimpleNamespace(monitor_enabled=True))
+    assert outcomes == dict.fromkeys(
+        ("commit", "write", "model", "biocheck", "fabric", "dispatch"), "revoked"
+    )
+    assert sent == []  # not a request, not a queue entry, not a recover
+    with db.session() as s:
+        questions = sorted(s.scalars(select(db.Investigation.question)))
+    assert questions == ["while leader"]  # the write the drop interrupted before its commit is not there
+    other = leaders()
+    assert other.acquire() is True  # and the next leader takes over at once

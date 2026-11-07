@@ -9,7 +9,7 @@ database without advisory locks (SQLite in the unit tests) has one process by co
 
 from sqlalchemy import text
 
-from bioradar import db
+from bioradar import db, guard
 
 # 64-bit key of the radar's monitor lock (the same on every host that shares the database)
 MONITOR_LOCK = 0x62696F72_6D6F6E31
@@ -40,6 +40,19 @@ class Leader:
             raise
         connection.close()
         return False
+
+    def assert_held(self):
+        """guard.Revoked unless this process still holds the lock: the dedicated connection answers. A dropped
+        connection took the lock with it, and whoever is leader now is not told about this process."""
+        if db.engine().dialect.name != "postgresql":
+            return
+        if self._connection is None:
+            raise guard.Revoked("monitor lock not held")
+        try:
+            self._connection.execute(text("SELECT 1"))
+        except Exception:  # noqa: BLE001 - the connection broke: the lock went with it
+            self._drop()
+            raise guard.Revoked("monitor lock connection dropped") from None
 
     def release(self):
         """Give the lock up (a clean shutdown; a crash releases it just the same)."""

@@ -7,6 +7,7 @@ import time
 import httpx
 from pydantic import BaseModel, ValidationError
 
+from bioradar import guard
 from bioradar.config import Settings
 
 
@@ -51,6 +52,7 @@ def post(settings: Settings, body: dict, call: dict, limit: int | None = None, b
     """POST one request, resent after a refusal; before_send(requests already sent in this call) runs right
     before every send and may raise SendBlocked."""
     for wait in (*BACKOFF, None):
+        guard.check()
         if before_send is not None:
             before_send(call.get("requests", 0))
         call["requests"] = call.get("requests", 0) + 1
