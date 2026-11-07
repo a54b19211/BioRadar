@@ -7,13 +7,14 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from bioradar import db, guard, ops
 from bioradar.adapters import llm, services
 from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
-from bioradar.research import analyses, monitor
+from bioradar.material import Material
+from bioradar.research import analyses, monitor, triage
 from bioradar.research.leader import Leader
 
 KEY = 0x7E57_0001  # a key of the tests, not the monitor's own
@@ -144,13 +145,19 @@ def test_a_round_whose_lock_connection_drops_sends_and_writes_nothing_more(monke
             s.flush()
             drop_lock_connection(leader)
 
+    def blocked_model_request():
+        try:
+            llm.post(settings(), {}, {})
+        except llm.SendBlocked as blocked:  # the client turns a revoked round into a blocked send
+            raise guard.Revoked(blocked.reason) from None
+
     leader = leaders()
 
     def tick(is_demo=False):
         write("while leader")  # an ordinary write of the round
         after_the_drop("commit", write_dropped_before_commit)
         after_the_drop("write", lambda: write("after the drop"))
-        after_the_drop("model", lambda: llm.post(settings(), {}, {}))
+        after_the_drop("model", blocked_model_request)
         after_the_drop("biocheck", lambda: services.biocheck(settings(), "verify", {}))
         after_the_drop("fabric", lambda: Fabric(settings()).sources())
         after_the_drop("dispatch", lambda: analyses.dispatch("an-analysis"))
@@ -168,3 +175,99 @@ def test_a_round_whose_lock_connection_drops_sends_and_writes_nothing_more(monke
     assert questions == ["while leader"]  # the write the drop interrupted before its commit is not there
     other = leaders()
     assert other.acquire() is True  # and the next leader takes over at once
+
+
+# ---- an answer that arrives after leadership was lost: audit yes, business result no -----------------------
+
+
+def triage_document(tag):
+    return dict(
+        source="synthetic",
+        record_id="r-late",
+        version_id=f"r-late-{tag}",
+        title="Synthetic",
+        published_at="2020-01-01T00:00:00Z",
+        material_kind="official_notice",
+        verified=True,
+        events=[],
+        material=Material.part(
+            "Synthetic 3 cases.",
+            dict(
+                kind="clean",
+                source="synthetic",
+                record_id="r-late",
+                version_id=f"r-late-{tag}",
+                processor_version="test",
+            ),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    "answer, error",
+    [('{"items": []}', None), ("not JSON", "send_blocked")],
+    ids=["answer-arrives-after-lock-loss", "retry-blocked-after-lock-loss"],
+)
+def test_the_answer_of_a_request_sent_before_leadership_was_lost_is_settled_in_the_old_rounds_audit(
+    monkeypatch, leaders, answer, error
+):
+    leader, sent = leaders(), []
+
+    def reply(*args, **kwargs):
+        sent.append(1)
+        drop_lock_connection(leader)  # leadership is lost while the request is on the way
+        request = httpx.Request("POST", "http://model.invalid/chat/completions")
+        body = dict(
+            choices=[dict(finish_reason="stop", message=dict(content=answer))],
+            usage=dict(prompt_tokens=2, completion_tokens=1, total_tokens=3),
+        )
+        return httpx.Response(200, request=request, json=body)
+
+    monkeypatch.setattr(httpx, "post", reply)
+    document = triage_document(error or "ok")
+    monkeypatch.setattr(monitor, "tick", lambda **kw: triage.triage(settings(), [document], []))
+    with pytest.raises(guard.Revoked):  # the round ends; the answer is not used
+        ops.monitor_round(leader, SimpleNamespace(monitor_enabled=True))
+    assert len(sent) == 1  # a retry, if there was one, was not sent
+    with db.session() as s:
+        (call,) = s.scalars(select(db.LlmCall))
+        (output,) = s.scalars(select(db.LlmOutput))
+        (read,) = s.scalars(select(db.MaterialRead))
+        observations = s.scalar(select(func.count()).select_from(db.Observation))
+    assert (call.requests, call.total_tokens, call.error) == (1, 3, error)
+    assert output.content == answer and (read.status, read.llm_call_id) == ("sent", call.id)
+    assert observations == 0  # no business result was adopted
+
+
+def test_a_call_stopped_before_its_first_request_leaves_no_call_and_its_records_are_not_sent():
+    document = triage_document("not-sent")
+    with db.session() as s:
+        read = db.material_read(
+            document["material"],
+            stage="triage",
+            service="radar",
+            ref="R1",
+            source="synthetic",
+            record_id="r-late",
+            version_id=document["version_id"],
+        )
+        s.add(read)
+        s.flush()
+        read_id = read.id
+    stopped = dict(requests=0, usage={}, model="m", error="send_blocked", finish_reason=None, seconds=0)
+    assert db.settle_call(stopped, [read_id], stage="triage") is None
+    with db.session() as s:
+        assert s.get(db.MaterialRead, read_id).status == "not_sent"
+        assert s.scalar(select(func.count()).select_from(db.LlmCall)) == 0
+
+
+def test_the_audit_exception_does_not_open_the_guard_for_anything_else(monkeypatch, leaders):
+    leader = leaders()
+    assert leader.acquire()
+    drop_lock_connection(leader)
+    with guard.holding(leader.assert_held):
+        with guard.audit():
+            guard.check()  # appending to the audit of a sent attempt is allowed ...
+        with pytest.raises(guard.Revoked):  # ... a business write right after it is not
+            with db.session():
+                pass

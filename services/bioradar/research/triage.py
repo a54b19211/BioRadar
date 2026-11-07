@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import delete, func, select
 
-from bioradar import db
+from bioradar import db, guard
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import NOT_VISIBLE, REGISTRY_DIFF_SOURCES, Fabric, FabricError, noticed
 from bioradar.config import Settings, settings
@@ -403,30 +403,14 @@ def triage(s: Settings, docs, topics, watch=None, known=None, reads=None):
     try:
         result, call = llm.chat_json(s, "triage", prompts.TRIAGE, payload, schemas.Triage)
     except BaseException:
-        with db.session() as session:
+        with guard.audit(), db.session() as session:
             for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
                 r.status = "failed"
         raise
-    with db.session() as session:
-        u = call["usage"]
-        row = db.LlmCall(
-            stage="triage",
-            service="radar",
-            model=call["model"],
-            error=call["error"],
-            finish_reason=call["finish_reason"],
-            prompt_tokens=u.get("prompt_tokens", 0),
-            completion_tokens=u.get("completion_tokens", 0),
-            total_tokens=u.get("total_tokens", 0),
-            seconds=call["seconds"],
-            requests=db.request_count(call),
-            http=call.get("http"),
-        )
-        session.add(row)
-        session.flush()
-        db.keep_outputs(session, row, call)
-        for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
-            r.llm_call_id, r.status = row.id, "sent"
+    db.settle_call(
+        call, ids, stage="triage"
+    )  # audit of what was sent, also after the leader guard was revoked
+    guard.check()  # revoked meanwhile: the answer is not used
     items = {item.index: item for item in (result.items if result else []) if 1 <= item.index <= len(docs)}
     return [items.get(i) for i in range(1, len(docs) + 1)]
 

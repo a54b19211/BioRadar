@@ -23,7 +23,7 @@ from datetime import timedelta
 
 from sqlalchemy import select, tuple_
 
-from bioradar import db
+from bioradar import db, guard
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import CURRENT, NOT_VISIBLE, FabricError
 from bioradar.config import Settings
@@ -428,33 +428,17 @@ def _read(s, fabric, keys, token, now):
     try:
         result, call = llm.chat_json(s, "extract", prompts.EXTRACT, payload, schemas.Extraction)
     except BaseException:
-        with db.session() as session:
+        with guard.audit(), db.session() as session:
             for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(all_ids))):
                 r.status = "failed"
         raise
+    # audit of what was sent, also after the leader guard was revoked; then the guard decides about the answer
+    llm_call_id = db.settle_call(call, all_ids, stage="extract", status="sent" if result else "failed")
+    guard.check()
     items = {it.index: it for it in (result.items if result else []) if 1 <= it.index <= len(windows)}
     sent = 0
     done = db.now()  # the model call took time: a lease that ran out meanwhile belongs to another round
     with db.session() as session:
-        u = call["usage"]
-        llm_row = db.LlmCall(
-            stage="extract",
-            service="radar",
-            model=call["model"],
-            error=call["error"],
-            finish_reason=call["finish_reason"],
-            prompt_tokens=u.get("prompt_tokens", 0),
-            completion_tokens=u.get("completion_tokens", 0),
-            total_tokens=u.get("total_tokens", 0),
-            seconds=call["seconds"],
-            requests=db.request_count(call),
-            http=call.get("http"),
-        )
-        session.add(llm_row)
-        session.flush()
-        db.keep_outputs(session, llm_row, call)
-        for r in session.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(all_ids))):
-            r.llm_call_id, r.status = llm_row.id, "sent" if result else "failed"
         for i, ((key, rid, material, a, b), mid) in enumerate(zip(windows, mids), 1):
             w = lease.own(session, db.RecordReadWindow, key, token, done)
             if w is None:
@@ -475,7 +459,9 @@ def _read(s, fabric, keys, token, now):
                         retry_state="failed",
                         final_state="failed_final",
                     )
-                _attempt(session, w, call["error"] or "no_item", material_read_id=mid, llm_call_id=llm_row.id)
+                _attempt(
+                    session, w, call["error"] or "no_item", material_read_id=mid, llm_call_id=llm_call_id
+                )
                 continue
             doc = {
                 "source": read.source,
@@ -508,7 +494,7 @@ def _read(s, fabric, keys, token, now):
                 w,
                 "sent",
                 material_read_id=mid,
-                llm_call_id=llm_row.id,
+                llm_call_id=llm_call_id,
                 measures_found=len(item.measures),
                 measures_enqueued=made,
             )

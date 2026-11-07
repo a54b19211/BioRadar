@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 _current: ContextVar[Callable[[], None] | None] = ContextVar("bioradar_guard", default=None)
+_auditing: ContextVar[bool] = ContextVar("bioradar_guard_auditing", default=False)
 
 
 class Revoked(Exception):
@@ -18,7 +19,7 @@ class Revoked(Exception):
 def check():
     """Raise Revoked when the current piece of work may no longer send or write."""
     fn = _current.get()
-    if fn is not None:
+    if fn is not None and not _auditing.get():
         fn()
 
 
@@ -29,3 +30,15 @@ def holding(fn: Callable[[], None]):
         yield
     finally:
         _current.reset(token)
+
+
+@contextmanager
+def audit():
+    """Suspend the check for appending to the audit of an attempt that was already sent (db.settle_call): the
+    answer, usage and error of a request that went out are recorded though the work was revoked meanwhile.
+    Nothing else may run inside: business writes and new sends stay behind the check."""
+    token = _auditing.set(True)
+    try:
+        yield
+    finally:
+        _auditing.reset(token)

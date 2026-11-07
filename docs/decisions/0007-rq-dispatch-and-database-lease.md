@@ -58,6 +58,13 @@ answer different questions, so the wording was wrong, not the design.
   commit, and before every model, BioCheck, MechEvidence and Fabric request and queue entry. A half-open
   connection that the server already dropped but the client has not noticed is caught only when the next check
   times out.
+- **The monitor settles what it already sent.** Triage and continuation reading call `db.settle_call` after
+  every model call: the call, its answer and usage (`llm_calls`, `llm_outputs`) and the final state of its
+  outbound records (`material_reads`: sent / failed, or not_sent for a call stopped before its first request)
+  are written inside `guard.audit()`, which suspends the leader check for that append and nothing else. The
+  client returns a revoked round as a blocked send, so what was already sent comes back to be settled before a
+  retry; `guard.check()` right after raises `Revoked` and the answer is not used - observations, topics,
+  candidates and window progress stay behind the guard.
 - Who uses what:
   - analyses: RQ delivers; `analyses.execute` takes the row lock and returns when a lease is live or the
     analysis is finished; `analyses.recover` (monitor loop) re-queues rows whose lease expired or whose job

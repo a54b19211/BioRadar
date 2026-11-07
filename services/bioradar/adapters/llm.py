@@ -52,7 +52,10 @@ def post(settings: Settings, body: dict, call: dict, limit: int | None = None, b
     """POST one request, resent after a refusal; before_send(requests already sent in this call) runs right
     before every send and may raise SendBlocked."""
     for wait in (*BACKOFF, None):
-        guard.check()
+        try:
+            guard.check()
+        except guard.Revoked:
+            raise SendBlocked("revoked") from None  # what was already sent is returned for settlement
         if before_send is not None:
             before_send(call.get("requests", 0))
         call["requests"] = call.get("requests", 0) + 1

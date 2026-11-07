@@ -17,6 +17,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
@@ -158,6 +159,46 @@ def keep_outputs(session, llm_row, call):
                 mappings=o.get("mappings") or [],
             )
         )
+
+
+def keep_call(session, call, stage: str, service: str = "radar") -> "LlmCall":
+    """The LlmCall (and its outputs) of one llm.chat_json call record."""
+    usage = call["usage"]
+    row = LlmCall(
+        stage=stage,
+        service=service,
+        model=call["model"],
+        error=call["error"],
+        finish_reason=call["finish_reason"],
+        prompt_tokens=usage.get("prompt_tokens", 0),
+        completion_tokens=usage.get("completion_tokens", 0),
+        total_tokens=usage.get("total_tokens", 0),
+        seconds=call["seconds"],
+        requests=request_count(call),
+        http=call.get("http"),
+    )
+    session.add(row)
+    session.flush()
+    keep_outputs(session, row, call)
+    return row
+
+
+def settle_call(call, read_ids, *, stage: str, status: str = "sent") -> int | None:
+    """Settle the outbound records of one model call and keep the call itself (llm_calls, llm_outputs). A call
+    that sent at least one request is kept as it happened - answer, usage, error - and its records take
+    `status`; one stopped before its first request sent nothing and its records are not_sent. This is audit of
+    an attempt that already went out: it runs even when the caller's work was revoked meanwhile (guard.audit),
+    and callers check the guard again before they use the answer. Returns the llm_calls id, or None."""
+    with guard.audit(), session() as s:
+        reads = list(s.scalars(select(MaterialRead).where(MaterialRead.id.in_(read_ids))))
+        if not request_count(call):
+            for r in reads:
+                r.status = "not_sent"
+            return None
+        row = keep_call(s, call, stage)
+        for r in reads:
+            r.llm_call_id, r.status = row.id, status
+        return row.id
 
 
 class MaterialRead(Base):
