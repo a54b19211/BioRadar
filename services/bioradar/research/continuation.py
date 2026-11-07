@@ -21,7 +21,7 @@ coverage is the union of what was read. Read is not "every fact extracted"."""
 import re
 from datetime import timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, tuple_
 
 from bioradar import db
 from bioradar.adapters import llm
@@ -187,49 +187,98 @@ def plan(session, s: Settings, doc, topic, direction, at, is_demo, supersedes=No
 # ---- the worker ----------------------------------------------------------------------------------------
 
 
+CANDIDATES = 500  # windows looked at (not locked) to choose from; only the ones taken are locked
+
+
+def _due(s, is_demo, now):
+    """Where-clauses: windows of this reader's plans that are due and not leased."""
+    return (
+        db.RecordRead.workspace_id == s.workspace_id,
+        db.RecordRead.is_demo == is_demo,
+        db.RecordRead.state == "reading",
+        db.RecordRead.superseded_by_id.is_(None),  # a replaced plan is not read on
+        db.RecordReadWindow.state.in_(TO_READ),
+        db.RecordReadWindow.next_at <= now,
+        lease.claimable(db.RecordReadWindow, now),
+    )
+
+
+def _by_source(session, s, is_demo, now):
+    """source -> {read_id: [windows]}, both in arrival order: the windows to choose from, not locked."""
+    rows = session.execute(
+        select(db.RecordReadWindow, db.RecordRead.source)
+        .join(db.RecordRead, db.RecordRead.id == db.RecordReadWindow.read_id)
+        .where(*_due(s, is_demo, now))
+        .order_by(db.RecordRead.created_at, db.RecordRead.id, db.RecordReadWindow.window_index)
+        .limit(CANDIDATES)
+    ).all()
+    by_source = {}
+    for w, source in rows:
+        by_source.setdefault(source, {}).setdefault(w.read_id, []).append(w)
+    return by_source
+
+
+def _pick(by_source, taken, per_round, n):
+    """Up to n windows, a source after the other and inside a source the plan that was not served last;
+    no plan more than per_round windows this round. Counts them in `taken`."""
+    picked = []
+    while len(picked) < n:
+        moved = False
+        for plans in by_source.values():
+            if len(picked) >= n:
+                break
+            for rid in list(plans):
+                if taken.get(rid, 0) >= per_round or not plans[rid]:
+                    continue
+                picked.append(plans[rid].pop(0))
+                taken[rid] = taken.get(rid, 0) + 1
+                plans[rid] = plans.pop(rid)  # this source's next pick is its next plan
+                moved = True
+                break
+        if not moved:
+            break
+    return picked
+
+
+def _lock(session, s, is_demo, now, picked):
+    """The picked windows that are still due, locked (SKIP LOCKED: one another worker holds is left to it).
+    Only these rows are locked, so a claim never keeps other workers from windows it does not take."""
+    keys = [(w.read_id, w.window_index) for w in picked]
+    locked = session.scalars(
+        select(db.RecordReadWindow)
+        .join(db.RecordRead, db.RecordRead.id == db.RecordReadWindow.read_id)
+        .where(
+            *_due(s, is_demo, now),
+            tuple_(db.RecordReadWindow.read_id, db.RecordReadWindow.window_index).in_(keys),
+        )
+        .with_for_update(skip_locked=True, of=db.RecordReadWindow)
+        .execution_options(populate_existing=True)
+    ).all()
+    mine = {(w.read_id, w.window_index): w for w in locked}
+    return [mine[k] for k in keys if k in mine]
+
+
 def _claim(s, is_demo, now, taken, per_round, per_call):
     """Up to per_call windows, round-robin over the sources and, inside a source, over its plans in arrival
     order (each plan's lowest windows first); no plan more than per_round windows this round - a long table
-    or a busy source does not starve the others."""
+    or a busy source does not starve the others. The windows are chosen from an unlocked look and only the
+    chosen ones are locked; one that another worker holds meanwhile is replaced by the next in the order, and
+    does not count against its plan's share."""
     token = lease.new_token()
     with db.session() as session:
-        rows = session.execute(
-            select(db.RecordReadWindow, db.RecordRead.source)
-            .join(db.RecordRead, db.RecordRead.id == db.RecordReadWindow.read_id)
-            .where(
-                db.RecordRead.workspace_id == s.workspace_id,
-                db.RecordRead.is_demo == is_demo,
-                db.RecordRead.state == "reading",
-                db.RecordRead.superseded_by_id.is_(None),  # a replaced plan is not read on
-                db.RecordReadWindow.state.in_(TO_READ),
-                db.RecordReadWindow.next_at <= now,
-                lease.claimable(db.RecordReadWindow, now),
-            )
-            .order_by(db.RecordRead.created_at, db.RecordRead.id, db.RecordReadWindow.window_index)
-            .limit(500)
-            .with_for_update(skip_locked=True)
-        ).all()
-        by_source = {}  # source -> {read_id: [windows]}, both in arrival order
-        for w, source in rows:
-            by_source.setdefault(source, {}).setdefault(w.read_id, []).append(w)
-        picked = []
-        while len(picked) < per_call:
-            moved = False
-            for plans in by_source.values():
-                if len(picked) >= per_call:
-                    break
-                for rid in list(plans):
-                    if taken.get(rid, 0) >= per_round or not plans[rid]:
-                        continue
-                    picked.append(plans[rid].pop(0))
-                    taken[rid] = taken.get(rid, 0) + 1
-                    plans[rid] = plans.pop(rid)  # this source's next pick is its next plan
-                    moved = True
-                    break
-            if not moved:
+        by_source = _by_source(session, s, is_demo, now)
+        claimed = []
+        while len(claimed) < per_call:
+            chosen = _pick(by_source, taken, per_round, per_call - len(claimed))
+            if not chosen:
                 break
-        lease.take(picked, token, now, LEASE)
-        return [(w.read_id, w.window_index) for w in picked], token
+            got = _lock(session, s, is_demo, now, chosen)
+            for w in chosen:
+                if w not in got:
+                    taken[w.read_id] -= 1
+            claimed += got
+        lease.take(claimed, token, now, LEASE)
+        return [(w.read_id, w.window_index) for w in claimed], token
 
 
 def _attempt(session, w, outcome, **fields):

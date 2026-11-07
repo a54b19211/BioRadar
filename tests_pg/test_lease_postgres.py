@@ -602,3 +602,45 @@ def test_a_run_that_keeps_dying_with_an_unsettled_send_is_stopped_for_review_not
     row = analysis_of(unsure)
     assert (row.state, row.error_code, row.lease_until) == ("failed", "recovery_unknown_outcome", None)
     assert notes_of(unsure) == [analyses.UNKNOWN_OUTCOME] * analyses.MAX_UNKNOWN_RECOVERIES
+
+
+def test_a_claim_locks_only_the_windows_it_takes_so_others_are_not_starved(monkeypatch):
+    plan = add_plan("a", 6, 0)
+    started, gate, first = threading.Event(), threading.Event(), []
+    real_take = lease.take
+
+    def slow_take(rows, token, now, span):
+        if (
+            threading.current_thread().name == "slow-claimer"
+        ):  # the first claimer stays inside its transaction
+            started.set()
+            assert gate.wait(30)
+        real_take(rows, token, now, span)
+
+    monkeypatch.setattr(lease, "take", slow_take)
+    worker = threading.Thread(target=lambda: first.append(claim_windows(per_call=2)), name="slow-claimer")
+    worker.start()
+    try:
+        assert started.wait(30)
+        keys, _ = returns_within(
+            10, lambda: claim_windows(per_call=2)
+        )  # while the first one still holds its locks
+        assert len(keys) == 2  # it was not left with nothing because the first claimer locked a long list
+    finally:
+        gate.set()
+        worker.join(60)
+    (first_keys, _) = first[0]
+    assert len(first_keys) == 2 and not set(first_keys) & set(keys)
+    assert plan
+
+
+def test_a_window_another_worker_holds_is_replaced_by_the_next_and_not_counted_against_the_plan(monkeypatch):
+    plan = add_plan("a", 4, 0)
+    taken = {}
+    lock = "SELECT 1 FROM record_read_windows WHERE read_id = :r AND window_index = 0 FOR UPDATE"
+    with db.engine().connect() as holder:
+        holder.execute(text(lock), {"r": plan})  # window 0 is being worked on by another transaction
+        keys, _ = returns_within(10, lambda: claim_windows(taken, per_round=3, per_call=3))
+        holder.rollback()
+    assert keys == [(plan, 1), (plan, 2), (plan, 3)]  # three windows, the locked one skipped
+    assert taken == {plan: 3}
