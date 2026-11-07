@@ -47,6 +47,7 @@ class Run:
         run an analysis inline, tests) nothing is fenced."""
         self.lease_token = lease_token
         self.sends_pending = 0  # registered sends whose answer is not logged yet
+        self.sending: list[int] = []  # the material_reads of the outbound call in progress (submit.outbound)
         self.found = 0.0  # what the current read found apart from answering (evidence_gain)
         self.id = analysis.id
         self.row_investigation = analysis.investigation_id
@@ -101,12 +102,19 @@ class Run:
             {"code": code, "detail": str(detail)[:300], "stage": self.stage}
         )
 
-    def log(self, calls, service="radar"):
+    def log(self, calls, service="radar", *, reads=(), authorization_ref=None):
         """Record model calls of this run (llm_calls and their outputs). This is audit and budget, not a
         business write: the answer and cost of a request that was already sent are recorded even when the
         lease was lost while it was on the way - under this worker's token, so they count against the
         analysis's budget and the successor does not start with them hidden. Only calls of sends this run
-        registered (check_lease) can be recorded that way; a call nobody sent is Lost."""
+        registered (check_lease) can be recorded that way; a call nobody sent is Lost.
+
+        reads: the material_reads that fed these calls (by default those of the send in progress,
+        submit.outbound); each unlinked one is linked to the first call row, the call of the service request
+        it was part of. authorization_ref: the authorization a service's requests ran under; its calls carry
+        usage only when the service reported counts (else usage_known is false: zeros that mean not known).
+        Returns the ids of the llm_calls rows made."""
+        made = []
         with db.session() as s:
             held = self.lease_token is None or lease.renew(
                 s, db.Analysis, self.id, self.lease_token, db.now()
@@ -137,12 +145,23 @@ class Run:
                     requests=db.request_count(c),
                     http=c.get("http"),
                     lease_token=self.lease_token,
+                    usage_known=True if authorization_ref is None else bool(db.usage_present(usage)),
+                    authorization_ref=authorization_ref,
                 )
                 s.add(row)
                 s.flush()
                 db.keep_outputs(s, row, c)
+                made.append(row.id)
+            if made:
+                for read in s.scalars(
+                    select(db.MaterialRead).where(
+                        db.MaterialRead.id.in_(reads or self.sending), db.MaterialRead.llm_call_id.is_(None)
+                    )
+                ):
+                    read.llm_call_id = made[0]
         self.sends_pending = 0
         self.calls_used += sum(db.request_count(c) for c in calls)
+        return made
 
     def calls_left(self):
         return self.input["budget"]["max_llm_calls"] - self.calls_used

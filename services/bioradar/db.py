@@ -160,17 +160,34 @@ def total_tokens(usage) -> int:
 
 
 def keep_outputs(session, llm_row, call):
-    """The LlmOutput rows of one call record (llm.chat_json's "outputs"), for an LlmCall already flushed."""
+    """The LlmOutput rows of one call record, for an LlmCall already flushed: llm.chat_json's "outputs",
+    or those of a professional service's receipt, which also say which ledger attempt a request was,
+    whether it was answered, with what status, and whether the text kept is the whole answer."""
     for o in call.get("outputs") or []:
         session.add(
             LlmOutput(
                 llm_call_id=llm_row.id,
                 attempt=o["attempt"],
-                content_sha256=o["sha256"],
-                content=o["content"],
+                content_sha256=o.get("sha256"),
+                content=o.get("content"),
                 mappings=o.get("mappings") or [],
+                attempt_id=o.get("attempt_id"),
+                delivered=o.get("delivered"),
+                http_status=o.get("status"),
+                truncated=o.get("truncated"),
             )
         )
+
+
+def usage_present(usage) -> bool:
+    """Whether a usage record carries the provider's counts (a total, or prompt and completion tokens).
+    {} or anything else says nothing: the cost is not known, which is not the same as zero."""
+
+    def count(key):
+        value = usage.get(key) if isinstance(usage, dict) else None
+        return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+    return count("total_tokens") or (count("prompt_tokens") and count("completion_tokens"))
 
 
 def keep_call(session, call, stage: str, service: str = "radar") -> "LlmCall":

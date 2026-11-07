@@ -11,20 +11,24 @@ from bioradar.config import Settings
 
 
 class ServiceError(Exception):
-    def __init__(self, service: str, code: str, message: str = "", calls=()):
+    def __init__(self, service: str, code: str, message: str = "", calls=(), body=None):
         super().__init__(f"{service}: {code} {message}".strip())
         self.service, self.code = service, code
         self.calls = list(calls)  # model calls the service made before failing; still billed
+        self.body = body if isinstance(body, dict) else {}  # the service's whole error answer
+        self.reads: list[int] = []  # the material_reads of the request that failed (set by the sender)
 
 
-def _post(service, url, token, path, body, timeout):
+def _post(service, url, token, path, body, timeout, method="POST"):
     if not url:
         raise ServiceError(service, "not_configured")
     guard.check()
     try:
-        response = httpx.post(
-            url.rstrip("/") + path, json=body, timeout=timeout, headers={"Authorization": f"Bearer {token}"}
-        )
+        target, headers = url.rstrip("/") + path, {"Authorization": f"Bearer {token}"}
+        if method == "GET":
+            response = httpx.get(target, timeout=timeout, headers=headers)
+        else:
+            response = httpx.post(target, json=body, timeout=timeout, headers=headers)
     except httpx.TimeoutException as exc:
         raise ServiceError(service, "timeout") from exc
     except httpx.HTTPError as exc:
@@ -39,6 +43,7 @@ def _post(service, url, token, path, body, timeout):
             error.get("error_code") or f"http_{response.status_code}",
             str(error.get("message", ""))[:300],
             error.get("llm_calls") or (),
+            error,
         )
     return response.json()
 
@@ -76,6 +81,32 @@ def biocheck_extraction(settings: Settings, body: dict) -> dict:
         settings.biocheck_url,
         settings.biocheck_token,
         path,
+        body,
+        settings.service_timeout_seconds,
+    )
+
+
+def mechevidence_evaluator(settings: Settings) -> dict:
+    """GET /v2/evaluator: who would evaluate now ({contract_version, evaluator: {..., evaluator_id}, ...})."""
+    return _post(
+        "mechevidence",
+        settings.mechevidence_url,
+        settings.mechevidence_token,
+        "/v2/evaluator",
+        None,
+        30,
+        "GET",
+    )
+
+
+def mechevidence_v2(settings: Settings, body: dict) -> dict:
+    """POST /v2/evaluate: the version-bound contract. A 409 evaluator_changed and a 502 come back as
+    ServiceError with the service's whole answer in .body and its model calls in .calls."""
+    return _post(
+        "mechevidence",
+        settings.mechevidence_url,
+        settings.mechevidence_token,
+        "/v2/evaluate",
         body,
         settings.service_timeout_seconds,
     )

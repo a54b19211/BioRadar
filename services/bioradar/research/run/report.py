@@ -250,7 +250,7 @@ def report(run: "Run"):
             review = submit.service(run, "verify", dict(body, draft=report["draft"]))
             checked(review)
     except ServiceError as exc:
-        run.log(exc.calls, "biocheck")
+        run.log(exc.calls, "biocheck", reads=exc.reads)
         report["reason"] = f"biocheck_{exc.code}"
         if report["versions"] and report["versions"][-1]["status"] == "unchecked":
             report["versions"][-1]["error"] = exc.code

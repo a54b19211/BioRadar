@@ -69,6 +69,7 @@ def outbound(run: "Run", ids, *, model=False):
     sent) plus a withheld attempt for the blocked request; failed if it raises otherwise; else sent, or for a
     model call not_sent when no call was made (no budget left)."""
     before = run.calls_used
+    run.sending = list(ids)
     try:
         run.check_lease()
         yield
@@ -84,6 +85,8 @@ def outbound(run: "Run", ids, *, model=False):
     except BaseException:
         mark(run, ids, "failed")
         raise
+    finally:
+        run.sending = []
     mark(run, ids, "not_sent" if model and run.calls_used == before else "sent")
 
 
@@ -153,8 +156,12 @@ def service(run: "Run", operation, body):
                 for r, m in getattr(run, "report_windows", [])
                 if r.ref in carried
             ]
-    with outbound(run, ids):
-        run.confirm_sources({e.get("source") for e in body.get("evidence", [])} - {None})
-        response = services.biocheck(run.s, operation, body)
-    run.log(response.pop("llm_calls", []), "biocheck")
+    try:
+        with outbound(run, ids):
+            run.confirm_sources({e.get("source") for e in body.get("evidence", [])} - {None})
+            response = services.biocheck(run.s, operation, body)
+    except services.ServiceError as exc:
+        exc.reads = ids  # the caller logs the calls the failed request paid for, with the reads that fed them
+        raise
+    run.log(response.pop("llm_calls", []), "biocheck", reads=ids)
     return response

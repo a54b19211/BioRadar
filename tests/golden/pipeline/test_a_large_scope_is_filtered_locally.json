@@ -1098,7 +1098,7 @@
       "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
      },
      "chars": 23,
-     "llm_call_id": null,
+     "llm_call_id": 2,
      "record_id": "B31",
      "ref": "E1",
      "service": "radar",
@@ -1417,7 +1417,7 @@
       "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
      },
      "chars": 23,
-     "llm_call_id": null,
+     "llm_call_id": 2,
      "record_id": "B31",
      "ref": "E1",
      "service": "radar",
@@ -1736,7 +1736,7 @@
       "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
      },
      "chars": 23,
-     "llm_call_id": null,
+     "llm_call_id": 2,
      "record_id": "B31",
      "ref": "E1",
      "service": "radar",
@@ -2056,7 +2056,7 @@
       "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
      },
      "chars": 23,
-     "llm_call_id": null,
+     "llm_call_id": 2,
      "record_id": "B31",
      "ref": "E1",
      "service": "radar",
@@ -2377,7 +2377,7 @@
       "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
      },
      "chars": 23,
-     "llm_call_id": null,
+     "llm_call_id": 2,
      "record_id": "B31",
      "ref": "E1",
      "service": "radar",
@@ -2799,7 +2799,7 @@
       "sha256": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
      },
      "chars": 23,
-     "llm_call_id": null,
+     "llm_call_id": 2,
      "record_id": "B31",
      "ref": "E1",
      "service": "radar",

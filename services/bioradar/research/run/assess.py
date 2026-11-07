@@ -187,7 +187,7 @@ def check_assessment(run: "Run", assessment):
             if n >= 0 and c["verdict"] != "no_claim":
                 verdicts[n].append(c["verdict"])
     except ServiceError as exc:
-        run.log(exc.calls, "biocheck")
+        run.log(exc.calls, "biocheck", reads=exc.reads)
         run.note(f"assessment_biocheck_{exc.code}")
     for item, found in zip(items, verdicts):
         if "contradicted" in found:

@@ -62,9 +62,9 @@ def mechanism(run: "Run"):
                 },
             )
     except ServiceError as exc:
-        run.log(exc.calls, "mechevidence")
+        run.log(exc.calls, "mechevidence", reads=sent_ids)
         run.note(f"mechevidence_{exc.code}")
         run.p["mechanism_result"] = {"status": "failed", "reason": exc.code}
         return
-    run.log(response.pop("llm_calls", []), "mechevidence")
+    run.log(response.pop("llm_calls", []), "mechevidence", reads=sent_ids)
     run.p["mechanism_result"] = {"status": "completed", **response}
