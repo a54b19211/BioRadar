@@ -200,6 +200,10 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 
 **花费**（最终一轮）：A 约 32 万 token，B 约 34 万，C 每次约 23–26 万，专题自动分析 45 万；D 定向 303 万；逐日监测 620 万。重构以来全部运行约 5,250 万 token。没有一次因预算或截断失败。
 
+## 来源能力与 MechEvidence v2（2026-11-07）
+
+来源能力只来自 Fabric 的 `/sources`（`capabilities`），雷达不再保存任何来源集合；新分析和监看只用 Fabric 标为可选的来源，`legacy_documents` 可读不可选。`BIORADAR_MECHEVIDENCE_CONTRACT=v2` 时机制评价走版本绑定契约：发出前向 Fabric 重读材料，雷达签发授权并在 `/internal/v1/model-attempts/*` 回答服务每次模型请求，回执只有在契约规则与雷达自己的尝试账本都一致时才采用。设计与取舍见 [`docs/decisions/0009`](docs/decisions/0009-fabric-capabilities-and-mechevidence-v2.md)。环境变量：`BIORADAR_MODEL_ATTEMPT_TOKEN`（服务令牌，MechEvidence 的 `MECH_AUTHORIZATION_TOKEN`），`MECH_AUTHORIZATION_URL` / `MECH_OUTCOME_URL` 指向本服务的 `/internal/v1/model-attempts/authorize` 与 `/{attempt_id}/outcome`。
+
 ## 2026-11-03 讨论室修订
 
 当时加的能力（观测账、评估核验、规划范围、读取排序、用户与角色、来源撤权、模型服务故障退避）和实测记录在 [`docs/decisions/0008-room-revision-record-2026-11-03.md`](docs/decisions/0008-room-revision-record-2026-11-03.md)；现行行为以代码和测试为准。
@@ -218,4 +222,4 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
 - **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（`live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
-- **整洁度第一波（2026-11-06）之后还剩的**：测量链路（`measure_checks`、`upkeep`、`continuation`、`series_store.adopt`、`domain`）按 v3 6.1 迁到 Fabric 派生数据层，之后再拆这些长函数；Fabric 提供一次返回可读材料的接口和来源目录（`fetchable`、附件、登记差分），雷达删掉 `FETCHABLE`、`ATTACHMENT_SOURCES`、`REGISTRY_DIFF_SOURCES`、`native_kind` 和适配器里的四段拼接；三个服务共用一份 LLM 客户端。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。
+- **整洁度第一波（2026-11-06）之后还剩的**：测量链路（`measure_checks`、`upkeep`、`continuation`、`series_store.adopt`、`domain`）按 v3 6.1 迁到 Fabric 派生数据层，之后再拆这些长函数；（来源目录的四份副本已删，见 0009）；三个服务共用一份 LLM 客户端。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。
