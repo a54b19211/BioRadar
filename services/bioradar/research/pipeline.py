@@ -7,6 +7,8 @@ Run holds what one run needs across its stages - the analysis input, the saved s
 client and the call budget - and the bookkeeping every stage shares (notes, model calls and their log,
 saving). The stages themselves are in research/run/, one module each."""
 
+import logging
+from contextlib import contextmanager
 from datetime import datetime
 
 import httpx
@@ -16,12 +18,13 @@ from bioradar import db
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import Settings
-from bioradar.research import state
+from bioradar.research import lease, state
 from bioradar.research.lineage import lineage_sources
 from bioradar.research.run import Failed, Withheld, assess, calculate, investigate, mechanism, plan, report
 from bioradar.research.state import RunState
 from bioradar.research.views import publication
 
+log = logging.getLogger("bioradar")
 __all__ = ["DEMO_SETTING", "STAGES", "Failed", "Run", "Withheld"]
 
 STAGES = ["plan", "investigate", "compute", "mechanism", "report", "assess", "done"]
@@ -32,7 +35,16 @@ DEMO_SETTING = (
 
 
 class Run:
-    def __init__(self, analysis: db.Analysis, settings: Settings, fabric: Fabric | None = None):
+    def __init__(
+        self,
+        analysis: db.Analysis,
+        settings: Settings,
+        fabric: Fabric | None = None,
+        lease_token: str | None = None,
+    ):
+        """lease_token: the token the executing worker holds on the analysis row; without one (scripts that
+        run an analysis inline, tests) nothing is fenced."""
+        self.lease_token = lease_token
         self.found = 0.0  # what the current read found apart from answering (evidence_gain)
         self.id = analysis.id
         self.row_investigation = analysis.investigation_id
@@ -47,6 +59,19 @@ class Run:
             self.calls_used = (
                 s.scalar(select(func.sum(db.LlmCall.requests)).where(db.LlmCall.analysis_id == self.id)) or 0
             )
+
+    @contextmanager
+    def writing(self, *, exclusive=False):
+        """A session for a write that belongs to this analysis. While the run holds a lease token, the write
+        goes through only if the token is still the row's (the row is locked until the commit, so a worker
+        taking the analysis over waits for it); a superseded worker gets lease.Lost and writes nothing."""
+        with db.session() as s:
+            if self.lease_token is not None and not lease.holds(
+                s, db.Analysis, self.id, self.lease_token, exclusive=exclusive
+            ):
+                log.warning("analysis %s: write rejected, the lease was taken over", self.id)
+                raise lease.Lost(self.id)
+            yield s
 
     # ---- bookkeeping ---------------------------------------------------------------------------
 
@@ -124,7 +149,7 @@ class Run:
             total["n"] += c["n"] - seen["n"]
             total["errors"] += c["errors"] - seen["errors"]
             self.counted[op] = dict(c)
-        with db.session() as s:
+        with self.writing(exclusive=True) as s:
             row = s.get(db.Analysis, self.id)
             row.progress, row.stage = dict(self.p), self.stage
 

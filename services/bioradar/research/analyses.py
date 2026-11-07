@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import traceback
 from contextlib import nullcontext
 from datetime import datetime, timedelta
@@ -15,6 +16,7 @@ from bioradar.config import settings
 from bioradar.research import lease, topics, views
 from bioradar.research.pipeline import Failed, Run
 
+log = logging.getLogger("bioradar")
 LEASE = timedelta(minutes=90)
 DIRECTIONS = {"pipeline", "science", "business", "public_health"}
 
@@ -174,7 +176,9 @@ def over_auto_budget() -> bool:
 
 
 def execute(analysis_id: str):
-    """RQ job. A lease keeps two workers from running the same analysis."""
+    """RQ job. A lease keeps two workers from running the same analysis; its token fences a worker that
+    outlives the lease: once recover handed the analysis to another worker, nothing this one writes counts."""
+    token = lease.new_token()
     with db.session() as session:
         row = session.get(db.Analysis, analysis_id, with_for_update=True)
         if row is None or row.state in {"completed", "failed"}:
@@ -185,17 +189,25 @@ def execute(analysis_id: str):
         if row.trigger == "topic" and not row.input.get("cutoff") and not row.input.get("is_demo"):
             if over_auto_budget():
                 return
-        row.state, row.lease_until = "running", db.now() + LEASE
+        row.state = "running"
+        lease.take([row], token, db.now(), LEASE)
     try:
-        result = Run(row, settings()).run()
+        result = Run(row, settings(), lease_token=token).run()
         state, error = "completed", None
+    except lease.Lost:
+        log.warning("analysis %s: the worker was superseded, its work is dropped", analysis_id)
+        return
     except Failed as exc:
         result, state, error = None, "failed", exc.code
     except Exception:  # an unexpected bug: keep the trace for the student, do not loop
         result, state, error = {"trace": traceback.format_exc()[-4000:]}, "failed", "internal_error"
     with db.session() as session:
-        row = session.get(db.Analysis, analysis_id)
-        row.state, row.error_code, row.lease_until, row.completed_at = state, error, None, db.now()
+        row = lease.holds(session, db.Analysis, analysis_id, token, exclusive=True)
+        if row is None:
+            log.warning("analysis %s: final write rejected, the lease was taken over", analysis_id)
+            return
+        lease.release(row)
+        row.state, row.error_code, row.completed_at = state, error, db.now()
         if result is not None:
             marks = (row.result or {}).get("source_updates")  # corrections that arrived during the run
             row.result = {**result, "source_updates": marks} if marks else result
@@ -243,7 +255,7 @@ def recover(limit=4) -> int:
                 except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
                     continue
             # else: the worker died while running it
-            row.lease_until = None
+            lease.release(row)
             row.state = "queued"
             dispatch(row.id)
             lost += 1

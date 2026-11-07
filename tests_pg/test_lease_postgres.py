@@ -339,7 +339,7 @@ class FakeRun:
     started = threading.Event()
     gate = None
 
-    def __init__(self, row, config):
+    def __init__(self, row, config, fabric=None, lease_token=None):
         pass
 
     def run(self):
@@ -426,3 +426,49 @@ def test_two_recovers_at_the_same_moment_requeue_each_row_once(monkeypatch):
     assert sorted(sent) == sorted([crashed, lost])  # each dispatched once, not once per recover
     assert sorted(results) == [0, 2]
     assert analysis_of(crashed).state == "queued" and analysis_of(lost).state == "queued"
+
+
+@pytest.fixture
+def racy_run(monkeypatch):
+    """A pipeline whose first run is held until the test lets it go; later runs finish at once."""
+
+    class RacyRun:
+        runs = []
+        started = threading.Event()
+        gate = threading.Event()
+
+        def __init__(self, row, config, fabric=None, lease_token=None):
+            pass
+
+        def run(self):
+            n = len(type(self).runs)
+            type(self).runs.append(n)
+            if n == 0:
+                type(self).started.set()
+                assert type(self).gate.wait(30)
+            return {"report": f"run{n}"}
+
+    monkeypatch.setattr(analyses, "Run", RacyRun)
+    return RacyRun
+
+
+def test_a_worker_that_outlived_its_lease_cannot_write_over_the_one_that_took_over(racy_run, queue, caplog):
+    analysis_id = add_analysis("queued")
+    late = threading.Thread(target=analyses.execute, args=(analysis_id,))
+    late.start()
+    try:
+        assert racy_run.started.wait(30)
+        old_token = analysis_of(analysis_id).lease_token
+        assert old_token
+        with db.session() as s:  # the first worker is slow: its lease runs out
+            s.execute(update(db.Analysis).values(lease_until=utc_now() - timedelta(minutes=1)))
+        assert analyses.recover() == 1 and queue == [analysis_id]
+        assert analysis_of(analysis_id).lease_token is None  # recover released the old holder
+        analyses.execute(analysis_id)  # the second worker runs it to the end
+        assert analysis_of(analysis_id).result == {"report": "run1"}
+    finally:
+        racy_run.gate.set()
+        late.join(60)
+    row = analysis_of(analysis_id)
+    assert (row.state, row.result, row.lease_token) == ("completed", {"report": "run1"}, None)
+    assert "final write rejected" in caplog.text

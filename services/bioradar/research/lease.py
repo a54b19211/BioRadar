@@ -42,8 +42,22 @@ def own(session, model, key, token, now):
     return row if held(row, token, now) else None
 
 
+class Lost(Exception):
+    """The worker no longer holds the row it was working on: another worker took it over."""
+
+
+def holds(session, model, key, token, *, exclusive=False):
+    """The row, locked, while `token` is still its lease token; None once it was taken over or released.
+    Unlike `own` this does not ask for an unexpired lease: a worker that ran past its lease is superseded
+    only when someone took the row over (analyses: recover released it, execute gave it a new token). The
+    lock is FOR KEY SHARE (a claimant's FOR UPDATE waits for the write, ordinary updates of other columns
+    do not), FOR UPDATE with exclusive=True for a write to the lease row itself."""
+    row = session.get(model, key, with_for_update=True if exclusive else {"read": True, "key_share": True})
+    return row if row is not None and token is not None and row.lease_token == token else None
+
+
 def running(row, now) -> bool:
-    """A lease without a token (analyses): someone holds the row until lease_until."""
+    """Someone holds the row until lease_until (the token says who)."""
     return bool(row.lease_until) and utc(row.lease_until) > now
 
 

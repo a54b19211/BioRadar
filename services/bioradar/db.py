@@ -68,6 +68,7 @@ class Analysis(Base):
     progress: Mapped[dict] = mapped_column(Json, default=dict)
     result: Mapped[dict | None] = mapped_column(Json)
     error_code: Mapped[str | None] = mapped_column(String(100))
+    lease_token: Mapped[str | None] = mapped_column(String(64))  # the worker that holds the lease (fencing)
     lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
