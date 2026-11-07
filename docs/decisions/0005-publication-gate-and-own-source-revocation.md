@@ -1,6 +1,6 @@
 # 0005 Publication gate and own-source revocation
 
-- Status: proposed (2026-11-06), for review by Codex
+- Status: accepted (2026-11-07; Codex: the PASS delivery gate and the per-send source permission check were accepted earlier, their fixes verified in r207/r209). An engineering decision, not a release or business-quality sign-off
 - Design: v3.1 6.2 (输出前 / 全程: what may be shown is decided by a program gate) and 6.1 (权限: revocation
   must stop what was already read from leaking)
 - Code: `research/views.py` (`publication`, `gated`, `summary`), `research/pipeline.py`
