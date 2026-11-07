@@ -29,8 +29,3 @@ services/bioradar/adapters/fabric.py:Fabric.attach_clean_text  client-side join 
 services/bioradar/adapters/fabric.py:Fabric.attach_attachment_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
 # The LLM JSON client is consolidated across Radar, BioCheck and MechEvidence (audit P5, out of this wave).
 services/bioradar/adapters/llm.py:chat_json  LLM client consolidation across the three services (P5)
-#
-# Not split in cleanup wave 1 (no move pending); next in line, covered by test_monitor, test_owed_cutoff,
-# test_access, test_deferred_revisions.
-services/bioradar/research/analyses.py:create  split pending (wave 2)
-services/bioradar/research/analyses.py:review  split pending (wave 2)

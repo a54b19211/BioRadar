@@ -81,25 +81,11 @@ def create(
         enqueue = False
     with nullcontext(session) if session is not None else db.session() as session:
         if investigation_id is None:
-            investigation = db.Investigation(
-                workspace_id=s.workspace_id,
-                question=value["question"],
-                direction=direction,
-                is_demo=is_demo,
-                topic_id=topic_id,
-            )
-            session.add(investigation)
-            session.flush()
-            investigation_id = investigation.id
+            investigation_id = _new_investigation(session, value, topic_id)
         if parent_id and previous:
-            parent = session.get(db.Analysis, parent_id)
-            if parent and parent.result and parent.result.get("draft"):
-                value["previous_report"] = {
-                    "draft": parent.result["draft"],
-                    "date": parent.completed_at.isoformat() if parent.completed_at else None,
-                    # its verification travels with it: a held report is handed on as pending (lineage)
-                    "report_status": parent.result.get("report_status"),
-                }
+            earlier = _previous_report(session, parent_id)
+            if earlier:
+                value["previous_report"] = earlier
         digest = input_hash(value)
         existing = session.scalar(
             select(db.Analysis).where(
@@ -124,6 +110,32 @@ def create(
     if enqueue:
         dispatch(row.id)
     return row
+
+
+def _new_investigation(session, value: dict, topic_id) -> str:
+    investigation = db.Investigation(
+        workspace_id=settings().workspace_id,
+        question=value["question"],
+        direction=value["direction"],
+        is_demo=value["is_demo"],
+        topic_id=topic_id,
+    )
+    session.add(investigation)
+    session.flush()
+    return investigation.id
+
+
+def _previous_report(session, parent_id: str) -> dict | None:
+    """The parent's report as the follow-up's input, with its verification (a held report is handed on as
+    pending: lineage)."""
+    parent = session.get(db.Analysis, parent_id)
+    if not (parent and parent.result and parent.result.get("draft")):
+        return None
+    return {
+        "draft": parent.result["draft"],
+        "date": parent.completed_at.isoformat() if parent.completed_at else None,
+        "report_status": parent.result.get("report_status"),
+    }
 
 
 def job_id(analysis_id: str) -> str:
@@ -418,33 +430,14 @@ def review(
     topic a new analysis (analyst_review); an analysis without a topic only keeps the record."""
     at = db.now()
     with db.session() as session:
-        topic = None
         if action == "set_alert":
-            topic = session.get(db.Topic, topic_id) if topic_id else None
-            if topic is None or alert is None:
-                raise InvalidInput("set_alert 需要存在的 topic_id 和 alert")
-            if topic.alert != alert:
-                topics.event(session, topic, at, "alert", before=topic.alert, after=alert, by=user.name)
-                topic.alert = alert
+            topic = _set_alert(session, user, topic_id, alert, at)
             analysis_id = sentence = evidence_ref = None
         else:
             row = session.get(db.Analysis, analysis_id) if analysis_id else None
             if row is None:
                 raise NotFound(analysis_id or "analysis_id")
-            if action == "flag_source":
-                found = session.scalar(
-                    select(db.Evidence.id).where(
-                        db.Evidence.analysis_id == row.id, db.Evidence.ref == (evidence_ref or "")
-                    )
-                )
-                if found is None:
-                    raise InvalidInput(f"这份分析没有材料 {evidence_ref}")
-                sentence = None
-            else:
-                claims = ((row.result or {}).get("review") or {}).get("claims") or []
-                if sentence not in {c.get("index") for c in claims}:
-                    raise InvalidInput(f"这份报告没有第 {sentence} 句")
-                evidence_ref = None
+            sentence, evidence_ref = _reviewed_part(session, row, action, sentence, evidence_ref)
             investigation = session.get(db.Investigation, row.investigation_id)
             topic = session.get(db.Topic, investigation.topic_id) if investigation.topic_id else None
             if action in {"reject", "flag_source"} and topic is not None:
@@ -464,6 +457,34 @@ def review(
         session.add(record)
         session.flush()
         return review_view(record, user.name)
+
+
+def _set_alert(session, user: db.User, topic_id, alert, at) -> db.Topic:
+    topic = session.get(db.Topic, topic_id) if topic_id else None
+    if topic is None or alert is None:
+        raise InvalidInput("set_alert 需要存在的 topic_id 和 alert")
+    if topic.alert != alert:
+        topics.event(session, topic, at, "alert", before=topic.alert, after=alert, by=user.name)
+        topic.alert = alert
+    return topic
+
+
+def _reviewed_part(session, row: db.Analysis, action, sentence, evidence_ref):
+    """(sentence, evidence_ref) a decision is about, checked against the analysis: flag_source names one
+    of its materials, confirm / reject one sentence of its BioCheck review."""
+    if action == "flag_source":
+        found = session.scalar(
+            select(db.Evidence.id).where(
+                db.Evidence.analysis_id == row.id, db.Evidence.ref == (evidence_ref or "")
+            )
+        )
+        if found is None:
+            raise InvalidInput(f"这份分析没有材料 {evidence_ref}")
+        return None, evidence_ref
+    claims = ((row.result or {}).get("review") or {}).get("claims") or []
+    if sentence not in {c.get("index") for c in claims}:
+        raise InvalidInput(f"这份报告没有第 {sentence} 句")
+    return sentence, None
 
 
 def reviews(*, analysis_id=None, topic_id=None, limit=50, session=None) -> list[dict]:
