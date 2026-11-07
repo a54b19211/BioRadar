@@ -234,4 +234,4 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
 - **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（`live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
-- **整洁度第一波（2026-11-06）之后还剩的**：三个服务共用一份 LLM 客户端（测量链路已归 Fabric，见 0010；来源目录的四份副本已删，见 0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。
+- **整洁度还剩的**：雷达模型调用的 HTTP 一侧已走共享的 `llm_transport`（与 BioCheck、MechEvidence 相同），测量链路已归 Fabric（0010），来源目录的副本已删（0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。
