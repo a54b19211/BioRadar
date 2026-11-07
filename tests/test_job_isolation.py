@@ -35,7 +35,16 @@ def job(function, **kwargs):
     return jobs.RadarJob.create(function, connection=Connection(), serializer=JSONSerializer, **kwargs)
 
 
-@pytest.mark.parametrize("name", ["bioradar", "bioradar-staging", "bioradar.test", "bioradar:replay-2"])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "bioradar",
+        "bioradar-staging",
+        "bioradar.test",
+        "bioradar:replay-2",
+        "bioradar-offline-20261107T020539Z-6cb094",
+    ],
+)
 def test_a_radar_queue_name_is_accepted(name):
     assert jobs.valid_queue_name(name) and Settings(queue_name=name).queue_name == name
 

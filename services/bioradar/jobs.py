@@ -21,7 +21,7 @@ from rq.serializers import JSONSerializer
 from bioradar.config import Settings
 
 JOB_FUNCTIONS = frozenset({"bioradar.research.analyses.execute"})
-QUEUE_NAME = re.compile(r"bioradar([._:-][a-z0-9][a-z0-9._:-]*)?")
+QUEUE_NAME = re.compile(r"bioradar([._:-][A-Za-z0-9][A-Za-z0-9._:-]*)?")
 
 
 class ForeignJob(Exception):
