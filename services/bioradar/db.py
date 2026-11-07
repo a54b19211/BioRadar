@@ -114,6 +114,11 @@ class LlmCall(Base):
     http: Mapped[list | None] = mapped_column(Json)
     # the execution of the analysis that made the call (analyses.lease_token then); NULL: before this column
     lease_token: Mapped[str | None] = mapped_column(String(64))
+    # False: the tokens above are not the provider's usage but zeros for "not known" (a service reported none,
+    # or its answer could not be read); the requests were made all the same
+    usage_known: Mapped[bool] = mapped_column(Boolean, default=True)
+    # the authorization a professional service's model requests were made under (model_attempt_authorizations)
+    authorization_ref: Mapped[str | None] = mapped_column(String(64), index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -125,9 +130,16 @@ class LlmOutput(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     llm_call_id: Mapped[int] = mapped_column(ForeignKey("llm_calls.id"), index=True)
     attempt: Mapped[int] = mapped_column(Integer)
-    content_sha256: Mapped[str] = mapped_column(String(64))
-    content: Mapped[str] = mapped_column(Text)
+    # NULL for a request that got no answer (a professional service's receipt says so: delivered no/unknown)
+    content_sha256: Mapped[str | None] = mapped_column(String(64))
+    content: Mapped[str | None] = mapped_column(Text)
     mappings: Mapped[list] = mapped_column(Json, default=list)
+    # a professional service's request as its receipt archives it: the ledger row it belongs to
+    # (model_attempts.attempt_id), the delivery outcome and whether the archived text is the whole answer
+    attempt_id: Mapped[str | None] = mapped_column(String(64), index=True)
+    delivered: Mapped[str | None] = mapped_column(String(10))
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    truncated: Mapped[bool | None] = mapped_column(Boolean)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -248,6 +260,113 @@ def material_read(material, *, stage, service, ref, source, record_id, version_i
         binding=binding,
         **links,
     )
+
+
+class ModelAttemptAuthorization(Base):
+    """What one professional-service evaluation (MechEvidence v2) may send to a model: created by the radar
+    before it calls the service, checked by the service before every model HTTP request
+    (model_attempt_authorization.v1). It binds the service, the analysis and the execution (lease token) that
+    asked, the evaluation key and evaluator, the fixed material versions with every source they came from,
+    the mode and cutoff, an expiry and the number of requests allowed. It stores no secret and no text."""
+
+    __tablename__ = "model_attempt_authorizations"
+    ref: Mapped[str] = mapped_column(String(64), primary_key=True)
+    service: Mapped[str] = mapped_column(String(30))
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    analysis_id: Mapped[str] = mapped_column(ForeignKey("analyses.id"), index=True)
+    lease_token: Mapped[str | None] = mapped_column(String(64))
+    evaluation_key: Mapped[str] = mapped_column(String(64))
+    evaluator_id: Mapped[str] = mapped_column(String(64))
+    evaluator: Mapped[dict] = mapped_column(Json)  # the model and endpoint the attempts must name
+    materials: Mapped[list] = mapped_column(
+        Json
+    )  # [{ref, binding_sha256, parts: [{source, record_id, ...}]}]
+    sources: Mapped[list] = mapped_column(
+        Json
+    )  # every source the materials and their earlier rounds came from
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    mode: Mapped[str] = mapped_column(String(40))
+    cutoff: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    max_attempts: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ModelAttempt(Base):
+    """One model HTTP request of an authorized evaluation, as the radar's ledger has it: prepared when the
+    radar allowed it (it may have been sent from then on, whether or not an outcome ever arrives), settled
+    when the service handed over what happened, refused when the radar said no (nothing was sent). Append-only
+    but for the one settlement of a prepared row; a late outcome of an old execution is recorded on its own
+    row and never changes what the new execution has."""
+
+    __tablename__ = "model_attempts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    authorization_ref: Mapped[str] = mapped_column(ForeignKey("model_attempt_authorizations.ref"), index=True)
+    attempt_id: Mapped[str] = mapped_column(String(64), unique=True)
+    decision_id: Mapped[str | None] = mapped_column(String(64), unique=True)  # NULL when refused
+    idx: Mapped[int] = mapped_column(Integer)  # the request's number in the whole evaluation
+    stage: Mapped[str] = mapped_column(String(30))
+    request_body_sha256: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(100))
+    endpoint_id: Mapped[str] = mapped_column(String(100))
+    status: Mapped[str] = mapped_column(String(20))  # prepared | settled | refused
+    reason_code: Mapped[str | None] = mapped_column(String(60))  # why it was refused
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # the outcome (settled)
+    delivered: Mapped[str | None] = mapped_column(String(10))  # yes | no | unknown
+    http_status: Mapped[int | None] = mapped_column(Integer)
+    error: Mapped[str | None] = mapped_column(String(200))
+    response_sha256: Mapped[str | None] = mapped_column(String(64))
+    truncated: Mapped[bool | None] = mapped_column(Boolean)
+    response_text: Mapped[str | None] = mapped_column(Text)
+    settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    __table_args__ = (UniqueConstraint("authorization_ref", "idx"),)
+
+
+class MechEvaluation(Base):
+    """A complete MechEvidence evaluation that may be reused: keyed by the reuse key, which covers the
+    proposition, the scope, the ordered materials with their bindings and every field the evaluator uses, and
+    the evaluator. The first complete result stays; later ones only add a use. No material text is kept (it
+    is re-read from Fabric by its binding); the response is the receipt without its raw model answers."""
+
+    __tablename__ = "mech_evaluations"
+    reuse_key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    contract_version: Mapped[str] = mapped_column(String(60))
+    evaluator_id: Mapped[str] = mapped_column(String(64), index=True)
+    evaluator: Mapped[dict] = mapped_column(Json)
+    proposition: Mapped[dict] = mapped_column(Json)
+    scope: Mapped[dict] = mapped_column(Json)
+    materials: Mapped[list] = mapped_column(Json)  # [{binding_sha256, binding, ...}] in request order
+    sources: Mapped[list] = mapped_column(Json)  # the sources the materials came from (permission to reuse)
+    response: Mapped[dict] = mapped_column(Json)
+    first_analysis_id: Mapped[str | None] = mapped_column(ForeignKey("analyses.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MechEvaluationUse(Base):
+    __tablename__ = "mech_evaluation_uses"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    analysis_id: Mapped[str] = mapped_column(ForeignKey("analyses.id"), index=True)
+    reuse_key: Mapped[str] = mapped_column(ForeignKey("mech_evaluations.reuse_key"), index=True)
+    how: Mapped[str] = mapped_column(String(10))  # computed | reused
+    used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MechReceiptRejected(Base):
+    """A 200 receipt that was not adopted (not this request's, malformed, incomplete audit, or an attempt
+    set that the radar's ledger does not agree with), kept whole as failure audit. It feeds nothing."""
+
+    __tablename__ = "mech_receipts_rejected"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    analysis_id: Mapped[str] = mapped_column(ForeignKey("analyses.id"), index=True)
+    authorization_ref: Mapped[str | None] = mapped_column(String(64), index=True)
+    reason: Mapped[str] = mapped_column(
+        String(40)
+    )  # receipt_mismatch | receipt_invalid | audit_incomplete | ...
+    response: Mapped[dict] = mapped_column(Json)
+    detail: Mapped[dict] = mapped_column(Json)  # mismatch / invalid / reconciliation findings
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
 class Topic(Base):
