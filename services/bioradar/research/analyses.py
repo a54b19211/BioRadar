@@ -15,7 +15,7 @@ from bioradar.research import lease, topics, views
 from bioradar.research.pipeline import Failed, Run
 
 log = logging.getLogger("bioradar")
-LEASE = timedelta(minutes=90)
+LEASE = lease.ANALYSIS_LEASE
 DIRECTIONS = {"pipeline", "science", "business", "public_health"}
 
 
@@ -214,10 +214,10 @@ def execute(analysis_id: str):
     except Exception:  # an unexpected bug: keep the trace for the student, do not loop
         result, state, error = {"trace": traceback.format_exc()[-4000:]}, "failed", "internal_error"
     with db.session() as session:
-        row = lease.holds(session, db.Analysis, analysis_id, token, exclusive=True)
-        if row is None:
-            log.warning("analysis %s: final write rejected, the lease was taken over", analysis_id)
+        if not lease.renew(session, db.Analysis, analysis_id, token, db.now()):
+            log.warning("analysis %s: final write rejected, the lease was taken over or ran out", analysis_id)
             return
+        row = session.get(db.Analysis, analysis_id)
         lease.release(row)
         row.state, row.error_code, row.completed_at = state, error, db.now()
         if result is not None:

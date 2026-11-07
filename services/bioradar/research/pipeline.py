@@ -45,6 +45,7 @@ class Run:
         """lease_token: the token the executing worker holds on the analysis row; without one (scripts that
         run an analysis inline, tests) nothing is fenced."""
         self.lease_token = lease_token
+        self.sends_pending = 0  # registered sends whose answer is not logged yet
         self.found = 0.0  # what the current read found apart from answering (evidence_gain)
         self.id = analysis.id
         self.row_investigation = analysis.investigation_id
@@ -60,25 +61,30 @@ class Run:
                 s.scalar(select(func.sum(db.LlmCall.requests)).where(db.LlmCall.analysis_id == self.id)) or 0
             )
 
-    def check_lease(self):
-        """Raise lease.Lost, before anything goes out, when another worker took the analysis over."""
-        if self.lease_token is None:
-            return
-        with db.session() as s:
-            if s.scalar(select(db.Analysis.lease_token).where(db.Analysis.id == self.id)) != self.lease_token:
-                log.warning("analysis %s: send stopped, the lease was taken over", self.id)
-                raise lease.Lost(self.id)
+    def check_lease(self, *, send=True):
+        """Raise lease.Lost, before anything goes out, unless this worker's token is still the row's and its
+        lease has not run out; otherwise the lease is renewed (one statement, see lease.renew). send=True
+        registers the send that follows: if the lease is lost while its answer is on the way, the answer is
+        still recorded (log)."""
+        if self.lease_token is not None:
+            with db.session() as s:
+                if not lease.renew(s, db.Analysis, self.id, self.lease_token, db.now()):
+                    log.warning("analysis %s: send stopped, the lease was taken over or ran out", self.id)
+                    raise lease.Lost(self.id)
+        if send:
+            self.sends_pending += 1
 
     @contextmanager
-    def writing(self, *, exclusive=False):
+    def writing(self):
         """A session for a write that belongs to this analysis. While the run holds a lease token, the write
-        goes through only if the token is still the row's (the row is locked until the commit, so a worker
-        taking the analysis over waits for it); a superseded worker gets lease.Lost and writes nothing."""
+        goes through only if the token is still the row's and its lease has not run out (the lease is renewed
+        and the row stays locked until the commit, so a worker taking the analysis over waits for it); a
+        superseded or expired worker gets lease.Lost and writes nothing."""
         with db.session() as s:
-            if self.lease_token is not None and not lease.holds(
-                s, db.Analysis, self.id, self.lease_token, exclusive=exclusive
+            if self.lease_token is not None and not lease.renew(
+                s, db.Analysis, self.id, self.lease_token, db.now()
             ):
-                log.warning("analysis %s: write rejected, the lease was taken over", self.id)
+                log.warning("analysis %s: write rejected, the lease was taken over or ran out", self.id)
                 raise lease.Lost(self.id)
             yield s
 
@@ -159,7 +165,7 @@ class Run:
             total["n"] += c["n"] - seen["n"]
             total["errors"] += c["errors"] - seen["errors"]
             self.counted[op] = dict(c)
-        with self.writing(exclusive=True) as s:
+        with self.writing() as s:
             row = s.get(db.Analysis, self.id)
             row.progress, row.stage = dict(self.p), self.stage
 

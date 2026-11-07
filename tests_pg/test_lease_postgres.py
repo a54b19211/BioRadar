@@ -662,3 +662,60 @@ def test_a_window_another_worker_holds_is_replaced_by_the_next_and_not_counted_a
         holder.rollback()
     assert keys == [(plan, 1), (plan, 2), (plan, 3)]  # three windows, the locked one skipped
     assert taken == {plan: 3}
+
+
+# ---- the deadline counts as well as the token -------------------------------------------------------------
+
+
+def expired_run():
+    """A Run whose token is still the row's, but whose lease ran out five minutes ago."""
+    analysis_id = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    budget = {"question": "q", "budget": {"max_llm_calls": 9}}
+    with db.session() as s:
+        s.execute(
+            update(db.Analysis).where(db.Analysis.id == analysis_id).values(lease_token="mine", input=budget)
+        )
+    return Run(analysis_of(analysis_id), settings(), lease_token="mine"), analysis_id
+
+
+def test_a_worker_whose_lease_ran_out_sends_nothing_and_writes_nothing_even_with_its_token(monkeypatch):
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: sent.append("model") or ({}, {"error": None}))
+    run, analysis_id = expired_run()
+    with pytest.raises(lease.Lost):
+        run.ask("plan", "system", {}, dict)
+    run.p["notes"] = [{"code": "late", "detail": "", "stage": "plan"}]
+    with pytest.raises(lease.Lost):
+        run.save("investigate")
+    assert sent == []
+    row = analysis_of(analysis_id)
+    assert (row.stage, row.progress, row.lease_token) == ("plan", {}, "mine")
+
+
+def test_a_renewal_cannot_revive_an_expired_lease_and_a_live_one_is_extended():
+    run, analysis_id = expired_run()
+    before = analysis_of(analysis_id).lease_until
+    with db.session() as s:
+        assert lease.renew(s, db.Analysis, analysis_id, "mine", utc_now()) is False
+    assert analysis_of(analysis_id).lease_until == before  # nothing was written
+    with db.session() as s:
+        s.execute(update(db.Analysis).values(lease_until=utc_now() + timedelta(minutes=1)))
+    run.check_lease(send=False)  # a live lease is renewed by the check itself
+    extended = analysis_of(analysis_id).lease_until
+    assert extended > utc_now() + timedelta(minutes=60)
+
+
+def test_the_final_write_of_a_worker_whose_lease_ran_out_is_rejected(racy_run, caplog):
+    analysis_id = add_analysis("queued")
+    late = threading.Thread(target=analyses.execute, args=(analysis_id,))
+    late.start()
+    try:
+        assert racy_run.started.wait(30)
+        with db.session() as s:  # no one took it over, but the deadline has passed
+            s.execute(update(db.Analysis).values(lease_until=utc_now() - timedelta(minutes=1)))
+    finally:
+        racy_run.gate.set()
+        late.join(60)
+    row = analysis_of(analysis_id)
+    assert (row.state, row.result) == ("running", None)  # recover will decide, the late result is not stored
+    assert "final write rejected" in caplog.text

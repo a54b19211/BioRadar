@@ -11,9 +11,11 @@ final state for review instead of being retried for ever."""
 import uuid
 from datetime import timedelta
 
-from sqlalchemy import or_
+from sqlalchemy import or_, update
 
 from bioradar.research.clock import utc
+
+ANALYSIS_LEASE = timedelta(minutes=90)  # an analysis's lease; also the RQ job timeout (analyses.dispatch)
 
 
 def new_token() -> str:
@@ -46,14 +48,17 @@ class Lost(Exception):
     """The worker no longer holds the row it was working on: another worker took it over."""
 
 
-def holds(session, model, key, token, *, exclusive=False):
-    """The row, locked, while `token` is still its lease token; None once it was taken over or released.
-    Unlike `own` this does not ask for an unexpired lease: a worker that ran past its lease is superseded
-    only when someone took the row over (analyses: recover released it, execute gave it a new token). The
-    lock is FOR KEY SHARE (a claimant's FOR UPDATE waits for the write, ordinary updates of other columns
-    do not), FOR UPDATE with exclusive=True for a write to the lease row itself."""
-    row = session.get(model, key, with_for_update=True if exclusive else {"read": True, "key_share": True})
-    return row if row is not None and token is not None and row.lease_token == token else None
+def renew(session, model, key, token, now, span: timedelta = ANALYSIS_LEASE) -> bool:
+    """Extend the lease `token` holds on the row to now + span; False when the token is not the row's (taken
+    over, released) or its lease has run out. One UPDATE carries both conditions, so there is no gap between
+    looking and writing in which a lease that expired could be revived; the row stays locked until the
+    commit, so a claimant waits for the write this renewal belongs to."""
+    result = session.execute(
+        update(model)
+        .where(model.id == key, model.lease_token == token, model.lease_until >= now)
+        .values(lease_until=now + span)
+    )
+    return result.rowcount == 1
 
 
 def running(row, now) -> bool:
