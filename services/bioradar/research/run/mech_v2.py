@@ -27,7 +27,6 @@ from bioradar.adapters.services import ServiceError
 from bioradar.material import MaterialError, reread
 from bioradar.mech import contract
 from bioradar.mech.ledger import Attempt, reconcile
-from bioradar.mech.receipt import _CALL, _walk
 from bioradar.mech.request import RequestInvalid, check_request
 from bioradar.research import attempts
 from bioradar.research.run import Withheld, submit
@@ -243,9 +242,7 @@ def result_of(response: dict, key, evaluator, request, bound, reused: bool) -> d
 def reported(call) -> dict | None:
     """A call of a receipt or an error answer as a log record, or None when its shape is not the
     contract's (it is not believed for anything, its requests are then accounted from the ledger)."""
-    problems: list[str] = []
-    _walk(call, _CALL, "call", problems)
-    if problems:
+    if contract.call_shape_problems(call):
         return None
     outputs = call["outputs"]
     return {

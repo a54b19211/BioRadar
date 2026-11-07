@@ -65,7 +65,7 @@ make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Pyt
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-MechEvidence 评价契约用共享契约包 `extraction-contract` 里的 `mech_v2`（纯函数，这里固定 1.14.0；测量核对已归 Fabric，雷达只用 `mech_v2`，`bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
+MechEvidence 评价契约用共享契约包 `extraction-contract` 里的 `mech_v2`（纯函数，这里固定 1.14.1；测量核对已归 Fabric，雷达只用 `mech_v2`，`bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
 
 ```sh
 cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复现的 wheel，构建时会校验哈希
@@ -146,10 +146,18 @@ make check-install      # 在 /tmp 只按 uv.lock 新建环境（uv sync --locke
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
 
+`make lint` 的规则：所有仓库共用一份基础规则 `E4, E7, E9, F, W, I`（devtools `README.md` 的“共用的代码门槛”）。圈复杂度只由 `make metrics` 管，不开 ruff 的 C90。在基础规则之上多开规则的仓库：
+
+| 仓库 | 多开的规则 |
+|---|---|
+| BioRadar | `E`（含行宽 E501，110） |
+| BioCheck | `E`（含行宽 E501，120） |
+
 `make bootstrap`、`make check-install`（`uv sync --locked` 核对 uv.lock）在 uv 缓存里没有的包要从 PyPI 下载，`make web-check` 的 `npm ci` 要访问 npm。zktest 上直连有时超时，这时只给这几条命令临时加上本机已有的 HTTP 代理（mihomo，监听 127.0.0.1:7890），例如 `HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 make check-install`（`web-check` 的容器用主机网络并带上这两个变量）；不要把代理写进全局配置。uv 下载失败时报的是网络错误，不是 `The lockfile needs to be updated`（只有后者说明 uv.lock 过期）。
 
-`make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`）；超过的函数必须在
-`scripts/metrics_exceptions.txt` 写明理由，清单只减不增。`tests/golden/` 是行为基线：每个流程场景存盘的
+`make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`，各仓库是同一份文件，量哪些目录写在
+`pyproject.toml` 的 `[tool.code-metrics]`）；超过的函数必须在 `scripts/metrics_exceptions.txt` 写明冻结时的行数/圈复杂度
+和理由，不许再变大，清单只减不增。`tests/golden/` 是行为基线：每个流程场景存盘的
 progress、证据和外发记录，以及对外视图（详情、列表、导出）逐字节比对；有意改行为时用
 `BIORADAR_GOLDEN_UPDATE=1` 重新生成，并在同一个提交里审阅差异。设计取舍记在 `docs/decisions/`。
 

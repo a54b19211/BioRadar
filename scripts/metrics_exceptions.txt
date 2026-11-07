@@ -1,12 +1,16 @@
-# Functions allowed over 80 lines or complexity 20 (scripts/code_metrics.py --check), each with its reason.
-# Format: <path>:<qualified name>  <reason>. The check fails on an entry no longer needed: the list only shrinks.
+# Functions allowed over 80 lines or complexity 20 (scripts/code_metrics.py --check). Format:
+#   <path>:<qualified name>  <lines>/<cc>  <reason>
+# <lines>/<cc> is the size when the entry was frozen (2026-11-07, integration/rebuild-2026-11 @ b91754a): a listed
+# function may not grow past it. The check fails on a new violator, on an entry that is within the limits now,
+# and on a listed function that got bigger, so the list only shrinks.
 #
 # Series comparison of one point against the points before it: one pass, one branch per kind of change.
-services/bioradar/research/series.py:evaluate  series comparison, one branch per kind of change (step, high/low, streak, stage)
+services/bioradar/research/series.py:evaluate  60/32  series comparison, one branch per kind of change (step, high/low, streak, stage)
 #
-# The Fabric adapter assembles a record's material from four Fabric layers on the client side (audit P5); it
-# shrinks to one call when Fabric serves the readable material in one response (wave 2, Fabric catalog API).
-services/bioradar/adapters/fabric.py:Fabric.attach_clean_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
-services/bioradar/adapters/fabric.py:Fabric.attach_attachment_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
-# The LLM JSON client is consolidated across Radar, BioCheck and MechEvidence (audit P5, out of this wave).
-services/bioradar/adapters/llm.py:chat_json  LLM client consolidation across the three services (P5)
+# The Fabric adapter assembles a record's material from four Fabric layers on the client side; it shrinks to one
+# call when Fabric serves the readable material in one response.
+services/bioradar/adapters/fabric.py:Fabric.attach_clean_text  57/23  client-side join of Fabric's layers, replaced by one Fabric material call
+services/bioradar/adapters/fabric.py:Fabric.attach_attachment_text  58/22  client-side join of Fabric's layers, replaced by one Fabric material call
+#
+# The radar's model call loop around the shared llm_transport (which owns the HTTP side).
+services/bioradar/adapters/llm.py:chat_json  90/20  prompt description, format retry and call record, with one exit and error code per model-side failure (blocked, timeout, HTTP, not JSON, no choices, empty after the length limit, invalid output)
