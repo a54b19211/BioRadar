@@ -11,6 +11,7 @@ from bioradar import db, guard
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import (
     GDELT_OBSERVED,
+    LEAD_SOURCES,
     NOT_VISIBLE,
     Fabric,
     FabricError,
@@ -34,6 +35,9 @@ DEFERRED = "triage_deferred"
 RETRYABLE = ("triage_failed", DEFERRED)
 # A version a Fabric backfill run created is background, not news: the program settles it, no triage.
 BACKGROUND = "background_backfill"
+# A record of a lead source (a news index: adapters.fabric.LEAD_SOURCES) is a lead, not news about a topic:
+# the program observes it, with no triage and no topic, and the candidate groups' view lists it apart.
+LEAD = "news_index_lead"
 # The sources Fabric backfills (flows.who_backfill reads WHO Disease Outbreak News only): what a backfill
 # run's receipt can name. A run whose receipt cannot be read leaves its versions among this source's.
 BACKFILL_SOURCES = frozenset({"who_don"})
@@ -44,6 +48,8 @@ RECENT_UPDATE_DAYS = 7
 
 def route(doc) -> str | None:
     """Whether a record goes to model triage (None) or is settled by the program (the reason).
+
+    A record of a lead source is a lead (LEAD) whatever its title says: it is not triaged.
 
     Trial registries are settled by Fabric's field-by-field diff against the previous version: a version
     whose changes are all minor (contact or site list edits, wording, a start date moved) needs no model.
@@ -56,6 +62,8 @@ def route(doc) -> str | None:
     Attachment versions (v3 3.3a): triaged only with their parsed text. Not parsed yet (or Fabric unable to
     say) -> attachment_pending, kept for the retry path; parsing finally failed or the format is unsupported
     -> attachment_unparsed, recorded as a gap. An attachment is never triaged with an empty text."""
+    if doc["source"] in LEAD_SOURCES:
+        return LEAD
     if doc.get("role") == "attachment":
         return _route_attachment(doc)
     if doc.get("registry_diff") is None or doc.get("retry"):  # no diff declared for the source, or a retry
@@ -146,6 +154,25 @@ def settle_attachments(docs, *, is_demo: bool):
                     reason=text,
                 )
             )
+
+
+def settle_leads(docs, *, is_demo: bool):
+    """Observe the records routed as leads and leave them at that: no topic, no alert, no model call. A lead
+    is no member of a candidate group (research/groups.py lists it apart). An owed triage mark of an earlier
+    configuration is replaced, not doubled."""
+    s = settings()
+    with db.session() as session:
+        for doc in docs:
+            if route(doc) != LEAD:
+                continue
+            session.execute(
+                delete(db.Observation).where(
+                    db.Observation.version_id == doc["version_id"], db.Observation.reason.in_(RETRYABLE)
+                )
+            )
+            row = _observation(s, doc, None, None, "none", parse_time(doc["available_at"]), is_demo)
+            row.reason = LEAD
+            session.add(row)
 
 
 def defer(docs, *, is_demo: bool) -> int:

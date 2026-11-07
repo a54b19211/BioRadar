@@ -163,6 +163,7 @@ PROGRAM_REASONS = (
     "triage_deferred",
     "triage_unavailable",
     "background_backfill",
+    "news_index_lead",
     "附件未能解析",
 )
 

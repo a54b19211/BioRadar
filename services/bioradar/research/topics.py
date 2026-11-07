@@ -14,6 +14,7 @@ from sqlalchemy import func, literal, select
 from sqlalchemy.orm import object_session
 
 from bioradar import db
+from bioradar.adapters.fabric import LEAD_SOURCES
 from bioradar.config import Settings
 from bioradar.research import views
 from bioradar.research.clock import parse_time
@@ -76,7 +77,9 @@ def activity(session, s: Settings, topic, at, is_demo, background=frozenset()) -
     Above mean + 3 standard deviations (mean + 3 when they are all equal) is an anomaly; fewer than 7
     days is not judged. Owes the topic an analysis once per day.
     `background`: the versions Fabric backfill runs created. They are no news: never counted, and a day on
-    which only they arrived is not a day the monitor received anything (the rule of research/groups.py)."""
+    which only they arrived is not a day the monitor received anything (the rule of research/groups.py). The
+    same goes for the leads of a news index (LEAD_SOURCES): they arrive every hour and are no topic's records,
+    so a day with only leads is not a day with news."""
     day = func.date(db.Observation.available_at)
     scope = (
         db.Observation.workspace_id == s.workspace_id,
@@ -84,6 +87,7 @@ def activity(session, s: Settings, topic, at, is_demo, background=frozenset()) -
         db.Observation.available_at >= at - timedelta(days=4 * BASELINE_DAYS),
         db.Observation.available_at <= at,
         db.Observation.version_id.not_in(list(background)),
+        db.Observation.source.not_in(list(LEAD_SOURCES)),
     )
     received = sorted(str(d) for d in session.scalars(select(day).where(*scope).distinct()))
     today = str(at.astimezone(UTC).date())  # the database groups by UTC day

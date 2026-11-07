@@ -48,6 +48,10 @@ def _time(value):
 
 # source_updated_at of a GDELT article: when GDELT first observed it, not when the source changed
 GDELT_OBSERVED = "gdelt_first_observed"
+# The sources whose records are leads, not statements of the source: a news index that says an article was
+# seen (Fabric's catalogue: a lead, not independent evidence). The radar observes them by rule, with no model,
+# and keeps them out of the candidate groups' members (research/groups.py).
+LEAD_SOURCES = frozenset({"gdelt_doc"})
 
 
 def stated_time(value) -> dict | None:
@@ -299,6 +303,14 @@ def fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff=None) -
     at = _aware(doc.get("available_at"))
     bound = datetime.now(UTC) if cutoff is None else _aware(cutoff)
     return at is not None and bound is not None and at <= bound
+
+
+def _window_gap(receipt: dict) -> str | None:
+    """Why a window receipt of a lead source leaves leads unseen: a full response that cannot be cut any
+    further may hide some (possibly_truncated); one that failed or was never reached has no count at all."""
+    if receipt.get("possibly_truncated"):
+        return "possibly_truncated"
+    return receipt["status"] if receipt.get("status") in ("failed", "not_read") else None
 
 
 class Fabric:
@@ -957,6 +969,35 @@ class Fabric:
                 continue
             found.update((coverage.get("backfill") or {}).get("background_version_ids") or [])
         return found, unread
+
+    def lead_coverage(self, source, start, end, *, is_demo, mode, cutoff) -> dict:
+        """What Fabric's reads of a lead source's windows say of [start, end), as of the cutoff (GET
+        /api/history/records with window_start and window_end): the number of window receipts and the gaps
+        among them. The windows are cut by the source's own observation time - GDELT's, neither the
+        article's date nor this system's first sight. A window with no receipt, or one that cannot be asked,
+        is not known to be whole and not known to be empty: `receipts` is 0, or `error` says why."""
+        window = {"start": start.isoformat(), "end": end.isoformat()}
+        params = {
+            "source_id": source,
+            "is_demo": str(is_demo).lower(),
+            "mode": read_mode(mode, cutoff),
+            "cutoff": cutoff.isoformat(),
+            "window_start": window["start"],
+            "window_end": window["end"],
+            "limit": 1,  # the leads themselves are the monitor's; the receipts come with any listing
+        }
+        try:
+            data = self._get("/api/history/records", params)
+        except (FabricError, httpx.HTTPError) as exc:
+            error = getattr(exc, "code", "fabric_unreachable")
+            return {"window": window, "receipts": 0, "gaps": [], "error": error}
+        receipts = (data.get("coverage") or {}).get("window_coverage") or []
+        found = {(r["start"], r["end"], kind) for r in receipts if (kind := _window_gap(r))}
+        gaps = [
+            {"start": a, "end": b, "kind": kind}
+            for a, b, kind in sorted(found, key=lambda gap: tuple(part or "" for part in gap))
+        ]
+        return {"window": window, "receipts": len(receipts), "gaps": gaps}
 
     def measurement_changes(self, *, is_demo, after_seq=0, limit=100):
         """Fabric's measurement event feed after a sequence number (datafabric.measurement_changes.v1):

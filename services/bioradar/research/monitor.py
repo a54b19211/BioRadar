@@ -25,6 +25,7 @@ from bioradar.research.triage import (
     route,
     settle_attachments,
     settle_background,
+    settle_leads,
 )
 
 log = logging.getLogger("bioradar")
@@ -152,6 +153,7 @@ def _route_documents(docs, is_demo):
         routed[reason or "triage"] = routed.get(reason or "triage", 0) + 1
     triage_docs = [d for d in docs if route(d) is None]
     settle_attachments(docs, is_demo=is_demo)
+    settle_leads(docs, is_demo=is_demo)
     if len(triage_docs) < len(docs):
         log.info("monitor routing %s", routed)
     return routed, triage_docs

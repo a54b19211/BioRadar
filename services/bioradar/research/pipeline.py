@@ -447,7 +447,8 @@ class Run:
         the analysis has none, with the mode and run kind it was made under; None for an analysis without a
         topic or a topic with no material in the 30 days before. The receipts of the configured backfill runs
         name the versions that are background; one that cannot be read is listed, and its versions count like
-        any other."""
+        any other. `leads`: the cutoff day's leads; each source with the gaps that Fabric's reads of the day's
+        windows left (Fabric.lead_coverage)."""
         query = select(db.Investigation.topic_id).where(db.Investigation.id == self.row_investigation)
         with db.session() as s:
             topic_id = s.scalar(query)
@@ -456,10 +457,19 @@ class Run:
         background, unread = set(), []
         if self.s.backfill_run_ids:
             background, unread = self.fabric.background_version_ids(self.s.backfill_run_ids)
+        cutoff = self.cutoff or db.now()
         with db.session() as s:
             topic = s.get(db.Topic, topic_id)
-            found = groups.for_topic(s, self.s, topic, cutoff=self.cutoff or db.now(), background=background)
+            found = groups.for_topic(s, self.s, topic, cutoff=cutoff, background=background)
         if found is None:
             return None
+        for source, listing in found["leads"].items():
+            listing["coverage"] = self.fabric.lead_coverage(
+                source,
+                *groups.day_window(cutoff),
+                is_demo=self.input["is_demo"],
+                mode=self.replay_mode,
+                cutoff=cutoff,
+            )
         made = {"replay_mode": self.replay_mode, "run_kind": self.run_kind, "background_unread": unread}
         return {**found, **made}

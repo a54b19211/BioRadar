@@ -9,6 +9,11 @@ counted, and it never moves the group's start or end. A material may be a candid
 view names every group a material is involved in. Versions a Fabric backfill run created are background:
 members, still readable, but not in the counts, the baseline or the first-seen time.
 
+A lead - a record of a news index (adapters.fabric.LEAD_SOURCES) - is in no group. No explicit basis can be
+stated for it (GDELT states no relation, event id or named record) and a key needs a measurement it does not
+have, so it is neither a member nor a candidate. The view lists the cutoff day's leads apart (`leads`), and no
+count, start, end or first-seen time takes one in.
+
 Everything is dated by when the radar could know it: a material by its `available_at`, a link by the later of
 its two ends. A view is built from what was visible at its cutoff only, so a replay never shows a link that a
 later material made. `select_display` chooses, by fixed keys, the group the first judgment is about."""
@@ -18,9 +23,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from bioradar import db
+from bioradar.adapters.fabric import LEAD_SOURCES
 from bioradar.config import Settings
 from bioradar.research import topics
 from bioradar.research.clock import utc
@@ -35,6 +41,7 @@ PROVEN = ("checked", "carried")  # the states of a measurement dimension that ma
 # the order of the group the first judgment is about (task book 00 1.4); a key counts when those before tie
 SELECTION_KEYS = ("confirmed_groups desc", "first_seen_at asc", "id asc")
 CHUNK = 500
+LEAD_ROWS = 20  # the newest leads of the day that a view lists; the count is of all of them
 
 
 @dataclass(frozen=True)
@@ -449,6 +456,7 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
             .where(
                 db.Observation.workspace_id == s.workspace_id,
                 db.Observation.is_demo == is_demo,
+                db.Observation.source.not_in(list(LEAD_SOURCES)),  # a lead is in no group (leads)
                 db.Observation.available_at <= cutoff,
                 db.Observation.available_at >= cutoff - KEY_WINDOW,
             )
@@ -485,14 +493,70 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
     return materials, truncated
 
 
+def day_window(cutoff: datetime) -> tuple[datetime, datetime]:
+    """The UTC day of the cutoff: from its start to the start of the next."""
+    start = cutoff.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+    return start, start + timedelta(days=1)
+
+
+def leads(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -> dict:
+    """{lead source: the leads the radar received on the cutoff's day, up to the cutoff}, for each lead source
+    the monitor reads. Unassigned: no member, no candidate, in none of the counts, the start, the end or the
+    first-seen time. `count`: the day's leads that are news; `background`: the day's leads that a backfill run
+    created (not counted, not listed); `listed`: the newest LEAD_ROWS as references to fixed versions - their
+    title, domain, address and GDELT's own observation time are Fabric's, read back by the version.
+    `available_at` is when the radar could first read the version: not the article's date, and not when GDELT
+    observed it."""
+    start, _ = day_window(cutoff)
+    read = session.scalars(
+        select(db.Cursor.source).where(db.Cursor.is_demo == is_demo, db.Cursor.source.in_(list(LEAD_SOURCES)))
+    )
+    found = {}
+    for source in sorted(read):
+        day = (
+            db.Observation.workspace_id == s.workspace_id,
+            db.Observation.is_demo == is_demo,
+            db.Observation.source == source,
+            db.Observation.available_at >= start,
+            db.Observation.available_at <= cutoff,
+        )
+        news = (*day, db.Observation.version_id.not_in(list(background)))
+        total, count = (session.scalar(select(func.count()).where(*scope)) for scope in (day, news))
+        newest = session.execute(
+            select(db.Observation.version_id, db.Observation.record_id, db.Observation.available_at)
+            .where(*news)
+            .order_by(db.Observation.available_at.desc(), db.Observation.id.desc())
+            .limit(LEAD_ROWS)
+        )
+        found[source] = {
+            "day": _day(cutoff),
+            "count": count,
+            "background": total - count,
+            "listed": [
+                {
+                    "version_id": version,
+                    "source": source,
+                    "record_id": record,
+                    "available_at": utc(at).isoformat(),
+                }
+                for version, record, at in newest
+            ],
+        }
+    return found
+
+
 def for_topic(session, s: Settings, topic: db.Topic, *, cutoff: datetime, background) -> dict | None:
     """The display group of a topic as of the cutoff: the group of the topic's latest material that is not
-    background. None when the topic has none in the 30 days before the cutoff."""
+    background, with the day's leads apart from it. None when the topic has none in the 30 days before the
+    cutoff."""
     materials, truncated = load(session, s, is_demo=topic.is_demo, cutoff=cutoff, background=background)
     own = select(db.Observation.version_id).where(db.Observation.topic_id == topic.id)
     anchors = set(session.scalars(own))
     found = view(materials, cutoff=cutoff, anchors=anchors)
-    return None if found is None else {**found, "truncated": truncated}
+    if found is None:
+        return None
+    day = leads(session, s, is_demo=topic.is_demo, cutoff=cutoff, background=background)
+    return {**found, "truncated": truncated, "leads": day}
 
 
 def for_selection(session, s: Settings, *, is_demo: bool, cutoff: datetime, background, unread=()) -> dict:
