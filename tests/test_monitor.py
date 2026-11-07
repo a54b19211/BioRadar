@@ -1,11 +1,13 @@
 """Topic lifecycle on the source clock: emerging -> rising -> cooling -> dormant (closure) -> awakened."""
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 from conftest import FakeFabric, record
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters import llm
+from bioradar.config import settings
 from bioradar.research import analyses, monitor, schemas, topics
 
 DAY = "2026-09-{:02d}T08:00:00+08:00"
@@ -565,6 +567,100 @@ def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeyp
         assert (event.detail["records"], event.detail["threshold"], len(event.detail["days"])) == (5, 4.0, 7)
         assert "2026-10-04" not in event.detail["days"]
         assert topic.pending_reason == "activity_anomaly"
+
+
+START = datetime(2026, 10, 1, 4, tzinfo=UTC)
+
+
+def observed(session, topic, version, at):
+    session.add(
+        db.Observation(
+            workspace_id=settings().workspace_id,
+            source="x",
+            record_id=version,
+            version_id=version,
+            is_demo=True,
+            title="t",
+            available_at=at,
+            topic_id=topic.id,
+            alert="normal",
+        )
+    )
+
+
+def quiet_week(session, *, bare_day=None):
+    """A topic with two observations on each of the 7 days from START; on `bare_day` only three backfilled
+    ones (version ids bg-*). Returns (the topic, the backfilled version ids)."""
+    topic = db.Topic(
+        workspace_id=settings().workspace_id,
+        title="T",
+        direction="public_health",
+        is_demo=True,
+        first_seen_at=START,
+        last_activity_at=START,
+    )
+    session.add(topic)
+    session.flush()
+    backfilled = set()
+    for day in range(7):
+        if day == bare_day:
+            versions = [f"bg-{day}-{i}" for i in range(3)]
+            backfilled.update(versions)
+        else:
+            versions = [f"v{day}-{i}" for i in range(2)]
+        for version in versions:
+            observed(session, topic, version, START + timedelta(days=day))
+    return topic, backfilled
+
+
+def test_backfilled_observations_are_not_activity_and_do_not_trigger_the_anomaly():
+    s, today = settings(), START + timedelta(days=7)
+    with db.session() as session:
+        topic, _ = quiet_week(session)
+        backfilled = {f"bg-7-{i}" for i in range(5)}
+        for version in ("v7-0", "v7-1", *sorted(backfilled)):  # two new records and five backfilled ones
+            observed(session, topic, version, today)
+        session.flush()
+
+        assert topics.activity(session, s, topic, today, True, backfilled) is False  # 2 <= mean 2 + 3
+        assert topic.pending_reason is None
+        assert topics.activity(session, s, topic, today, True) is True  # counted, 7 > 5: what it would be
+
+
+def test_a_day_with_only_backfilled_observations_is_not_a_day_the_monitor_received_anything():
+    s, today = settings(), START + timedelta(days=7)
+    with db.session() as session:
+        topic, backfilled = quiet_week(session, bare_day=3)
+        for i in range(6):
+            observed(session, topic, f"v7-{i}", today)
+        session.flush()
+
+        # 6 received days before today, not 7: not judged
+        assert topics.activity(session, s, topic, today, True, backfilled) is False
+        assert topics.activity(session, s, topic, today, True) is True  # the backfilled day would count
+
+
+def test_a_round_keeps_the_versions_of_the_backfill_receipts_out_of_the_activity_check(monkeypatch):
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
+    versions = [f"bg-{i}" for i in range(6)]  # more than the quiet week's mean 2 + 3
+    fabric = FakeFabric(
+        [
+            record(f"B{i}", "门诊记录5人", "x", available=(START + timedelta(days=7)).isoformat(), version=v)
+            for i, v in enumerate(versions)
+        ]
+    )
+    fabric.background_version_ids = lambda run_ids: (set(versions), [])
+    with db.session() as session:
+        topic_id = quiet_week(session)[0].id
+
+    assert monitor.tick(is_demo=True, fabric=fabric)["records"] == 6
+
+    with db.session() as session:
+        on_topic = select(func.count()).select_from(db.Observation).where(db.Observation.topic_id == topic_id)
+        assert session.scalar(on_topic) == 14 + 6  # observed like any record, only not counted as activity
+        flagged = select(func.count()).select_from(db.TopicEvent).where(db.TopicEvent.kind == "activity")
+        assert session.scalar(flagged) == 0
 
 
 def test_activity_keys_keep_sources_apart_and_join_a_repost_to_its_original():

@@ -67,18 +67,21 @@ def baseline(values) -> tuple[float, float, float]:
     return mean, spread, (mean + 3 * spread if spread else mean + 3)
 
 
-def activity(session, s: Settings, topic, at, is_demo) -> bool:
+def activity(session, s: Settings, topic, at, is_demo, background=frozenset()) -> bool:
     """A naive baseline of information activity (not case incidence): the topic's records on the day
     of `at`, each counted once by its activity_key, against the previous 7 days the monitor received anything
     at all; days with no records from any source (collection stopped or missing) are left out, not zero.
     Above mean + 3 standard deviations (mean + 3 when they are all equal) is an anomaly; fewer than 7
-    days is not judged. Owes the topic an analysis once per day."""
+    days is not judged. Owes the topic an analysis once per day.
+    `background`: the versions Fabric backfill runs created. They are no news: never counted, and a day on
+    which only they arrived is not a day the monitor received anything (the rule of research/groups.py)."""
     day = func.date(db.Observation.available_at)
     scope = (
         db.Observation.workspace_id == s.workspace_id,
         db.Observation.is_demo == is_demo,
         db.Observation.available_at >= at - timedelta(days=4 * BASELINE_DAYS),
         db.Observation.available_at <= at,
+        db.Observation.version_id.not_in(list(background)),
     )
     received = sorted(str(d) for d in session.scalars(select(day).where(*scope).distinct()))
     today = str(at.astimezone(UTC).date())  # the database groups by UTC day

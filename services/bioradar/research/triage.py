@@ -408,10 +408,11 @@ def triage(s: Settings, docs, topics, watch=None, reads=None):
     return [items.get(i) for i in range(1, len(docs) + 1)]
 
 
-def observe(s: Settings, docs, *, is_demo: bool, budget=False):
+def observe(s: Settings, docs, *, is_demo: bool, budget=False, background=frozenset()):
     """Triage new documents and attach them to topics. Returns (topics that need an analysis,
     whether every document was triaged). With `budget`, stops before a batch once today's
-    automatic tokens reach the ceiling."""
+    automatic tokens reach the ceiling. `background`: the versions Fabric backfill runs created; they are
+    observed like any other but are not activity (topics.activity)."""
     wake = {}
     for start in range(0, len(docs), BATCH):
         if budget and analyses.over_auto_budget():
@@ -430,11 +431,11 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
         with db.session() as session:
             watch = watches(session, [t.id for t in topics])
         decisions = triage(s, batch, topics, watch)
-        _record_batch(s, batch, decisions, topics, watch, wake, is_demo=is_demo)
+        _record_batch(s, batch, decisions, topics, watch, wake, is_demo=is_demo, background=background)
     return wake, True
 
 
-def _record_batch(s, batch, decisions, topics, watch, wake, *, is_demo):
+def _record_batch(s, batch, decisions, topics, watch, wake, *, is_demo, background):
     """One batch's decisions in one transaction: observations and the topics they touch."""
     with db.session() as session:
         topics = [session.get(db.Topic, t.id) for t in topics]
@@ -457,7 +458,7 @@ def _record_batch(s, batch, decisions, topics, watch, wake, *, is_demo):
             touched[topic.id] = max(touched.get(topic.id, at), at)
         session.flush()
         for topic_id, at in sorted(touched.items()):
-            if activity(session, s, session.get(db.Topic, topic_id), at, is_demo):
+            if activity(session, s, session.get(db.Topic, topic_id), at, is_demo, background):
                 wake[topic_id] = "activity_anomaly"
 
 

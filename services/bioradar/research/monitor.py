@@ -47,13 +47,16 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
             "monitor: %s is not offered by Fabric for selection (source_not_selectable), skipped", source
         )
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
+    background = _background(s, fabric)
     routed, triage_docs = _route_documents(docs, is_demo)
     if paused:
         log.info("monitor: daily_auto_tokens reached; model triage deferred, program routing continues")
         reasons, whole = {}, False
     else:
         reasons, whole = (
-            observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
+            observe(s, triage_docs, is_demo=is_demo, budget=budget, background=background)
+            if triage_docs
+            else ({}, True)
         )
     if not whole:
         # the budget ran out before or during triage: what was not triaged is owed, durably, and the
@@ -86,6 +89,18 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         "measurements": measured,
         "analyses": created,
     }
+
+
+def _background(s, fabric) -> set[str]:
+    """The versions the configured Fabric backfill runs created (their receipts): background, kept out of the
+    activity counts as research/groups.py keeps them out of its own. A run whose receipt cannot be read is
+    logged; its versions count like any other, as they do there."""
+    if not s.backfill_run_ids:
+        return set()
+    background, unread = fabric.background_version_ids(s.backfill_run_ids)
+    if unread:
+        log.warning("monitor: backfill runs %s: receipt unreadable, their versions count as new", unread)
+    return background
 
 
 def _without_capabilities(clock):
