@@ -34,8 +34,8 @@ def model(monkeypatch, fabric, replies, revoke_after=None):
     """The model endpoint: one reply per request, (status, content); sources revoked after the n-th."""
     sent = []
 
-    def post(url, headers, json, timeout):
-        sent.append(json)
+    def post(request):
+        sent.append(json.loads(request.content))
         status, content = replies[len(sent) - 1]
         if revoke_after is not None and len(sent) >= revoke_after:
             fabric.revoked = True
@@ -43,9 +43,9 @@ def model(monkeypatch, fabric, replies, revoke_after=None):
             "choices": [{"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
         }
-        return httpx.Response(status, json=body, request=httpx.Request("POST", url))
+        return httpx.Response(status, json=body)
 
-    monkeypatch.setattr(llm.httpx, "post", post)
+    monkeypatch.setattr(llm, "client", lambda: httpx.Client(transport=httpx.MockTransport(post)))
     monkeypatch.setattr(llm, "BACKOFF", (0,))
     return sent
 

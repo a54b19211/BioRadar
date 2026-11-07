@@ -120,6 +120,8 @@ def drop_lock_connection(leader):
 def test_a_round_whose_lock_connection_drops_sends_and_writes_nothing_more(monkeypatch, leaders):
     sent = []
     monkeypatch.setattr(httpx, "post", lambda *a, **k: sent.append("post"))
+    transport = httpx.MockTransport(lambda request: sent.append("post"))
+    monkeypatch.setattr(llm, "client", lambda: httpx.Client(transport=transport))
     monkeypatch.setattr(analyses, "queue", lambda: sent.append("queue"))
     outcomes = {}
 
@@ -216,14 +218,13 @@ def test_the_answer_of_a_request_sent_before_leadership_was_lost_is_settled_in_t
     def reply(*args, **kwargs):
         sent.append(1)
         drop_lock_connection(leader)  # leadership is lost while the request is on the way
-        request = httpx.Request("POST", "http://model.invalid/chat/completions")
         body = dict(
             choices=[dict(finish_reason="stop", message=dict(content=answer))],
             usage=dict(prompt_tokens=2, completion_tokens=1, total_tokens=3),
         )
-        return httpx.Response(200, request=request, json=body)
+        return httpx.Response(200, json=body)
 
-    monkeypatch.setattr(httpx, "post", reply)
+    monkeypatch.setattr(llm, "client", lambda: httpx.Client(transport=httpx.MockTransport(reply)))
     document = triage_document(error or "ok")
     monkeypatch.setattr(monitor, "tick", lambda **kw: triage.triage(settings(), [document], []))
     with pytest.raises(guard.Revoked):  # the round ends; the answer is not used

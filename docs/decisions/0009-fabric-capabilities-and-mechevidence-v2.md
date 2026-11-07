@@ -23,10 +23,10 @@
 
 ## MechEvidence v2
 
-- `BIORADAR_MECHEVIDENCE_CONTRACT=v2` (default `v1`, unchanged). `bioradar.mech` is the radar's port of the
-  contract (key, evaluator id, echo, adopt) with MechEvidence's `receipt.py` vendored byte for byte (sha256
-  pinned). Until a shared pure contract module exists, MechEvidence's published fixtures (pinned) are the guard
-  against drift: 12 reuse keys, 51 receipt outcomes, the identity contract, 19 negative requests.
+- `BIORADAR_MECHEVIDENCE_CONTRACT=v2` (default `v1`, unchanged). `bioradar.mech` uses the contract (key, evaluator id,
+  echo, receipt validation, adopt) from the shared package `extraction_contract.mech_v2` (extraction-contract
+  1.14.0), the same code MechEvidence imports. MechEvidence's published fixtures (pinned) are run against it here
+  too: 12 reuse keys, 51 receipt outcomes, the identity contract, 19 negative requests.
 - The radar issues an authorization (`model_attempt_authorizations`) per evaluation and answers
   `POST /internal/v1/model-attempts/authorize` before every model request and `/{attempt_id}/outcome` after
   (service token `BIORADAR_MODEL_ATTEMPT_TOKEN`). Fabric is asked now for sources and versions at each decision;

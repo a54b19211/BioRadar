@@ -1,22 +1,20 @@
-"""The radar's port of MechEvidence's v2 contract against everything MechEvidence publishes about it: its
-fixtures (request, receipt, evaluator, 11 reuse-key cases, 51 receipt outcomes, service errors), its
-literature identity contract, and the vendored receipt rules byte for byte. A change on either side that the
-other has not followed shows here first."""
+"""The shared MechEvidence v2 contract (extraction_contract.mech_v2) as the radar uses it, against everything
+MechEvidence publishes about it: its fixtures (request, receipt, evaluator, 11 reuse-key cases, 51 receipt
+outcomes, service errors) and its literature identity contract. A change of the shared package that the
+fixtures do not follow shows here first."""
 
 import hashlib
 import json
 from pathlib import Path
 
 import pytest
+from extraction_contract.mech_v2 import IdentityError, source_identity
 
 from bioradar.mech import contract
 from bioradar.mech.contract import UnsupportedRequest, adopt, evaluator_id_of, material_echo, reuse_key
-from bioradar.mech.identity import IdentityError, source_identity
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mech-contract-v2"
-RECEIPT_RULES = Path(__file__).resolve().parents[1] / "services" / "bioradar" / "mech" / "receipt.py"
-# MechEvidence r2/mech-v2 at 5bb6383: examples/contract-v2/*.json, examples/identity_contract.json and
-# mechevidence/receipt.py
+# MechEvidence r2/mech-v2 at 5bb6383: examples/contract-v2/*.json and examples/identity_contract.json
 PINNED = {
     "evaluator.json": "6d7918e8ba0ac0380f90c1f1e4a295274abb07e63e3c1999a3f24fcb6071322c",
     "negative_requests.json": "64e59dc086f34e079ddd7b0700b82eae02e81d1eecc7064fb6b6e5260fd6f939",
@@ -27,7 +25,6 @@ PINNED = {
     "service_errors.json": "12a8bba536ce5826aee5ce0065f3702f2b4a058e1fb4452f81e0ebf21cf22f54",
     "identity_contract.json": "55a6965de32ba09d89642441392624dd9556249523d223a3d5e095d6920bd864",
 }
-RECEIPT_RULES_SHA256 = "131cfba99876a58ac8d5504602c03dbad46fb0a78d5719ce502d6cbc6e061329"
 
 
 def load(name):
@@ -38,7 +35,6 @@ def test_the_fixtures_and_the_receipt_rules_are_the_ones_mechevidence_published(
     assert {p.name for p in FIXTURES.glob("*.json")} == set(PINNED)
     for name, sha in PINNED.items():
         assert hashlib.sha256((FIXTURES / name).read_bytes()).hexdigest() == sha, name
-    assert hashlib.sha256(RECEIPT_RULES.read_bytes()).hexdigest() == RECEIPT_RULES_SHA256
 
 
 def test_the_evaluator_id_is_the_hash_of_the_fields_it_covers():

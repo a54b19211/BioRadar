@@ -11,14 +11,15 @@ dependencies = [
   "fastapi>=0.115,<1", "uvicorn>=0.30,<1", "pydantic-settings>=2.6,<3",
   "sqlalchemy>=2.0,<3", "psycopg[binary]>=3.2,<4", "alembic>=1.14,<2",
   "redis>=5,<8", "rq>=2,<3", "httpx>=0.28,<1",
-  "extraction-contract==1.13.1",  # pinned by wheel hash: requirements-contract.txt
+  "extraction-contract==1.14.0",  # pinned by wheel hash: requirements-contract.txt
+  "zk-llm-transport==0.1.1",  # pinned by wheel hash: requirements-transport.txt
 ]
 
 [tool.uv]
 # the one uv of the environment (README, 启动); uv refuses to run this project with another version
 required-version = "==0.13.0"
-# the shared contract wheel, built from the sibling extraction-contract checkout (README)
-find-links = ["../extraction-contract/dist"]
+# the shared wheels, built from the sibling extraction-contract and llm-transport checkouts (README)
+find-links = ["../extraction-contract/dist", "../llm-transport/dist"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
@@ -33,9 +34,6 @@ pythonpath = ["services", "tests", "scripts"]
 [tool.ruff]
 target-version = "py312"
 line-length = 110
-# MechEvidence's receipt rules, vendored byte for byte (sha256 pinned in tests/test_mech_contract.py)
-extend-exclude = ["services/bioradar/mech/receipt.py"]
-force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]

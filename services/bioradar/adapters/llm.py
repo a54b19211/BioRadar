@@ -1,10 +1,13 @@
-"""The radar's own model calls. One function, OpenAI-compatible /chat/completions."""
+"""The radar's own model calls. One function, OpenAI-compatible /chat/completions: the HTTP side (request
+body, sending, resend after a refusal, counting requests) is the shared llm_transport; the prompt description,
+the format retry, the error codes and the call record are the radar's."""
 
 import hashlib
 import json
 import time
 
 import httpx
+import llm_transport as lt
 from pydantic import BaseModel, ValidationError
 
 from bioradar import guard
@@ -39,42 +42,74 @@ def describe(model_cls: type[BaseModel]) -> str:
 REFUSED = (429, 503)
 BACKOFF = (5, 20, 60)  # seconds before each resend; seen 2026-11-03: DeepSeek 503 for ~25 minutes
 
+# Raised by a caller's before_send: this request may not go out (`reason`); the ones before it did.
+SendBlocked = lt.SendBlocked
 
-class SendBlocked(Exception):
-    """Raised by a caller's before_send: this request may not go out (`reason`); the ones before it did."""
 
-    def __init__(self, reason: str):
-        super().__init__(reason)
-        self.reason = reason
+def client() -> httpx.Client:
+    """The one place an HTTP client for model calls is made (tests give it a stub transport)."""
+    return httpx.Client()
+
+
+def provider(settings: Settings) -> lt.Provider:
+    kind = settings.llm_provider if settings.llm_provider in ("deepseek", "vllm") else "openai_compatible"
+    return lt.Provider(
+        kind=kind,
+        base_url=settings.llm_base_url,
+        model=settings.llm_model,
+        api_key=settings.llm_api_key,
+        timeout_seconds=settings.llm_timeout_seconds,
+    )
 
 
 def post(settings: Settings, body: dict, call: dict, limit: int | None = None, before_send=None) -> dict:
     """POST one request, resent after a refusal; before_send(requests already sent in this call) runs right
-    before every send and may raise SendBlocked."""
-    for wait in (*BACKOFF, None):
+    before every send and may raise SendBlocked. Returns the decoded JSON body; an unanswered request, a
+    non-2xx status and a body that is not JSON raise (httpx errors, ValueError). `call` keeps the request
+    count and one http entry (status or exception name) per request."""
+    where = provider(settings)
+    record = lt.CallRecord(
+        stage=call.get("stage", ""),
+        endpoint_id="",
+        model=settings.llm_model,
+        requests=call.get("requests", 0),
+    )
+
+    def before_attempt(start: lt.AttemptStart) -> None:
         try:
             guard.check()
         except guard.Revoked:
             raise SendBlocked("revoked") from None  # what was already sent is returned for settlement
         if before_send is not None:
-            before_send(call.get("requests", 0))
-        call["requests"] = call.get("requests", 0) + 1
-        try:
-            response = httpx.post(
-                settings.llm_base_url.rstrip("/") + "/chat/completions",
-                headers={"Authorization": f"Bearer {settings.llm_api_key}"},
-                json=body,
-                timeout=settings.llm_timeout_seconds,
+            before_send(start.sent_before)
+
+    try:
+        with client() as http:
+            sent = lt.send(
+                where,
+                body,
+                record,
+                client=http,
+                before_attempt=before_attempt,
+                resend=lt.Resend(REFUSED, BACKOFF),
+                max_requests=limit or None,
+                sleep=lambda seconds: time.sleep(seconds),
             )
-        except httpx.HTTPError as exc:  # no answer to this request (a timeout, a dropped connection)
-            call.setdefault("http", []).append(type(exc).__name__)
-            raise
-        call.setdefault("http", []).append(response.status_code)  # one entry per request, kept
-        if response.status_code not in REFUSED or wait is None or (limit and call["requests"] >= limit):
-            break
-        time.sleep(wait)
-    response.raise_for_status()
-    return response.json()
+    finally:
+        if record.requests or "requests" in call:  # a call stopped before its first request has no count
+            call["requests"] = record.requests
+        if record.log:
+            statuses = [a.status if a.status is not None else a.exception for a in record.log]
+            call.setdefault("http", []).extend(statuses)
+    if sent.index is None:
+        raise SendBlocked("request_budget")
+    request = httpx.Request("POST", where.url)
+    if sent.exception is not None:  # no answer to this request (a timeout, a dropped connection)
+        raise (httpx.TimeoutException if sent.timed_out else httpx.TransportError)(sent.exception)
+    if sent.error:
+        response = httpx.Response(sent.status, request=request)
+        raise httpx.HTTPStatusError(sent.error, request=request, response=response)
+    return json.loads(sent.response_bytes)
 
 
 def chat_json(
@@ -110,19 +145,7 @@ def chat_json(
     }
     started = time.monotonic()
     for attempt in range(2):
-        body = {
-            "model": settings.llm_model,
-            "messages": messages,
-            "max_tokens": max_tokens,
-            "response_format": {"type": "json_object"},
-        }
-        if settings.llm_provider == "deepseek":
-            body["thinking"] = {"type": "enabled" if thinking else "disabled"}
-        elif settings.llm_provider == "vllm":
-            # local vLLM serving Qwen: the same per-call switch, as its chat template reads it
-            body["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
-        if not thinking:
-            body["temperature"] = 0
+        body = lt.build_body(provider(settings), messages, max_tokens=max_tokens, thinking=thinking)
         if max_requests and call.get("requests", 0) >= max_requests:
             call["error"] = call["error"] or "request_budget"
             break

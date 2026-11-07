@@ -11,6 +11,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
+import httpx
 import pytest
 from pydantic import BaseModel
 from sqlalchemy import select, text, update
@@ -731,19 +732,20 @@ class Answer(BaseModel):
     ok: int = 0
 
 
-class Reply:
-    def __init__(self, content):
-        self.status_code = 200
-        self.content = content
-
-    def raise_for_status(self):
-        pass
-
-    def json(self):
-        return {
-            "choices": [{"message": {"content": self.content}, "finish_reason": "stop"}],
+def Reply(content):
+    """The model endpoint's answer: a chat completion carrying `content`."""
+    return httpx.Response(
+        200,
+        json={
+            "choices": [{"message": {"content": content}, "finish_reason": "stop"}],
             "usage": {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3},
-        }
+        },
+    )
+
+
+def model_answers(monkeypatch, handler):
+    """Every request the shared transport sends goes to `handler(request)`."""
+    monkeypatch.setattr(llm, "client", lambda: httpx.Client(transport=httpx.MockTransport(handler)))
 
 
 def take_over(analysis_id):
@@ -769,7 +771,7 @@ def test_the_answer_of_a_request_sent_before_the_takeover_is_recorded_as_the_old
         take_over(analysis_id)  # while the request is on the way
         return Reply('{"ok": 1}')
 
-    monkeypatch.setattr(llm.httpx, "post", answer_after_takeover)
+    model_answers(monkeypatch, answer_after_takeover)
     with pytest.raises(lease.Lost):  # the run stops, its result is not used ...
         run.ask("plan", "system", {}, Answer)
     (call,) = rows_of(db.LlmCall, analysis_id)  # ... but the spent call and its raw answer are kept
@@ -790,7 +792,7 @@ def test_a_lost_lease_is_noticed_before_a_format_retry_and_the_first_attempt_is_
         take_over(analysis_id)
         return Reply("not json")  # asks for the format retry, which must not go out
 
-    monkeypatch.setattr(llm.httpx, "post", invalid_answer_then_takeover)
+    model_answers(monkeypatch, invalid_answer_then_takeover)
     with pytest.raises(lease.Lost):
         run.ask("plan", "system", {}, Answer)
     assert len(posts) == 1  # the retry was not sent
