@@ -12,7 +12,8 @@
 #
 # The caller sets before sourcing:
 #   PG_TAG       short name of the check ("migcheck", "pgtest"): label, container name and manifest name
-#   PG_MANIFEST  the container manifest (default: /tmp/radar-<PG_TAG>-<random>.containers.jsonl)
+#   PG_MANIFEST  the container manifest (default: .test-artifacts/radar-<PG_TAG>-<random>.containers.jsonl
+#                in the checkout, git-ignored)
 #   PYTHON       the command that runs a python (default: python3)
 # and may set PG_CONTAINER (container name), PG_PORT (host port on 127.0.0.1; default: a free one in
 # 19801-19999), PG_DB_PREFIX (the database is then <prefix>_<random id>, else "bioradar") and PG_MARKER=1
@@ -28,7 +29,8 @@ NAME=${PG_CONTAINER:-radar-$PG_TAG-$RANDOM_ID}
 LABEL=radar-$PG_TAG.run
 DB=${PG_DB_PREFIX:+${PG_DB_PREFIX}_$RANDOM_ID}
 DB=${DB:-bioradar}
-MANIFEST=${PG_MANIFEST:-/tmp/radar-$PG_TAG-$RANDOM_ID.containers.jsonl}
+MANIFEST=${PG_MANIFEST:-$(pwd)/.test-artifacts/radar-$PG_TAG-$RANDOM_ID.containers.jsonl}
+mkdir -p "$(dirname "$MANIFEST")"
 PORT=${PG_PORT:-$($PYTHON -c '
 import random, socket
 for port in random.sample(range(19801, 20000), 199):

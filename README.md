@@ -113,7 +113,7 @@ cd ../MechEvidence  && uvicorn mechevidence.service:app --port 18563
 - 图谱（唐蔚雯）：`BIORADAR_GRAPH_LOOKUP=true` 时规划按题面对象查 reviewed_graph（每次最多 3 个对象、每个对象只看检索到的前 5 个图包，不是查全），图包指向的原文进阅读候选，实体身份状态（多为 unresolved）原样保留。现役默认关闭：当前图包里只有实体和 document_refs，没有已审核的关系边，开了只是多一条找原文的路，不提供关系判断。开启前确认 Fabric 里有 reviewed_graph 来源且雷达有读权限。
 - 自动工作每日 token 软上限：现役设为 3000 万（`BIORADAR_DAILY_AUTO_TOKENS`，主持人同意放宽；默认 300 万）。
 
-2026-11-03 从旧版切换过来。旧库 `bioradar`、旧配置备份 `~/.config/bioradar.before-rebuild-20261103/`、旧网页容器 `bioradar-zktest-web-1` 都保留着，需要退回时运行 `bash ~/.config/bioradar-rollback.sh`。同日 11:53 升到讨论室复核通过的 `7f302c2`（BioCheck `7af7044`，迁移 0003、0004），升级前的配置、提交号和 `bioradar_live` 全库备份在 `~/.config/bioradar-backups/20261103115246/`；退回这一步用 `.rebuild-work/tools/update_live_undo.sh <备份目录>`（加 `--restore-db` 才会用备份覆盖数据库）。
+2026-11-03 从旧版切换过来。旧库 `bioradar`、旧配置备份 `~/.config/bioradar.before-rebuild-20261103/`、旧网页容器 `bioradar-zktest-web-1` 都保留着，需要退回时运行 `bash ~/.config/bioradar-rollback.sh`。同日 11:53 升到讨论室复核通过的 `7f302c2`（BioCheck `7af7044`，迁移 0003、0004），升级前的配置、提交号和 `bioradar_live` 全库备份在 `~/.config/bioradar-backups/20261103115246/`（当时用的退回脚本 `.rebuild-work/tools/update_live_undo.sh` 已不存在，现役之后也已多次升级，这一步不再是可用的退回入口）。
 
 ## 用一个真实问题跑一次
 

@@ -12,7 +12,7 @@
 #                      "uv run --frozen python"); PYTHONPATH gets services
 #   PG_CONTAINER       container name (default: radar-migcheck-<random>)
 #   PG_PORT            host port on 127.0.0.1 (default: a free one in 19801-19999)
-#   MIGCHECK_MANIFEST  the container manifest (default: /tmp/radar-migcheck-<random>.containers.jsonl)
+#   MIGCHECK_MANIFEST  the container manifest (default: .test-artifacts/radar-migcheck-<random>.containers.jsonl)
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 PG_TAG=migcheck

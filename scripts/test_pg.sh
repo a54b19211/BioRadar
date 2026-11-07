@@ -12,7 +12,7 @@
 #                   "uv run --frozen python"); PYTHONPATH gets services
 #   PG_CONTAINER    container name (default: radar-pgtest-<random>)
 #   PG_PORT         host port on 127.0.0.1 (default: a free one in 19801-19999)
-#   PGTEST_MANIFEST the container manifest (default: /tmp/radar-pgtest-<random>.containers.jsonl)
+#   PGTEST_MANIFEST the container manifest (default: .test-artifacts/radar-pgtest-<random>.containers.jsonl)
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 PG_TAG=pgtest
