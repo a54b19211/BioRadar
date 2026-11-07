@@ -478,7 +478,7 @@ def test_a_worker_that_outlived_its_lease_cannot_write_over_the_one_that_took_ov
     assert "final write rejected" in caplog.text
 
 
-# ---- a superseded worker: no business write and no send of an analysis goes through ----------------------------
+# ---- a superseded worker: no business write and no send of an analysis goes through ----------------------
 
 
 def superseded_run():
