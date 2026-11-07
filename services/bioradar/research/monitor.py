@@ -30,31 +30,25 @@ log = logging.getLogger("bioradar")
 def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | None = None, fabric=None):
     """One monitoring round. `clock` moves topic states during blank periods with no new records.
     Live real monitoring pauses new triage and automatic analyses once today's automatic tokens reach
-    daily_auto_tokens; the backlog stays in the feed and owed analyses stay owed."""
+    daily_auto_tokens; the backlog stays in the feed and owed analyses stay owed. The round starts by reading
+    what Fabric declares its sources can do; without that it reads nothing and moves no cursor."""
     s = settings()
     fabric = fabric or Fabric(s)
+    if fabric.load_capabilities() is None:
+        return _without_capabilities((clock or cutoff or db.now()).isoformat())
+    return _round(s, fabric, is_demo=is_demo, cutoff=cutoff, clock=clock)
+
+
+def _round(s, fabric, *, is_demo, cutoff, clock):
     budget = cutoff is None and not is_demo  # live real monitoring only
     paused = budget and analyses.over_auto_budget()
-    if fabric.load_capabilities() is None:
-        # which sources may be read, and what text to expect of them, is not known: nothing is read and no
-        # cursor moves, so the round is simply done again once Fabric can say
-        log.warning("monitor: Fabric's source capabilities cannot be read, the round does nothing")
-        return {
-            "records": 0,
-            "routed": {},
-            "backlog": False,
-            "paused": "source_capabilities_unavailable",
-            "clock": (clock or cutoff or db.now()).isoformat(),
-            "topics": {},
-            "analyses": [],
-            "source_not_selectable": [],
-        }
-    for source in monitored_sources(s, fabric.caps, is_demo)[1]:
+    skipped = monitored_sources(s, fabric.caps, is_demo)[1]
+    _prepare(s, fabric, is_demo)
+    # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
+    for source in skipped:
         log.warning(
             "monitor: %s is not offered by Fabric for selection (source_not_selectable), skipped", source
         )
-    _prepare(s, fabric, is_demo)
-    # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
     with db.session() as session:  # a stated correction counts from when it is seen, triaged or not
         record_corrections(session, s, docs, is_demo=is_demo)
@@ -91,7 +85,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         else []
     )
     return {
-        "source_not_selectable": monitored_sources(s, fabric.caps, is_demo)[1],
+        "source_not_selectable": skipped,
         "records": len(docs),
         # how many records went to model triage and how many the program settled, by reason
         "routed": routed,
@@ -100,6 +94,22 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         "clock": clock.isoformat(),
         "topics": reasons,
         "analyses": created,
+    }
+
+
+def _without_capabilities(clock):
+    """A round when Fabric cannot say which sources may be read and what text to expect of them: nothing is
+    read and no cursor moves, so the round is simply done again once Fabric can say."""
+    log.warning("monitor: Fabric's source capabilities cannot be read, the round does nothing")
+    return {
+        "records": 0,
+        "routed": {},
+        "backlog": False,
+        "paused": "source_capabilities_unavailable",
+        "clock": clock,
+        "topics": {},
+        "analyses": [],
+        "source_not_selectable": [],
     }
 
 
