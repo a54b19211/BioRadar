@@ -188,7 +188,7 @@ def triage_document(tag):
         record_id="r-late",
         version_id=f"r-late-{tag}",
         title="Synthetic",
-        published_at="2020-01-01T00:00:00Z",
+        published_at=dict(value="2020-01-01T00:00:00Z", meaning="source_reported"),
         material_kind="official_notice",
         verified=True,
         events=[],
