@@ -146,6 +146,13 @@ make check-install      # 在 /tmp 只按 uv.lock 新建环境（uv sync --locke
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
 
+`make lint` 的规则：所有仓库共用一份基础规则 `E4, E7, E9, F, W, I`（devtools `README.md` 的“共用的代码门槛”）。圈复杂度只由 `make metrics` 管，不开 ruff 的 C90。在基础规则之上多开规则的仓库：
+
+| 仓库 | 多开的规则 |
+|---|---|
+| BioRadar | `E`（含行宽 E501，110） |
+| BioCheck | `E`（含行宽 E501，120） |
+
 `make bootstrap`、`make check-install`（`uv sync --locked` 核对 uv.lock）在 uv 缓存里没有的包要从 PyPI 下载，`make web-check` 的 `npm ci` 要访问 npm。zktest 上直连有时超时，这时只给这几条命令临时加上本机已有的 HTTP 代理（mihomo，监听 127.0.0.1:7890），例如 `HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 make check-install`（`web-check` 的容器用主机网络并带上这两个变量）；不要把代理写进全局配置。uv 下载失败时报的是网络错误，不是 `The lockfile needs to be updated`（只有后者说明 uv.lock 过期）。
 
 `make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`，各仓库是同一份文件，量哪些目录写在
