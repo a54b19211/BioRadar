@@ -2,6 +2,7 @@
 parsed yet waits (retried later), one that could not be parsed is a recorded gap, never triaged empty."""
 
 import httpx
+from fabric_receipts import sources_receipt
 from sqlalchemy import select
 
 from bioradar import db
@@ -15,9 +16,9 @@ URL = "https://www.nmpa.gov.cn/directory/web/nmpa/images/a.doc"
 V = "c" * 64
 
 
-def attachment(version=V):
+def attachment(version=V, source="nmpa"):
     return {
-        "source_id": "nmpa",
+        "source_id": source,
         "source_record_id": PARENT + "#attachment=" + URL,
         "version_id": version,
         "is_demo": False,
@@ -31,19 +32,25 @@ def attachment(version=V):
     }
 
 
-def fabric_with(state):
+def fabric_with(state, source="nmpa", known=True):
+    """Fabric with its source receipt; known=False: the capabilities could not be read (an older Fabric)."""
     sent = []
 
     def handler(request):
         sent.append(request.url.path)
+        if request.url.path == "/api/history/sources":
+            return httpx.Response(200, json=sources_receipt({source}))
         if request.url.path == "/api/history/records":
-            return httpx.Response(200, json={"items": [attachment()], "next_cursor": None})
+            return httpx.Response(200, json={"items": [attachment(source=source)], "next_cursor": None})
         if request.url.path == "/api/history/derived-text":
             return httpx.Response(200, json={"versions": {V: state}})
         return httpx.Response(404, json={})
 
     client = httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler))
-    return Fabric(settings(), client=client), sent
+    fabric = Fabric(settings(), client=client)
+    if known:
+        fabric.load_capabilities()
+    return fabric, sent
 
 
 PARSED = {
@@ -100,6 +107,34 @@ def test_older_fabric_without_the_endpoint_leaves_the_attachment_pending():
     )
     [doc], _ = fabric.search("nmpa", (), is_demo=False)
     assert doc["attachment_text"] == {"state": "unavailable"} and route(doc) == "attachment_pending"
+
+
+def test_every_source_fabric_declares_attachment_text_for_is_read_that_way():
+    """The radar keeps no list of attachment sources: a PubMed full-text attachment or an HKEX filing's
+    attachment gets its parsed text from Fabric's processing layer like an NMPA one (before, only nmpa, cde
+    and chictr did; the other 17 sources Fabric declares were read as plain clean text)."""
+    for source in ("hkex", "pubmed", "fda_press", "local_files"):
+        fabric, sent = fabric_with(PARSED, source=source)
+        [doc], _ = fabric.search(source, (), is_demo=False)
+        assert (
+            doc["text"].startswith("【附件正文（附件版本") and doc["attachment_text"]["status"] == "parsed"
+        ), source
+        assert "/api/history/derived-text" in sent and "/api/history/clean-text" not in sent
+        assert route(doc) is None
+
+
+def test_an_attachment_of_a_source_without_attachment_text_is_read_as_clean_text():
+    fabric, sent = fabric_with(PARSED, source="who_don")
+    fabric.search("who_don", (), is_demo=False)
+    assert "/api/history/derived-text" not in sent and "/api/history/clean-text" in sent
+
+
+def test_with_the_capabilities_unknown_an_attachment_waits_and_is_not_called_empty():
+    fabric, sent = fabric_with(PARSED, known=False)
+    [doc], _ = fabric.search("nmpa", (), is_demo=False)
+    assert doc["attachment_text"] == {"state": "capability_unknown"} and doc["text"] == ""
+    assert route(doc) == "attachment_pending"  # kept for the retry path, not a gap
+    assert "/api/history/derived-text" not in sent and "/api/history/clean-text" not in sent
 
 
 def test_pending_is_kept_for_retry_and_a_gap_is_recorded(monkeypatch):

@@ -9,6 +9,8 @@ import copy
 import json
 from pathlib import Path
 
+from bioradar.adapters.capabilities import SourceCapabilities
+
 RECEIPT = json.loads((Path(__file__).parent / "fixtures" / "fabric_sources_receipt.json").read_text("utf-8"))
 _ENTRIES = {e["source_id"]: e for e in RECEIPT["sources"] + RECEIPT["retired_sources"]}
 _PLAIN = _ENTRIES["external_archive"]
@@ -50,3 +52,8 @@ def sources_receipt(readable, *, known=()):
     for source in sorted(set(known) - readable):
         out["unavailable_sources"].append({"source_id": source, "capabilities": dict(_OFF)})
     return out
+
+
+def capabilities_of(*readable):
+    """The parsed capabilities of a Fabric where exactly these sources are readable."""
+    return SourceCapabilities.parse(sources_receipt(readable))

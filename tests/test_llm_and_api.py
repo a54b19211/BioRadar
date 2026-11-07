@@ -1,4 +1,5 @@
 import httpx
+from fabric_receipts import capabilities_of
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -343,6 +344,7 @@ def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
         settings(),
         client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)),
     )
+    fabric.caps = capabilities_of("clinicaltrials")
     record = {
         "source_id": "clinicaltrials",
         "source_record_id": "NCT00073242",
@@ -467,6 +469,7 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
         settings(),
         client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)),
     )
+    fabric.caps = capabilities_of("clinicaltrials")
     wanted = {"processor_version": old["processor_version"], "text_sha256": old["text_sha256"]}
     docs, _ = fabric.read_versions("clinicaltrials", [("NCT1", v)], is_demo=True, artifacts={v: wanted})
     doc = docs[0]
@@ -560,6 +563,7 @@ def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one
         settings(),
         client=httpx.Client(base_url="http://fabric.invalid", transport=httpx.MockTransport(handler)),
     )
+    fabric.caps = capabilities_of("nmpa")
     wanted = {"processor_version": v1["processor_version"], "text_sha256": v1["text_sha256"]}
     docs, _ = fabric.read_versions("nmpa", [("P1#attachment=x.xls", v)], is_demo=True, artifacts={v: wanted})
     assert v2_text not in docs[0]["text"] and docs[0]["clean_text_state"] != "processed"

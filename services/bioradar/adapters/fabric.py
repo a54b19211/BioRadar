@@ -71,10 +71,6 @@ def native_kind(record: dict):
     return kind, ("abstract" if raw.get("abstractText") else None)
 
 
-# Sources whose attachment versions get their text from Fabric's processing layer (/derived-text).
-ATTACHMENT_SOURCES = {"nmpa", "cde", "chictr"}
-
-
 def attachment_heading(doc: dict, found: dict) -> str:
     """The line put above an attachment's parsed text: what it is and where it came from, so a quote points
     back to the attachment version and its page. A fixed template filled with identifiers and the parse
@@ -487,6 +483,16 @@ class Fabric:
         self.attach_registry_changes(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
         self.attach_attachment_text(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
 
+    def attachment_kind(self, doc):
+        """ "text": an attachment version of a source whose attachment text Fabric's processing layer parses
+        (its capabilities say so). "unknown": an attachment while Fabric's capabilities are unknown - its text
+        is not read, and it waits. None: not an attachment, or one of a source with no attachment text."""
+        if doc.get("role") != "attachment":
+            return None
+        if self.caps is None:
+            return "unknown"
+        return "text" if self.caps.attachment_text(doc["source"]) else None
+
     def attach_clean_text(self, docs, *, is_demo, mode, cutoff):
         """The text a model reads is the cleaning layer's text of the version (v3 3.3; for a trial the summary
         and every registry field, untruncated): the artifact a search hit named when there is one (exactly
@@ -498,7 +504,7 @@ class Fabric:
         groups = {}
         for d in docs:
             wanted = d.get("artifact_wanted") or {}
-            if d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment" and not wanted:
+            if self.attachment_kind(d) and not wanted:
                 continue
             groups.setdefault((d["source"], wanted.get("processor_version")), []).append(d)
         for (source, processor), group in groups.items():
@@ -527,7 +533,7 @@ class Fabric:
                             part(d, "clean_text", processor_version=clean["processor_version"]),
                             locators(clean),
                         )
-                        is_attachment = d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment"
+                        is_attachment = self.attachment_kind(d) == "text"
                         method = {"parse_method": clean.get("basis")}
                         heading = attachment_heading(d, method) if is_attachment else ""
                         d["material"] = Material.literal(heading) + body
@@ -600,7 +606,10 @@ class Fabric:
         the text stays empty and `attachment_text` says why; the monitor decides what to do with it."""
         by_source = {}
         for d in docs:
-            if d["source"] in ATTACHMENT_SOURCES and d.get("role") == "attachment":
+            kind = self.attachment_kind(d)
+            if kind == "unknown":
+                d["attachment_text"] = {"state": "capability_unknown"}
+            elif kind == "text":
                 by_source.setdefault(d["source"], []).append(d)
         for source, group in by_source.items():
             for start in range(0, len(group), 100):
