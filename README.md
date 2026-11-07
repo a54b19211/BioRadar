@@ -157,7 +157,7 @@ progress、证据和外发记录，以及对外视图（详情、列表、导出
 测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出和它自己的环境：
 `make test` 默认用同级的 `../clean-biocheck`（BioCheck 的集成线，先在那里 `make venv`），别处的检出用
 `make test BIOCHECK_SRC=<检出> [BIOCHECK_PYTHON=<它的 python>]`。找不到检出时这些测试显示为跳过，不会算作通过。
-已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：`make test` 493 个通过、0 个跳过（真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`，由 `devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑），`make test-pg` 另有 58 个通过（租约、令牌围栏与过期、晚到审计、recover 分类、monitor 互斥、锁连接掉线与晚到回答的审计、认领公平性，以及 15 个守卫），`make test-redis` 18 个通过（JSON 队列、任务白名单、旧 pickle 任务恢复、对 RQ 的查询，以及 12 个守卫）。
+已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：`make test` 0 个跳过（真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`，由 `devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑），`make test-pg` 另有一组通过（租约、令牌围栏与过期、晚到审计、recover 分类、monitor 互斥、锁连接掉线与晚到回答的审计、认领公平性，以及守卫），`make test-redis` 另有一组通过（JSON 队列、任务白名单、旧 pickle 任务恢复、对 RQ 的查询，以及守卫）。
 
 ## 验收实验
 
