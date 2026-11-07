@@ -34,23 +34,12 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     fabric = fabric or Fabric(s)
     budget = cutoff is None and not is_demo  # live real monitoring only
     paused = budget and analyses.over_auto_budget()
-    with db.session() as session:
-        measure_checks.backfill(session, s)  # a checker upgrade owes every candidate a new check
-        measure_checks.legacy_backlog(session, s)  # points stored before checking owe a re-extraction
-    # current read permission and binding of every stored point, before anything this round reads a series
-    measure_checks.refresh_bindings(s, fabric, is_demo=is_demo)
+    _prepare(s, fabric, is_demo)
     # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
     with db.session() as session:  # a stated correction counts from when it is seen, triaged or not
         record_corrections(session, s, docs, is_demo=is_demo)
-    routed = {}
-    for d in docs:
-        reason = route(d)
-        routed[reason or "triage"] = routed.get(reason or "triage", 0) + 1
-    triage_docs = [d for d in docs if route(d) is None]
-    settle_attachments(docs, is_demo=is_demo)
-    if len(triage_docs) < len(docs):
-        log.info("monitor routing %s", routed)
+    routed, triage_docs = _route_documents(docs, is_demo)
     if paused:
         log.info("monitor: daily_auto_tokens reached; model triage deferred, program routing continues")
         reasons, whole = {}, False
@@ -73,13 +62,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         deferred = defer(triage_docs, is_demo=is_demo)
         if deferred:
             routed[DEFERRED] = deferred
-    fresh = {d["source"] for d in docs if not d.get("retry")}  # a retried old record is not new
-    with db.session() as session:  # a round that died before this line reads the same records again
-        for source, at in ends.items():
-            cursor = session.get(db.Cursor, (source, is_demo))
-            cursor.after_seq = at
-            if source in fresh:
-                cursor.last_new_at = db.now()
+    _move_cursors(ends, docs, is_demo)
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
     reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
@@ -98,3 +81,37 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         "topics": reasons,
         "analyses": created,
     }
+
+
+def _prepare(s, fabric, is_demo):
+    """What the round owes before it reads anything new."""
+    with db.session() as session:
+        measure_checks.backfill(session, s)  # a checker upgrade owes every candidate a new check
+        measure_checks.legacy_backlog(session, s)  # points stored before checking owe a re-extraction
+    # current read permission and binding of every stored point, before anything this round reads a series
+    measure_checks.refresh_bindings(s, fabric, is_demo=is_demo)
+
+
+def _route_documents(docs, is_demo):
+    """(records by where they went - triage or the program's reason; the records to triage)."""
+    routed = {}
+    for d in docs:
+        reason = route(d)
+        routed[reason or "triage"] = routed.get(reason or "triage", 0) + 1
+    triage_docs = [d for d in docs if route(d) is None]
+    settle_attachments(docs, is_demo=is_demo)
+    if len(triage_docs) < len(docs):
+        log.info("monitor routing %s", routed)
+    return routed, triage_docs
+
+
+def _move_cursors(ends, docs, is_demo):
+    """The feeds' cursors move past what the round took. A round that died before this reads the same records
+    again."""
+    fresh = {d["source"] for d in docs if not d.get("retry")}  # a retried old record is not new
+    with db.session() as session:
+        for source, at in ends.items():
+            cursor = session.get(db.Cursor, (source, is_demo))
+            cursor.after_seq = at
+            if source in fresh:
+                cursor.last_new_at = db.now()
