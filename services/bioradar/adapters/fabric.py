@@ -197,6 +197,16 @@ def _material_kind(record: dict, evidence: dict) -> tuple:
     return kind, evidence.get("text_level") or level
 
 
+def _verified(record: dict, evidence: dict, kind) -> bool:
+    """Whether the record is a statement its source stands behind: not an unverified report, a repost or a
+    social post, and never a lead - a news index having seen an article (LEAD_SOURCES)."""
+    return (
+        evidence.get("statement_status") != "unverified_report"
+        and kind not in UNVERIFIED_KINDS
+        and record["source_id"] not in LEAD_SOURCES
+    )
+
+
 def document(record: dict) -> dict:
     """The few fields the radar uses. Version identity stays exactly as Fabric returned it.
 
@@ -226,10 +236,7 @@ def document(record: dict) -> dict:
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
         "text_level": level,
-        # a lead is a news index having seen an article, never a statement of its source (LEAD_SOURCES)
-        "verified": evidence.get("statement_status") != "unverified_report"
-        and kind not in UNVERIFIED_KINDS
-        and record["source_id"] not in LEAD_SOURCES,
+        "verified": _verified(record, evidence, kind),
         "relations": [
             {
                 "kind": r["relation_type"],
