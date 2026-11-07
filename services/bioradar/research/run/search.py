@@ -8,6 +8,10 @@ if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
 
 
+# How a search finds candidates (the planner's channels). A channel only finds candidates inside a source of
+# the task; it never widens the task's sources.
+LITERAL = "fabric_literal"  # Fabric's literal search, fetch and listing of a fixed material set
+SEMANTIC = "weknora_semantic"  # WeKnora recall, every hit verified by Fabric
 MAX_PAGES = 3
 MAX_QUERIES = 12
 MAX_RETIRED = 6  # searches used up and replaced by new evidence's searches, per analysis
@@ -20,6 +24,24 @@ SEARCH_SCOPES = {
     "business": ("business", "pipeline"),
     "public_health": ("public_health", "research"),
 }
+
+
+def routes(run: "Run"):
+    """(source, channel) of every plain search the run may offer: each source of the task through Fabric's
+    literal search, then through the semantic search when it is on (limited to that source)."""
+    sources = list(run.input["sources"])
+    semantic_on = run.s.semantic_search
+    return [(s, LITERAL) for s in sources] + ([(s, SEMANTIC) for s in sources] if semantic_on else [])
+
+
+def channel_of(action):
+    """The channel an action went through. A read has none (it is Fabric's read of a record already found);
+    progress saved before channels existed says it by the source, "weknora" being the semantic search."""
+    if "channel" in action:
+        return action["channel"]
+    if action["kind"] == "read":
+        return None
+    return SEMANTIC if action.get("source") == "weknora" else LITERAL
 
 
 def doc_key(hit):
@@ -103,8 +125,9 @@ def search(run: "Run", candidate):
     if candidate["args"].get("browse"):
         return browse(run, source, candidate["args"]["page"], candidate["target_checks"])
     at = None
-    if source == "weknora":
-        docs, cursor = semantic(run, terms), None
+    semantic_search = candidate.get("channel") == SEMANTIC
+    if semantic_search:
+        docs, cursor = semantic(run, terms, source), None
     elif kind == "fetch":
         docs, cursor = run.fabric.fetch(source, " ".join(terms)), None
     else:
@@ -118,35 +141,37 @@ def search(run: "Run", candidate):
     for doc in docs:
         run.docs[(doc["source"], doc["record_id"])] = doc
         new += add_hit(run, doc["source"], doc["record_id"], doc["title"], candidate["target_checks"])
-    if source != "weknora":
+    if not semantic_search:
         page = run.p["pages"].setdefault(key, {"pages": 0, "found": 0, "checks": candidate["target_checks"]})
         page.update(cursor=cursor, pages=page["pages"] + 1, new=new or more, found=page["found"] + len(docs))
         if kind == "search" and run.cutoff is None:
             page["at"] = at.isoformat()
-    if not docs and kind == "search" and len(terms) > 1 and source != "weknora":
+    if not docs and kind == "search" and len(terms) > 1 and not semantic_search:
         retry_shorter(run, terms, candidate["target_checks"])
     return len(docs), new
 
 
-def semantic(run: "Run", terms):
-    """WeKnora recall verified by Fabric: each hit is already the version visible at this cutoff, and
-    exactly that version is read, from the cleaned artifact the hit was verified against."""
+def semantic(run: "Run", terms, source):
+    """WeKnora recall inside one source, verified by Fabric: each hit is already the version visible at this
+    cutoff, and exactly that version is read, from the cleaned artifact the hit was verified against."""
     hits, summary = run.fabric.semantic_search(
         " ".join(terms),
         scopes=SEARCH_SCOPES.get(run.input["direction"], ("research",)),
+        sources=[source],
         is_demo=run.input["is_demo"],
         cutoff=run.cutoff,
         mode=run.replay_mode,
     )
     # the retrieval receipt: what was asked, the mode and cutoff it was read at (in the summary), the run kind
-    run.p.setdefault("weknora", []).append({"terms": terms, "run_kind": run.run_kind, **summary})
+    receipt = {"terms": terms, "source": source, "run_kind": run.run_kind, **summary}
+    run.p.setdefault("weknora", []).append(receipt)
     for scope in summary["recall"]:
         if scope.get("degraded"):
             run.note("weknora_scope", f"{','.join(scope['scopes'] or [])}: degraded")
     refs, artifacts = {}, {}
     run.p.setdefault("hit_positions", {})  # kept from the first semantic search on, with hits or not
     for hit in hits:
-        if hit["source"] in run.input["sources"]:
+        if hit["source"] == source:  # Fabric limited the recall to it; a hit of another source is not kept
             refs.setdefault(hit["source"], {})[(hit["record_id"], hit["version_id"])] = None
             # read exactly the cleaned artifact the hit was verified against
             artifacts[hit["version_id"]] = hit.get("artifact") or None
@@ -257,7 +282,7 @@ def searches_run(run: "Run"):
     """(indexes of the active searches run in every source they apply to - searched or failed - and paged
     out, the terms of every search or fetch run)."""
     ran = {
-        (a.get("source", ""), tuple(a["args"].get("terms", ())))
+        (a.get("source", ""), channel_of(a), tuple(a["args"].get("terms", ())))
         for a in run.p["actions"]
         if a["kind"] in {"search", "fetch"}
     }
@@ -266,10 +291,10 @@ def searches_run(run: "Run"):
         for key, page in run.p.get("pages", {}).items()
         if page.get("cursor") and page["pages"] < MAX_PAGES and page["new"]
     }
-    sources = list(run.input["sources"]) + (["weknora"] if run.s.semantic_search else [])
     done = [
         i
         for i, q in enumerate(run.p["queries"])
-        if all((src, tuple(q["terms"])) in ran for src in sources) and tuple(q["terms"]) not in paging
+        if all((src, channel, tuple(q["terms"])) in ran for src, channel in routes(run))
+        and tuple(q["terms"]) not in paging
     ]
-    return done, {t for _, t in ran}
+    return done, {t for _, _, t in ran}

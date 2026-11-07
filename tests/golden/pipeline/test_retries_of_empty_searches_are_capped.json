@@ -11,6 +11,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -29,6 +30,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -47,6 +49,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -65,6 +68,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -83,6 +87,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -101,6 +106,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -119,6 +125,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -137,6 +144,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -154,6 +162,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -171,6 +180,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -188,6 +198,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -205,6 +216,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -222,6 +234,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -239,6 +252,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -274,6 +288,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "2534b8889e65e8b69cf5668f2bae6e1e8e229536d5505318418c53600cb6ea92",
+      "step": 15
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -799,6 +819,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -830,6 +851,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "28cde217d6640c3da6b007e3e5558e8f53086bc5455ad9d874262766873f34ca",
+      "step": 1
      }
     ],
     "facts": [],
@@ -1014,6 +1041,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1032,6 +1060,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1063,6 +1092,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c873228fe41b61d1047bf5970827d01b0233fe949c6a2a650204dff4d009d2a3",
+      "step": 2
      }
     ],
     "facts": [],
@@ -1275,6 +1310,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1293,6 +1329,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1311,6 +1348,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1342,6 +1380,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "2f2691c6ac0b8fbec7c8dd3d039382b8ef06f14b737a063475c27fa338b6d0fe",
+      "step": 3
      }
     ],
     "facts": [],
@@ -1582,6 +1626,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1600,6 +1645,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1618,6 +1664,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1636,6 +1683,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1667,6 +1715,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "d867bacd730641dfbc36d1326598d5cd23736db16dc57b35778e4a4b231faa37",
+      "step": 4
      }
     ],
     "facts": [],
@@ -1917,6 +1971,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1935,6 +1990,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1953,6 +2009,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1971,6 +2028,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1989,6 +2047,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2020,6 +2079,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "30ee3a7ec10d4bf9f1dc9713b3738e67b7170c3248d176db7c094257ab2d3e7b",
+      "step": 5
      }
     ],
     "facts": [],
@@ -2280,6 +2345,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2298,6 +2364,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2316,6 +2383,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2334,6 +2402,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2352,6 +2421,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2370,6 +2440,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2401,6 +2472,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "7caadcd19d925143ac100daddf27d338d0bac77a2e3188f7f678f9ec4bbfee75",
+      "step": 6
      }
     ],
     "facts": [],
@@ -2671,6 +2748,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2689,6 +2767,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2707,6 +2786,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2725,6 +2805,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2743,6 +2824,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2761,6 +2843,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2779,6 +2862,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2810,6 +2894,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "7874575c1ad2c1f0b09c3cdbc755b9556a7401a5e7dfee60ab18ff2f8c59ddb9",
+      "step": 7
      }
     ],
     "facts": [],
@@ -3090,6 +3180,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3108,6 +3199,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3126,6 +3218,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3144,6 +3237,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3162,6 +3256,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3180,6 +3275,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3198,6 +3294,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3216,6 +3313,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3247,6 +3345,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "040053dd983340a9c7d4724ed59cb69ddaf7685650c457409c29c894fd15964e",
+      "step": 8
      }
     ],
     "facts": [],
@@ -3537,6 +3641,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3555,6 +3660,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3573,6 +3679,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3591,6 +3698,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3609,6 +3717,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3627,6 +3736,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3645,6 +3755,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3663,6 +3774,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3680,6 +3792,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3711,6 +3824,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "042048af80ed4e4e7a3f517fe1abf4cf2b5343e9eb2f2794f66d8cbda204e91f",
+      "step": 9
      }
     ],
     "facts": [],
@@ -4011,6 +4130,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4029,6 +4149,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4047,6 +4168,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4065,6 +4187,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4083,6 +4206,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4101,6 +4225,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4119,6 +4244,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4137,6 +4263,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4154,6 +4281,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4171,6 +4299,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4202,6 +4331,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "b0f70301bf84140514bc4317b094a90cc258e8dc94ca8b7b9c7cbe76701cc552",
+      "step": 10
      }
     ],
     "facts": [],
@@ -4512,6 +4647,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4530,6 +4666,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4548,6 +4685,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4566,6 +4704,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4584,6 +4723,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4602,6 +4742,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4620,6 +4761,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4638,6 +4780,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4655,6 +4798,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4672,6 +4816,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4689,6 +4834,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4720,6 +4866,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "d26e111b35340e5ccc0570d515c384f13e31c96a5fc55af093770cd80c255193",
+      "step": 11
      }
     ],
     "facts": [],
@@ -5040,6 +5192,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5058,6 +5211,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5076,6 +5230,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5094,6 +5249,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5112,6 +5268,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5130,6 +5287,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5148,6 +5306,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5166,6 +5325,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5183,6 +5343,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5200,6 +5361,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5217,6 +5379,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5234,6 +5397,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5265,6 +5429,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "e98e97b540afe82a6e4aa5668e7facecc91eb06cfbbabc081b8d84962fe405e1",
+      "step": 12
      }
     ],
     "facts": [],
@@ -5595,6 +5765,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5613,6 +5784,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5631,6 +5803,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5649,6 +5822,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5667,6 +5841,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5685,6 +5860,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5703,6 +5879,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5721,6 +5898,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5738,6 +5916,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5755,6 +5934,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5772,6 +5952,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5789,6 +5970,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5806,6 +5988,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -5837,6 +6020,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "13169749edc29a72f0b69ad6f00e6404337ed4f4999a49a6aa076b2d1874747d",
+      "step": 13
      }
     ],
     "facts": [],
@@ -6177,6 +6366,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6195,6 +6385,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6213,6 +6404,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6231,6 +6423,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6249,6 +6442,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6267,6 +6461,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6285,6 +6480,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6303,6 +6499,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6320,6 +6517,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6337,6 +6535,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6354,6 +6553,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6371,6 +6571,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6388,6 +6589,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6405,6 +6607,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6436,6 +6639,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0b9440b70757234f803b568c16f3198cb398d366c94dc40bb09c415c2af6c881",
+      "step": 14
      }
     ],
     "facts": [],
@@ -6786,6 +6995,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6804,6 +7014,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6822,6 +7033,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6840,6 +7052,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6858,6 +7071,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6876,6 +7090,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6894,6 +7109,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6912,6 +7128,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6929,6 +7146,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6946,6 +7164,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6963,6 +7182,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6980,6 +7200,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -6997,6 +7218,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7014,6 +7236,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7045,6 +7268,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "2534b8889e65e8b69cf5668f2bae6e1e8e229536d5505318418c53600cb6ea92",
+      "step": 15
      }
     ],
     "facts": [],
@@ -7395,6 +7624,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7413,6 +7643,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7431,6 +7662,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7449,6 +7681,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7467,6 +7700,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7485,6 +7719,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7503,6 +7738,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7521,6 +7757,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7538,6 +7775,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7555,6 +7793,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7572,6 +7811,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7589,6 +7829,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7606,6 +7847,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7623,6 +7865,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -7657,6 +7900,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "2534b8889e65e8b69cf5668f2bae6e1e8e229536d5505318418c53600cb6ea92",
+      "step": 15
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -8005,6 +8254,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8023,6 +8273,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8041,6 +8292,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8059,6 +8311,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8077,6 +8330,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8095,6 +8349,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8113,6 +8368,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8131,6 +8387,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8148,6 +8405,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8165,6 +8423,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8182,6 +8441,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8199,6 +8459,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8216,6 +8477,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8233,6 +8495,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8267,6 +8530,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "2534b8889e65e8b69cf5668f2bae6e1e8e229536d5505318418c53600cb6ea92",
+      "step": 15
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -8619,6 +8888,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8637,6 +8907,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8655,6 +8926,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8673,6 +8945,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8691,6 +8964,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8709,6 +8983,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8727,6 +9002,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8745,6 +9021,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8762,6 +9039,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8779,6 +9057,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8796,6 +9075,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8813,6 +9093,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8830,6 +9111,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8847,6 +9129,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -8881,6 +9164,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "2534b8889e65e8b69cf5668f2bae6e1e8e229536d5505318418c53600cb6ea92",
+      "step": 15
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -9240,6 +9529,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9258,6 +9548,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9276,6 +9567,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9294,6 +9586,7 @@
         "空3"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9312,6 +9605,7 @@
         "空4"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9330,6 +9624,7 @@
         "空5"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9348,6 +9643,7 @@
         "空6"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9366,6 +9662,7 @@
         "空7"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9383,6 +9680,7 @@
         "无0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9400,6 +9698,7 @@
         "空0"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9417,6 +9716,7 @@
         "无1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9434,6 +9734,7 @@
         "空1"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9451,6 +9752,7 @@
         "无2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9468,6 +9770,7 @@
         "空2"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -9503,6 +9806,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "2534b8889e65e8b69cf5668f2bae6e1e8e229536d5505318418c53600cb6ea92",
+      "step": 15
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],

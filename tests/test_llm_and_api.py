@@ -263,12 +263,13 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
     )
     cutoff = datetime(2026, 9, 30, tzinfo=UTC)
     hits, summary = fabric.semantic_search(
-        "布病 聚集", scopes=("public_health", "research"), is_demo=True, cutoff=cutoff
+        "布病 聚集", scopes=("public_health", "research"), sources=("who_don",), is_demo=True, cutoff=cutoff
     )
     method, path, auth, body = sent[0]
     assert (method, path, auth) == ("POST", "/api/history/search", "Bearer read-token")
     assert body["mode"] == "public_history_reconstruction" and body["cutoff"] == cutoff.isoformat()
     assert body["scopes"] == ["public_health", "research"] and body["is_demo"] is True
+    assert body["sources"] == ["who_don"]  # the recall is limited to the source of the search
     assert hits == [
         {
             "source": "who_don",

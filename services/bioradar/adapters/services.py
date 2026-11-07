@@ -52,6 +52,12 @@ def decide(settings: Settings, body: dict) -> dict:
     return _post("planner", settings.planner_url, settings.planner_token, "/v1/decide", body, 30)
 
 
+def planner_health(settings: Settings) -> dict:
+    """GET /health of query-planner: {status, version, kinds, channels}; a planner older than 0.2.0 answers
+    only {status}."""
+    return _post("planner", settings.planner_url, settings.planner_token, "/health", None, 10, "GET")
+
+
 def biocheck(settings: Settings, operation: str, body: dict) -> dict:
     """operation: generate | verify | revise"""
     return _post(

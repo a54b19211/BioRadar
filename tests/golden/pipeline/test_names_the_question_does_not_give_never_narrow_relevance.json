@@ -10,6 +10,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -27,6 +28,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -140,6 +142,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c5104a3b4adc9e8a4518b52fd3f41d597b84959d55b95beaac50e9d304b95fe0",
+      "step": 5
      }
     ],
     "facts": [
@@ -487,6 +495,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -532,6 +541,12 @@
       "required": true,
       "status": "open",
       "text": "XQ-17 的PFS"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "2ba4a25183914c92e24de23452c1e4c203590210c5844610b2f61761c18b7640",
+      "step": 1
      }
     ],
     "facts": [],
@@ -640,6 +655,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -657,6 +673,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -702,6 +719,12 @@
       "required": true,
       "status": "open",
       "text": "XQ-17 的PFS"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "f9c15699e8a3d812e047a802883557ede45d4ec02b209dc76a7ea341f950d22f",
+      "step": 2
      }
     ],
     "facts": [],
@@ -926,6 +949,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -943,6 +967,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1004,6 +1029,12 @@
       "required": true,
       "status": "open",
       "text": "XQ-17 的PFS"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "96cb332b2dc893f05b92046e0e62b17fb9c1260757e72bdefd57834765b752f8",
+      "step": 3
      }
     ],
     "facts": [
@@ -1344,6 +1375,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1361,6 +1393,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1437,6 +1470,12 @@
       "required": true,
       "status": "open",
       "text": "XQ-17 的PFS"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "6df45c7a5629edb91cd6ba53c8f6893ec949e4208559173ab785844b6b0ce237",
+      "step": 4
      }
     ],
     "facts": [
@@ -1796,6 +1835,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1813,6 +1853,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1889,6 +1930,12 @@
       "required": true,
       "status": "open",
       "text": "XQ-17 的PFS"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c5104a3b4adc9e8a4518b52fd3f41d597b84959d55b95beaac50e9d304b95fe0",
+      "step": 5
      }
     ],
     "facts": [
@@ -2263,6 +2310,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2280,6 +2328,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -2376,6 +2425,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c5104a3b4adc9e8a4518b52fd3f41d597b84959d55b95beaac50e9d304b95fe0",
+      "step": 5
      }
     ],
     "facts": [
@@ -2750,6 +2805,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -2767,6 +2823,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -2863,6 +2920,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c5104a3b4adc9e8a4518b52fd3f41d597b84959d55b95beaac50e9d304b95fe0",
+      "step": 5
      }
     ],
     "facts": [
@@ -3377,6 +3440,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -3394,6 +3458,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -3490,6 +3555,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c5104a3b4adc9e8a4518b52fd3f41d597b84959d55b95beaac50e9d304b95fe0",
+      "step": 5
      }
     ],
     "facts": [
@@ -4105,6 +4176,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -4122,6 +4194,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -4235,6 +4308,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c5104a3b4adc9e8a4518b52fd3f41d597b84959d55b95beaac50e9d304b95fe0",
+      "step": 5
      }
     ],
     "facts": [

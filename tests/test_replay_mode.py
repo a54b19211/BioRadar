@@ -111,7 +111,7 @@ def test_the_retrieval_receipt_keeps_the_mode_apart_from_the_run_kind():
     fabric, sent = fabric_asking()
     row = analyses.create(**ASK, cutoff=WHEN, replay_mode="operational_replay", enqueue=False)
     run = Run(row, settings().model_copy(update={"semantic_search": True}), fabric=fabric)
-    search.semantic(run, ["布病"])
+    search.semantic(run, ["布病"], "who_don")
     assert sent == [("/api/history/search", "operational_replay")]
     receipt = run.p["weknora"][0]
     assert (receipt["mode"], receipt["cutoff"], receipt["run_kind"]) == (

@@ -10,6 +10,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -109,6 +110,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0bf9fabb46d6b5d5910c7b7f10a7bfd6b89ea24022ac354751bde951405abb24",
+      "step": 4
      }
     ],
     "facts": [
@@ -376,6 +383,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -407,6 +415,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "714228f5cad94ff0f555547ddfc8829c5b7d07ff6dd5419bda3f1ba14902068b",
+      "step": 1
      }
     ],
     "facts": [],
@@ -592,6 +606,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -639,6 +654,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "a762479eeb407916f7afbf29fb4b78dfeafcf6b2997b6d82979f0b4ab964ed78",
+      "step": 2
      }
     ],
     "facts": [
@@ -942,6 +963,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1004,6 +1026,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "09d60ae9f883faf8e5538c99b7459aa7858fc59c029dee0df6c2fe17fe423773",
+      "step": 3
      }
     ],
     "facts": [
@@ -1326,6 +1354,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1388,6 +1417,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0bf9fabb46d6b5d5910c7b7f10a7bfd6b89ea24022ac354751bde951405abb24",
+      "step": 4
      }
     ],
     "facts": [
@@ -1725,6 +1760,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1807,6 +1843,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0bf9fabb46d6b5d5910c7b7f10a7bfd6b89ea24022ac354751bde951405abb24",
+      "step": 4
      }
     ],
     "facts": [
@@ -2144,6 +2186,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -2226,6 +2269,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0bf9fabb46d6b5d5910c7b7f10a7bfd6b89ea24022ac354751bde951405abb24",
+      "step": 4
      }
     ],
     "facts": [
@@ -2703,6 +2752,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -2785,6 +2835,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0bf9fabb46d6b5d5910c7b7f10a7bfd6b89ea24022ac354751bde951405abb24",
+      "step": 4
      }
     ],
     "facts": [
@@ -3363,6 +3419,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -3462,6 +3519,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "0bf9fabb46d6b5d5910c7b7f10a7bfd6b89ea24022ac354751bde951405abb24",
+      "step": 4
      }
     ],
     "facts": [

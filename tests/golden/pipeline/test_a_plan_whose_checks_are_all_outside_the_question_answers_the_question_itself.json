@@ -10,6 +10,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -58,6 +59,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "efceb5e14ea47448f954bc678393b03d1cbc35d0d6b936de97633f075116344f",
+      "step": 2
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -271,6 +278,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -315,6 +323,12 @@
       "required": true,
       "status": "open",
       "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "e09d17eb8ff4288d5c56a21e240d2027464158e334ea1c72f6d9077b0aa23ded",
+      "step": 1
      }
     ],
     "facts": [],
@@ -410,6 +424,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -454,6 +469,12 @@
       "required": true,
       "status": "open",
       "text": "当前有哪些异常聚集值得核实？"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "efceb5e14ea47448f954bc678393b03d1cbc35d0d6b936de97633f075116344f",
+      "step": 2
      }
     ],
     "facts": [],
@@ -549,6 +570,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -596,6 +618,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "efceb5e14ea47448f954bc678393b03d1cbc35d0d6b936de97633f075116344f",
+      "step": 2
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -689,6 +717,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -736,6 +765,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "efceb5e14ea47448f954bc678393b03d1cbc35d0d6b936de97633f075116344f",
+      "step": 2
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -833,6 +868,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -880,6 +916,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "efceb5e14ea47448f954bc678393b03d1cbc35d0d6b936de97633f075116344f",
+      "step": 2
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],
@@ -984,6 +1026,7 @@
         "华南海鲜"
        ]
       },
+      "channel": "fabric_literal",
       "found": 0,
       "gain": 0.0,
       "kind": "search",
@@ -1032,6 +1075,12 @@
      }
     ],
     "computations": [],
+    "decisions": [
+     {
+      "request_sha256": "efceb5e14ea47448f954bc678393b03d1cbc35d0d6b936de97633f075116344f",
+      "step": 2
+     }
+    ],
     "facts": [],
     "hits": [],
     "hypotheses": [],

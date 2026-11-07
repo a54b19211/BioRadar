@@ -111,6 +111,7 @@ class ActionArgs(TypedDict, total=False):
 class Action(TypedDict, total=False):
     kind: Annotated[Literal["search", "fetch", "next_page", "read"], SHOWN]
     source: Annotated[str, SHOWN]
+    channel: Literal["fabric_literal", "weknora_semantic"]  # how a search found; not shown, a read has none
     args: Annotated[ActionArgs, SHOWN]
     target_checks: Annotated[list[str], SHOWN]
     gain: Annotated[float, SHOWN]
@@ -121,6 +122,20 @@ class Action(TypedDict, total=False):
     ref: Annotated[str, SHOWN]
     evidence_gain: Annotated[float, SHOWN]
     error: Annotated[str, SHOWN]
+
+
+class DecisionRecord(TypedDict, total=False):
+    """One call of the planner (research/run/decisions.py, ADR 0013); a cut round has only the hashes."""
+
+    step: int
+    request: dict[str, Any]  # the planner's request without its history
+    history_ref: dict[str, Any]  # {actions: how many, sha256: of the history}; the history is rebuilt
+    request_sha256: str  # of the whole request, history included
+    response: dict[str, Any]  # the planner's whole answer (none when the call failed)
+    planner: dict[str, Any]  # what its /health said: version, kinds, channels
+    action_index: int | None  # the action that followed; none when the run stopped
+    stop: str  # why none did: the planner's stop reason, planner_<error code>, llm_call_limit
+    snapshot_truncated: bool  # over the analysis's size limit: hashes only, not rebuildable
 
 
 class Sketch(TypedDict, total=False):
@@ -289,6 +304,7 @@ class RunState(TypedDict, total=False):
     hit_positions: dict[str, list[HitPosition]]  # "source|record_id" -> verified search-hit passages
     weknora: list[dict[str, Any]]  # each semantic search: terms, run kind, Fabric's summary with mode, cutoff
     found_objects: list[FoundObject]
+    decisions: list[DecisionRecord]  # one record per planner call, in order
     stop: Annotated[Stop, SHOWN]
     # compute, mechanism, report, assess
     computations: list[Computation]

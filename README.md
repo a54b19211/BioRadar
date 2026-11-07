@@ -39,6 +39,8 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 `method=planner` 是逐步规划；`method=baseline` 是固定流程（每组检索词搜一次，按顺序读，读满即停），用作对照。
 
+每次调用 planner，请求（不含历史）和完整响应记在 `analyses.progress.decisions`，历史由已保存的动作重建，哈希对得上才算同一个请求；一次分析合计不超过 1 MiB，超出的那一轮只留哈希并标 `snapshot_truncated`（`docs/decisions/0013`）。planner 要先于雷达部署：investigate 阶段开始时雷达读 planner 的 `/health`，没有 `channels`（0.2.0 之前的版本）就以 `planner_outdated` 停下这次分析，不会发更少的字段。`complete` 只表示停止调查，不等于报告 PASS。
+
 ## RQ 派发与数据库租约的分工
 
 两套机制各管一件事，互不替代：

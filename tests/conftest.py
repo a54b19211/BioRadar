@@ -39,6 +39,22 @@ def fresh_db():
     yield
 
 
+CURRENT_PLANNER = {
+    "status": "ok",
+    "version": "0.2.0",
+    "kinds": ["search", "read", "next_page", "fetch", "dataset", "analysis", "mechanism"],
+    "channels": ["fabric_literal", "weknora_semantic", "gdelt_leads", "graph"],
+}
+
+
+@pytest.fixture(autouse=True)
+def current_planner(monkeypatch):
+    """/health answers as planner 0.2.0 does; each test stands in for /v1/decide itself."""
+    from bioradar.adapters import services
+
+    monkeypatch.setattr(services, "planner_health", lambda s: CURRENT_PLANNER)
+
+
 def record(
     record_id,
     title,

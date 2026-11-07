@@ -3,7 +3,11 @@ each Run.save() is recorded - the analysis row's stage and progress JSON and its
 llm_calls rows as stored after that save - and the whole record is compared byte for byte with the fixture in
 tests/golden/pipeline/. It locks what is persisted (the format a resumed run reads back), not how the code is
 arranged, so moving code must leave every fixture unchanged. A deliberate behaviour change regenerates the
-fixtures with BIORADAR_GOLDEN_UPDATE=1 and the diff is reviewed in the same commit."""
+fixtures with BIORADAR_GOLDEN_UPDATE=1 and the diff is reviewed in the same commit.
+
+The planner's decision records (progress.decisions) are the one exception: every frame would hold all the
+records so far, so a frame keeps only the last record's step (the number of records) and request hash.
+The records themselves are tested in test_planner_record.py."""
 
 import inspect
 import json
@@ -35,6 +39,14 @@ def stored(session, model, analysis_id):
     return [{k: v for k, v in columns(r).items() if k not in {"id", "analysis_id"}} for r in rows]
 
 
+def short(progress):
+    """The progress with its decision records cut to the last one's step and request hash."""
+    if not progress or not progress.get("decisions"):
+        return progress
+    last = progress["decisions"][-1]
+    return {**progress, "decisions": [{"step": last["step"], "request_sha256": last["request_sha256"]}]}
+
+
 def snapshot(analysis_id, stage):
     with db.session() as s:
         row = s.get(db.Analysis, analysis_id)
@@ -42,7 +54,7 @@ def snapshot(analysis_id, stage):
             "analysis": analysis_id,
             "saved": stage,
             "stage": row.stage,
-            "progress": row.progress,
+            "progress": short(row.progress),
             "evidence": stored(s, db.Evidence, analysis_id),
             "material_reads": stored(s, db.MaterialRead, analysis_id),
             "llm_calls": stored(s, db.LlmCall, analysis_id),
@@ -53,7 +65,11 @@ def final_rows():
     with db.session() as s:
         analyses = s.scalars(select(db.Analysis).order_by(db.Analysis.created_at, db.Analysis.id))
         return [
-            {k: v for k, v in columns(a).items() if k in {"id", "stage", "state", "progress", "result"}}
+            {
+                k: short(v) if k == "progress" else v
+                for k, v in columns(a).items()
+                if k in {"id", "stage", "state", "progress", "result"}
+            }
             for a in analyses
         ]
 

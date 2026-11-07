@@ -10,6 +10,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -123,6 +124,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c05f80cdda1451c3e80316f868751afd2079afc899d11e69c7b7614cc0dd7e07",
+      "step": 5
      }
     ],
     "facts": [
@@ -476,6 +483,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -507,6 +515,12 @@
       "required": true,
       "status": "open",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "1a6c14e7d79555a8564bfd1ebe95cb873dc4ed0b04cf87ae54d636295bd82873",
+      "step": 1
      }
     ],
     "facts": [],
@@ -729,6 +743,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -776,6 +791,12 @@
       "required": true,
       "status": "answered",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "e5eacc2666942a4e1239ff88e5db3399a7a7845abf8b6aeca275d48ec75f3b0f",
+      "step": 2
      }
     ],
     "facts": [
@@ -1116,6 +1137,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1178,6 +1200,12 @@
       "required": true,
       "status": "answered",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "e05c61bbb34ea7120c9be76029b5f0f5ea7c7a36f5f5e8c590b6ec51504397c3",
+      "step": 3
      }
     ],
     "facts": [
@@ -1611,6 +1639,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -1687,6 +1716,12 @@
       "required": true,
       "status": "answered",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "4f83ba11ad427caac3e03ad2d306a2335ba614fc3fc8019e060846b48c52ea83",
+      "step": 4
      }
     ],
     "facts": [
@@ -2131,6 +2166,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -2207,6 +2243,12 @@
       "required": true,
       "status": "answered",
       "text": "当前PFS疗效数值"
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c05f80cdda1451c3e80316f868751afd2079afc899d11e69c7b7614cc0dd7e07",
+      "step": 5
      }
     ],
     "facts": [
@@ -2666,6 +2708,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -2762,6 +2805,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c05f80cdda1451c3e80316f868751afd2079afc899d11e69c7b7614cc0dd7e07",
+      "step": 5
      }
     ],
     "facts": [
@@ -3221,6 +3270,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -3317,6 +3367,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c05f80cdda1451c3e80316f868751afd2079afc899d11e69c7b7614cc0dd7e07",
+      "step": 5
      }
     ],
     "facts": [
@@ -3916,6 +3972,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -4012,6 +4069,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c05f80cdda1451c3e80316f868751afd2079afc899d11e69c7b7614cc0dd7e07",
+      "step": 5
      }
     ],
     "facts": [
@@ -4712,6 +4775,7 @@
         "PFS"
        ]
       },
+      "channel": "fabric_literal",
       "found": 2,
       "gain": 0.3,
       "kind": "search",
@@ -4825,6 +4889,12 @@
       "population": "",
       "unit": "%",
       "value": 31.0
+     }
+    ],
+    "decisions": [
+     {
+      "request_sha256": "c05f80cdda1451c3e80316f868751afd2079afc899d11e69c7b7614cc0dd7e07",
+      "step": 5
      }
     ],
     "facts": [

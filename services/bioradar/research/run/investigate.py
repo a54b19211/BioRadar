@@ -11,7 +11,7 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import FabricError, time_value
 from bioradar.adapters.services import ServiceError
 from bioradar.research import measure_history, series_sync
-from bioradar.research.run import Failed, read, search
+from bioradar.research.run import Failed, decisions, read, search
 from bioradar.research.run.search import FABRIC_PAGE, MAX_PAGES, doc_key
 from bioradar.text import squash
 
@@ -33,6 +33,7 @@ def candidates(run: "Run"):
         (
             a["kind"],
             a["source"],
+            search.channel_of(a),
             tuple(a["args"].get("terms", ())),
             a["args"].get("page"),
             a["args"].get("record_id"),
@@ -55,19 +56,19 @@ def fetch_allowed(run: "Run"):
 
 
 def searches(run: "Run", done, live):
-    """Each active search in every source not searched yet; once searched, a fresh fetch where Fabric says
-    the source can be collected for a search term and the search found little."""
-    # Semantic search is verified by Fabric at the analysis cutoff, so replays use it too.
-    sources = list(run.input["sources"]) + (["weknora"] if run.s.semantic_search else [])
+    """Each active search in every source and channel not searched yet; once searched literally, a fresh
+    fetch where Fabric says the source can be collected for a search term and the search found little.
+    The semantic search is verified by Fabric at the analysis cutoff, so replays use it too."""
     result = []
     for q in run.p["queries"]:
-        for source in sources:
-            key = ("search", source, tuple(q["terms"]), None, None)
+        for source, channel in search.routes(run):
+            key = ("search", source, channel, tuple(q["terms"]), None, None)
             if key not in done:
                 result.append(
                     {
                         "kind": "search",
                         "source": source,
+                        "channel": channel,
                         "args": {"terms": q["terms"]},
                         "target_checks": q["checks"],
                         # an object a read record named with a decisive fact (query-planner ranks it
@@ -78,9 +79,10 @@ def searches(run: "Run", done, live):
                 )
             elif (
                 live
+                and channel == search.LITERAL
                 and run.fabric.caps is not None
                 and run.fabric.caps.query_fetch(source)
-                and ("fetch", source, tuple(q["terms"]), None, None) not in done
+                and ("fetch", source, channel, tuple(q["terms"]), None, None) not in done
             ):
                 page = run.p["pages"].get(f"{source}|{'|'.join(q['terms'])}", {})
                 if page.get("found", 0) < 3:
@@ -88,6 +90,7 @@ def searches(run: "Run", done, live):
                         {
                             "kind": "fetch",
                             "source": source,
+                            "channel": channel,
                             "args": {"terms": q["terms"]},
                             "target_checks": q["checks"],
                             "cost": 3,
@@ -119,6 +122,7 @@ def browse_pages(run: "Run"):
                 {
                     "kind": "search",
                     "source": source,
+                    "channel": search.LITERAL,
                     "args": {"terms": [], "browse": "scope", "page": waiting[0]},
                     "target_checks": required,
                     "_value": 1,
@@ -137,6 +141,7 @@ def next_pages(run: "Run"):
                 {
                     "kind": "next_page",
                     "source": source,
+                    "channel": search.LITERAL,
                     "args": {"terms": terms, "page": page["pages"] + 1},
                     "target_checks": page["checks"],
                 }
@@ -254,22 +259,6 @@ def weigh(run: "Run", result):
     return result
 
 
-def history(run: "Run"):
-    return [
-        {
-            "kind": a["kind"],
-            "source": a["source"],
-            "target_checks": a["target_checks"],
-            "gain": a["gain"],
-            "args": {k: v for k, v in a["args"].items()},
-            "status": a["status"],
-        }
-        # what a read found apart from answering checks (query-planner's evidence_gain)
-        | ({"evidence_gain": a["evidence_gain"]} if "evidence_gain" in a else {})
-        for a in run.p["actions"]
-    ]
-
-
 def series_state(run: "Run"):
     """The series values this analysis rests on (recorded when it was created), each with its quality
     state as of now: a Fabric object's state is read again from Fabric for these points alone (at the cutoff,
@@ -307,40 +296,59 @@ def series_state(run: "Run"):
     ]
 
 
-def investigate(run: "Run"):
+def planner_request(run: "Run", offered):
+    """The request of one round: the question, the checks, what may be done next and what was done. A check
+    goes with the status it has: answered (with its E# evidence: a candidate answer the reader grounded,
+    not a verified one), conflict (facts for and against) or open. What 05, 06 and 07 know of a check
+    reaches the planner as one of these three and nothing else."""
     budget = run.input["budget"]
+    reads = sum(1 for a in run.p["actions"] if a["kind"] == "read" and a["status"] == "completed")
+    return {
+        "question": run.asked,
+        # only query-planner's Check contract; objects and the rest stay in the radar
+        "checks": [{k: c[k] for k in PLANNER_CHECK} for c in run.p["checks"]],
+        "candidates": offered,
+        "history": decisions.history(run.p["actions"]),
+        "budget": {
+            "steps_left": max(0, budget["max_steps"] - len(run.p["actions"])),
+            "reads_left": max(0, budget["max_reads"] - reads),
+        },
+        "policy": run.input["method"],
+        # the series values the question rests on, quality state re-read now (read only)
+        "series": series_state(run),
+        # the material this investigation may use, and what the radar says about each way of finding it
+        "sources": list(run.input["sources"]),
+        "channels": decisions.channels(run),
+    }
+
+
+def investigate(run: "Run"):
+    planner = decisions.planner_snapshot(run)
     while True:
-        reads = sum(1 for a in run.p["actions"] if a["kind"] == "read" and a["status"] == "completed")
         offered = candidates(run)
-        request = {
-            "question": run.asked,
-            # only query-planner's Check contract; objects and the rest stay in the radar
-            "checks": [{k: c[k] for k in PLANNER_CHECK} for c in run.p["checks"]],
-            "candidates": offered,
-            "history": history(run),
-            "budget": {
-                "steps_left": max(0, budget["max_steps"] - len(run.p["actions"])),
-                "reads_left": max(0, budget["max_reads"] - reads),
-            },
-            "policy": run.input["method"],
-            # the series values the question rests on, quality state re-read now (read only)
-            "series": series_state(run),
-        }
+        request = planner_request(run, offered)
         run.upstream_still_readable()
         try:
             decision = services.decide(run.s, request)
         except ServiceError as exc:
+            decisions.keep(run, request, planner, stop=f"planner_{exc.code}")
             if not run.p["actions"]:
+                run.save()  # the record of the failed first call outlives the failed run
                 raise Failed(f"planner_{exc.code}") from exc
             run.note(f"planner_{exc.code}")
             run.p["stop"] = {"decision": "insufficient", "reason": f"planner_{exc.code}"}
             return
         run.p["stop"] = {"decision": decision["decision"], "reason": decision["reason"]}
         if decision["decision"] != "continue":
+            decisions.keep(run, request, planner, response=decision, stop=decision["reason"])
             return
         if run.calls_left() <= 3:  # keep the calls the report needs
             run.p["stop"] = {"decision": "insufficient", "reason": "llm_call_limit"}
+            decisions.keep(run, request, planner, response=decision, stop="llm_call_limit")
             return
+        # the chosen candidate becomes the action at this index, appended once it has been done
+        index = len(run.p["actions"])
+        decisions.keep(run, request, planner, response=decision, action_index=index)
         act(run, offered[decision["candidate"]])
         run.save()
 
@@ -355,6 +363,8 @@ def act(run: "Run", candidate):
         "gain": 0.0,
         "status": "completed",
     }
+    if "channel" in candidate:
+        action["channel"] = candidate["channel"]
     if candidate["kind"] in {"search", "fetch", "next_page"}:
         terms = candidate["args"].get("terms")
         action["origin"] = next((q.get("origin", "") for q in run.p["queries"] if q["terms"] == terms), "")

@@ -1329,10 +1329,14 @@ def test_semantic_search_is_offered_in_replays_too(monkeypatch):
         run.p.update(
             queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[]
         )
-        assert any(c["source"] == "weknora" for c in investigate.candidates(run))
+        offered = investigate.candidates(run)
+        # a channel, not a source: the candidate names the real source it searches
+        semantic = [c["source"] for c in offered if c.get("channel") == "weknora_semantic"]
+        assert semantic == ["external_archive"]
+        assert all(c["source"] != "weknora" for c in offered)
     off = Run(row, settings(), fabric=FakeFabric([]))
     off.p.update(queries=[{"terms": ["PFS"], "checks": ["Q1"]}], actions=[], pages={}, hits=[], objects=[])
-    assert not any(c["source"] == "weknora" for c in investigate.candidates(off))
+    assert not any(c.get("channel") == "weknora_semantic" for c in investigate.candidates(off))
 
 
 def test_a_plan_whose_checks_are_all_outside_the_question_answers_the_question_itself(monkeypatch):

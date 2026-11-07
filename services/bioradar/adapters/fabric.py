@@ -351,10 +351,13 @@ class Fabric:
             raise FabricError(code or f"fabric_http_{response.status_code}", str(error)[:300])
         return response.json()
 
-    def semantic_search(self, query, *, scopes, is_demo, cutoff=None, now=None, top_k=10, mode=None):
+    def semantic_search(
+        self, query, *, scopes, is_demo, sources=(), cutoff=None, now=None, top_k=10, mode=None
+    ):
         """WeKnora recall verified by Fabric (POST /api/history/search). Every hit was checked at this mode
         and cutoff: source permission, the version visible then, and that the chunk is that version's fixed
-        text. Returns (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the
+        text; `sources` limits the recall to those sources (none: every source the reader may read). Returns
+        (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the
         visible version; summary: the mode and cutoff it was read at, excluded counts by reason, whether fewer
         than top_k came back, per-scope recall channels and index coverage. Missing hits do not mean the
         material does not exist."""
@@ -366,6 +369,7 @@ class Fabric:
                 "query": query[:2000],
                 "mode": mode,
                 "cutoff": at,
+                "sources": list(sources),
                 "scopes": list(scopes),
                 "is_demo": is_demo,
                 "top_k": top_k,
