@@ -408,6 +408,9 @@ class Topic(Base):
     # An automatic analysis that is owed but not created yet (hourly cap, or the round died first).
     pending_reason: Mapped[str | None] = mapped_column(String(200))
     pending_since: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # The number the next proposition of this topic's analyses takes (research/propositions.py): read and
+    # raised under the row's lock in the transaction that writes an analysis result.
+    next_prop_seq: Mapped[int] = mapped_column(Integer, default=1, server_default="1")
 
 
 class Observation(Base):

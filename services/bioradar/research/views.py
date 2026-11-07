@@ -42,6 +42,8 @@ def shown(value, tp):
 # judgment's own question: the model writes it and may quote the material).
 KEEP = {
     "id",
+    "prop_id",
+    "derived_from",
     "ref",
     "index",
     "check",

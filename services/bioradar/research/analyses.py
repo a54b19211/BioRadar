@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from bioradar import db, guard, jobs
 from bioradar.adapters.fabric import CURRENT, MODES
 from bioradar.config import settings
-from bioradar.research import lease, topics, views
+from bioradar.research import lease, propositions, topics, views
 from bioradar.research.pipeline import Failed, Run
 
 log = logging.getLogger("bioradar")
@@ -277,6 +277,8 @@ def execute(analysis_id: str):
         row = session.get(db.Analysis, analysis_id)
         lease.release(row)
         row.state, row.error_code, row.completed_at = state, error, db.now()
+        if state == "completed":
+            propositions.number(session, row, result)  # under the topic's lock, in this transaction
         if result is not None:
             marks = (row.result or {}).get("source_updates")  # corrections that arrived during the run
             row.result = {**result, "source_updates": marks} if marks else result
