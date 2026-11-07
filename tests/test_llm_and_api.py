@@ -19,6 +19,11 @@ def reply(content, finish="stop"):
     }
 
 
+def stub_model(monkeypatch, handler):
+    """The model endpoint: every request the shared transport sends goes to `handler(request)`."""
+    monkeypatch.setattr(llm, "client", lambda: httpx.Client(transport=httpx.MockTransport(handler)))
+
+
 def test_local_vllm_gets_the_per_call_thinking_switch_its_template_reads(monkeypatch):
     bodies = []
     monkeypatch.setattr(
@@ -63,32 +68,27 @@ def test_timeout_is_not_resent(monkeypatch):
 def test_a_refused_request_is_resent_after_a_pause(monkeypatch):
     """2026-11-03: DeepSeek answered 503 for ~25 minutes; each call failed on the first refusal."""
     statuses, waits = iter([503, 429, 200]), []
-    request = httpx.Request("POST", "http://model.invalid/chat/completions")
 
-    def fake_post(url, **kwargs):
+    def handler(request):
         status = next(statuses)
-        return httpx.Response(status, json=reply('{"value": 3}') if status == 200 else {}, request=request)
+        return httpx.Response(status, json=reply('{"value": 3}') if status == 200 else {})
 
-    monkeypatch.setattr(llm.httpx, "post", fake_post)
+    stub_model(monkeypatch, handler)
     monkeypatch.setattr(llm.time, "sleep", waits.append)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed.value == 3 and call["requests"] == 3 and waits == [5, 20]
 
 
 def test_a_refusal_that_outlasts_the_pauses_is_reported(monkeypatch):
-    request = httpx.Request("POST", "http://model.invalid/chat/completions")
-    monkeypatch.setattr(llm.httpx, "post", lambda url, **kwargs: httpx.Response(503, request=request))
+    stub_model(monkeypatch, lambda request: httpx.Response(503))
     monkeypatch.setattr(llm.time, "sleep", lambda seconds: None)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)
     assert parsed is None and call["error"] == "http_error:503" and call["requests"] == 4
 
 
 def test_resends_stop_at_the_request_budget(monkeypatch):
-    request = httpx.Request("POST", "http://model.invalid/chat/completions")
     sent = []
-    monkeypatch.setattr(
-        llm.httpx, "post", lambda url, **kwargs: sent.append(1) or httpx.Response(503, request=request)
-    )
+    stub_model(monkeypatch, lambda request: sent.append(1) or httpx.Response(503))
     monkeypatch.setattr(llm.time, "sleep", lambda seconds: None)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer, max_requests=1)
     assert parsed is None and len(sent) == 1 and call["requests"] == 1

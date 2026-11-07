@@ -73,7 +73,9 @@ cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复
 uv pip install --no-index --find-links "${EXTRACTION_CONTRACT_WHEELS:-../extraction-contract/dist}" --require-hashes -r requirements-contract.txt
 ```
 
-`pyproject.toml` 的 find-links 指向 `../extraction-contract/dist`；放在别处时用 `EXTRACTION_CONTRACT_WHEELS` 指定。uv.lock 不会记录本地 wheel 的哈希，所以哈希只在上面这一步按 `requirements-contract.txt` 校验。
+模型调用的 HTTP 一侧同样是共享包 `zk-llm-transport`（0.1.1，来自同级 `llm-transport/dist`，哈希在 `requirements-transport.txt`；`LLM_TRANSPORT_WHEELS` 指定别处）。
+
+`pyproject.toml` 的 find-links 指向 `../extraction-contract/dist` 和 `../llm-transport/dist`；放在别处时用 `EXTRACTION_CONTRACT_WHEELS`、`LLM_TRANSPORT_WHEELS` 指定。uv.lock 不会记录本地 wheel 的哈希，所以哈希只在上面这一步按 `requirements-contract.txt`、`requirements-transport.txt` 校验。
 
 编辑 `ops/.env`：填 Fabric 地址和令牌、三个服务的地址和令牌、模型的地址/模型名/密钥（变量名就是 `services/bioradar/config.py` 里的设置名加 `BIORADAR_` 前缀）。JSON 值要加单引号，例如 `BIORADAR_SOURCES='["pubmed","clinicaltrials"]'`。然后：
 
