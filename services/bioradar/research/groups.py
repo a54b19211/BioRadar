@@ -9,10 +9,11 @@ counted, and it never moves the group's start or end. A material may be a candid
 view names every group a material is involved in. Versions a Fabric backfill run created are background:
 members, still readable, but not in the counts, the baseline or the first-seen time.
 
-A lead - a record of a news index (adapters.fabric.LEAD_SOURCES) - is in no group. No explicit basis can be
-stated for it (GDELT states no relation, event id or named record) and a key needs a measurement it does not
-have, so it is neither a member nor a candidate. The view lists the cutoff day's leads apart (`leads`), and no
-count, start, end or first-seen time takes one in.
+A lead - a record of a news index (adapters.fabric.LEAD_SOURCES) - is a material like any other, but it
+confirms nothing by itself: a group of leads alone has no confirmed member (it counts 0, has no start or end,
+and still takes part in the ranking, task book 00 1.4), and only a group that also holds a material of
+another source counts its leads. A lead is no day of the baseline. The view lists the cutoff day's leads
+apart (`leads`).
 
 Everything is dated by when the radar could know it: a material by its `available_at`, a link by the later of
 its two ends. A view is built from what was visible at its cutoff only, so a replay never shows a link that a
@@ -41,6 +42,8 @@ PROVEN = ("checked", "carried")  # the states of a measurement dimension that ma
 # the order of the group the first judgment is about (task book 00 1.4); a key counts when those before tie
 SELECTION_KEYS = ("confirmed_groups desc", "first_seen_at asc", "id asc")
 CHUNK = 500
+# the newest leads of the 30 days a view reads, apart from MAX_MATERIALS: they come in thousands
+MAX_LEADS = 2000
 LEAD_ROWS = 20  # the newest leads of the day that a view lists; the count is of all of them
 
 
@@ -204,8 +207,14 @@ def _day(at: datetime) -> str:
     return at.astimezone(UTC).date().isoformat()
 
 
-def _counted(group: Group) -> list[Material]:
+def _live(group: Group) -> list[Material]:
     return [m for m in group.members if not m.background]
+
+
+def _counted(group: Group) -> list[Material]:
+    """The confirmed members that count: those that are not background, and none at all in a group of leads
+    alone - it stands on nothing a source stated, only on a news index having seen something."""
+    return _live(group) if any(m.source not in LEAD_SOURCES for m in group.members) else []
 
 
 def _row(m: Material) -> dict:
@@ -223,7 +232,7 @@ def _confirmed_groups(group: Group) -> int:
 
 
 def _first_seen(group: Group, candidate_times: list[datetime]) -> datetime | None:
-    seen = [m.available_at for m in _counted(group)] + candidate_times
+    seen = [m.available_at for m in _live(group)] + candidate_times
     return min(seen) if seen else None
 
 
@@ -348,7 +357,7 @@ def view(materials, *, cutoff: datetime, anchors) -> dict | None:
     shown = seen.group_of[anchor.version_id]
     shared, involved = _shared(shown, seen.to_group[shown.id], seen.group_of, seen.of_material)
     others = sorted((g for g in seen.groups if g.id in involved), key=lambda g: g.id)
-    received = {_day(m.available_at) for m in visible if not m.background}
+    received = {_day(m.available_at) for m in visible if not m.background and m.source not in LEAD_SOURCES}
     return {
         "cutoff": cutoff.isoformat(),
         "display": shown.id,
@@ -447,24 +456,35 @@ def _relations(session, ids, cutoff: datetime) -> dict:
     return found
 
 
-def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -> tuple[list[Material], bool]:
-    """(the materials of the 30 days up to the cutoff, whether there were more than MAX_MATERIALS - the oldest
-    are left out). A repost's relation comes from its activity key, the others from the evidence read."""
+def _newest(session, s: Settings, *, is_demo: bool, cutoff: datetime, of_leads: bool, limit: int):
+    """(the newest `limit` observations of the 30 days up to the cutoff, of the lead sources or of the others,
+    whether there were more). Read apart, so that the leads never push the other materials out."""
+    lead = db.Observation.source.in_(list(LEAD_SOURCES))
     rows = list(
         session.scalars(
             select(db.Observation)
             .where(
                 db.Observation.workspace_id == s.workspace_id,
                 db.Observation.is_demo == is_demo,
-                db.Observation.source.not_in(list(LEAD_SOURCES)),  # a lead is in no group (leads)
+                lead if of_leads else ~lead,
                 db.Observation.available_at <= cutoff,
                 db.Observation.available_at >= cutoff - KEY_WINDOW,
             )
             .order_by(db.Observation.available_at.desc(), db.Observation.id.desc())
-            .limit(MAX_MATERIALS + 1)
+            .limit(limit + 1)
         )
     )
-    truncated, rows = len(rows) > MAX_MATERIALS, rows[:MAX_MATERIALS]
+    return rows[:limit], len(rows) > limit
+
+
+def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -> tuple[list[Material], bool]:
+    """(the materials of the 30 days up to the cutoff, whether there were more than MAX_MATERIALS of them or
+    more than MAX_LEADS leads - the oldest are left out). A repost's relation comes from its activity key, the
+    others from the evidence read."""
+    read = {"is_demo": is_demo, "cutoff": cutoff}
+    news, more = _newest(session, s, of_leads=False, limit=MAX_MATERIALS, **read)
+    leads_read, more_leads = _newest(session, s, of_leads=True, limit=MAX_LEADS, **read)
+    truncated, rows = more or more_leads, news + leads_read
     ids = [o.version_id for o in rows]
     keys, relations = _keys(session, s, ids, is_demo=is_demo), _relations(session, ids, cutoff)
     materials = []
@@ -501,9 +521,9 @@ def day_window(cutoff: datetime) -> tuple[datetime, datetime]:
 
 def leads(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -> dict:
     """{lead source: the leads the radar received on the cutoff's day, up to the cutoff}, for each lead source
-    the monitor reads. Unassigned: no member, no candidate, in none of the counts, the start, the end or the
-    first-seen time. `count`: the day's leads that are news; `background`: the day's leads that a backfill run
-    created (not counted, not listed); `listed`: the newest LEAD_ROWS as references to fixed versions - their
+    the monitor reads, apart from the display group's members and candidates (a lead confirms nothing alone:
+    `_counted`). `count`: the day's leads that no backfill run created; `background`: the day's leads that one
+    did (not counted, not listed); `listed`: the newest LEAD_ROWS as references to fixed versions - their
     title, domain, address and GDELT's own observation time are Fabric's, read back by the version.
     `available_at` is when the radar could first read the version: not the article's date, and not when GDELT
     observed it."""

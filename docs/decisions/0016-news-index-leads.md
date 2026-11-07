@@ -3,7 +3,7 @@
 - Status: accepted for the first step (2026-11-08); extends ADR 0012
 - Design: task book 05 sections 2.1, 2.2, 2.8 and phase 0 step 1; 01 section 2.3; 00 section 1.4
 - Code: `adapters/fabric.py` (`LEAD_SOURCES`, `Fabric.lead_coverage`), `research/triage.py` (`LEAD`, `route`,
-  `settle_leads`), `research/monitor.py`, `research/groups.py` (`leads`, `day_window`, `load`),
+  `settle_leads`), `research/monitor.py`, `research/groups.py` (`_counted`, `load`, `leads`, `day_window`),
   `research/topics.py` (`activity`), `research/pipeline.py` (`Run.display_group`), `research/views.py`
 - Tests: `tests/test_gdelt_leads.py`
 
@@ -14,11 +14,16 @@ A record of a news index (`LEAD_SOURCES`: GDELT) is a lead, not a statement of i
 - **Observed by the program.** The monitor reads the source's change feed like any other; `triage.route` settles
   its records as `news_index_lead` and `settle_leads` records each as an observation with no topic, no alert
   and no model call. A version a backfill run created is still settled first, as `background_backfill`.
-- **In no group.** `groups.load` leaves leads out, so a lead is neither a member nor a candidate: no explicit
-  basis can be stated for it (a GDELT record states no relation, event id or named record) and a key needs a
-  measurement it does not have. No count, start, end or first-seen time takes one in. `topics.activity` leaves
-  them out of the days the monitor received news on, as it does for background versions, so adding the source
-  does not turn every quiet day into a received one.
+- **In the groups, confirming nothing alone.** A lead is a material like any other (`groups.load` reads the
+  leads apart from the rest, the newest `MAX_LEADS`, so thousands of them never push the news out of
+  `MAX_MATERIALS`). But `groups._counted` counts the members of a group only when it holds a material of another
+  source: a group of leads alone - a lead by itself, or versions of one record - has 0 confirmed members, no
+  start and no end, and still takes part in the ranking of `select_display` (task book 00 1.4: Codex's ruling on
+  t1), after every group that has a confirmed member. Its first-seen time is the lead's. A lead joined to a
+  material of another source by an explicit basis counts with that group. Nothing states such a basis for a GDELT
+  record today, and a key needs a measurement a lead does not have, so a lead is no candidate either.
+  `topics.activity` and the groups' baseline leave leads out of the days the monitor received news on, as they do
+  background versions, so adding the source does not turn every quiet day into a received one.
 - **Listed apart.** `groups.leads` gives, for each lead source the monitor reads (it has a cursor), the leads
   received on the cutoff's UTC day up to the cutoff: the count, the number that are background, and the newest 20
   as references to fixed versions (`version_id`, `source`, `record_id`, `available_at`). Title, domain, address
@@ -42,6 +47,8 @@ analysis result, where the display group is stored, adds no table.
 
 - The `gdelt_leads` channel the radar declares to query-planner (`research/run/decisions.py`) is still
   `not_supported`: reading the leads of a group back as pinned reading candidates is task book 04, not this step.
-- A lead cannot yet become a confirmed member, even by an explicit basis: nothing states one. When Fabric
-  produces `DomainEvent` or relations for leads, `load` is the place to take them in again.
+- Every lead is a group of its own, so the selection lists as many groups as there are leads (up to
+  `MAX_LEADS`): the ranking and the export of `select_display` grow with the news index. Reaching `MAX_LEADS`
+  sets `truncated`, a coverage gap, like `MAX_MATERIALS`. If the export is too large to read, the leads can be
+  summarized there without changing the ranking.
 - The coverage is read for the cutoff's day only; earlier days of the 30-day view are not covered.
