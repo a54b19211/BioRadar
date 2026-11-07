@@ -1,24 +1,25 @@
 """Monitoring input: new Fabric records, routed by program rules or triaged by the model in batches into
-topics, with the measures they state handed to measurement checking."""
+topics. Triage only classifies: the measurements a record states are extracted and checked by Fabric
+(docs/decisions/0010-fabric-measurements.md)."""
 
 import logging
 from datetime import datetime, timedelta
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, select
 
 from bioradar import db, guard
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import NOT_VISIBLE, Fabric, FabricError, noticed
 from bioradar.config import Settings, settings
 from bioradar.material import of
-from bioradar.research import analyses, continuation, measure_checks, prompts, schemas
+from bioradar.research import analyses, prompts, schemas
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import ALERTS, WEIGHT, activity, activity_key, event, owe, set_state, watches
 
 log = logging.getLogger("bioradar")
 _turn = 0  # rotates which monitored source is read first in a live round
 BATCH = 10
-TRIAGE_CHARACTERS = continuation.WINDOW  # of each record's text, per triage call; the rest: continuation
+TRIAGE_CHARACTERS = 1500  # of each record's text, per triage call
 STOPPED = {"TERMINATED", "SUSPENDED", "WITHDRAWN"}
 # 需要模型、但这一轮没有做成分诊的记录：triage_failed（模型调用失败）和 triage_deferred（当日自动额度
 # 用完，v3 3.7：额度只暂停模型阶段）。两者都是待办，由重试路径在之后的轮次补做；游标照常前进。
@@ -339,41 +340,13 @@ def _feed(session, fabric, sources, docs, *, is_demo, room):
     return ends, bool(scan.more)
 
 
-KEY = (
-    db.Measurement.object,
-    db.Measurement.metric,
-    db.Measurement.unit,
-    db.Measurement.kind,
-    db.Measurement.scope,
-)
-
-
-def known_series(session, s: Settings, is_demo: bool, clock: datetime, limit=40):
-    """The most recently measured series keys visible at `clock`, shown to triage so names stay the same
-    (a replay is not shown names that only appeared later)."""
-    rows = session.execute(
-        select(*KEY)
-        .where(
-            db.Measurement.workspace_id == s.workspace_id,
-            db.Measurement.is_demo == is_demo,
-            db.Measurement.available_at <= clock,
-            measure_checks.effective_clause(),  # unchecked, old-checker or unreadable points are not shown
-        )
-        .group_by(*KEY)
-        .order_by(func.max(db.Measurement.available_at).desc())
-        .limit(limit)
-    ).all()
-    return [dict(zip(("object", "metric", "unit", "kind", "scope"), r)) for r in rows]
-
-
-def triage(s: Settings, docs, topics, watch=None, known=None, reads=None):
+def triage(s: Settings, docs, topics, watch=None, reads=None):
     """One triage call for a batch of records. reads: when given, a list filled with the material_read id of
-    each record's window, in order - the send each candidate was read from."""
+    each record's window, in order."""
     watch = watch or {}
     # what the model reads of each record, with the notice when it is not the cleaned text
     windows = [noticed(of(d).slice(0, TRIAGE_CHARACTERS), d.get("clean_text_state")) for d in docs]
     payload = {
-        "series": known or [],
         "topics": [
             {"index": i, "title": t.title, "state": t.state, "watch": watch.get(t.id, [])}
             for i, t in enumerate(topics, 1)
@@ -446,20 +419,18 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
             )
         with db.session() as session:
             watch = watches(session, [t.id for t in topics])
-            known = known_series(session, s, is_demo, max(parse_time(d["available_at"]) for d in batch))
-        reads = []
-        decisions = triage(s, batch, topics, watch, known, reads=reads)
-        _record_batch(s, batch, decisions, topics, watch, reads, wake, is_demo=is_demo)
+        decisions = triage(s, batch, topics, watch)
+        _record_batch(s, batch, decisions, topics, watch, wake, is_demo=is_demo)
     return wake, True
 
 
-def _record_batch(s, batch, decisions, topics, watch, reads, wake, *, is_demo):
-    """One batch's decisions in one transaction: observations, the topics they touch and their candidates."""
+def _record_batch(s, batch, decisions, topics, watch, wake, *, is_demo):
+    """One batch's decisions in one transaction: observations and the topics they touch."""
     with db.session() as session:
         topics = [session.get(db.Topic, t.id) for t in topics]
         flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
         touched = {}  # topic id -> latest record time in this batch, for the activity baseline
-        for n, (doc, item) in enumerate(zip(batch, decisions)):
+        for doc, item in zip(batch, decisions):
             at = parse_time(doc["available_at"])
             alert = item.alert if item else "none"
             topic = _topic_for(session, s, item, topics, alert, at, doc, is_demo)
@@ -470,20 +441,6 @@ def _record_batch(s, batch, decisions, topics, watch, reads, wake, *, is_demo):
                 )
             )
             session.add(_observation(s, doc, item, topic, alert, at, is_demo))
-            # measures become candidates; only the check worker turns a checked one into a series point
-            measure_checks.enqueue(
-                session,
-                s,
-                doc,
-                item,
-                topic,
-                at,
-                is_demo,
-                window=(0, TRIAGE_CHARACTERS),
-                material_read_id=reads[n] if n < len(reads) else None,
-            )
-            if item:  # its first window was read: the windows after it are owed
-                continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
             if topic is None:
                 continue
             _touch_topic(session, topic, item, doc, alert, at, watch, wake)
@@ -534,9 +491,7 @@ def _observation(s, doc, item, topic, alert, at, is_demo):
         alert=alert,
         closure=bool(item and item.closure),
         activity_key=activity_key(doc),
-        reason=(item.reason + (" [观测超过3个，只记前3个]" if len(item.measures) > 3 else ""))
-        if item
-        else "triage_failed",
+        reason=item.reason if item else "triage_failed",
     )
 
 

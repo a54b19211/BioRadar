@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import Settings
-from bioradar.research import analyses, measure_checks, prompts
+from bioradar.research import analyses, measure_history, prompts
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import ALERTS, event, owed_at
 
@@ -26,46 +26,14 @@ def series_basis_points(session, topic_id, at=None) -> list:
         .limit(1)
     )
     used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])})
-    return measure_checks.series_points(session, used, at) if used else []  # current or not, with its state
+    return measure_history.series_points(session, used, at) if used else []  # current or not, with its state
 
 
 def series_basis(session, topic_id, at=None) -> str:
-    """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
-    and records, so the investigation starts from what the program found instead of searching blind. As of
-    `at` (a cutoff): the latest series event visible then."""
-    last = session.scalar(
-        visible(select(db.TopicEvent), db.TopicEvent.at, at)
-        .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
-        .order_by(db.TopicEvent.id.desc())
-        .limit(1)
-    )
-    if last is None:
-        return ""
-    d = last.detail
-    used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
-    if not used or measure_checks.is_effective(session, used) != set(used):
-        return ""  # a point it used is no longer checked and readable: not a current conclusion
-    rows = list(
-        session.scalars(
-            select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
-        )
-    )
-    states = [measure_checks.comparability(session, r, at) for r in rows]
-    if any(c["state"] != "comparable" for c in states):
-        return ""  # a point it used is no longer comparable (withdrawn, gaps): not a current conclusion
-    points = "；".join(
-        f"{r.period or '当时'} {r.value_text or format(r.value, 'g')}{r.unit}"
-        f"（{r.status}，记录 {r.record_id}，"
-        f"已核 check {r.check_id}）"
-        for r in rows
-    )
-    scope = f"（{d['scope']}）" if d.get("scope") else ""
-    found = "、".join(sorted({c["kind"] for c in d["changes"]}))
-    return (
-        f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
-        f"比较组：{rows[0].family}，必要维度（病种、人群、日期口径等）均已核实或由已核字段承担。"
-        "这只是待核实的线索，请回原文核对数值、口径和期间。"
-    )
+    """The latest computed series change of a topic in words, for the analysis it triggers. The series events
+    recorded by the radar's own chain from before Fabric took the measurements over name frozen points, which
+    are history and never a current conclusion: they give no basis."""
+    return ""
 
 
 def visible(query, column, at):
@@ -384,7 +352,7 @@ def _bases(session, owed_topic, reason, cutoff, question, seeds):
         seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
         known = {p["measurement_id"] for p in points}
         points = list(points) + [
-            p for p in measure_checks.series_points(session, ids, cutoff) if p["measurement_id"] not in known
+            p for p in measure_history.series_points(session, ids, cutoff) if p["measurement_id"] not in known
         ]
     return question, seeds, points, handed, leftover
 

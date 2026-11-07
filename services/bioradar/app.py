@@ -19,7 +19,7 @@ from bioradar import db, service_api
 from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
-from bioradar.research import analyses, continuation, lineage, monitor
+from bioradar.research import analyses, lineage, measure_history, monitor
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import topic_view
 from bioradar.research.views import KEEP, blank
@@ -732,9 +732,10 @@ def investigations(limit: int = 30):
 def measure_coverage(
     is_demo: bool = False, version_id: str | None = None, state: str | None = None, limit: int = 100
 ):
-    """Read-only: per fixed version of this workspace, what of its cleaned text a model read, what is
-    unread and why (pending, budget spent, paused - permission withdrawn, failed, capped, skipped), and the
-    plans by state. Read is not "every fact extracted"."""
+    """Read-only history: the reading plans of the radar's own measurement chain from before Fabric took it
+    over (frozen, docs/decisions/0010) - per fixed version, what of its cleaned text a model read, what was
+    left unread and why, and the plans by state. Fabric's coverage of its own reading is
+    /api/history/measure-coverage there."""
     s = settings()
     where = (db.RecordRead.workspace_id == s.workspace_id, db.RecordRead.is_demo == is_demo)
     with db.session() as session:
@@ -746,7 +747,7 @@ def measure_coverage(
         rows = list(session.scalars(q.order_by(db.RecordRead.id.desc()).limit(max(1, min(limit, 500)))))
         items = [
             {
-                **continuation.coverage(session, r),
+                **measure_history.coverage(session, r),
                 "source": r.source,
                 "record_id": r.record_id,
                 "processor_version": r.processor_version,
