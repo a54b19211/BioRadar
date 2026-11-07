@@ -589,6 +589,11 @@ def ask(body: Ask):
 
 class Followup(BaseModel):
     question: str = Field(min_length=4, max_length=2000)
+    about: str | None = Field(
+        default=None,
+        max_length=100,
+        description="一条命题的编号（prop_id），必须是这份分析或它之前几轮的命题；追问只重新判断这一条",
+    )
 
 
 @app.post("/api/analyses/{analysis_id}/followup", dependencies=analyst)
@@ -597,8 +602,14 @@ def followup(analysis_id: str, body: Followup):
     # a report whose sources (through its earlier rounds) cannot be read now is not handed on; the run
     # checks again when it uses it
     previous = parent.id not in hidden_by_analysis([parent.id])
+    reassess = []
+    if body.about:
+        if not previous:  # nothing of it is handed on while its sources cannot be read
+            raise analyses.InvalidInput("about_analysis_not_readable")
+        reassess = analyses.reassessing(parent, body.about)
     row = analyses.create(
         previous=previous,
+        reassess=reassess,
         question=body.question,
         direction=parent.input["direction"],
         method=parent.method,

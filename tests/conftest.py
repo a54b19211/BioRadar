@@ -118,6 +118,9 @@ class FakeFabric:
         )  # Fabric's measurement objects of these records (none unless a test adds them)
 
         self.docs = [document(r) for r in records]
+        for d in self.docs:
+            d["read_at"] = {"mode": "current", "cutoff": "2026-11-01T00:00:00+00:00"}
+        self.differences = {}  # version_id -> Fabric's difference facts for it, as a test sets them
         self.calls = []
         self.modes = []  # (read, mode) as the radar named the mode; None: it named none
         self.revoked, self.tampered = set(), set()
@@ -190,6 +193,10 @@ class FakeFabric:
         wanted = {v for _, v in refs}
         found = [d for d in self.docs if d["source"] == source and d["version_id"] in wanted]
         return found, sorted(wanted - {d["version_id"] for d in found})
+
+    def version_differences(self, source, version_ids, *, is_demo, mode, cutoff):
+        self.calls.append(("version_differences", source, tuple(version_ids), mode, cutoff))
+        return {v: self.differences[v] for v in version_ids if v in self.differences}
 
     def sources(self):
         """Fabric's source receipt: every source this fake holds records of is readable."""

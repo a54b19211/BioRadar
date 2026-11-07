@@ -1,7 +1,7 @@
 # 0012 Candidate groups and proposition numbers
 
-- Status: accepted for the first step (2026-11-08); new-version handling, revision notes, the case-count rule and
-  the evidence graph are later steps
+- Status: accepted for the first step (2026-11-08); new-version handling and revision notes are ADR 0015; the
+  case-count rule and the evidence graph are later steps
 - Design: task book 05 sections 2.2, 2.3, 2.5 and phase 0 steps 1 and 2; 00 sections 3.3 and 3.8
 - Code: `research/groups.py`, `research/propositions.py`, `research/topics.py` (`previous_days`, `baseline`),
   `research/pipeline.py` (`Run.display_group`), `research/analyses.py` (`execute`), `adapters/fabric.py`

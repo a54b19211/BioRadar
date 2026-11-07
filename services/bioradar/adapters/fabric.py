@@ -256,6 +256,9 @@ def document(record: dict) -> dict:
         "clean_text_state": None,
         "clean_text_choice": None,
         "artifact_wanted": None,  # set by read_versions for a search hit: {processor_version, text_sha256}
+        # the mode and cutoff this version was read at (Fabric.complete); its difference is asked at the same
+        # pair
+        "read_at": None,
     }
     # Until the cleaning layer's text is attached, the text is the version's own projection text. `material`
     # is the text with where each character came from (bioradar.material); `text` is always material.text.
@@ -527,6 +530,26 @@ class Fabric:
             value.setdefault("processor_version", data.get("processor_version"))
         return versions
 
+    def version_differences(self, source, version_ids, *, is_demo, mode, cutoff):
+        """Fabric's facts about how each version differs from the one before it, {version_id: {state, kind,
+        parser_changed, body_changed, last_modified_changed, structure_changed, ...}}; state is compared,
+        first_adoption or not_visible. Asked at the mode and cutoff the versions were read at."""
+        found = {}
+        ids = list(version_ids)
+        for start in range(0, len(ids), 100):
+            data = self._get(
+                "/api/history/version-differences",
+                {
+                    "source_id": source,
+                    "is_demo": str(is_demo).lower(),
+                    "mode": mode,
+                    "cutoff": cutoff,
+                    "version_ids": ids[start : start + 100],
+                },
+            )
+            found.update(data.get("versions") or {})
+        return found
+
     def derived_text(self, source, version_ids, *, is_demo, mode, cutoff):
         """Fabric's processing-layer text of each version (attachments):
         {version_id: {state, status, text, ...}}."""
@@ -562,7 +585,10 @@ class Fabric:
 
     def complete(self, docs, *, is_demo, mode, cutoff):
         """What the radar reads of each version: the cleaning layer's text (or the parsed attachment),
-        with the registry diff block on top for trials."""
+        with the registry diff block on top for trials. Each document also gets the mode and cutoff it
+        was read at (`read_at`)."""
+        for d in docs:
+            d["read_at"] = {"mode": mode, "cutoff": cutoff}
         self.attach_clean_text(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
         self.attach_registry_changes(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)
         self.attach_attachment_text(docs, is_demo=is_demo, mode=mode, cutoff=cutoff)

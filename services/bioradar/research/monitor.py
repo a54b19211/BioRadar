@@ -10,6 +10,7 @@ from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
 from bioradar.research import analyses, series_sync
 from bioradar.research.clock import parse_time
+from bioradar.research.revision import arrive
 from bioradar.research.scheduling import start_analyses
 from bioradar.research.topics import advance
 from bioradar.research.triage import (
@@ -52,6 +53,7 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         )
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
     background, news, set_apart = _set_background_apart(s, fabric, docs, is_demo)
+    arrive(fabric, news, is_demo=is_demo)  # what new versions mean for the propositions that rest on them
     routed, triage_docs = _route_documents(news, is_demo)
     routed.update(set_apart)
     if paused:

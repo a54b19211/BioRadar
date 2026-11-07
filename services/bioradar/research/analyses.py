@@ -12,7 +12,7 @@ from sqlalchemy import func, select
 from bioradar import db, guard, jobs
 from bioradar.adapters.fabric import CURRENT, MODES
 from bioradar.config import settings
-from bioradar.research import lease, propositions, topics, views
+from bioradar.research import lease, propositions, revision, topics, views
 from bioradar.research.pipeline import Failed, Run
 
 log = logging.getLogger("bioradar")
@@ -89,6 +89,7 @@ def create(
     previous=True,
     series_points=(),
     capabilities=None,
+    reassess=(),
 ) -> db.Analysis:
     """With `session`, the row is added to the caller's transaction and not queued: the caller
     commits it together with its own changes and then calls dispatch(). previous=False leaves the
@@ -97,7 +98,10 @@ def create(
     the sources are checked against what Fabric offers for selection: a source named by the caller that is
     not offered is SourceNotSelectable; one that only comes from the configured defaults is left out.
     replay_mode: which materials are visible (fabric.MODES); None names none, so a cutoff means the public
-    history reconstruction. Kept with the input and handed on to follow-ups."""
+    history reconstruction. Kept with the input and handed on to follow-ups.
+    reassess: the propositions this analysis is asked about, [{prop_id, question, reason, triggers}] - a
+    new version of what they rest on, or a follow-up about one. It judges those and no others, and its result
+    gets the revision section (research/revision.py)."""
     s = settings()
     _check_input(direction, method, cutoff, replay_mode)
     chosen = _selectable(capabilities, list(sources or []), s.demo_sources if is_demo else s.sources)
@@ -116,6 +120,8 @@ def create(
     }
     if replay_mode is not None:  # a task that names none keeps the input (and hash) it always had
         value["replay_mode"] = replay_mode
+    if reassess:  # likewise
+        value["reassess"] = list(reassess)
     if session is not None:
         enqueue = False
     with nullcontext(session) if session is not None else db.session() as session:
@@ -125,30 +131,39 @@ def create(
             earlier = _previous_report(session, parent_id)
             if earlier:
                 value["previous_report"] = earlier
-        digest = input_hash(value)
-        existing = session.scalar(
-            select(db.Analysis).where(
-                db.Analysis.investigation_id == investigation_id, db.Analysis.input_hash == digest
-            )
-        )
+        row, existing = _queued(session, investigation_id, parent_id, trigger, method, value)
         if existing:
-            return existing
-        row = db.Analysis(
-            investigation_id=investigation_id,
-            parent_id=parent_id,
-            trigger=trigger,
-            method=method,
-            input=value,
-            input_hash=digest,
-            progress={},
-            stage="plan",
-            state="queued",
-        )
-        session.add(row)
-        session.flush()
+            return row
     if enqueue:
         dispatch(row.id)
     return row
+
+
+def _queued(session, investigation_id, parent_id, trigger, method, value) -> tuple[db.Analysis, bool]:
+    """(the analysis of this investigation with this input - the one already there, else a new queued row
+    added to the session -, whether it was already there)."""
+    digest = input_hash(value)
+    existing = session.scalar(
+        select(db.Analysis).where(
+            db.Analysis.investigation_id == investigation_id, db.Analysis.input_hash == digest
+        )
+    )
+    if existing:
+        return existing, True
+    row = db.Analysis(
+        investigation_id=investigation_id,
+        parent_id=parent_id,
+        trigger=trigger,
+        method=method,
+        input=value,
+        input_hash=digest,
+        progress={},
+        stage="plan",
+        state="queued",
+    )
+    session.add(row)
+    session.flush()
+    return row, False
 
 
 def _selectable(capabilities, named: list[str], defaults: list[str]) -> list[str]:
@@ -279,6 +294,7 @@ def execute(analysis_id: str):
         row.state, row.error_code, row.completed_at = state, error, db.now()
         if state == "completed":
             propositions.number(session, row, result)  # under the topic's lock, in this transaction
+            revision.revise(session, row, result)
         if result is not None:
             marks = (row.result or {}).get("source_updates")  # corrections that arrived during the run
             row.result = {**result, "source_updates": marks} if marks else result
@@ -477,6 +493,17 @@ def get(analysis_id: str) -> db.Analysis:
     if row is None:
         raise NotFound(analysis_id)
     return row
+
+
+def reassessing(parent: db.Analysis, prop_id: str) -> list[dict]:
+    """The `reassess` of a follow-up about one proposition, once the proposition is checked to be one the
+    parent analysis stands on: its own, or one of the rounds before it. The follow-up inherits the parent's
+    sources, scope, mode and cutoff like any other, so naming a proposition widens nothing it may read."""
+    with db.session() as session:
+        found = propositions.standing(session, parent.id).get(prop_id)
+    if found is None:
+        raise InvalidInput("about_not_in_analysis")
+    return [{"prop_id": prop_id, "question": found["question"], "reason": "followup", "triggers": []}]
 
 
 def evidence_text(analysis_id: str, ref: str) -> dict:

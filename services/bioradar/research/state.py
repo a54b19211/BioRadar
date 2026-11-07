@@ -332,6 +332,24 @@ class RunState(TypedDict, total=False):
     capability_snapshots: list[dict[str, Any]]
 
 
+class PropState(TypedDict, total=False):
+    """What a proposition stood at, on a revision line: before or after the analysis."""
+
+    status: Annotated[str, SHOWN]  # supported | insufficient (slots.graded_status), open: not judged again
+    confidence: Annotated[str, SHOWN]
+    content_rev: Annotated[int, SHOWN]
+
+
+class Trigger(TypedDict, total=False):
+    """The new version that made a proposition be judged again (a `version` event of the topic)."""
+
+    source: Annotated[str, SHOWN]
+    record: Annotated[str, SHOWN]
+    version_id: Annotated[str, SHOWN]
+    difference: Annotated[str, SHOWN]  # Fabric's kind of difference, or why it gave none
+    sample: Annotated[str | None, SHOWN]  # real_update | engineering_reuse | None
+
+
 class SectionItem(TypedDict, total=False):
     """One statement of a report section; which fields are set depends on the section's kind
     (research/run/sections.py)."""
@@ -345,7 +363,7 @@ class SectionItem(TypedDict, total=False):
     text: Annotated[str, SHOWN]
     question: Annotated[str, SHOWN]
     stance: Annotated[Literal["supports", "refutes"], SHOWN]
-    status: Annotated[str, SHOWN]  # a check's status; a gap's kind (not_searched ...); a slot's status
+    status: Annotated[str, SHOWN]  # a check's, gap's or slot's status; a revision line's (maintained ...)
     confidence: Annotated[str, SHOWN]
     basis_confidence: Annotated[str, SHOWN]  # high | medium | low | not_assessed
     level: Annotated[str, SHOWN]
@@ -353,7 +371,10 @@ class SectionItem(TypedDict, total=False):
     check: Annotated[str, SHOWN]  # BioCheck's verdict on the judgment's own text
     grounds: Annotated[list[str], SHOWN]  # evidence refs
     count: Annotated[int, SHOWN]
-    reason: Annotated[str, SHOWN]  # a code (SECTION_REASONS, MECH_NOT_RUN_REASONS)
+    reason: Annotated[str, SHOWN]  # a code (SECTION_REASONS, MECH_NOT_RUN_REASONS, research/revision.py)
+    before: Annotated[PropState, SHOWN]  # a revision line: the proposition before this analysis ...
+    after: Annotated[PropState, SHOWN]  # ... and after it
+    trigger: Annotated[list[Trigger], SHOWN]  # the new versions that made it be judged again
 
 
 class VisibleRecord(TypedDict):

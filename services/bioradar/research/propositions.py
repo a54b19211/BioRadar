@@ -31,18 +31,39 @@ def _content(judgment: dict) -> tuple:
     return norm(judgment["conclusion"]), judgment["confidence"]
 
 
+def _numbered(session, analysis_id):
+    """The numbered judgments of an analysis and of the analyses it follows, nearest first, each with the
+    analysis it is in."""
+    seen, current = set(), analysis_id
+    while current and current not in seen and len(seen) < CHAIN:
+        seen.add(current)
+        analysis = session.get(db.Analysis, current)
+        if analysis is None:
+            return
+        for j in ((analysis.result or {}).get("assessment") or {}).get("judgments") or []:
+            if j.get("prop_id"):
+                yield {**j, "analysis_id": analysis.id}
+        current = analysis.parent_id
+
+
 def _earlier(session, row) -> dict[str, list[dict]]:
     """question key -> the numbered judgments of the analyses this one follows, nearest first."""
-    found, seen, parent_id = {}, set(), row.parent_id
-    while parent_id and parent_id not in seen and len(seen) < CHAIN:
-        seen.add(parent_id)
-        parent = session.get(db.Analysis, parent_id)
-        if parent is None:
-            break
-        for j in ((parent.result or {}).get("assessment") or {}).get("judgments") or []:
-            if j.get("prop_id"):
-                found.setdefault(j["question_key"], []).append(j)
-        parent_id = parent.parent_id
+    found: dict[str, list[dict]] = {}
+    for j in _numbered(session, row.parent_id):
+        found.setdefault(j["question_key"], []).append(j)
+    return found
+
+
+def standing(session, analysis_id) -> dict[str, dict]:
+    """prop_id -> the latest judgment of every proposition an analysis stands on: its own and those of the
+    rounds before it that no later round judged again. A proposition whose scope moved on to a new id is
+    left out: the new one names it in `derived_from`."""
+    found, moved = {}, set()
+    for j in _numbered(session, analysis_id):
+        if j["prop_id"] not in found and j["prop_id"] not in moved:
+            found[j["prop_id"]] = j
+            if j.get("derived_from"):
+                moved.add(j["derived_from"])
     return found
 
 

@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import Settings
-from bioradar.research import analyses, measure_history, prompts, series_sync
+from bioradar.research import analyses, measure_history, prompts, propositions, revision, series_sync
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import ALERTS, event, owed_at
 
@@ -266,6 +266,63 @@ def review_basis(session, topic_id, since) -> str:
     return ("\n分析员复核意见，请逐条回应：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
 
 
+def version_batch(session, topic_id, since, at=None, limit=10):
+    """(events, handed ids, earliest time of what is left over or None) of the topic's new-version events
+    that ask for propositions to be judged again and are not handed to an analysis yet, as of the cutoff: at
+    most `limit`, oldest first."""
+    handed = handed_events(session, topic_id)
+    rows = session.scalars(
+        visible(select(db.TopicEvent), db.TopicEvent.at, at)
+        .where(
+            db.TopicEvent.topic_id == topic_id,
+            db.TopicEvent.kind == "version",
+            db.TopicEvent.at >= since,
+        )
+        .order_by(db.TopicEvent.id)
+    )
+    due = [e for e in rows if e.id not in handed and e.detail.get("judge_again")]
+    batch = due[:limit]
+    return batch, [e.id for e in batch], min((parse_time(e.at) for e in due[limit:]), default=None)
+
+
+# what the analysis is told about each proposition it is asked to judge again, by why (research/revision.py)
+VERSION_LINES = {
+    "source_corrected": "依据的记录被更正或撤回：请读更正通知，在更正后的原文里重新定位短引，核对适用范围",
+    "pending_review": "依据的记录有了新版本，来源未给逐项差异，待复核：须在新版本里重新定位短引并核对范围",
+    "processing_upgrade": "依据的记录经加工升级，不是来源更新：请核对短引的定位和适用范围是否仍然成立",
+}
+
+
+def version_basis(session, topic, events):
+    """(question text, pinned seeds, the propositions to judge again) of these new-version events: the
+    propositions of the topic's latest judgments that they name, each with why and by which versions. The
+    new versions are read as the fixed versions they are; the analysis judges these propositions only."""
+    standing = propositions.standing(session, topic.last_analysis_id) if topic.last_analysis_id else {}
+    asked, seeds = {}, {}
+    for e in events:
+        d = e.detail
+        trigger = {k: d[k] for k in ("source", "record", "version_id", "difference", "sample")}
+        seeds.setdefault(
+            d["version_id"],
+            {
+                "source": d["source"],
+                "record_id": d["record"],
+                "version_id": d["version_id"],
+                "title": "新版本",
+            },
+        )
+        for prop_id in filter(standing.__contains__, d["affected"]):
+            question = standing[prop_id]["question"]
+            item = asked.setdefault(
+                prop_id, {"prop_id": prop_id, "question": question, "reason": d["reason"], "triggers": []}
+            )
+            item["triggers"].append(trigger)
+            item["reason"] = min(item["reason"], d["reason"], key=revision.REASONS.index)
+    lines = [f"- {a['prop_id']}「{a['question']}」：{VERSION_LINES[a['reason']]}" for a in asked.values()]
+    text = ("\n来源新版本，只重新判断下列命题，其余命题不动：\n" + "\n".join(lines)) if lines else ""
+    return text, list(seeds.values()), list(asked.values())
+
+
 def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budget=False):
     """One automatic analysis per topic that is owed one (started rising, awoke or raised its alert),
     most urgent first. Live monitoring is capped per hour; what the cap holds back stays owed."""
@@ -314,7 +371,9 @@ def _start_one(session, owed_topic, reason, later, cutoff):
     topic_id = owed_topic.id
     topic = session.get(db.Topic, topic_id)
     question, seeds = _base_question(session, topic, reason, cutoff)
-    question, seeds, points, handed, leftover = _bases(session, owed_topic, reason, cutoff, question, seeds)
+    question, seeds, points, handed, leftover, reassess = _bases(
+        session, owed_topic, reason, cutoff, question, seeds
+    )
     row = analyses.create(
         question=question,
         direction=topic.direction,
@@ -325,6 +384,7 @@ def _start_one(session, owed_topic, reason, later, cutoff):
         parent_id=topic.last_analysis_id,
         seed_records=seeds,
         series_points=points,
+        reassess=reassess,
         session=session,
     )
     topic.last_analysis_id = row.id
@@ -374,7 +434,8 @@ def _base_question(session, topic, reason, cutoff):
 
 def _bases(session, owed_topic, reason, cutoff, question, seeds):
     """What each reason of the debt adds to the question, the seeds and the series points; returns
-    (question, seeds, points, events handed over, events left over with the time they stay owed from)."""
+    (question, seeds, points, events handed over, events left over with the time they stay owed from, the
+    propositions the analysis is asked to judge again)."""
     topic_id = owed_topic.id
     reasons = reason.split("+")
     points = []
@@ -383,7 +444,7 @@ def _bases(session, owed_topic, reason, cutoff, question, seeds):
         points = series_basis_points(session, topic_id, cutoff)
     if "analyst_review" in reasons:
         question += review_basis(session, topic_id, owed_topic.pending_since)
-    handed, leftover = [], {}  # what this analysis is given; what stays owed, from when
+    handed, leftover, reassess = [], {}, []  # what this analysis is given; what stays owed, from when
     corrected = [r for r in reasons if r in {"cross_domain_correction", "source_corrected"}]
     if corrected:
         since = owed_topic.pending_since
@@ -406,7 +467,15 @@ def _bases(session, owed_topic, reason, cutoff, question, seeds):
         points = list(points) + [
             p for p in described(session, topic_id, ids, cutoff) if p["measurement_id"] not in known
         ]
-    return question, seeds, points, handed, leftover
+    if "new_version" in reasons:
+        batch, given, left = version_batch(session, topic_id, owed_topic.pending_since, cutoff)
+        handed += given
+        if left is not None:
+            leftover["new_version"] = left
+        text, pinned, reassess = version_basis(session, owed_topic, batch)
+        question += text
+        seeds += pinned
+    return question, seeds, points, handed, leftover, reassess
 
 
 def _settle_debt(topic, reason, later, leftover, cutoff):

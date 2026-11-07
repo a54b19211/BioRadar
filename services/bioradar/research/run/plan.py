@@ -60,7 +60,7 @@ def plan(run: "Run"):
         plan_removed=plan_removed,
         checks=checks,
         queries=queries,
-        judgments=model.judgments[:4],
+        judgments=judgment_questions(run, model),
         needs_calculation=model.needs_calculation or run.input["direction"] == "business",
         mechanism=model.mechanism.model_dump() if model.mechanism else None,
         actions=[],
@@ -72,6 +72,14 @@ def plan(run: "Run"):
         retries=0,
     )
     first_candidates(run, required)
+
+
+def judgment_questions(run: "Run", model) -> list[str]:
+    """The questions the report must answer, at most four. An analysis asked about named propositions
+    (input.reassess: a new version of what they rest on, or a follow-up about one) answers those and no
+    others, whatever the plan proposed."""
+    asked = [r["question"] for r in run.input.get("reassess") or ()]
+    return (asked or model.judgments)[:4]
 
 
 def ask_plan(run: "Run"):
