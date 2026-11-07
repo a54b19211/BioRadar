@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 import httpx
 
 from bioradar import guard
+from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
 from bioradar.config import Settings
 from bioradar.material import Material, part_key
 
@@ -268,6 +269,9 @@ class Fabric:
         )
         # HTTP requests actually sent, per endpoint: counts only, no parameters, tokens or texts
         self.requests = {}
+        # what Fabric declared when this analysis or monitoring round began (load_capabilities): planning
+        # and audit only, never a permission. None: not read yet, or Fabric could not say (unknown)
+        self.caps: SourceCapabilities | None = None
 
     def _get(self, path, params, token=None):
         endpoint = path.removeprefix("/api/history/").split("/")[0]
@@ -747,6 +751,21 @@ class Fabric:
 
     def sources(self):
         return self._get("/api/history/sources", {})
+
+    def capabilities(self) -> SourceCapabilities:
+        """One read of Fabric's source list, parsed. FabricError / httpx.HTTPError when it cannot be read,
+        CapabilityError when it is not a receipt this client understands."""
+        return SourceCapabilities.parse(self.sources())
+
+    def load_capabilities(self) -> SourceCapabilities | None:
+        """Read the capabilities once for the analysis or monitoring round that starts now and keep them for
+        planning (what to fetch, which text to expect). Not read: None, and every capability is unknown (there
+        is no built-in list to fall back to)."""
+        try:
+            self.caps = self.capabilities()
+        except (FabricError, httpx.HTTPError, CapabilityError):
+            self.caps = None
+        return self.caps
 
     def fetch(self, source, query, *, max_records=10, deadline_seconds=60):
         """Ask Fabric to collect fresh public records, wait for the run, return the new documents."""

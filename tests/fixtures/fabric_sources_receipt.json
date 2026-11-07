@@ -1,0 +1,1722 @@
+{
+ "capabilities_version": "datafabric.source_capabilities.v1",
+ "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
+ "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+ "retired_sources": [
+  {
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": null,
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": false,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": true,
+    "search": false,
+    "select": false,
+    "status": null,
+    "verified": null,
+    "watch": false
+   },
+   "name": "已授权旧文档的精确冻结桥",
+   "published_seq": 10,
+   "readable": true,
+   "resolves_via": "legacy_aliases",
+   "retirement": {
+    "decided_at": null,
+    "decision_date": "2026-11-06",
+    "decision_ref": "雷达全链路设计-v3.1.md#6.3",
+    "effective_at": "2026-11-07T00:00:00+00:00",
+    "state": "effective"
+   },
+   "source_id": "legacy_documents"
+  }
+ ],
+ "sources": [
+  {
+   "academic_use_only": true,
+   "access": "public_metadata",
+   "acquisition_channel": "public_api",
+   "attribution": "The GDELT Project — https://www.gdeltproject.org/",
+   "business_types": [
+    "population_need",
+    "corporate_finance",
+    "regulatory",
+    "literature"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "query",
+      "window"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "仅本地采用后版本；实时DOC接口不是十年新闻档案",
+   "license_url": "https://www.gdeltproject.org/about.html#termsofuse",
+   "limitations": [
+    "只有标题、原网址和索引元数据，没有新闻全文；第三方正文另核许可",
+    "GDELT seendate是索引观察时间，不是新闻发布时间或本地首次见到时间",
+    "没有连续分页；达到上限需宿主缩小时间窗，不能推断已覆盖所有报道",
+    "转载和共同源尚未核实，不能按网址数量计算独立证据数"
+   ],
+   "name": "GDELT DOC 新闻索引",
+   "native_analysis_mode": "news_index_not_independent_evidence",
+   "native_id": "完整新闻URL的SHA256，query参数保留",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "查询的有界新闻索引；默认最近24小时，支持显式起止窗口",
+   "source_id": "gdelt_doc"
+  },
+  {
+   "academic_use_only": true,
+   "access": "public_structured_filings",
+   "acquisition_channel": "public_api",
+   "business_types": [
+    "corporate_finance",
+    "research_capacity"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": true,
+    "watch": true
+   },
+   "endpoint_kind": "companyconcept",
+   "history_coverage": "本地采用后版本；当前多期披露集合不是过去API快照",
+   "license_url": "https://www.sec.gov/search-filings/edgar-application-programming-interfaces",
+   "limitations": [
+    "窄CompanyConcept端点属于SEC CompanyFacts同族；不是整公司CompanyFacts原件切片",
+    "fy/fp是申报财政期间，不替代每个事实的start/end；filed不是本地first_seen",
+    "单位、币种及重复披露分别保留；未提供合并范围/分母时未知，不编造汇率或可比性"
+   ],
+   "name": "SEC XBRL 公司概念事实",
+   "native_analysis_mode": "company_concept_reported_facts",
+   "native_id": "CIK十位数:taxonomy:tag；每个原件为官方单概念完整JSON",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "明确CIK/概念清单；按单位保留所有披露、期间、filed及accession，不选最新行",
+   "source_id": "sec_companyfacts"
+  },
+  {
+   "academic_use_only": true,
+   "access": "public_registry",
+   "acquisition_channel": "public_api",
+   "business_types": [
+    "trials_pipeline"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "query",
+      "ids"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": {
+     "processor": "datafabric.registry_diff.v3"
+    },
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": true,
+    "watch": true
+   },
+   "history_coverage": "本应用采用后不可变版本；当前API不是过去快照",
+   "license_url": "https://clinicaltrials.gov/data-api/about-api",
+   "limitations": [
+    "登记状态不是药物成败；日期保留原精度和ACTUAL/ESTIMATED"
+   ],
+   "name": "ClinicalTrials.gov",
+   "native_analysis_mode": "registered_study_not_drug_program",
+   "native_id": "NCT ID",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "公开登记字段，含未决/终止记录",
+   "source_id": "clinicaltrials"
+  },
+  {
+   "academic_use_only": true,
+   "access": "public_metadata",
+   "acquisition_channel": "public_api",
+   "business_types": [
+    "literature"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "query",
+      "ids"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本应用采用后版本；无匿名十年完整快照保证",
+   "license_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/",
+   "limitations": [
+    "同PMID/DOI跨库不构成独立研究证据",
+    "全文许可按原件<license>或Unpaywall声明判定，未经人工核实；Unpaywall需配置联系邮箱"
+   ],
+   "name": "PubMed",
+   "native_id": "PMID",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "EFetch元数据、摘要和更正关系；全文只保存许可明确的（PMC JATS声明CC/公共领域许可、Unpaywall许可明确的OA PDF），各成附件版本；许可不明或不可取得的记缺失",
+   "source_id": "pubmed"
+  },
+  {
+   "academic_use_only": true,
+   "access": "public_metadata",
+   "acquisition_channel": "public_api",
+   "business_types": [
+    "regulatory"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "query"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "当前公开记录的小批采用；信函日期不证明当时可得",
+   "license_url": "https://open.fda.gov/license/",
+   "limitations": [
+    "同PDF可有多轮信；复合键歧义须拒绝，不猜项目谱系"
+   ],
+   "name": "FDA Complete Response Letters",
+   "native_id": "file_name + letter_date/type/application_number 复合键",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "公开信函文本及原生字段；不把所有letter_type当否决",
+   "source_id": "fda_crl"
+  },
+  {
+   "academic_use_only": true,
+   "access": "public_metadata",
+   "acquisition_channel": "public_api",
+   "business_types": [
+    "literature"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "query",
+      "ids"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": true,
+    "watch": true
+   },
+   "history_coverage": "当前元数据/更正关系采用；非过去全文版本档案",
+   "license_url": "https://europepmc.org/Copyright",
+   "limitations": [
+    "firstPublicationDate可能补算，保留原值，不作历史原件证明",
+    "PMID/DOI跨库复用不是新独立研究；正文另核许可"
+   ],
+   "name": "Europe PMC",
+   "native_analysis_mode": "bibliographic_record_not_independent_study",
+   "native_id": "source:id",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "core元数据/摘要/许可和关系；不自动抓全文",
+   "source_id": "europe_pmc"
+  },
+  {
+   "academic_use_only": true,
+   "access": "public_metadata",
+   "acquisition_channel": "public_api",
+   "business_types": [
+    "population_need"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "query",
+      "ids",
+      "window"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": true,
+    "watch": true
+   },
+   "history_coverage": "本地采用后版本；当前公告API不提供过去原件资格",
+   "license_url": "https://www.who.int/about/policies/publishing/copyright",
+   "limitations": [
+    "DON是选择性公告，不是全球疫情全量；零公告不证明没有暴发",
+    "发布/更新日期不是暴发开始；不从叙述推病例数、发病率或专业确认",
+    "本API无结构化人群分母，仅供公告事件模式；不能生成发病率/病例数序列"
+   ],
+   "name": "WHO Disease Outbreak News",
+   "native_analysis_mode": "notice_event_only",
+   "native_id": "WHO原生Id（DonId单独保留）",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "明确LastModified时间窗内DON公告、原文和发布元数据",
+   "source_id": "who_don"
+  },
+  {
+   "academic_use_only": true,
+   "access": "controlled_import",
+   "acquisition_channel": "institutional_upload",
+   "business_types": [
+    "literature",
+    "regulatory",
+    "trials_pipeline"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "upload"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "上传/导入后的不可变版本；文件日期不是来源发布日期",
+   "license_url": null,
+   "limitations": [
+    "许可与来源由上传者负责，系统不核实",
+    "集合名和文件名由上传者给出，不是来源原生编号",
+    "不推断发布日期、作者或专业结论"
+   ],
+   "name": "本地文件原件导入（PDF / Office）",
+   "native_id": "local-file:<集合>/<文件名>；版本按原件sha256固定",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "管理员上传或服务器收件目录中的单个原件；正文由加工层附件解析产出（页/块/表定位）",
+   "source_id": "local_files"
+  },
+  {
+   "academic_use_only": true,
+   "access": "controlled_import",
+   "acquisition_channel": "derived_export",
+   "business_types": [
+    "mechanisms",
+    "trials_pipeline"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": null,
+    "fetch": null,
+    "graph": true,
+    "history_modes": [
+     "current",
+     "operational_replay"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": null,
+    "read": true,
+    "readable": true,
+    "record_kind": "graph",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": false,
+    "status": null,
+    "verified": null,
+    "watch": false
+   },
+   "dependency_source_ids": [],
+   "history_coverage": "发布后版本；不回填当前别名/合并到过去",
+   "license_url": null,
+   "limitations": [
+    "不是全图完整邻域；任何原来源撤权保守封整个派生来源组"
+   ],
+   "name": "唐的有界审核图发布",
+   "native_id": "明确选择范围及批次；包内namespace+源实体/关系ID",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "所选发布子图；图审核不等于专业证据评价",
+   "source_id": "reviewed_graph"
+  },
+  {
+   "academic_use_only": true,
+   "access": "background_context",
+   "acquisition_channel": "derived_export",
+   "business_types": [
+    "mechanisms"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": null,
+    "fetch": null,
+    "graph": true,
+    "history_modes": [
+     "current",
+     "operational_replay"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": null,
+    "read": true,
+    "readable": true,
+    "record_kind": "graph",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": false,
+    "status": null,
+    "verified": null,
+    "watch": false
+   },
+   "dependency_source_ids": [],
+   "history_coverage": "本地first_seen后可回看已收到的背景；无外部过去档案或文档证据",
+   "license_url": null,
+   "limitations": [
+    "不当作新独立研究、机制核验或过去时点事实；许可另核"
+   ],
+   "name": "PrimeKG 当前有界背景",
+   "native_id": "原生namespace+ID及有向关系",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "管理员明确获准的当前有界捕获，不自动联网或扩展全图",
+   "source_id": "primekg_graph"
+  },
+  {
+   "academic_use_only": true,
+   "access": "controlled_import",
+   "acquisition_channel": "institutional_upload",
+   "business_types": [
+    "trials_pipeline",
+    "regulatory",
+    "literature",
+    "corporate_finance",
+    "population_need"
+   ],
+   "capabilities": {
+    "attachments": null,
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": null,
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": null,
+    "verified": null,
+    "watch": false
+   },
+   "history_coverage": "按每个明确声明/审核包记录，不承诺现有十年档案",
+   "license_url": null,
+   "limitations": [
+    "普通导入未审核；不能倒填本地首次见到时间",
+    "映射只接纳有出处审核，不做唐蔚雯负责的消歧"
+   ],
+   "name": "受控历史归档",
+   "native_id": "归档原站ID；demo和真实资料隔离",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "固定trial/program/outcome/document原件及同口径metric/event声明/字段绑定；不提供专业真实性判断",
+   "source_id": "external_archive"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_notice"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "国家药品审评中心",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "cde"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_notice"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "国家药品审评中心·信息公开（表格页）",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "cde_xxgk"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "guideline"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "国家药品审评中心·指导原则",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "cde_zdyz"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "registry_record"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "中国临床试验注册中心",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "chictr"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "drug_database"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "DrugBank",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "drugbank"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_label"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "openFDA 药品说明书（drug/label）",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "fda_api_drug_label"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_notice"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "openFDA 药品召回执行报告（drug/enforcement）",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "fda_api_enforcement"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_notice"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "FDA Drug Safety Communications",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "fda_drug_safety"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_notice"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "FDA Press Announcements",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "fda_press"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "industry_media"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "Fierce Pharma（RSS）",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "fiercepharma"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "corporate_filing"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "港交所披露易",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "hkex"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "guideline"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "NCCN 临床实践指南",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "nccn"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "regulatory_notice"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "国家药品监督管理局",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "nmpa"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "policy"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "中国药促会·医改专题",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "phirda_healthcare_reform"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "industry_media"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "中国药促会·产业资讯",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "phirda_industry"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "policy"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "中国药促会·政策法规",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "phirda_policy"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "industry_media"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "中国药促会·研发追踪",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "phirda_rd"
+  },
+  {
+   "academic_use_only": true,
+   "access": "explicit_source_allowlist",
+   "acquisition_channel": "site_plugin",
+   "business_types": [
+    "company_disclosure"
+   ],
+   "capabilities": {
+    "attachments": {
+     "text_processor": "datafabric.attachment_parse.v2",
+     "versions": true
+    },
+    "clean_text": {
+     "processor": "datafabric.clean_text.v12"
+    },
+    "fetch": {
+     "admin_only": true,
+     "modes": [
+      "ids",
+      "list_pages"
+     ]
+    },
+    "graph": false,
+    "history_modes": [
+     "current",
+     "operational_replay",
+     "public_history_reconstruction"
+    ],
+    "index": {
+     "searchable": false,
+     "targets": []
+    },
+    "list": true,
+    "material_kind": "fabric_document_evidence",
+    "read": true,
+    "readable": true,
+    "record_kind": "original",
+    "registry_diff": null,
+    "retired": false,
+    "search": false,
+    "select": true,
+    "status": "active",
+    "verified": false,
+    "watch": false
+   },
+   "history_coverage": "本系统采用后的不可变版本；不是原站历史档案",
+   "license_url": null,
+   "limitations": [
+    "需管理员逐源许可",
+    "插件未对原站实测（verified=False）",
+    "不保证原站覆盖、原日期语义或专业结论"
+   ],
+   "name": "Roche Media Releases",
+   "native_id": "详情页 URL；接口记录/表格为 uuid5(站点:记录键)；附件为 父记录#attachment=链接",
+   "published_seq": 10,
+   "read_enabled": true,
+   "read_scope": "按需读取或按列表入口续页；旧库存按 6.3 迁入各真实来源",
+   "source_id": "roche"
+  }
+ ],
+ "unavailable_sources": []
+}
