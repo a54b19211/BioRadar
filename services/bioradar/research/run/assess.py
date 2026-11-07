@@ -62,8 +62,9 @@ def assess(run: "Run"):
         return
     assessment, verified = grounded(run, result, report)
     slots.bind(assessment["judgments"], slots.slots_of(run.p))
-    check_assessment(run, assessment)
+    answered = check_assessment(run, assessment)
     cap_judgments(run, assessment)
+    cap_basis(run, assessment, answered)
     cap_hypotheses(run, assessment, verified, report["status"])
     run.p["assessment"] = assessment
     watch(run)
@@ -136,6 +137,30 @@ def cap_judgments(run: "Run", assessment):
             j["conclusion"] = "原结论与已读原文矛盾，已撤下"
 
 
+def open_dependency(p, judgment) -> bool:
+    """A check the judgment's own grounds answer is still open or in conflict. Only the checks this judgment
+    depends on count: a gap in what other judgments rest on does not touch it."""
+    status = {c["id"]: c["status"] for c in p.get("checks", [])}
+    return any(
+        status.get(check) in ("open", "conflict")
+        for fact in p.get("facts", [])
+        if fact["ref"] in judgment["grounds"]
+        for check in fact.get("checks", [])
+    )
+
+
+def cap_basis(run: "Run", assessment, checked: bool):
+    """The basis confidence of each judgment (task book 08 2.5): the model proposes high, medium or low. It is
+    "not_assessed" - not an automatic low - when the model proposed none or the check of the conclusions did
+    not run (`checked`), and at most low while a check the judgment depends on is open or in conflict."""
+    for j in assessment["judgments"]:
+        proposed = j.get("basis_confidence")
+        if not checked or proposed not in ("high", "medium", "low"):
+            j["basis_confidence"] = "not_assessed"
+        elif open_dependency(run.p, j):
+            j["basis_confidence"] = "low"
+
+
 def cap_hypotheses(run: "Run", assessment, verified, report_status):
     """BioCheck writes hypotheses as 待验证 and never as confirmed, so the grade tops out at probable,
     which also needs a PASS report, no verified refutation and a reason BioCheck supports; refuted needs
@@ -186,14 +211,15 @@ def check_assessment(run: "Run", assessment):
     """Judgment conclusions and hypothesis reasons are written after the report, so BioCheck
     verifies them, one line each with their grounds, in one call against the same evidence; the whole text is
     a judgment section. Sets check: supported / contradicted / unverified (also when BioCheck fails or has no
-    budget), and checked_by: the call that checked it, when that is known."""
+    budget), and checked_by: the call that checked it, when that is known. Returns whether BioCheck
+    answered."""
     items = assessment["judgments"] + assessment["hypotheses"]
     if not items:
-        return
+        return True
     lines = [assessment_line(item) for item in items]
     starts = [sum(len(line) + 1 for line in lines[:n]) for n in range(len(lines))]
     draft = "\n".join(lines)
-    verdicts, calls = [[] for _ in items], [set() for _ in items]
+    verdicts, calls, answered = [[] for _ in items], [set() for _ in items], True
     try:
         if run.calls_left() <= 0:
             raise ServiceError("biocheck", "no_budget")
@@ -207,6 +233,7 @@ def check_assessment(run: "Run", assessment):
     except ServiceError as exc:
         run.log(exc.calls, "biocheck", reads=exc.reads)
         run.note(f"assessment_biocheck_{exc.code}")
+        answered = False
     for item, found, made in zip(items, verdicts, calls):
         if "contradicted" in found:
             item["check"] = "contradicted"
@@ -216,6 +243,7 @@ def check_assessment(run: "Run", assessment):
             item["check"] = "unverified"
         if len(made) == 1 and None not in made:
             item["checked_by"] = next(iter(made))
+    return answered
 
 
 def watch(run: "Run"):

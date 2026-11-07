@@ -347,6 +347,7 @@ class SectionItem(TypedDict, total=False):
     stance: Annotated[Literal["supports", "refutes"], SHOWN]
     status: Annotated[str, SHOWN]  # a check's status; a gap's kind (not_searched ...); a slot's status
     confidence: Annotated[str, SHOWN]
+    basis_confidence: Annotated[str, SHOWN]  # high | medium | low | not_assessed
     level: Annotated[str, SHOWN]
     consequence: Annotated[str, SHOWN]
     check: Annotated[str, SHOWN]  # BioCheck's verdict on the judgment's own text

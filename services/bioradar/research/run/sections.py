@@ -123,6 +123,7 @@ def slot_judgment_section(p: RunState, written: list[WrittenItem]) -> Section:
             j = graded[asked["slot"]]
             item.update(
                 confidence=j["confidence"],
+                basis_confidence=j.get("basis_confidence", "not_assessed"),
                 consequence=j["consequence"],
                 check=j.get("check", "unverified"),
                 grounds=j["grounds"],
@@ -147,6 +148,7 @@ def judgment_section(p: RunState) -> Section:
             "question": j["question"],
             "text": j["conclusion"],
             "confidence": j["confidence"],
+            "basis_confidence": j.get("basis_confidence", "not_assessed"),
             "consequence": j["consequence"],
             "check": j.get("check", "unverified"),
             "grounds": j["grounds"],

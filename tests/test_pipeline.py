@@ -1271,8 +1271,8 @@ def test_no_budget_left_means_the_assessment_stays_unverified(monkeypatch):
     sent = []
     monkeypatch.setattr(services, "biocheck", lambda s, operation, body: sent.append(body))
     judgment = {"conclusion": "收入增长", "grounds": ["E2"], "confidence": "probable"}
-    assess.check_assessment(run, {"judgments": [judgment], "hypotheses": []})
-    assert sent == [] and judgment["check"] == "unverified"
+    answered = assess.check_assessment(run, {"judgments": [judgment], "hypotheses": []})
+    assert sent == [] and judgment["check"] == "unverified" and answered is False
     assert run.p["notes"][-1]["code"] == "assessment_biocheck_no_budget"
 
 

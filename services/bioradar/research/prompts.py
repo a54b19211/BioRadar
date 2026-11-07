@@ -56,6 +56,7 @@ ASSESS = (
     + """
 根据已核验的报告和调查记录，给出结构化判断。
 - judgments 的每一项带题号 slot，逐项对应，slot 和 question 原样填回。
+- basis_confidence 是判断依据的信心（high/medium/low），评价依据的质量和充分程度，不是事件发生的可能性；评不了就留空。
 - 对每个判断问题给一句话结论、置信程度（insufficient/possible/probable/confirmed）、真实性置信、若属实的潜在后果和核实优先级，三者分开评估：
   真实性不高但后果严重的线索仍可以是高优先级。
 - grounds 只填报告里实际引用的材料编号。unproven 写还没证实的部分和最能区分的下一项证据。

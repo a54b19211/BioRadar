@@ -109,6 +109,9 @@ class Judgment(BaseModel):
     priority: Literal["low", "medium", "high", "urgent"] = Field(description="核实优先级")
     grounds: list[str] = Field(default_factory=list, description="依据编号，如E2")
     unproven: str = Field(default="", description="还没有证实的部分和最能区分的下一项证据")
+    basis_confidence: Literal["high", "medium", "low", ""] = Field(
+        default="", description="判断依据的信心：依据的质量和充分程度，不是事件发生的可能性；无法评估时留空"
+    )
 
 
 class HypothesisLevel(BaseModel):

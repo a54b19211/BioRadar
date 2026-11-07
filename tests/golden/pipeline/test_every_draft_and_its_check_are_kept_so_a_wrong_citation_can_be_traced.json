@@ -56,6 +56,7 @@
      "hypotheses": [],
      "judgments": [
       {
+       "basis_confidence": "not_assessed",
        "check": "supported",
        "conclusion": "有限人群内的重要进展",
        "confidence": "probable",
@@ -3824,6 +3825,7 @@
      "hypotheses": [],
      "judgments": [
       {
+       "basis_confidence": "not_assessed",
        "check": "supported",
        "conclusion": "有限人群内的重要进展",
        "confidence": "probable",

@@ -55,6 +55,7 @@ KEEP = {
     "status",
     "verdict",
     "confidence",
+    "basis_confidence",
     "credibility",
     "consequence",
     "priority",

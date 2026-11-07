@@ -2,12 +2,12 @@
 
 - Status: accepted for the first step (2026-11-08); the writer's side in BioCheck, `[R#]` receipts, follow-ups
   that point at a proposition and new-version handling are later steps
-- Design: task book 06 sections 2.2, 3 and phase 0 step 3; 08 sections 2.2, 2.3 and phase 0 step 2;
+- Design: task book 06 sections 2.2, 3 and phase 0 step 3; 08 sections 2.2, 2.3, 2.5 and phase 0 steps 2 and 3;
   00 sections 1.5 and 3.5; BioCheck ADR 0004
 - Code: `adapters/services.py` (`biocheck`, `verify_v2_body`), `research/run/slots.py`, `research/run/report.py`,
   `research/run/assess.py`, `research/run/sections.py`, `research/run/submit.py` (`service`),
   `research/propositions.py` (`number`), `config.py` (`biocheck_verify`)
-- Tests: `tests/test_report_slots.py`
+- Tests: `tests/test_report_slots.py`, `tests/test_basis_confidence.py`
 
 ## Decision
 
@@ -40,6 +40,10 @@
   insufficient. A paragraph left inconsistent makes the judgment section `missing` with `slot_mismatch`, and the
   publication gate holds the report (`sections_missing:slot_mismatch`). The opposite case, a paragraph that says
   "insufficient" under a higher grade, is not held: the report understates.
+- **Basis confidence.** A judgment's `basis_confidence` is the model's proposal (high, medium, low). The program
+  records `not_assessed` when none was proposed or when BioCheck did not check the conclusions, and caps it at low
+  while a check that the judgment's own grounds answer is open or in conflict. A gap elsewhere does not touch it.
+  `confidence` and `credibility` are as they were.
 - **`depends_on.checked_by`** points at the call that checked the conclusion: the `llm_calls` row of the
   `verify_claims` call BioCheck names for the sentence (`call`, a position in the calls of its answer), else the
   request's only `verify_claims` call; unknown when neither. It was the analysis's last BioCheck call, which is the
