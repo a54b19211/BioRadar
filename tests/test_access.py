@@ -1,6 +1,7 @@
 """People and roles, human reviews, and material from sources Fabric no longer lets us read."""
 
 import pytest
+from fabric_receipts import sources_receipt
 from fastapi.testclient import TestClient
 from sqlalchemy import select
 
@@ -305,7 +306,7 @@ def fabric_sources(monkeypatch):
         def sources(self):
             if listed["value"] is None:
                 raise api_module.FabricError("fabric_http_503", "down")
-            return {"business_types": [], "sources": [{"source_id": x} for x in listed["value"]]}
+            return sources_receipt(listed["value"])
 
     monkeypatch.setattr(api_module, "Fabric", Fake)
     monkeypatch.setattr(api_module, "_readable", {"at": None, "sources": None})

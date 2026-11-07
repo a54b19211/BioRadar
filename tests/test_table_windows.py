@@ -5,6 +5,7 @@ not by the first matching text."""
 
 from types import SimpleNamespace
 
+from fabric_receipts import sources_receipt
 from sqlalchemy import select
 
 from bioradar import db
@@ -112,7 +113,7 @@ def test_mechevidence_receives_the_header_or_the_notice(monkeypatch):
         target = text.index(row_of(text, 250))
         read, window = adopt(material, ["抑制"], 1500, hits=[(target, target + 10)])
         row = analyses.create(question="是否不合格？", direction="science", is_demo=True, enqueue=False)
-        listed = SimpleNamespace(sources=lambda: {"sources": [{"source_id": "nmpa"}]})  # nmpa is readable
+        listed = SimpleNamespace(sources=lambda: sources_receipt({"nmpa"}))  # nmpa is readable
         run = Run(
             row, settings().model_copy(update={"mechevidence_url": "http://mech.invalid"}), fabric=listed
         )

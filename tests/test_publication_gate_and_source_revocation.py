@@ -8,6 +8,7 @@ import json
 import os
 
 from conftest import FakeFabric
+from fabric_receipts import sources_receipt
 from sqlalchemy import select
 from test_access import fabric_sources  # noqa: F401 - the fixture a test here takes
 from test_pipeline import RECORDS, fake_model, first_policy
@@ -36,7 +37,7 @@ class RevocableFabric(FakeFabric):
 
     def sources(self):
         readable = {d["source"] for d in self.docs} - self.revoked_sources
-        return {"sources": [{"source_id": s} for s in readable]}
+        return sources_receipt(readable)
 
 
 def run_with(monkeypatch, biocheck, fabric=None):

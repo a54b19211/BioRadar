@@ -3,6 +3,7 @@
 import re
 
 from conftest import FakeFabric, record
+from fabric_receipts import sources_receipt
 from sqlalchemy import select
 
 from bioradar import db
@@ -714,7 +715,7 @@ def test_a_queued_follow_up_checks_its_earlier_report_again_when_it_runs():
             self.listed = listed
 
         def sources(self):
-            return {"sources": [{"source_id": x} for x in self.listed]}
+            return sources_receipt(self.listed)
 
     assert Run(child, settings(), fabric=Listed(["gone"])).previous_report()["draft"] == "上一轮稿件[E1]。"
     run = Run(child, settings(), fabric=Listed(["external_archive"]))
@@ -776,7 +777,7 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
             self.listed = listed
 
         def sources(self):
-            return {"sources": [{"source_id": x} for x in self.listed]}
+            return sources_receipt(self.listed)
 
     root = analyses.create(question="根？", direction="pipeline", is_demo=True, enqueue=False)
     with db.session() as s:
@@ -976,7 +977,7 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
         listed = ["gone", "external_archive"]
 
         def sources(self):
-            return {"sources": [{"source_id": x} for x in self.listed]}
+            return sources_receipt(self.listed)
 
     fabric = Listed(RECORDS)
     run = Run(child, settings(), fabric=fabric)

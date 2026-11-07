@@ -6,6 +6,7 @@ import json
 
 import httpx
 import pytest
+from fabric_receipts import sources_receipt
 from sqlalchemy import select
 
 from bioradar import db
@@ -26,11 +27,7 @@ class Listing:
 
     def sources(self):
         self.reads += 1
-        return {
-            "sources": [
-                {"source_id": s} for s in (["open_src"] if self.revoked else ["open_src", "gone_src"])
-            ]
-        }
+        return sources_receipt(["open_src"] if self.revoked else ["open_src", "gone_src"])
 
 
 def model(monkeypatch, fabric, replies, revoke_after=None):

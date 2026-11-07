@@ -16,6 +16,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.adapters import llm
+from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import Settings
 from bioradar.research import lease, state
@@ -244,12 +245,20 @@ class Run:
         wanted = set(sources)
         if not wanted:
             return
-        try:
-            readable = {r["source_id"] for r in self.fabric.sources()["sources"]}
-        except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError, AttributeError):
-            raise Withheld("source_access_unconfirmed") from None
+        readable = self.readable_now()
+        if readable is None:
+            raise Withheld("source_access_unconfirmed")
         if not wanted <= readable:
             raise Withheld("source_access_withdrawn")
+
+    def readable_now(self) -> frozenset[str] | None:
+        """The sources Fabric lets this reader read now, asked of Fabric this moment: every entry of its
+        source receipt (sources and retired_sources) that says it is readable. None when the receipt cannot
+        be read or is not one this client understands. Never the snapshot taken when the run began."""
+        try:
+            return SourceCapabilities.parse(self.fabric.sources()).readable
+        except (FabricError, httpx.HTTPError, CapabilityError, AttributeError):
+            return None
 
     def carried(self, carries, uses_previous=False):
         """Every source a request carries: the run's own evidence it holds, and the sources of all earlier
@@ -319,10 +328,7 @@ class Run:
         sources = lineage_sources(self.id)
         readable = set()
         if sources:
-            try:
-                readable = {r["source_id"] for r in self.fabric.sources()["sources"]}
-            except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError, AttributeError):
-                readable = None
+            readable = self.readable_now()
         if sources is None or (sources and (readable is None or not sources <= readable)):
             if all(n["code"] != "previous_report_withheld" for n in self.p.get("notes", [])):
                 self.note("previous_report_withheld", "上一轮引用的来源现在不可读、授权状态或上游链无法确认")

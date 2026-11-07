@@ -19,6 +19,8 @@ os.environ["BIORADAR_SESSION_SECRET"] = "test-session-key"
 os.environ["BIORADAR_PLANNER_URL"] = "http://planner.invalid"
 os.environ["BIORADAR_BIOCHECK_URL"] = "http://biocheck.invalid"
 
+from fabric_receipts import sources_receipt  # noqa: E402
+
 from bioradar import db  # noqa: E402
 
 SEQ = itertools.count(1)
@@ -150,8 +152,8 @@ class FakeFabric:
         return found, sorted(wanted - {d["version_id"] for d in found})
 
     def sources(self):
-        """Fabric's readable-source list: every source this fake holds records of."""
-        return {"sources": [{"source_id": s} for s in sorted({d["source"] for d in self.docs})]}
+        """Fabric's source receipt: every source this fake holds records of is readable."""
+        return sources_receipt({d["source"] for d in self.docs})
 
     def head(self, source, *, is_demo):
         return max([0] + [d["seq"] for d in self.docs if d["source"] == source])

@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 
 from bioradar import db
+from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
 from bioradar.research import analyses, continuation, lineage, monitor
@@ -225,9 +226,10 @@ def readable_sources() -> set[str] | None:
     now = time.monotonic()
     if _readable["at"] is None or now - _readable["at"] >= READABLE_SECONDS:
         try:
-            listed = Fabric(settings()).sources()["sources"]
-            _readable.update(at=now, sources={r["source_id"] for r in listed})
-        except (FabricError, httpx.HTTPError, KeyError, TypeError, ValueError):
+            _readable.update(
+                at=now, sources=set(SourceCapabilities.parse(Fabric(settings()).sources()).readable)
+            )
+        except (FabricError, httpx.HTTPError, CapabilityError):
             _readable.update(at=None, sources=None)
     return _readable["sources"]
 
