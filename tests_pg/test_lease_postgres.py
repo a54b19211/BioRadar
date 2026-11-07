@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
 import pytest
+from pydantic import BaseModel
 from sqlalchemy import select, text, update
 
 from bioradar import db
@@ -719,3 +720,90 @@ def test_the_final_write_of_a_worker_whose_lease_ran_out_is_rejected(racy_run, c
     row = analysis_of(analysis_id)
     assert (row.state, row.result) == ("running", None)  # recover will decide, the late result is not stored
     assert "final write rejected" in caplog.text
+
+
+# ---- the late answer of a request that was already sent --------------------------------------------------
+
+
+class Answer(BaseModel):
+    ok: int = 0
+
+
+class Reply:
+    def __init__(self, content):
+        self.status_code = 200
+        self.content = content
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return {
+            "choices": [{"message": {"content": self.content}, "finish_reason": "stop"}],
+            "usage": {"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3},
+        }
+
+
+def take_over(analysis_id):
+    with db.session() as s:
+        s.execute(
+            update(db.Analysis)
+            .where(db.Analysis.id == analysis_id)
+            .values(lease_token="new", lease_until=utc_now() + timedelta(minutes=5))
+        )
+
+
+def valid_run():
+    run, analysis_id = expired_run()
+    with db.session() as s:
+        s.execute(update(db.Analysis).values(lease_until=utc_now() + timedelta(minutes=5)))
+    return run, analysis_id
+
+
+def test_the_answer_of_a_request_sent_before_the_takeover_is_recorded_as_the_old_attempts_audit(monkeypatch):
+    run, analysis_id = valid_run()
+
+    def answer_after_takeover(*args, **kwargs):
+        take_over(analysis_id)  # while the request is on the way
+        return Reply('{"ok": 1}')
+
+    monkeypatch.setattr(llm.httpx, "post", answer_after_takeover)
+    with pytest.raises(lease.Lost):  # the run stops, its result is not used ...
+        run.ask("plan", "system", {}, Answer)
+    (call,) = rows_of(db.LlmCall, analysis_id)  # ... but the spent call and its raw answer are kept
+    assert (call.requests, call.total_tokens, call.lease_token) == (1, 3, "mine")
+    with db.session() as s:
+        (output,) = s.scalars(select(db.LlmOutput).where(db.LlmOutput.llm_call_id == call.id))
+        assert output.content == '{"ok": 1}'
+    row = analysis_of(analysis_id)
+    assert (row.lease_token, row.progress) == ("new", {})  # the successor's row is untouched
+
+
+def test_a_lost_lease_is_noticed_before_a_format_retry_and_the_first_attempt_is_settled(monkeypatch):
+    run, analysis_id = valid_run()
+    posts = []
+
+    def invalid_answer_then_takeover(*args, **kwargs):
+        posts.append(1)
+        take_over(analysis_id)
+        return Reply("not json")  # asks for the format retry, which must not go out
+
+    monkeypatch.setattr(llm.httpx, "post", invalid_answer_then_takeover)
+    with pytest.raises(lease.Lost):
+        run.ask("plan", "system", {}, Answer)
+    assert len(posts) == 1  # the retry was not sent
+    (call,) = rows_of(db.LlmCall, analysis_id)
+    assert (call.requests, call.error, call.lease_token) == (
+        1,
+        "send_blocked",
+        "mine",
+    )  # the retry was refused
+
+
+def test_a_call_nobody_sent_is_not_recorded_by_a_superseded_run():
+    run, analysis_id = superseded_run()
+    with pytest.raises(lease.Lost):
+        run.log(
+            [{"stage": "plan", "usage": {"total_tokens": 9}, "requests": 1}]
+        )  # fabricated: no send registered
+    assert rows_of(db.LlmCall, analysis_id) == []

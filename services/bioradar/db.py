@@ -110,6 +110,8 @@ class LlmCall(Base):
     # each of those requests' outcome - the HTTP status, or the error that left it
     # without an answer; the tokens are the answered ones' only
     http: Mapped[list | None] = mapped_column(Json)
+    # the execution of the analysis that made the call (analyses.lease_token then); NULL: before this column
+    lease_token: Mapped[str | None] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 

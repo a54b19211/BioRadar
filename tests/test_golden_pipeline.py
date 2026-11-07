@@ -21,7 +21,7 @@ from bioradar.research.pipeline import Run
 
 FIXTURES = pathlib.Path(__file__).parent / "golden" / "pipeline"
 SCENARIOS = sorted(n for n, f in vars(test_pipeline).items() if n.startswith("test_") and callable(f))
-TIMES = {"created_at", "completed_at", "lease_until"}  # wall-clock columns, not behaviour
+TIMES = {"created_at", "completed_at", "lease_until", "lease_token"}  # wall-clock columns and per-execution ids
 UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 ISO = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:[+-]\d{2}:\d{2}|Z)?")
 

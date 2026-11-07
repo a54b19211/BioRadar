@@ -101,7 +101,24 @@ class Run:
         )
 
     def log(self, calls, service="radar"):
-        with self.writing() as s:
+        """Record model calls of this run (llm_calls and their outputs). This is audit and budget, not a
+        business write: the answer and cost of a request that was already sent are recorded even when the
+        lease was lost while it was on the way - under this worker's token, so they count against the
+        analysis's budget and the successor does not start with them hidden. Only calls of sends this run
+        registered (check_lease) can be recorded that way; a call nobody sent is Lost."""
+        with db.session() as s:
+            held = self.lease_token is None or lease.renew(
+                s, db.Analysis, self.id, self.lease_token, db.now()
+            )
+            if not held:
+                if not self.sends_pending:
+                    log.warning("analysis %s: a call with no registered send was not recorded", self.id)
+                    raise lease.Lost(self.id)
+                log.warning(
+                    "analysis %s: the answer of a request sent before the lease was lost is recorded as "
+                    "audit of the old attempt",
+                    self.id,
+                )
             for c in calls:
                 usage = c.get("usage") or {}
                 prompt, completion = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
@@ -118,10 +135,12 @@ class Run:
                     error=c.get("error"),
                     requests=db.request_count(c),
                     http=c.get("http"),
+                    lease_token=self.lease_token,
                 )
                 s.add(row)
                 s.flush()
                 db.keep_outputs(s, row, c)
+        self.sends_pending = 0
         self.calls_used += sum(db.request_count(c) for c in calls)
 
     def calls_left(self):
@@ -252,7 +271,10 @@ class Run:
         run's evidence."""
 
         def before_send(sent):
-            self.check_lease()
+            try:
+                self.check_lease()
+            except lease.Lost:
+                raise llm.SendBlocked("lease_lost") from None  # the requests already sent are still returned
             if carries and sent:
                 try:
                     self.confirm_sources(carries)
@@ -265,6 +287,9 @@ class Run:
         """Log a model call as far as it went out (a call stopped before its first request counts 0), then
         stop the run if a request of it was blocked."""
         self.log([call])
+        if call.get("blocked") == "lease_lost":
+            raise lease.Lost(self.id)
+        self.check_lease(send=False)  # stop here, not at the next request, when the lease went meanwhile
         if call.get("blocked"):
             raise Withheld(call["blocked"])
 
