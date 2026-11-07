@@ -415,20 +415,38 @@ def test_a_job_that_never_reached_the_queue_is_dispatched_once(queue):
     assert analysis_of(fresh).state == "queued"
 
 
-def test_two_recovers_at_the_same_moment_requeue_each_row_once(monkeypatch):
+@pytest.fixture
+def slow_queue(monkeypatch):
+    """Redis stand-in whose dispatch takes a moment: the window in which a second recover could act."""
     sent = []
 
-    def slow_dispatch(analysis_id):  # the job takes a moment to reach Redis: the window for a second recover
-        time.sleep(0.5)
+    def slow_dispatch(analysis_id):
+        time.sleep(0.2)
         sent.append(analysis_id)
 
     monkeypatch.setattr(analyses, "dispatch", slow_dispatch)
     monkeypatch.setattr(analyses, "waiting_in_queue", lambda analysis_id: analysis_id in sent)
+    return sent
+
+
+def test_two_recovers_at_the_same_moment_requeue_one_row_once(slow_queue):
+    crashed = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    results = race(analyses.recover)
+    assert slow_queue == [crashed] and sorted(results) == [
+        0,
+        1,
+    ]  # one recover got the row, the other skipped it
+    assert analysis_of(crashed).state == "queued"
+
+
+def test_two_recovers_at_the_same_moment_requeue_every_row_exactly_once(slow_queue):
+    """With several rows the two recovers may split them (SKIP LOCKED lets each take the rows the other has
+    not locked yet), so which recover handles which row is not fixed; that every row is handled once is."""
     crashed = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
     lost = add_analysis("queued", age=timedelta(minutes=30))
     results = race(analyses.recover)
-    assert sorted(sent) == sorted([crashed, lost])  # each dispatched once, not once per recover
-    assert sorted(results) == [0, 2]
+    assert sorted(slow_queue) == sorted([crashed, lost])  # each dispatched once, never once per recover
+    assert sum(results) == 2
     assert analysis_of(crashed).state == "queued" and analysis_of(lost).state == "queued"
 
 
