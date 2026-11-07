@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 from sqlalchemy import delete
 
 from bioradar import db
-from bioradar.adapters.fabric import FabricError, fixed_version_is, noticed
+from bioradar.adapters.fabric import FabricError, fixed_version_is, noticed, time_value
 from bioradar.material import of
 from bioradar.research import prompts, schemas
 from bioradar.research.run import search, submit
@@ -130,7 +130,7 @@ def store(run: "Run", hit, ref, doc, material, window, omitted):
                 record_id=hit["record_id"],
                 version_id=doc["version_id"],
                 title=doc["title"],
-                published_at=doc["published_at"],
+                published_at=time_value(doc["published_at"]),
                 available_at=str(doc["available_at"]),
                 material_kind=doc["material_kind"],
                 verified=doc["verified"],
@@ -185,7 +185,7 @@ def ask_reader(run: "Run", ref, hit, doc, text, read_id):
         "ref": ref,
         "title": doc["title"],
         "source": hit["source"],
-        "published_at": doc["published_at"],
+        "published_at": time_value(doc["published_at"]),
         "material_kind": doc["material_kind"],
         "verified": doc["verified"],
         "events": doc["events"],

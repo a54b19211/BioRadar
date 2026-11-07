@@ -10,6 +10,7 @@ from test_pipeline import RECORDS, fake_model, first_policy
 
 from bioradar import db
 from bioradar.adapters import llm, services
+from bioradar.adapters.fabric import time_value
 from bioradar.config import settings
 from bioradar.research import analyses, state
 from bioradar.research.pipeline import Run
@@ -175,7 +176,7 @@ def test_progress_saved_by_an_older_version_resumes_unchanged(monkeypatch):
                     record_id=record_id,
                     version_id=d["version_id"],
                     title=d["title"],
-                    published_at=d["published_at"],
+                    published_at=time_value(d["published_at"]),
                     available_at=str(d["available_at"]),
                     material_kind=d["material_kind"],
                     verified=True,

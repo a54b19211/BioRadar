@@ -8,7 +8,7 @@ import httpx
 
 from bioradar import db
 from bioradar.adapters import services
-from bioradar.adapters.fabric import FabricError
+from bioradar.adapters.fabric import FabricError, time_value
 from bioradar.adapters.services import ServiceError
 from bioradar.research import measure_history, series_sync
 from bioradar.research.run import Failed, read, search
@@ -176,7 +176,7 @@ class ReadingOrder:
             old, b = hit.get("sketch", {}), self.body(hit)
             hit["sketch"] = {
                 "matched": sorted(set(old.get("matched", [])) | {t for t in self.terms if t in b}),
-                "when": doc.get("published_at") or doc.get("available_at"),
+                "when": time_value(doc.get("published_at")) or doc.get("available_at"),
             }
             copy = old.get("duplicate_of") or (None if hit["read"] else self.read_bodies.get(b))
             if copy:

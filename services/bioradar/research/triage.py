@@ -9,7 +9,14 @@ from sqlalchemy import delete, select
 
 from bioradar import db, guard
 from bioradar.adapters import llm
-from bioradar.adapters.fabric import NOT_VISIBLE, Fabric, FabricError, noticed
+from bioradar.adapters.fabric import (
+    GDELT_OBSERVED,
+    NOT_VISIBLE,
+    Fabric,
+    FabricError,
+    noticed,
+    time_value,
+)
 from bioradar.config import Settings, settings
 from bioradar.material import of
 from bioradar.research import analyses, prompts, schemas
@@ -79,9 +86,12 @@ def _route_registry(doc) -> str | None:
         except ValueError:
             return False
 
-    if within(doc.get("published_at"), NEW_REGISTRATION_DAYS):
+    if within(time_value(doc.get("published_at")), NEW_REGISTRATION_DAYS):
         return None
-    if within(reg.get("updated_at"), RECENT_UPDATE_DAYS) and (
+    updated = reg.get("updated_at") or {}
+    # GDELT's observation time is when it first saw an article, not a change of the source
+    modified = None if updated.get("meaning") == GDELT_OBSERVED else updated.get("value")
+    if within(modified, RECENT_UPDATE_DAYS) and (
         reg.get("status") in STOPPED or within(reg.get("results_first_posted"), NEW_REGISTRATION_DAYS)
     ):
         return None
@@ -355,7 +365,7 @@ def triage(s: Settings, docs, topics, watch=None, reads=None):
             {
                 "index": i,
                 "title": d["title"],
-                "published_at": d["published_at"],
+                "published_at": time_value(d["published_at"]),
                 "material_kind": d["material_kind"],
                 "verified": d["verified"],
                 "events": d["events"],

@@ -17,7 +17,7 @@ from sqlalchemy import func, select, text
 
 from bioradar import db, service_api
 from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
-from bioradar.adapters.fabric import Fabric, FabricError
+from bioradar.adapters.fabric import Fabric, FabricError, time_value
 from bioradar.config import settings
 from bioradar.research import analyses, lineage, measure_history, monitor
 from bioradar.research.clock import parse_time
@@ -845,7 +845,7 @@ def source_row(fabric: Fabric, source: str, cursor, now: datetime, quiet_hours: 
         ]
         latest = fabric.latest(source, is_demo=False)
         head = fabric.head(source, is_demo=False)
-        row["latest_published_at"] = (latest or {}).get("published_at")
+        row["latest_published_at"] = time_value((latest or {}).get("published_at"))
         row["lag"] = head - cursor.after_seq if cursor else None
     except (FabricError, httpx.HTTPError) as exc:
         row["collection"] = {"state": "unavailable", "error": getattr(exc, "code", type(exc).__name__)}

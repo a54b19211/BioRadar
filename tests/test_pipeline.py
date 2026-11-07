@@ -1397,7 +1397,10 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
                 "read": True,
             }
         ]
-        run.docs = {("s", rid): {"title": t, "text": x, "published_at": d} for rid, (t, x, d) in docs.items()}
+        run.docs = {
+            ("s", rid): {"title": t, "text": x, "published_at": {"value": d, "meaning": "source_reported"}}
+            for rid, (t, x, d) in docs.items()
+        }
         run.docs[("s", "r0")] = {"title": "", "text": "已读的那篇正文", "published_at": None}
         run.docs[("s", "c3")]["title"] = ""  # an exact copy of the text already read
         run.p.update(

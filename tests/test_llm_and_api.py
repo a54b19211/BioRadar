@@ -154,7 +154,7 @@ def test_source_status_keeps_collection_state_new_records_and_publication_apart(
             return {"collection": {"state": "unknown", "scope": "recorded_crawl_task"}, "watches": watches}
 
         def latest(self, source, *, is_demo):
-            return {"published_at": "2026-10-19"}
+            return {"published_at": {"value": "2026-10-19", "meaning": "source_reported"}}
 
         def head(self, source, *, is_demo):
             return 5

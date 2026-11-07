@@ -46,6 +46,24 @@ def _time(value):
     return value.get("value") if isinstance(value, dict) else value
 
 
+# source_updated_at of a GDELT article: when GDELT first observed it, not when the source changed
+GDELT_OBSERVED = "gdelt_first_observed"
+
+
+def stated_time(value) -> dict | None:
+    """A time the source states, with what Fabric says it means: {value, meaning}; meaning is None when
+    Fabric names none. None when the record states no such time. Times are never swapped for one another."""
+    text = _time(value)
+    if not text:
+        return None
+    return {"value": text, "meaning": value.get("meaning") if isinstance(value, dict) else None}
+
+
+def time_value(stamp) -> str | None:
+    """The time text of a stated time, for a reader that shows or sorts by the date alone."""
+    return stamp["value"] if stamp else None
+
+
 UNVERIFIED_KINDS = {"social_media", "repost"}
 NOT_RESEARCH = ("editorial", "letter", "comment", "news", "erratum", "retraction")
 RESEARCH = {
@@ -193,7 +211,9 @@ def document(record: dict) -> dict:
         "is_demo": record["is_demo"],
         "title": record.get("title") or "",
         "url": record.get("source_url"),
-        "published_at": _time(record.get("source_published_at")) or _time(record.get("event_time")),
+        # each with its meaning; a record without a published time has none (event_time is not it)
+        "published_at": stated_time(record.get("source_published_at")),
+        "event_time": stated_time(record.get("event_time")),
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
         "text_level": level,
@@ -219,7 +239,7 @@ def document(record: dict) -> dict:
         "registry": {
             "status": (record.get("facts") or {}).get("status"),
             "results_first_posted": (record.get("facts") or {}).get("results_first_posted"),
-            "updated_at": _time(record.get("source_updated_at")),
+            "updated_at": stated_time(record.get("source_updated_at")),
         }
         if record.get("record_kind") == "trial"
         else None,
