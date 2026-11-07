@@ -51,6 +51,22 @@ def activity_key(doc) -> str:
     return f"record:{doc['source']}:{doc['record_id']}"
 
 
+def previous_days(received, today: str) -> list[str] | None:
+    """The BASELINE_DAYS days before `today` on which the monitor received anything; days with nothing
+    received (collection stopped or missing) are left out, not counted as zero. None when there are fewer:
+    not judged."""
+    before = [d for d in sorted(received) if d < today][-BASELINE_DAYS:]
+    return before if len(before) == BASELINE_DAYS else None
+
+
+def baseline(values) -> tuple[float, float, float]:
+    """(mean, standard deviation, threshold) of the daily counts of those days; above mean + 3 standard
+    deviations (mean + 3 when they are all equal) is an anomaly."""
+    mean = sum(values) / len(values)
+    spread = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
+    return mean, spread, (mean + 3 * spread if spread else mean + 3)
+
+
 def activity(session, s: Settings, topic, at, is_demo) -> bool:
     """A naive baseline of information activity (not case incidence): the topic's records on the day
     of `at`, each counted once by its activity_key, against the previous 7 days the monitor received anything
@@ -66,8 +82,8 @@ def activity(session, s: Settings, topic, at, is_demo) -> bool:
     )
     received = sorted(str(d) for d in session.scalars(select(day).where(*scope).distinct()))
     today = str(at.astimezone(UTC).date())  # the database groups by UTC day
-    before = [d for d in received if d < today][-BASELINE_DAYS:]
-    if len(before) < BASELINE_DAYS:
+    before = previous_days(received, today)
+    if before is None:
         return False
     itself = literal("record:") + db.Observation.source + literal(":") + db.Observation.record_id
     counted = func.count(func.distinct(func.coalesce(db.Observation.activity_key, itself)))
@@ -77,10 +93,7 @@ def activity(session, s: Settings, topic, at, is_demo) -> bool:
             select(day, counted).where(*scope, db.Observation.topic_id == topic.id).group_by(day)
         ).all()
     }
-    values = [counts.get(d, 0) for d in before]
-    mean = sum(values) / len(values)
-    spread = (sum((v - mean) ** 2 for v in values) / len(values)) ** 0.5
-    threshold = mean + 3 * spread if spread else mean + 3
+    mean, spread, threshold = baseline([counts.get(d, 0) for d in before])
     if counts.get(today, 0) <= threshold:
         return False
     events = session.scalars(
