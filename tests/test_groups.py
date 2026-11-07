@@ -328,3 +328,72 @@ def test_an_analysis_without_a_topic_or_without_a_material_of_it_has_no_display_
 
     assert Run(bare, settings(), fabric=fabric).display_group() is None
     assert Run(without, settings(), fabric=fabric).display_group() is None
+
+
+# ---- the display group of the first judgment (t1) -----------------------------------------------------
+
+
+def gid(m):
+    return groups.build_groups([m], [])[0].id
+
+
+def chosen_members(found):
+    [chosen] = [g for g in found["groups"] if g["id"] == found["selection"]["chosen"]]
+    return [m["version_id"] for m in chosen["members"]]
+
+
+def test_the_display_group_is_picked_by_confirmed_groups_then_first_seen_then_id():
+    # a1 and a2 are two origins of one group, seen last; b, c, d and e are one origin each
+    many = [mat("a1", day(3), record="a"), mat("a2", day(3), relations=(("supplements", "who_don", "a"),))]
+    ties = sorted((mat(name, day(2)) for name in "cde"), key=gid, reverse=True)  # the opposite of id order
+    early = next(m for m in (mat(f"b{n}", day(1)) for n in range(99)) if gid(m) > max(map(gid, ties)))
+
+    found = groups.select_display([*ties, early, *many], cutoff=day(4))
+
+    ranking = found["selection"]["ranking"]
+    assert [(r["confirmed_groups"], r["rank"]) for r in ranking] == [(2, 1), (1, 2), (1, 3), (1, 4), (1, 5)]
+    # most confirmed groups first although seen last; then the earliest first seen although its id is the
+    # largest; then the smaller id
+    assert [r["id"] for r in ranking] == [gid(many[0]), gid(early), *sorted(gid(m) for m in ties)]
+    assert found["selection"]["chosen"] == ranking[0]["id"]
+
+
+def test_what_is_seen_after_t1_is_not_there_and_makes_no_link():
+    first, rival = mat("f", day(0)), mat("r", day(1))
+    later = [mat(f"l{n}", day(3), relations=(("supplements", "who_don", "r"),)) for n in range(2)]
+
+    at_t1 = groups.select_display([first, rival, *later], cutoff=day(2))
+    afterwards = groups.select_display([first, rival, *later], cutoff=day(4))
+
+    assert (at_t1["selection"]["coverage"]["materials"], len(at_t1["groups"])) == (2, 2)
+    assert chosen_members(at_t1) == ["f"]  # one origin each: the earlier first seen
+    assert chosen_members(afterwards) == ["r", "l0", "l1"]  # the later ones join r, which then has most
+
+
+def test_a_group_without_a_confirmed_member_takes_part_and_without_any_material_nothing_is_chosen():
+    old = mat("old", day(0), background=True, **EBOLA)  # backfilled: its only member is background
+    lead = mat("new", day(5), **EBOLA)  # joined to nothing, a candidate of old's group by the key
+
+    found = groups.select_display([old, lead], cutoff=day(6))
+
+    ranking = found["selection"]["ranking"]
+    assert [(r["confirmed_groups"], r["rank"]) for r in ranking] == [(1, 1), (0, 2)]
+    assert (ranking[1]["first_seen_at"], ranking[1]["start"]) == (day(5).isoformat(), None)
+    only_background = groups.select_display([old], cutoff=day(6))["selection"]
+    assert (only_background["outcome"], only_background["chosen"]) == ("unverified", None)
+    assert [r["rank"] for r in only_background["ranking"]] == [None]  # listed, not ranked
+
+
+def test_a_cut_read_and_an_unread_receipt_are_coverage_gaps_and_rows_after_t1_are_not_read(monkeypatch):
+    s = settings()
+    with db.session() as session:
+        rows = [("v1", "D1", day(1)), ("v2", "D2", day(2)), ("v3", "D3", day(9))]
+        session.add_all([observation(version, record, at, None) for version, record, at in rows])
+        session.flush()
+        monkeypatch.setattr(groups, "MAX_MATERIALS", 1)
+
+        found = groups.for_selection(session, s, is_demo=True, cutoff=day(3), background=set(), unread=["r9"])
+
+    json.dumps(found)  # it is written to a file
+    assert found["selection"]["coverage"] == {"materials": 1, "truncated": True, "backfill_unread": ["r9"]}
+    assert chosen_members(found) == ["v2"]  # the newest of what was visible; v3 is after the cutoff

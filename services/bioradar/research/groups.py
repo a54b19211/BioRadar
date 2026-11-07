@@ -11,7 +11,7 @@ members, still readable, but not in the counts, the baseline or the first-seen t
 
 Everything is dated by when the radar could know it: a material by its `available_at`, a link by the later of
 its two ends. A view is built from what was visible at its cutoff only, so a replay never shows a link that a
-later material made."""
+later material made. `select_display` chooses, by fixed keys, the group the first judgment is about."""
 
 import hashlib
 from collections import defaultdict
@@ -32,6 +32,8 @@ KEY_WINDOW = timedelta(days=30)  # how far apart a key match may be seen: a sear
 REGION_CLUES = 5  # the groups one material that names a place but no pathogen may be a candidate of
 MAX_MATERIALS = 20000  # the newest materials of the 30 days a view reads; more is reported as truncated
 PROVEN = ("checked", "carried")  # the states of a measurement dimension that make it known (domain.py)
+# the order of the group the first judgment is about (task book 00 1.4); a key counts when those before tie
+SELECTION_KEYS = ("confirmed_groups desc", "first_seen_at asc", "id asc")
 CHUNK = 500
 
 
@@ -209,17 +211,26 @@ def _row(m: Material) -> dict:
     }
 
 
+def _confirmed_groups(group: Group) -> int:
+    return len({m.activity_key for m in _counted(group)})
+
+
+def _first_seen(group: Group, candidate_times: list[datetime]) -> datetime | None:
+    seen = [m.available_at for m in _counted(group)] + candidate_times
+    return min(seen) if seen else None
+
+
 def _summary(group: Group, candidate_times: list[datetime]) -> dict:
     """What orders groups (task book 05 2.2): the deduplicated groups among the confirmed members, the
     earliest first seen of the visible materials (members and candidates, background left out), the stable id.
     Start and end are the confirmed members' alone: a candidate does not extend the group."""
     live = [m.available_at for m in _counted(group)]
-    seen = live + candidate_times
+    first = _first_seen(group, candidate_times)
     return {
         "id": group.id,
         "kind": group.kind,
-        "confirmed_groups": len({m.activity_key for m in _counted(group)}),
-        "first_seen_at": min(seen).isoformat() if seen else None,
+        "confirmed_groups": _confirmed_groups(group),
+        "first_seen_at": first.isoformat() if first else None,
         "start": min(live).isoformat() if live else None,
         "end": max(live).isoformat() if live else None,
     }
@@ -275,42 +286,107 @@ def _shared(shown: Group, mine, group_of, of_material) -> tuple[dict, set[str]]:
     return shared, {r["group"] for roles in shared.values() for r in roles} - {shown.id}
 
 
+@dataclass(frozen=True)
+class Grouping:
+    """The materials visible at a cutoff, their groups, and the candidate links by group and by material."""
+
+    by_id: dict[str, Material]
+    groups: list[Group]
+    group_of: dict[str, Group]
+    to_group: dict[str, list[Candidate]]
+    of_material: dict[str, list[Candidate]]
+
+    def candidate_times(self, group_id: str) -> list[datetime]:
+        """When the candidates of a group, background left out, were first seen."""
+        found = (self.by_id[c.version_id] for c in self.to_group[group_id])
+        return [m.available_at for m in found if not m.background]
+
+
+def _visible(materials, cutoff: datetime) -> list[Material]:
+    return [m for m in materials if m.available_at <= cutoff]
+
+
+def _grouped(visible: list[Material]) -> Grouping:
+    groups = build_groups(visible, explicit_links(visible))
+    group_of = {m.version_id: g for g in groups for m in g.members}
+    to_group, of_material = defaultdict(list), defaultdict(list)
+    for c in candidate_links(visible, group_of):
+        to_group[c.group].append(c)
+        of_material[c.version_id].append(c)
+    return Grouping({m.version_id: m for m in visible}, groups, group_of, to_group, of_material)
+
+
+def _export(group: Group, seen: Grouping) -> dict:
+    """The group as listed: its ordering fields, its members (explicit basis, when it was confirmed) and its
+    candidates (the key that made them, not members)."""
+    return {
+        **_summary(group, seen.candidate_times(group.id)),
+        "members": [{**_row(m), **group.joined[m.version_id]} for m in group.members],
+        "candidates": [_candidate_row(c, seen.by_id, seen.group_of) for c in seen.to_group[group.id]],
+    }
+
+
 def view(materials, *, cutoff: datetime, anchors) -> dict | None:
     """The display group as of the cutoff: the group of the latest of the `anchors` (version ids) that is not
     background, with its members (explicit basis, when it was confirmed), its candidates (the key that made
     them, not members), its counts and baseline; `shared`: every material of it that is involved in more
     than one group, with all of them; `others`: those groups' ordering fields. None when the cutoff sees no
     anchor."""
-    visible = [m for m in materials if m.available_at <= cutoff]
+    visible = _visible(materials, cutoff)
     live = [m for m in visible if m.version_id in anchors and not m.background]
     if not live:
         return None
     anchor = max(live, key=lambda m: (m.available_at, m.version_id))
-    groups = build_groups(visible, explicit_links(visible))
-    group_of = {m.version_id: g for g in groups for m in g.members}
-    by_id = {m.version_id: m for m in visible}
-    to_group, of_material = defaultdict(list), defaultdict(list)
-    for c in candidate_links(visible, group_of):
-        to_group[c.group].append(c)
-        of_material[c.version_id].append(c)
-    shown = group_of[anchor.version_id]
-    shared, involved = _shared(shown, to_group[shown.id], group_of, of_material)
-
-    def seen(gid):  # when the candidates of a group, background left out, were first seen
-        return [by_id[c.version_id].available_at for c in to_group[gid] if not by_id[c.version_id].background]
-
+    seen = _grouped(visible)
+    shown = seen.group_of[anchor.version_id]
+    shared, involved = _shared(shown, seen.to_group[shown.id], seen.group_of, seen.of_material)
+    others = sorted((g for g in seen.groups if g.id in involved), key=lambda g: g.id)
     received = {_day(m.available_at) for m in visible if not m.background}
     return {
         "cutoff": cutoff.isoformat(),
         "display": shown.id,
-        "group": {
-            **_summary(shown, seen(shown.id)),
-            "members": [{**_row(m), **shown.joined[m.version_id]} for m in shown.members],
-            "candidates": [_candidate_row(c, by_id, group_of) for c in to_group[shown.id]],
-            "activity": _activity(shown, received, cutoff),
-        },
+        "group": {**_export(shown, seen), "activity": _activity(shown, received, cutoff)},
         "shared": shared,
-        "others": [_summary(g, seen(g.id)) for g in sorted(groups, key=lambda g: g.id) if g.id in involved],
+        "others": [_summary(g, seen.candidate_times(g.id)) for g in others],
+    }
+
+
+def _standing(group: Group, candidate_times: list[datetime]) -> tuple | None:
+    """The sort key of a group for the display group (task book 00 1.4): the deduplicated groups of its
+    confirmed members, more first (a group with none is 0 and still takes part); the earliest first seen of
+    its visible materials, earlier first; its id, smaller first. None when no visible material counts: its
+    members are all background and no live material is a candidate of it."""
+    first = _first_seen(group, candidate_times)
+    return None if first is None else (-_confirmed_groups(group), first, group.id)
+
+
+def select_display(materials, *, cutoff: datetime, truncated: bool = False, unread=()) -> dict:
+    """The group the first judgment (t1, task book 00 1.4) is about, chosen among every group visible at the
+    cutoff - not the group of any one topic's latest material, as `view` shows. What is seen after the cutoff
+    is not there, nor any link it would make. The three keys of `_standing` look at nothing that came later
+    (no WHO record, no second version). A group with no qualifying material is listed without a rank, and
+    when none has one the outcome is "unverified": nothing is made up.
+
+    `truncated` (the read left the oldest materials out) and `unread` (backfill receipts that could not be
+    read, whose versions then count like any other) are coverage gaps: they are listed, never taken as an
+    empty result. Returns {"selection": the list - ranking, outcome, coverage; "groups": every group with its
+    members and candidates}."""
+    visible = _visible(materials, cutoff)
+    seen = _grouped(visible)
+    standing = {g.id: _standing(g, seen.candidate_times(g.id)) for g in seen.groups}
+    chosen_first = sorted((gid for gid, key in standing.items() if key is not None), key=standing.__getitem__)
+    rank = {gid: n for n, gid in enumerate(chosen_first, 1)}
+    listed = sorted(seen.groups, key=lambda g: (g.id not in rank, rank.get(g.id, 0), g.id))
+    return {
+        "selection": {
+            "cutoff": cutoff.isoformat(),
+            "keys": list(SELECTION_KEYS),
+            "outcome": "selected" if chosen_first else "unverified",
+            "chosen": chosen_first[0] if chosen_first else None,
+            "coverage": {"materials": len(visible), "truncated": truncated, "backfill_unread": list(unread)},
+            "ranking": [{**_summary(g, seen.candidate_times(g.id)), "rank": rank.get(g.id)} for g in listed],
+        },
+        "groups": [_export(g, seen) for g in listed],
     }
 
 
@@ -417,3 +493,9 @@ def for_topic(session, s: Settings, topic: db.Topic, *, cutoff: datetime, backgr
     anchors = set(session.scalars(own))
     found = view(materials, cutoff=cutoff, anchors=anchors)
     return None if found is None else {**found, "truncated": truncated}
+
+
+def for_selection(session, s: Settings, *, is_demo: bool, cutoff: datetime, background, unread=()) -> dict:
+    """`select_display` over the materials of the 30 days up to the cutoff, of every topic and of none."""
+    materials, truncated = load(session, s, is_demo=is_demo, cutoff=cutoff, background=background)
+    return select_display(materials, cutoff=cutoff, truncated=truncated, unread=unread)

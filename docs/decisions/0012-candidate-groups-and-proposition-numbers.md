@@ -5,7 +5,8 @@
 - Design: task book 05 sections 2.2, 2.3, 2.5 and phase 0 steps 1 and 2; 00 sections 3.3 and 3.8
 - Code: `research/groups.py`, `research/propositions.py`, `research/topics.py` (`previous_days`, `baseline`),
   `research/pipeline.py` (`Run.display_group`), `research/analyses.py` (`execute`), `adapters/fabric.py`
-  (`background_version_ids`), `config.py` (`backfill_run_ids`), migration `0024_topic_prop_seq`
+  (`background_version_ids`), `config.py` (`backfill_run_ids`), `ops.py` (`select-display`), migration
+  `0024_topic_prop_seq`
 - Tests: `tests/test_groups.py`, `tests/test_propositions.py`, `tests_pg/test_proposition_numbers_postgres.py`
 
 ## Decision
@@ -35,6 +36,17 @@ material is in (the display group) as the program found it at the analysis cutof
 - **Counts** are per day: deduplicated groups (`activity_key`), how many are proven independent (none yet:
   Fabric states `same_origin` or nothing), how many are not known to be. The baseline is the rule the topic
   monitor uses (`topics.previous_days`, `topics.baseline`), not a new one.
+
+The group the first judgment (t1) is about is not the display group of a topic, which follows that topic's
+latest material. `groups.select_display` (`python -m bioradar.ops select-display --cutoff T1`, read only) groups
+everything visible at t1 and picks one by three keys, each looked at only when those before it tie, none of them
+looking at what came later (task book 00 1.4): the deduplicated groups among the confirmed members (more first;
+a group with none is 0 and still takes part), the earliest first seen of the visible materials (earlier first),
+the group id (smaller first). A group none of whose visible materials counts (members all background, no live
+candidate) is listed without a rank; with no ranked group the outcome is `unverified`. A read that was cut
+(`MAX_MATERIALS`) and a backfill receipt that could not be read are listed as coverage gaps, never as no material.
+The output is the selection list (ranking, outcome, coverage) and every group with its members and candidates;
+keeping it with a hash is the D1 script's job (devtools `env/d1/select_t1.sh`).
 
 A completed topic analysis numbers its judgments in the transaction that stores the result: it locks the topic
 row, takes `topics.next_prop_seq`, and keeps an earlier `prop_id` (looked up through the parent chain) only when

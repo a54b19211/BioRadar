@@ -1,14 +1,21 @@
 """Process entry points:
 python -m bioradar.ops worker    RQ worker that runs analyses
-python -m bioradar.ops monitor   live monitoring loop (BIORADAR_MONITOR_ENABLED=true) plus recovery"""
+python -m bioradar.ops monitor   live monitoring loop (BIORADAR_MONITOR_ENABLED=true) plus recovery
+python -m bioradar.ops select-display --cutoff T1
+                                 prints, as JSON, the group the first judgment is about and every group
+                                 visible at T1 (research/groups.select_display); reads, writes nothing"""
 
+import argparse
+import json
 import logging
 import sys
 import time
+from datetime import datetime
 
-from bioradar import guard, jobs
+from bioradar import db, guard, jobs
+from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
-from bioradar.research import analyses, monitor
+from bioradar.research import analyses, groups, monitor
 from bioradar.research.leader import Leader
 
 log = logging.getLogger("bioradar")
@@ -50,6 +57,35 @@ def monitor_loop():
         leader.release()
 
 
+def moment(text: str) -> datetime:
+    try:
+        found = datetime.fromisoformat(text)
+    except ValueError:
+        found = None
+    if found is None or found.tzinfo is None:
+        raise argparse.ArgumentTypeError("an ISO 8601 time with a time zone, such as 2026-11-10T06:00:00Z")
+    return found
+
+
+def select_display(argv) -> None:
+    """Print the selection of the display group as of --cutoff. The versions of the configured Fabric
+    backfill runs are background; a run whose receipt cannot be read is listed in the coverage."""
+    parser = argparse.ArgumentParser(prog="bioradar.ops select-display")
+    parser.add_argument("--cutoff", type=moment, required=True)
+    cutoff = parser.parse_args(argv).cutoff
+    s = settings()
+    background, unread = Fabric(s).background_version_ids(s.backfill_run_ids)
+    with db.session() as session:
+        found = groups.for_selection(
+            session, s, is_demo=False, cutoff=cutoff, background=background, unread=unread
+        )
+    sys.stdout.write(json.dumps(found, ensure_ascii=False, sort_keys=True) + "\n")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
-    {"worker": worker, "monitor": monitor_loop}[sys.argv[1]]()
+    command, *arguments = sys.argv[1:]
+    if command == "select-display":
+        select_display(arguments)
+    else:
+        {"worker": worker, "monitor": monitor_loop}[command]()
