@@ -203,7 +203,7 @@ def watch(run: "Run"):
     monitor can tell when a later record answers one (W1..; at most 5)."""
     if not run.p.get("hypotheses"):
         return
-    with db.session() as s:
+    with run.writing() as s:
         topic_id = s.scalar(
             select(db.Investigation.topic_id).where(db.Investigation.id == run.row_investigation)
         )

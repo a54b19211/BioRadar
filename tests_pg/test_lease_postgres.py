@@ -15,7 +15,11 @@ import pytest
 from sqlalchemy import select, text, update
 
 from bioradar import db
+from bioradar.adapters import llm, services
+from bioradar.config import settings
 from bioradar.research import analyses, continuation, lease, measure_checks
+from bioradar.research.pipeline import Run
+from bioradar.research.run import submit
 
 CHECKER = measure_checks.CHECKER
 TASK_KEY = "candidate_id = :c AND checker_version = :v"
@@ -472,3 +476,74 @@ def test_a_worker_that_outlived_its_lease_cannot_write_over_the_one_that_took_ov
     row = analysis_of(analysis_id)
     assert (row.state, row.result, row.lease_token) == ("completed", {"report": "run1"}, None)
     assert "final write rejected" in caplog.text
+
+
+# ---- a superseded worker: no business write and no send of an analysis goes through ----------------------------
+
+
+def superseded_run():
+    """A Run holding the token of a worker that another worker has replaced."""
+    analysis_id = add_analysis("running", lease_until=utc_now() + timedelta(minutes=5))
+    with db.session() as s:
+        s.execute(
+            update(db.Analysis)
+            .where(db.Analysis.id == analysis_id)
+            .values(lease_token="old", input={"question": "q", "budget": {"max_llm_calls": 9}})
+        )
+    run = Run(analysis_of(analysis_id), settings(), lease_token="old")
+    with db.session() as s:  # recover released it and a second worker took it
+        s.execute(update(db.Analysis).where(db.Analysis.id == analysis_id).values(lease_token="new"))
+    return run, analysis_id
+
+
+def rows_of(model, analysis_id):
+    with db.session() as s:
+        return list(s.scalars(select(model).where(model.analysis_id == analysis_id)))
+
+
+def test_a_superseded_run_cannot_save_progress_or_log_calls_or_record_outbound_material():
+    run, analysis_id = superseded_run()
+    run.p["notes"] = [{"code": "late", "detail": "", "stage": "plan"}]
+    with pytest.raises(lease.Lost):
+        run.save("investigate")
+    with pytest.raises(lease.Lost):
+        run.log([{"stage": "plan", "usage": {}, "requests": 1}])
+    with pytest.raises(lease.Lost):
+        submit.send_rows(run, "read", "radar", [])
+    with pytest.raises(lease.Lost):
+        submit.mark(run, [1], "sent")
+    with pytest.raises(lease.Lost):
+        submit.withheld_attempt(run, [1])
+    row = analysis_of(analysis_id)
+    assert (row.stage, row.progress) == ("plan", {}) and row.lease_token == "new"
+    assert rows_of(db.LlmCall, analysis_id) == [] and rows_of(db.MaterialRead, analysis_id) == []
+
+
+def test_a_superseded_run_sends_nothing(monkeypatch):
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", lambda *a, **k: sent.append("model") or ({}, {"error": None}))
+    monkeypatch.setattr(services, "biocheck", lambda *a, **k: sent.append("biocheck") or {})
+    run, _ = superseded_run()
+    with pytest.raises(lease.Lost):
+        run.ask("plan", "system", {}, dict)
+    with pytest.raises(lease.Lost):
+        submit.service(run, "verify", {})
+    with pytest.raises(lease.Lost):
+        with submit.outbound(run, []):
+            sent.append("outbound")
+    assert sent == []  # not a single request left the process
+
+
+def test_a_run_that_holds_its_token_writes_and_a_successor_waits_for_the_write():
+    analysis_id = add_analysis("running", lease_until=utc_now() + timedelta(minutes=5))
+    with db.session() as s:
+        s.execute(update(db.Analysis).where(db.Analysis.id == analysis_id).values(lease_token="mine"))
+    run = Run(analysis_of(analysis_id), settings(), lease_token="mine")
+    with run.writing() as s:  # the write is open: the row is locked against a taking-over claim
+        s.add(db.LlmCall(analysis_id=analysis_id, stage="plan", service="radar", requests=1))
+        s.flush()
+        with db.engine().connect() as other:
+            other.execute(text("SET lock_timeout = '300ms'"))
+            with pytest.raises(Exception, match="lock timeout|canceling statement"):
+                other.execute(text("SELECT 1 FROM analyses WHERE id = :i FOR UPDATE"), {"i": analysis_id})
+    assert len(rows_of(db.LlmCall, analysis_id)) == 1

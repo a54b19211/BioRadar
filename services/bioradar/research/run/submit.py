@@ -10,6 +10,7 @@ from bioradar import db
 from bioradar.adapters import services
 from bioradar.adapters.fabric import noticed
 from bioradar.material import Material, restore
+from bioradar.research import lease
 from bioradar.research.run import Withheld
 
 if TYPE_CHECKING:
@@ -55,7 +56,7 @@ def mark(run: "Run", ids, status):
     """Settle prepared outbound rows; a row once sent stays sent (the same report input goes to several
     BioCheck requests)."""
     if ids:
-        with db.session() as s:
+        with run.writing() as s:
             for row in s.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids))):
                 if row.status != "sent":
                     row.status = status
@@ -69,7 +70,10 @@ def outbound(run: "Run", ids, *, model=False):
     model call not_sent when no call was made (no budget left)."""
     before = run.calls_used
     try:
+        run.check_lease()
         yield
+    except lease.Lost:
+        raise  # superseded: another worker owns this analysis's records now
     except Withheld:
         if model and run.calls_used != before:
             mark(run, ids, "sent")
@@ -86,7 +90,7 @@ def outbound(run: "Run", ids, *, model=False):
 def withheld_attempt(run: "Run", ids):
     """A new attempt row, status withheld, for each material whose next request was blocked: the same
     material as the row before it, which stays as it is."""
-    with db.session() as s:
+    with run.writing() as s:
         for row in list(s.scalars(select(db.MaterialRead).where(db.MaterialRead.id.in_(ids)))):
             attempt = s.scalar(
                 select(func.max(db.MaterialRead.attempt)).where(
@@ -127,7 +131,7 @@ def send_rows(run: "Run", stage, service, rows, window=lambda m, r: m):
     """({ref: text}, row ids) of evidence rows about to go to `service` at `stage`, each recorded with its
     binding (status prepared until the call settles it)."""
     out, ids = {}, []
-    with db.session() as s:
+    with run.writing() as s:
         for r in rows:
             material = noticed(window(material_of(run, r), r), (r.meta or {}).get("clean_text_state"))
             ids.append(sent(run, s, stage, service, r.ref, r, material))
@@ -143,7 +147,7 @@ def service(run: "Run", operation, body):
     ids = []
     if "evidence" in body:
         carried = {e.get("id") for e in body["evidence"]}
-        with db.session() as s:
+        with run.writing() as s:
             ids = [
                 sent(run, s, f"report:{operation}", "biocheck", r.ref, r, m)
                 for r, m in getattr(run, "report_windows", [])

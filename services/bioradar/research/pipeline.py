@@ -60,6 +60,15 @@ class Run:
                 s.scalar(select(func.sum(db.LlmCall.requests)).where(db.LlmCall.analysis_id == self.id)) or 0
             )
 
+    def check_lease(self):
+        """Raise lease.Lost, before anything goes out, when another worker took the analysis over."""
+        if self.lease_token is None:
+            return
+        with db.session() as s:
+            if s.scalar(select(db.Analysis.lease_token).where(db.Analysis.id == self.id)) != self.lease_token:
+                log.warning("analysis %s: send stopped, the lease was taken over", self.id)
+                raise lease.Lost(self.id)
+
     @contextmanager
     def writing(self, *, exclusive=False):
         """A session for a write that belongs to this analysis. While the run holds a lease token, the write
@@ -86,7 +95,7 @@ class Run:
         )
 
     def log(self, calls, service="radar"):
-        with db.session() as s:
+        with self.writing() as s:
             for c in calls:
                 usage = c.get("usage") or {}
                 prompt, completion = usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0)
@@ -119,6 +128,7 @@ class Run:
         after Fabric confirmed every source it carries (carried: the run's own and the earlier rounds') right
         before it (confirm_sources; the first one here, the later ones through chat_json's before_send). A
         blocked request stops the run (Withheld) after the requests already sent are logged as they were."""
+        self.check_lease()
         self.upstream_still_readable()
         if self.calls_left() <= 0:
             self.note("llm_budget", stage)
@@ -231,13 +241,13 @@ class Run:
         return wanted
 
     def recheck(self, carries):
-        """chat_json's before_send: every request after a call's first (confirmed just before the call) asks
-        Fabric again; None when the call carries none of the run's evidence."""
-        if not carries:
-            return None
+        """chat_json's before_send: right before every request the lease is looked at, and every request after
+        a call's first (confirmed just before the call) asks Fabric again when the call carries some of the
+        run's evidence."""
 
         def before_send(sent):
-            if sent:
+            self.check_lease()
+            if carries and sent:
                 try:
                     self.confirm_sources(carries)
                 except Withheld as exc:

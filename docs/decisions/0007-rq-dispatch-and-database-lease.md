@@ -18,6 +18,13 @@ answer different questions, so the wording was wrong, not the design.
   lease writes nothing over the one that took the row over. A worker that vanished leaves an expired lease,
   and the next claim takes the row over once. A failure counts one attempt, backs off and ends in a final
   state for review.
+- **An analysis lease has a token too** (`analyses.lease_token`). `execute` writes a fresh token under the row
+  lock; `recover` releases it. Every write that belongs to the analysis - progress, evidence, material_reads,
+  llm_calls, topic watch events and the final result - goes through `Run.writing` / `lease.holds`, which
+  locks the row (FOR KEY SHARE, or FOR UPDATE for the row itself) and finds it only while the token is still
+  the worker's; every outbound request (model, BioCheck, MechEvidence) is preceded by the same check. A
+  superseded worker gets `lease.Lost`, writes and sends nothing and logs the rejection. A worker that ran past
+  its lease but was not replaced is not superseded: it may still finish.
 - Who uses what:
   - analyses: RQ delivers; `analyses.execute` takes the row lock and returns when a lease is live or the
     analysis is finished; `analyses.recover` (monitor loop) re-queues rows whose lease expired or whose job
@@ -25,8 +32,3 @@ answer different questions, so the wording was wrong, not the design.
     commits, so two recovers at the same moment re-queue a row once.
   - measurement check tasks and read windows: no RQ; the monitor polls and claims them with a token.
 - The guarantees are tested on a real PostgreSQL (`make test-pg`, `tests_pg/`); SQLite cannot show row locks.
-
-## Known gaps (not changed here)
-
-- The lease of an analysis has no token. If its worker outlives the lease and `recover` hands the analysis to
-  another worker, the late worker's final write is not rejected. Check tasks and read windows are fenced.

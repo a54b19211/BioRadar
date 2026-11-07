@@ -108,7 +108,7 @@ def reading_window(run: "Run", hit, doc):
 def store(run: "Run", hit, ref, doc, material, window, omitted):
     """The evidence row of this read and the outbound record of what the reader is about to get; returns
     that record's id."""
-    with db.session() as s:
+    with run.writing() as s:
         # A worker that died mid-read may have left this ref behind without saving progress.
         s.execute(delete(db.Evidence).where(db.Evidence.analysis_id == run.id, db.Evidence.ref == ref))
         read_id = submit.sent(run, s, "read", "radar", ref, doc, material)
