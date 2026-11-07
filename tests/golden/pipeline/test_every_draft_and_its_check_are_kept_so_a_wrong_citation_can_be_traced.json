@@ -316,6 +316,7 @@
    "evidence": [],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -326,7 +327,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [],
@@ -391,6 +393,7 @@
    "evidence": [],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -401,7 +404,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [],
@@ -555,6 +559,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -565,9 +570,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -578,7 +585,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
@@ -852,6 +860,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -862,9 +871,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -875,9 +886,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -888,7 +901,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
@@ -1230,6 +1244,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1240,9 +1255,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1253,9 +1270,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1266,7 +1285,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
@@ -1608,6 +1628,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1618,9 +1639,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1631,9 +1654,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1644,9 +1669,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -1657,7 +1684,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "calculate",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
@@ -2019,6 +2047,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2029,9 +2058,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2042,9 +2073,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2055,9 +2088,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2068,7 +2103,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "calculate",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
@@ -2431,6 +2467,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2441,9 +2478,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2454,9 +2493,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2467,9 +2508,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -2480,7 +2523,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "calculate",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
@@ -3175,6 +3219,7 @@
    ],
    "llm_calls": [
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -3185,9 +3230,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "plan",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -3198,9 +3245,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -3211,9 +3260,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "read",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -3224,9 +3275,11 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "calculate",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     },
     {
+     "authorization_ref": null,
      "completion_tokens": 5,
      "error": null,
      "finish_reason": "stop",
@@ -3237,7 +3290,8 @@
      "seconds": 0.1,
      "service": "radar",
      "stage": "assess",
-     "total_tokens": 15
+     "total_tokens": 15,
+     "usage_known": true
     }
    ],
    "material_reads": [
