@@ -12,7 +12,7 @@ from test_groups import EBOLA, day, mat, members, observation
 from test_monitor import DAY, START, _topics, observed, quiet_week, triage_by_title
 from test_propositions import analysis_row, topic_row
 
-from bioradar import db
+from bioradar import db, ops
 from bioradar.adapters import llm
 from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
@@ -217,6 +217,50 @@ def test_a_run_registers_the_days_coverage_beside_the_days_leads():
     ]
     assert found["leads"]["gdelt_doc"]["count"] == 1
     assert found["leads"]["gdelt_doc"]["coverage"]["gaps"] == [gap]
+
+
+def test_the_t1_selection_registers_the_days_leads_and_their_window_gaps_and_keeps_its_outcome(
+    monkeypatch, capsys
+):
+    with db.session() as session:
+        news = observation("v1", "D1", day(1), None)
+        lead_row = observation("L1", "G1", day(3), None, source="gdelt_doc")
+        news.is_demo = lead_row.is_demo = False  # the selection reads the real data
+        session.add_all([news, lead_row, db.Cursor(source="gdelt_doc", is_demo=False, after_seq=1)])
+    asked = []
+    gap = {
+        "start": "2026-10-04T01:00:00+00:00",
+        "end": "2026-10-04T01:15:00+00:00",
+        "kind": "possibly_truncated",
+    }
+
+    class SomeFabric:
+        def __init__(self, s):
+            pass
+
+        def background_version_ids(self, run_ids):
+            return set(), []
+
+        def lead_coverage(self, source, start, end, **read):
+            asked.append((source, start, end, read))
+            return {"window": {}, "receipts": 3, "gaps": [gap]}
+
+    monkeypatch.setattr(ops, "Fabric", SomeFabric)
+
+    ops.select_display(["--cutoff", CUTOFF.isoformat()])
+
+    found = json.loads(capsys.readouterr().out)
+    assert asked == [
+        (
+            "gdelt_doc",
+            datetime(2026, 10, 4, tzinfo=UTC),
+            datetime(2026, 10, 5, tzinfo=UTC),
+            {"is_demo": False, "mode": "operational_replay", "cutoff": CUTOFF},
+        )
+    ]
+    registered = found["selection"]["coverage"]["leads"]["gdelt_doc"]
+    assert (registered["count"], registered["coverage"]["gaps"]) == (1, [gap])
+    assert found["selection"]["outcome"] == "selected"  # a gap is registered, not a verdict
 
 
 def test_a_day_with_only_leads_is_not_a_day_the_monitor_received_news():

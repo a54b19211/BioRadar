@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 
 from bioradar import db, guard, jobs
-from bioradar.adapters.fabric import Fabric
+from bioradar.adapters.fabric import OPERATIONAL, Fabric
 from bioradar.config import settings
 from bioradar.research import analyses, groups, monitor
 from bioradar.research.leader import Leader
@@ -69,16 +69,22 @@ def moment(text: str) -> datetime:
 
 def select_display(argv) -> None:
     """Print the selection of the display group as of --cutoff. The versions of the configured Fabric
-    backfill runs are background; a run whose receipt cannot be read is listed in the coverage."""
+    backfill runs are background; a run whose receipt cannot be read is listed in the coverage, and the
+    outcome is then unverified. The coverage also holds the cutoff day's leads with the gaps Fabric's reads of
+    its windows left, read in the mode the first judgment is submitted in (operational replay)."""
     parser = argparse.ArgumentParser(prog="bioradar.ops select-display")
     parser.add_argument("--cutoff", type=moment, required=True)
     cutoff = parser.parse_args(argv).cutoff
     s = settings()
-    background, unread = Fabric(s).background_version_ids(s.backfill_run_ids)
+    fabric = Fabric(s)
+    background, unread = fabric.background_version_ids(s.backfill_run_ids)
     with db.session() as session:
         found = groups.for_selection(
             session, s, is_demo=False, cutoff=cutoff, background=background, unread=unread
         )
+    groups.cover_leads(
+        found["selection"]["coverage"]["leads"], fabric, is_demo=False, mode=OPERATIONAL, cutoff=cutoff
+    )
     sys.stdout.write(json.dumps(found, ensure_ascii=False, sort_keys=True) + "\n")
 
 

@@ -594,6 +594,16 @@ def leads(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) 
     return found
 
 
+def cover_leads(found: dict, fabric, *, is_demo: bool, mode: str, cutoff: datetime) -> None:
+    """Add to each source of `leads` (the result of `leads`) what Fabric's reads of the cutoff day's windows
+    say of it (`Fabric.lead_coverage`): the receipts and the gaps. No receipt, or Fabric not answering, stays
+    receipts 0 or an error: unknown, not an empty window."""
+    for source, listing in found.items():
+        listing["coverage"] = fabric.lead_coverage(
+            source, *day_window(cutoff), is_demo=is_demo, mode=mode, cutoff=cutoff
+        )
+
+
 def for_topic(session, s: Settings, topic: db.Topic, *, cutoff: datetime, background) -> dict | None:
     """The display group of a topic as of the cutoff: the group of the topic's latest material that is not
     background, with the day's leads apart from it. None when the topic has none in the 30 days before the
@@ -609,6 +619,11 @@ def for_topic(session, s: Settings, topic: db.Topic, *, cutoff: datetime, backgr
 
 
 def for_selection(session, s: Settings, *, is_demo: bool, cutoff: datetime, background, unread=()) -> dict:
-    """`select_display` over the materials of the 30 days up to the cutoff, of every topic and of none."""
+    """`select_display` over the materials of the 30 days up to the cutoff, of every topic and of none. The
+    cutoff day's leads are registered in its coverage beside the other gaps (`cover_leads` adds Fabric's
+    windows); they change no outcome."""
     materials, truncated = load(session, s, is_demo=is_demo, cutoff=cutoff, background=background)
-    return select_display(materials, cutoff=cutoff, truncated=truncated, unread=unread)
+    found = select_display(materials, cutoff=cutoff, truncated=truncated, unread=unread)
+    day = leads(session, s, is_demo=is_demo, cutoff=cutoff, background=background)
+    found["selection"]["coverage"]["leads"] = day
+    return found

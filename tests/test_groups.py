@@ -396,7 +396,12 @@ def test_a_cut_read_and_an_unread_receipt_are_coverage_gaps_and_rows_after_t1_ar
         found = groups.for_selection(session, s, is_demo=True, cutoff=day(3), background=set(), unread=["r9"])
 
     json.dumps(found)  # it is written to a file
-    assert found["selection"]["coverage"] == {"materials": 1, "truncated": True, "backfill_unread": ["r9"]}
+    assert found["selection"]["coverage"] == {
+        "materials": 1,
+        "truncated": True,
+        "backfill_unread": ["r9"],
+        "leads": {},
+    }
     # v2 is the newest of what was visible (v3 is after the cutoff); the topic of its observation is listed
     assert [(m["version_id"], m["topic_ids"]) for g in found["groups"] for m in g["members"]] == [
         ("v2", [topic_id])

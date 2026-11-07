@@ -463,13 +463,8 @@ class Run:
             found = groups.for_topic(s, self.s, topic, cutoff=cutoff, background=background)
         if found is None:
             return None
-        for source, listing in found["leads"].items():
-            listing["coverage"] = self.fabric.lead_coverage(
-                source,
-                *groups.day_window(cutoff),
-                is_demo=self.input["is_demo"],
-                mode=self.replay_mode,
-                cutoff=cutoff,
-            )
+        groups.cover_leads(
+            found["leads"], self.fabric, is_demo=self.input["is_demo"], mode=self.replay_mode, cutoff=cutoff
+        )
         made = {"replay_mode": self.replay_mode, "run_kind": self.run_kind, "background_unread": unread}
         return {**found, **made}

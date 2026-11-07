@@ -4,7 +4,7 @@
 - Design: task book 05 sections 2.1, 2.2, 2.8 and phase 0 step 1; 01 section 2.3; 00 section 1.4
 - Code: `adapters/fabric.py` (`LEAD_SOURCES`, `Fabric.lead_coverage`), `research/triage.py` (`LEAD`, `route`,
   `settle_leads`), `research/monitor.py`, `research/groups.py` (`_counted`, `load`, `leads`, `day_window`),
-  `research/topics.py` (`activity`), `research/pipeline.py` (`Run.display_group`), `research/views.py`
+  `research/topics.py` (`activity`), `research/pipeline.py` (`Run.display_group`), `ops.py` (`select-display`), `research/views.py`
 - Tests: `tests/test_gdelt_leads.py`
 
 ## Decision
@@ -34,7 +34,9 @@ A record of a news index (`LEAD_SOURCES`: GDELT) is a lead, not a statement of i
   time) and keeps, beside the leads, the number of receipts and the gaps: a window still full at the finest size
   (`possibly_truncated`), one that `failed` or was `not_read`. No receipt, or Fabric not answering, is recorded as
   `receipts: 0` or `error`: unknown, never an empty window. The halving of windows and the truncation marks are
-  Fabric's (`collection/windows.py`, `biz_rules/gdelt_news.py`); the radar only reads them.
+  Fabric's (`collection/windows.py`, `biz_rules/gdelt_news.py`); the radar only reads them. The t1 selection
+  (`ops select-display`) registers the same in its `coverage.leads`, read in operational replay, the mode the
+  first judgment is submitted in; a gap there changes no outcome.
 
 ## Why
 
