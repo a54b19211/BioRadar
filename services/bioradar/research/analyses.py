@@ -226,7 +226,18 @@ def execute(analysis_id: str):
 
 
 UNKNOWN_OUTCOME = "recovered_unknown_outcome"
+FROM_UNKNOWN = (
+    "recovered_from_unknown"  # the lease ran out, RQ still listed the job as started, its worker was gone
+)
+WORKER_ALIVE = (
+    "stale_lease_running_worker"  # the lease ran out, but the started job's worker beats: left alone
+)
 MAX_UNKNOWN_RECOVERIES = 3  # a run that keeps dying with material possibly out is stopped for review
+
+
+def worker_gone(analysis_id: str) -> bool | None:
+    """jobs.started_worker_dead for this analysis's job (a seam the tests replace)."""
+    return jobs.started_worker_dead(job_id(analysis_id), settings())
 
 
 def _unknown_outcomes(session, row) -> int:
@@ -243,29 +254,54 @@ def _unknown_outcomes(session, row) -> int:
     )
 
 
-def _requeue(session, row) -> bool:
+def _note(row, code: str, detail: str):
+    """Add a note to the run's progress (the run reads it back when it resumes)."""
+    progress = dict(row.progress or {})
+    progress["notes"] = [*(progress.get("notes") or []), {"code": code, "detail": detail, "stage": row.stage}]
+    row.progress = progress
+
+
+def _requeue(session, row, reason: str | None = None) -> bool:
     """Hand a crashed analysis on to a new worker, or - when its outcome was unknown too often - stop it for
     review. The reason is written to the run's notes either way; returns whether it was sent again."""
+    if reason:
+        _note(row, reason, "the lease ran out and RQ listed the job as started, but its worker is gone")
     unknown = _unknown_outcomes(session, row)
     if not unknown:
         lease.release(row)
         row.state = "queued"
         return True
-    progress = dict(row.progress or {})
-    notes = list(progress.get("notes") or [])
-    spent = sum(1 for n in notes if n.get("code") == UNKNOWN_OUTCOME)
+    spent = sum(1 for n in (row.progress or {}).get("notes") or [] if n.get("code") == UNKNOWN_OUTCOME)
     stop = spent + 1 >= MAX_UNKNOWN_RECOVERIES
     detail = f"{unknown} outbound records not settled, the material may have gone out"
-    notes.append(
-        {"code": UNKNOWN_OUTCOME, "detail": detail + (" (stopped)" if stop else ""), "stage": row.stage}
-    )
-    row.progress = {**progress, "notes": notes}
+    _note(row, UNKNOWN_OUTCOME, detail + (" (stopped)" if stop else ""))
     lease.release(row)
     if stop:
         row.state, row.error_code, row.completed_at = "failed", "recovery_unknown_outcome", db.now()
         return False
     row.state = "queued"
     return True
+
+
+def _judge(row) -> str | None:
+    """What recover does with a candidate row: "requeue", "requeue_unknown" (RQ says started, its worker is
+    gone), "worker_alive" (started and its worker still beats: left alone, noted), or None (leave it). When
+    Redis cannot be asked the row is left: unknown is not dead.
+    - a queued row with no lease: lost when its job is not in Redis;
+    - a row whose lease ran out: lost when its job is not in Redis; when RQ still lists the job, only a job
+      that is started tells more - with a worker gone it is dead, with a worker beating it is alive, and a
+      job that is merely waiting will claim the row itself."""
+    try:
+        if not waiting_in_queue(row.id):
+            return "requeue"
+        if row.lease_until is None:
+            return None
+        gone = worker_gone(row.id)
+    except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
+        return None
+    if gone is None:
+        return None
+    return "requeue_unknown" if gone else "worker_alive"
 
 
 RECOVER_SCAN = 100  # rows looked at per round; the next round goes on from where this one stopped
@@ -277,7 +313,8 @@ def recover(limit=4) -> int:
     A queued row whose job is still waiting in Redis is only behind others: re-queuing it every round
     piled up copies of the same job (24 on the live queue, 2026-11-03). Rows are looked at a bounded
     page at a time, moving on each round, so healthy waiting rows at the front cannot hide a lost one
-    behind them; when Redis cannot be asked, a row is left alone (unknown is not lost).
+    behind them. A row whose lease ran out is not taken for dead because the lease ran out: Redis is asked
+    (_judge), and when it cannot be asked the row is left alone.
 
     The rows are locked (FOR UPDATE SKIP LOCKED) from the look to the commit, and the job is sent before
     the commit: a second recover at the same moment skips the rows the first one holds, and one that comes
@@ -303,16 +340,18 @@ def recover(limit=4) -> int:
         for row in rows:
             if lost >= limit:
                 break
-            if row.lease_until is None:  # a queued row: lost only when its job is not in Redis
-                try:
-                    if waiting_in_queue(row.id):
-                        continue
-                except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
-                    continue
-            # else: the worker died while running it
-            if _requeue(session, row):
-                dispatch(row.id)
-            lost += 1
+            verdict = _judge(row)
+            if verdict == "worker_alive":
+                last = ((row.progress or {}).get("notes") or [{}])[-1]
+                if last.get("code") != WORKER_ALIVE:  # once, not every round
+                    _note(
+                        row, WORKER_ALIVE, "the lease ran out but the worker of the started job still beats"
+                    )
+                    log.warning("analysis %s: lease ran out, its worker still beats; left to run", row.id)
+            elif verdict in ("requeue", "requeue_unknown"):
+                if _requeue(session, row, FROM_UNKNOWN if verdict == "requeue_unknown" else None):
+                    dispatch(row.id)
+                lost += 1
     return lost
 
 

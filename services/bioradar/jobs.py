@@ -11,10 +11,11 @@ environment) puts on a queue its worker reads. Three guards, each enough on its 
   fails with ForeignJob and shows up in the failed registry."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 from redis import Redis
 from rq import Queue, Worker
-from rq.job import Job
+from rq.job import Job, NoSuchJobError
 from rq.serializers import JSONSerializer
 
 from bioradar.config import Settings
@@ -74,3 +75,27 @@ def worker(settings: Settings) -> Worker:
         job_class=RadarJob,
         serializer=JSONSerializer,
     )
+
+
+def started_worker_dead(job_id: str, settings: Settings, now: datetime | None = None) -> bool | None:
+    """Whether the worker of a job RQ lists as started is gone. None: the job is not started (waiting, or not
+    in Redis at all). False: its worker's heartbeat is fresh. True: the worker's key has expired or its
+    heartbeat is older than the worker's TTL. The started registry alone is not proof that a process is
+    alive. Raises when Redis cannot be asked."""
+    redis = connection(settings)
+    try:
+        job = RadarJob.fetch(job_id, connection=redis, serializer=JSONSerializer)
+    except NoSuchJobError:
+        return None
+    if job.get_status(refresh=False) != "started":
+        return None
+    if not job.worker_name:
+        return True
+    found = Worker.find_by_key(
+        Worker.redis_worker_namespace_prefix + job.worker_name, connection=redis, serializer=JSONSerializer
+    )
+    if found is None or found.last_heartbeat is None:
+        return True
+    beat = found.last_heartbeat
+    beat = beat.replace(tzinfo=UTC) if beat.tzinfo is None else beat
+    return (now or datetime.now(UTC)) - beat > timedelta(seconds=found.worker_ttl)

@@ -395,6 +395,7 @@ def queue(monkeypatch):
     sent = []
     monkeypatch.setattr(analyses, "dispatch", sent.append)
     monkeypatch.setattr(analyses, "waiting_in_queue", lambda analysis_id: analysis_id in sent)
+    monkeypatch.setattr(analyses, "worker_gone", lambda analysis_id: None)
     return sent
 
 
@@ -612,7 +613,8 @@ def test_a_run_that_keeps_dying_with_an_unsettled_send_is_stopped_for_review_not
     prepared_send(unsure)
     for _ in range(analyses.MAX_UNKNOWN_RECOVERIES - 1):
         assert analyses.recover() == 1
-        with db.session() as s:  # the resumed worker died again
+        queue.clear()  # the resumed worker died again: its job is gone
+        with db.session() as s:
             s.execute(
                 update(db.Analysis).values(state="running", lease_until=utc_now() - timedelta(minutes=5))
             )
@@ -807,3 +809,75 @@ def test_a_call_nobody_sent_is_not_recorded_by_a_superseded_run():
             [{"stage": "plan", "usage": {"total_tokens": 9}, "requests": 1}]
         )  # fabricated: no send registered
     assert rows_of(db.LlmCall, analysis_id) == []
+
+
+# ---- recover asks RQ about a row whose lease ran out ------------------------------------------------------
+
+
+@pytest.fixture
+def rq(monkeypatch):
+    """What RQ says about a job: present (waiting or started) or not, and for a started one whether its
+    worker is gone. `asked` records every lookup."""
+    state = SimpleNamespace(present=True, gone=None, asked=[], sent=[], unreachable=False)
+
+    def present(analysis_id):
+        state.asked.append(analysis_id)
+        if state.unreachable:
+            raise ConnectionError("redis is down")
+        return state.present
+
+    def gone(analysis_id):
+        if state.unreachable:
+            raise ConnectionError("redis is down")
+        return state.gone
+
+    monkeypatch.setattr(analyses, "waiting_in_queue", present)
+    monkeypatch.setattr(analyses, "worker_gone", gone)
+    monkeypatch.setattr(analyses, "dispatch", state.sent.append)
+    return state
+
+
+def expired_running():
+    return add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+
+
+def test_an_expired_running_row_is_looked_up_in_rq_and_requeued_only_when_its_job_is_not_there(rq):
+    rq.present = False
+    row = expired_running()
+    assert analyses.recover() == 1 and rq.asked == [row] and rq.sent == [row]
+    assert notes_of(row) == []  # plainly lost
+
+
+def test_a_row_whose_job_is_started_with_its_worker_gone_is_recovered_and_the_reason_recorded(rq):
+    rq.present, rq.gone = True, True
+    row = expired_running()
+    assert analyses.recover() == 1 and rq.sent == [row]
+    assert notes_of(row) == [analyses.FROM_UNKNOWN]
+    assert analysis_of(row).state == "queued"
+
+
+def test_a_row_whose_job_is_started_with_its_worker_beating_is_left_alone_and_noted_once(rq):
+    rq.present, rq.gone = True, False
+    row = expired_running()
+    assert analyses.recover() == 0 and analyses.recover() == 0
+    assert rq.sent == [] and analysis_of(row).state == "running"
+    assert notes_of(row) == [analyses.WORKER_ALIVE]  # not every round
+
+
+def test_a_row_whose_job_is_only_waiting_is_left_alone_without_a_note(rq):
+    rq.present, rq.gone = True, None
+    row = expired_running()
+    assert analyses.recover() == 0 and rq.sent == [] and notes_of(row) == []
+
+
+def test_when_redis_cannot_be_asked_an_expired_row_is_not_taken_for_dead(rq):
+    rq.unreachable = True
+    row = expired_running()
+    assert analyses.recover() == 0 and rq.sent == []
+    assert analysis_of(row).state == "running" and notes_of(row) == []
+    rq.unreachable, rq.present, rq.gone = (
+        False,
+        True,
+        True,
+    )  # Redis is back, the job is started, its worker gone
+    assert analyses.recover() == 1 and rq.sent == [row]
