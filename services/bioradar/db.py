@@ -17,10 +17,11 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    event,
     select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from bioradar import guard
 from bioradar.config import settings
@@ -876,6 +877,41 @@ class Review(Base):
     alert: Mapped[str | None] = mapped_column(String(20))
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# The radar's own measurement chain from before Fabric took it over (docs/decisions/0010): kept as it is, read
+# only. PostgreSQL refuses any write to these tables (migration 0023); a session refuses one before it is
+# sent.
+FROZEN_HISTORY = frozenset(
+    {
+        "measurements",
+        "measurement_candidates",
+        "measurement_check_tasks",
+        "measurement_checks",
+        "record_reads",
+        "record_read_windows",
+        "record_read_attempts",
+        "record_corrections",
+    }
+)
+
+
+class FrozenHistory(RuntimeError):
+    """A write to one of the frozen measurement tables."""
+
+
+@event.listens_for(Session, "before_flush")
+def _no_frozen_rows(session, _context, _instances):
+    for obj in (*session.new, *session.dirty, *session.deleted):
+        if obj.__table__.name in FROZEN_HISTORY:
+            raise FrozenHistory(f"{obj.__table__.name} is frozen read-only history")
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _no_frozen_statements(state):
+    table = getattr(state.statement, "table", None) if not state.is_select else None
+    if getattr(table, "name", None) in FROZEN_HISTORY:
+        raise FrozenHistory(f"{table.name} is frozen read-only history")
 
 
 @lru_cache

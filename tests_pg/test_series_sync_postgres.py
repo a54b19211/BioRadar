@@ -9,7 +9,8 @@ from datetime import UTC, datetime
 
 import pytest
 from fabric_measurements import Measured, version_id
-from sqlalchemy import func, select, text
+from pg_tables import truncate
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
@@ -36,7 +37,7 @@ class Fabric:
 @pytest.fixture(autouse=True)
 def empty_series_tables(verified_database):
     with db.engine().begin() as connection:
-        connection.execute(text(f"TRUNCATE {TABLES} RESTART IDENTITY CASCADE"))
+        truncate(connection, TABLES)
     yield
 
 
@@ -108,7 +109,7 @@ def test_both_arrival_orders_end_with_the_same_links_once_and_a_replay_adds_noth
     one = links()
     assert len(one) == 3
     with db.engine().begin() as connection:
-        connection.execute(text(f"TRUNCATE {TABLES} RESTART IDENTITY CASCADE"))
+        truncate(connection, TABLES)
     measurement_first = Fabric()
     marburg(measurement_first)
     sync(measurement_first)  # the objects before the topic: in the inbox, linked to nothing

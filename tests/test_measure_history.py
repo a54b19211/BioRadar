@@ -5,7 +5,8 @@ as recorded - never as current, never computed from - and reading it writes noth
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from sqlalchemy import func, insert, select
+import pytest
+from sqlalchemy import func, insert, select, update
 
 from bioradar import app, db
 from bioradar.research import measure_history, scheduling
@@ -208,3 +209,19 @@ def test_a_recorded_reading_plan_is_still_shown():
         1500,
         {"budget_spent": 1200},
     )
+
+
+def test_a_session_refuses_every_write_to_the_frozen_tables():
+    history_rows()
+    before = counts()
+    with pytest.raises(db.FrozenHistory), db.session() as s:  # a changed row, at the flush
+        s.get(db.Measurement, 1).value_text = "11"
+    with pytest.raises(db.FrozenHistory), db.session() as s:  # a deleted one
+        s.delete(s.get(db.RecordCorrection, 1))
+    with pytest.raises(db.FrozenHistory), db.session() as s:  # a new one
+        s.add(db.RecordRead(workspace_id="default", is_demo=True, source="s", record_id="r", version_id=V1))
+    with pytest.raises(db.FrozenHistory), db.session() as s:  # a bulk statement
+        s.execute(update(db.MeasurementCheck).values(status="inconsistent"))
+    assert counts() == before
+    with db.session() as s:
+        assert s.get(db.Measurement, 1).value_text == "10"
