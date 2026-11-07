@@ -547,3 +547,58 @@ def test_a_run_that_holds_its_token_writes_and_a_successor_waits_for_the_write()
             with pytest.raises(Exception, match="lock timeout|canceling statement"):
                 other.execute(text("SELECT 1 FROM analyses WHERE id = :i FOR UPDATE"), {"i": analysis_id})
     assert len(rows_of(db.LlmCall, analysis_id)) == 1
+
+
+# ---- recover when the outcome of a send is unknown --------------------------------------------------------
+
+
+def prepared_send(analysis_id):
+    with db.session() as s:
+        s.add(
+            db.MaterialRead(
+                analysis_id=analysis_id,
+                stage="read",
+                service="radar",
+                ref="E1",
+                status="prepared",
+                source="s",
+                record_id="r",
+                version_id="v",
+                sha256="0" * 64,
+                chars=1,
+                binding={},
+            )
+        )
+
+
+def notes_of(analysis_id):
+    return [n["code"] for n in (analysis_of(analysis_id).progress or {}).get("notes") or []]
+
+
+def test_a_crash_with_an_unsettled_send_is_requeued_with_the_reason_recorded(queue):
+    clean = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    unsure = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    prepared_send(unsure)
+    assert analyses.recover() == 2 and sorted(queue) == sorted([clean, unsure])
+    assert notes_of(clean) == [] and notes_of(unsure) == [analyses.UNKNOWN_OUTCOME]
+    with db.session() as s:  # the record of the possible send is kept, not erased or settled by a guess
+        assert (
+            s.scalar(select(db.MaterialRead.status).where(db.MaterialRead.analysis_id == unsure))
+            == "prepared"
+        )
+
+
+def test_a_run_that_keeps_dying_with_an_unsettled_send_is_stopped_for_review_not_sent_again(queue):
+    unsure = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    prepared_send(unsure)
+    for _ in range(analyses.MAX_UNKNOWN_RECOVERIES - 1):
+        assert analyses.recover() == 1
+        with db.session() as s:  # the resumed worker died again
+            s.execute(
+                update(db.Analysis).values(state="running", lease_until=utc_now() - timedelta(minutes=5))
+            )
+    queue.clear()
+    assert analyses.recover() == 1 and queue == []  # counted as handled, but no job was sent
+    row = analysis_of(unsure)
+    assert (row.state, row.error_code, row.lease_until) == ("failed", "recovery_unknown_outcome", None)
+    assert notes_of(unsure) == [analyses.UNKNOWN_OUTCOME] * analyses.MAX_UNKNOWN_RECOVERIES

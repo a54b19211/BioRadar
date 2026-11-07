@@ -213,6 +213,49 @@ def execute(analysis_id: str):
             row.result = {**result, "source_updates": marks} if marks else result
 
 
+UNKNOWN_OUTCOME = "recovered_unknown_outcome"
+MAX_UNKNOWN_RECOVERIES = 3  # a run that keeps dying with material possibly out is stopped for review
+
+
+def _unknown_outcomes(session, row) -> int:
+    """Outbound records of this analysis left `prepared`: the worker died around a send, so whether the
+    material went out is not known (db.MaterialRead). Nothing is guessed: the records stay as they are and
+    the resumed run sends again under a new attempt."""
+    return (
+        session.scalar(
+            select(func.count()).where(
+                db.MaterialRead.analysis_id == row.id, db.MaterialRead.status == "prepared"
+            )
+        )
+        or 0
+    )
+
+
+def _requeue(session, row) -> bool:
+    """Hand a crashed analysis on to a new worker, or - when its outcome was unknown too often - stop it for
+    review. The reason is written to the run's notes either way; returns whether it was sent again."""
+    unknown = _unknown_outcomes(session, row)
+    if not unknown:
+        lease.release(row)
+        row.state = "queued"
+        return True
+    progress = dict(row.progress or {})
+    notes = list(progress.get("notes") or [])
+    spent = sum(1 for n in notes if n.get("code") == UNKNOWN_OUTCOME)
+    stop = spent + 1 >= MAX_UNKNOWN_RECOVERIES
+    detail = f"{unknown} outbound records not settled, the material may have gone out"
+    notes.append(
+        {"code": UNKNOWN_OUTCOME, "detail": detail + (" (stopped)" if stop else ""), "stage": row.stage}
+    )
+    row.progress = {**progress, "notes": notes}
+    lease.release(row)
+    if stop:
+        row.state, row.error_code, row.completed_at = "failed", "recovery_unknown_outcome", db.now()
+        return False
+    row.state = "queued"
+    return True
+
+
 RECOVER_SCAN = 100  # rows looked at per round; the next round goes on from where this one stopped
 _scan = {"offset": 0}
 
@@ -255,9 +298,8 @@ def recover(limit=4) -> int:
                 except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
                     continue
             # else: the worker died while running it
-            lease.release(row)
-            row.state = "queued"
-            dispatch(row.id)
+            if _requeue(session, row):
+                dispatch(row.id)
             lost += 1
     return lost
 

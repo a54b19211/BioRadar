@@ -25,6 +25,11 @@ answer different questions, so the wording was wrong, not the design.
   the worker's; every outbound request (model, BioCheck, MechEvidence) is preceded by the same check. A
   superseded worker gets `lease.Lost`, writes and sends nothing and logs the rejection. A worker that ran past
   its lease but was not replaced is not superseded: it may still finish.
+- **Recover does not guess about a send.** An outbound record left `prepared` (db.MaterialRead) means the worker
+  died around a send and the material may have gone out. Recover keeps the record as it is, writes
+  `recovered_unknown_outcome` to the analysis's notes (count and stage) and sends the job again - the resumed
+  run records its send as a new attempt. After `MAX_UNKNOWN_RECOVERIES` such crashes the analysis is not sent
+  again: it ends `failed` / `recovery_unknown_outcome` for review.
 - Who uses what:
   - analyses: RQ delivers; `analyses.execute` takes the row lock and returns when a lease is live or the
     analysis is finished; `analyses.recover` (monitor loop) re-queues rows whose lease expired or whose job
