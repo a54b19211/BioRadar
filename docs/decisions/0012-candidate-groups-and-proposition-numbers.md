@@ -44,7 +44,13 @@ looking at what came later (task book 00 1.4): the deduplicated groups among the
 a group with none is 0 and still takes part), the earliest first seen of the visible materials (earlier first),
 the group id (smaller first). A group none of whose visible materials counts (members all background, no live
 candidate) is listed without a rank; with no ranked group the outcome is `unverified`. A read that was cut
-(`MAX_MATERIALS`) and a backfill receipt that could not be read are listed as coverage gaps, never as no material.
+(`MAX_MATERIALS`) is listed as a coverage gap, never as no material. A backfill receipt that could not be read is
+listed too and makes the outcome `unverified` (`reason: backfill_unread`, nothing chosen, the ranking kept as a
+diagnosis): the versions of that run would be counted as news. `chosen_topics` lists the topics whose latest
+visible non-background material is in the chosen group - the topics whose display group it is - and each member
+row of the export lists its `topic_ids`, both from the same visible materials; the first judgment is submitted
+under such a topic with cutoff t1 and replay mode `operational_replay`. The group a topic's analysis stores
+(`view`) has no `topic_ids`.
 The output is the selection list (ranking, outcome, coverage) and every group with its members and candidates;
 keeping it with a hash is the D1 script's job (devtools `env/d1/select_t1.sh`).
 

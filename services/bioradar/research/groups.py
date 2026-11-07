@@ -65,6 +65,7 @@ class Material:
     event_id: str = ""
     relations: tuple[tuple[str, str, str], ...] = ()  # (kind, target source, target record id)
     mentions: tuple[tuple[str, str], ...] = ()  # (source, record id) the text names outright
+    topics: tuple[str, ...] = ()  # the topics that hold this version
 
 
 @dataclass(frozen=True)
@@ -376,6 +377,25 @@ def _standing(group: Group, candidate_times: list[datetime]) -> tuple | None:
     return None if first is None else (-_confirmed_groups(group), first, group.id)
 
 
+def _chosen_topics(visible: list[Material], group_of: dict[str, Group], chosen: str | None) -> list[str]:
+    """The topics whose display group (`view`) is the chosen group: the latest visible material of the topic
+    that is not background is a member of it. From the materials the selection was made of, no other read."""
+    latest = defaultdict(list)
+    for m in visible:
+        if not m.background:
+            for topic in m.topics:
+                latest[topic].append(m)
+    anchors = {t: max(ms, key=lambda m: (m.available_at, m.version_id)) for t, ms in latest.items()}
+    return sorted(t for t, m in anchors.items() if group_of[m.version_id].id == chosen)
+
+
+def _with_topics(exported: dict, by_id: dict[str, Material]) -> dict:
+    """An exported group whose member rows also name the topics of the material. Only the selection lists
+    them; the group `view` stores in an analysis keeps its shape."""
+    members = [{**row, "topic_ids": sorted(by_id[row["version_id"]].topics)} for row in exported["members"]]
+    return {**exported, "members": members}
+
+
 def select_display(materials, *, cutoff: datetime, truncated: bool = False, unread=()) -> dict:
     """The group the first judgment (t1, task book 00 1.4) is about, chosen among every group visible at the
     cutoff - not the group of any one topic's latest material, as `view` shows. What is seen after the cutoff
@@ -383,9 +403,12 @@ def select_display(materials, *, cutoff: datetime, truncated: bool = False, unre
     (no WHO record, no second version). A group with no qualifying material is listed without a rank, and
     when none has one the outcome is "unverified": nothing is made up.
 
-    `truncated` (the read left the oldest materials out) and `unread` (backfill receipts that could not be
-    read, whose versions then count like any other) are coverage gaps: they are listed, never taken as an
-    empty result. Returns {"selection": the list - ranking, outcome, coverage; "groups": every group with its
+    `truncated` (the read left the oldest materials out) is a coverage gap: listed, never taken as an empty
+    result. So is `unread` (backfill receipts that could not be read): the versions of those runs are then not
+    known to be background and would be counted, so with any the outcome is "unverified" and nothing is
+    chosen; the ranking stays as a diagnosis. `chosen_topics` are the topics whose latest visible material
+    that is not background is in the chosen group; each member row of "groups" names its topics.
+    Returns {"selection": the list - ranking, outcome, reason, coverage; "groups": every group with its
     members and candidates}."""
     visible = _visible(materials, cutoff)
     seen = _grouped(visible)
@@ -393,16 +416,21 @@ def select_display(materials, *, cutoff: datetime, truncated: bool = False, unre
     chosen_first = sorted((gid for gid, key in standing.items() if key is not None), key=standing.__getitem__)
     rank = {gid: n for n, gid in enumerate(chosen_first, 1)}
     listed = sorted(seen.groups, key=lambda g: (g.id not in rank, rank.get(g.id, 0), g.id))
+    # why nothing is chosen, if nothing is: the ranking is not to be chosen by (a coverage gap), or empty
+    reason = "backfill_unread" if unread else ("no_ranked_group" if not chosen_first else None)
+    chosen = None if reason else chosen_first[0]
     return {
         "selection": {
             "cutoff": cutoff.isoformat(),
             "keys": list(SELECTION_KEYS),
-            "outcome": "selected" if chosen_first else "unverified",
-            "chosen": chosen_first[0] if chosen_first else None,
+            "outcome": "unverified" if reason else "selected",
+            "reason": reason,
+            "chosen": chosen,
+            "chosen_topics": _chosen_topics(visible, seen.group_of, chosen),
             "coverage": {"materials": len(visible), "truncated": truncated, "backfill_unread": list(unread)},
             "ranking": [{**_summary(g, seen.candidate_times(g.id)), "rank": rank.get(g.id)} for g in listed],
         },
-        "groups": [_export(g, seen) for g in listed],
+        "groups": [_with_topics(_export(g, seen), seen.by_id) for g in listed],
     }
 
 
@@ -508,6 +536,7 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
                 region=region,
                 quote=quote,
                 relations=tuple(sorted(stated)),
+                topics=(o.topic_id,) if o.topic_id else (),
             )
         )
     return materials, truncated

@@ -387,8 +387,9 @@ def test_a_group_without_a_confirmed_member_takes_part_and_without_any_material_
 def test_a_cut_read_and_an_unread_receipt_are_coverage_gaps_and_rows_after_t1_are_not_read(monkeypatch):
     s = settings()
     with db.session() as session:
-        rows = [("v1", "D1", day(1)), ("v2", "D2", day(2)), ("v3", "D3", day(9))]
-        session.add_all([observation(version, record, at, None) for version, record, at in rows])
+        topic_id = topic_row(session).id
+        rows = [("v1", "D1", day(1), None), ("v2", "D2", day(2), topic_id), ("v3", "D3", day(9), None)]
+        session.add_all([observation(*row) for row in rows])
         session.flush()
         monkeypatch.setattr(groups, "MAX_MATERIALS", 1)
 
@@ -396,4 +397,57 @@ def test_a_cut_read_and_an_unread_receipt_are_coverage_gaps_and_rows_after_t1_ar
 
     json.dumps(found)  # it is written to a file
     assert found["selection"]["coverage"] == {"materials": 1, "truncated": True, "backfill_unread": ["r9"]}
-    assert chosen_members(found) == ["v2"]  # the newest of what was visible; v3 is after the cutoff
+    # v2 is the newest of what was visible (v3 is after the cutoff); the topic of its observation is listed
+    assert [(m["version_id"], m["topic_ids"]) for g in found["groups"] for m in g["members"]] == [
+        ("v2", [topic_id])
+    ]
+
+
+def test_the_selection_names_the_topics_of_each_member_and_the_topics_whose_latest_material_it_holds():
+    # group A is one record in three versions, the last one background; b is another group
+    a1 = mat("a1", day(0), record="a", topics=("T1", "T5"))
+    a2 = mat("a2", day(1), record="a", topics=("T1", "T2"))
+    a3 = mat("a3", day(2), record="a", background=True, topics=("T4",))
+    b = mat("b", day(2), topics=("T3", "T5"))
+    late = mat("late", day(5), topics=("T2",))  # seen after t1
+
+    found = groups.select_display([a1, a2, a3, b, late], cutoff=day(4))
+
+    selection = found["selection"]
+    assert selection["chosen"] == gid(a1)  # one origin each: the earlier first seen
+    # T3 and T5 end in b; T4 has no live material; T1 and T2 end in a2
+    assert selection["chosen_topics"] == ["T1", "T2"]
+    [chosen] = [g for g in found["groups"] if g["id"] == selection["chosen"]]
+    assert {m["version_id"]: m["topic_ids"] for m in chosen["members"]} == {
+        "a1": ["T1", "T5"],
+        "a2": ["T1", "T2"],
+        "a3": ["T4"],
+    }
+    # the same materials are the whole basis: once `late` is visible, T2 no longer ends in group A
+    assert groups.select_display([a1, a2, a3, b, late], cutoff=day(6))["selection"]["chosen_topics"] == ["T1"]
+    # the group a topic's analysis stores keeps its shape
+    assert all(
+        "topic_ids" not in m for m in groups.view([a1, a2], cutoff=day(4), anchors={"a2"})["group"]["members"]
+    )
+
+
+def test_an_unread_backfill_receipt_makes_the_selection_unverified_and_keeps_the_ranking():
+    first, second = mat("f", day(0), topics=("T1",)), mat("s", day(1))
+
+    sure = groups.select_display([first, second], cutoff=day(2))["selection"]
+    unsure = groups.select_display([first, second], cutoff=day(2), unread=["r9"])["selection"]
+
+    assert (sure["outcome"], sure["reason"], sure["chosen"], sure["chosen_topics"]) == (
+        "selected",
+        None,
+        gid(first),
+        ["T1"],
+    )
+    assert (unsure["outcome"], unsure["reason"], unsure["chosen"], unsure["chosen_topics"]) == (
+        "unverified",
+        "backfill_unread",
+        None,
+        [],
+    )
+    assert unsure["ranking"] == sure["ranking"]  # the diagnosis stays
+    assert unsure["coverage"]["backfill_unread"] == ["r9"]
