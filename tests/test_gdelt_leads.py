@@ -65,7 +65,9 @@ def test_a_lead_is_listed_apart_and_no_group_count_start_or_first_seen_takes_it_
         session.add(db.Cursor(source="gdelt_doc", is_demo=True, after_seq=7))
         session.flush()
         found = groups.for_topic(session, s, topic, cutoff=CUTOFF, background={"L2"})
+        ranked = groups.for_selection(session, s, is_demo=True, cutoff=CUTOFF, background={"L2"})["selection"]
 
+    assert [g["id"] for g in ranked["ranking"]] == [found["display"]]  # no lead is a group to choose
     assert before["leads"] == {}
     assert found["leads"] == {
         "gdelt_doc": {
