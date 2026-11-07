@@ -1,7 +1,7 @@
 # 0010 Measurements are Fabric's: the radar consumes its objects and keeps only the topic's selection
 
 - Status: accepted (2026-11-07). Radar side of Fabric's `docs/decisions/0006-measurements.md`; design
-  `.rebuild-work/design/r2-measurement-migration.md` §4 and its revision `-r2.md` §2, §5.
+  `devtools/design/r2-measurement-migration.md` §4 and its revision `-r2.md` §2, §5.
 - Supersedes for new data: 0002 (the radar's producer and checker versions) and the extraction part of 0003.
 
 ## Decision

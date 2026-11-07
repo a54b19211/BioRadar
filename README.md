@@ -107,7 +107,7 @@ cd ../MechEvidence  && uvicorn mechevidence.service:app --port 18563
 
 - 监测：每 30 秒读一次 Fabric 变更流。一个来源第一次被监测时从它**当前的末尾**开始（`legacy_documents` 有 62 万条历史记录，不能全部分诊）；历史材料用回放分析。自动分析每小时最多 6 次（`BIORADAR_AUTO_ANALYSES_PER_HOUR`）。
 - 改代码后：`git pull`，`uv sync --frozen`，有新迁移时 `alembic -c db/alembic.ini upgrade head`，再 `systemctl --user restart bioradar-api bioradar-worker bioradar-monitor`。
-- WeKnora（李明洋）：雷达只通过 weknora-kdd 桥检索，`bioradar-weknora-kdd` 单元监听 127.0.0.1:18564（端口在 `~/.config/systemd/user/bioradar-weknora-kdd.service.d/port.conf`，代码是 WeKnora 的 `extensions/kdd`，检出是 WeKnora 仓库的 worktree `~/zk_projects/.rebuild-work/wt/kdd-bridge`，即单元的 WorkingDirectory）。`radar.env` 填 `BIORADAR_WEKNORA_URL=http://127.0.0.1:18564`、`BIORADAR_WEKNORA_TOKEN`（桥 `runtime.json` 的 token）、`BIORADAR_WEKNORA_KNOWLEDGE_BASE_ID` 和 `BIORADAR_WEKNORA_SOURCE_INSTANCE=datafabric.zktest.kdd`（只要现役 Fabric 发布的条目）。现役 2026-11-03 起已开启。桥按来源范围检索（管线题查 pipeline+research，公卫题查 public_health+research），命中只是指针，原文回 Fabric 读；历史回放不走桥，因为桥只有今天的索引。
+- WeKnora（李明洋）：雷达只通过 weknora-kdd 桥检索，`bioradar-weknora-kdd` 单元监听 127.0.0.1:18564（端口在 `~/.config/systemd/user/bioradar-weknora-kdd.service.d/port.conf`，代码是 WeKnora 的 `extensions/kdd`，检出是 WeKnora 仓库的 worktree `~/zk_projects/WeKnora-kdd-bridge`，即单元的 WorkingDirectory）。`radar.env` 填 `BIORADAR_WEKNORA_URL=http://127.0.0.1:18564`、`BIORADAR_WEKNORA_TOKEN`（桥 `runtime.json` 的 token）、`BIORADAR_WEKNORA_KNOWLEDGE_BASE_ID` 和 `BIORADAR_WEKNORA_SOURCE_INSTANCE=datafabric.zktest.kdd`（只要现役 Fabric 发布的条目）。现役 2026-11-03 起已开启。桥按来源范围检索（管线题查 pipeline+research，公卫题查 public_health+research），命中只是指针，原文回 Fabric 读；历史回放不走桥，因为桥只有今天的索引。
 - Fabric 采集（徐子雯）：公开源由 Fabric publisher 按 `~/.config/datafabric-publication/runtime.env` 的 `DATAFABRIC_HISTORY_WATCHES` 定时刷新（最多 8 个）。现在是 WHO、Europe PMC 六组（BCMA、III 期随机、暴发标题、GLP-1 类、ADC/CAR-T/双抗、监管审批）和 ClinicalTrials III 期，查看状态用 `/api/history/source-health?source_id=…`。
 
 - 图谱（唐蔚雯）：`BIORADAR_GRAPH_LOOKUP=true` 时规划按题面对象查 reviewed_graph（每次最多 3 个对象、每个对象只看检索到的前 5 个图包，不是查全），图包指向的原文进阅读候选，实体身份状态（多为 unresolved）原样保留。现役默认关闭：当前图包里只有实体和 document_refs，没有已审核的关系边，开了只是多一条找原文的路，不提供关系判断。开启前确认 Fabric 里有 reviewed_graph 来源且雷达有读权限。
@@ -233,5 +233,5 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **A 漏读删帖信号 SIM-A-43**：截图访问记录没有被任何检索词命中。下一步：监测分诊里出现 `information_events`（删帖、辟谣）的记录直接作为专题分析的种子。
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
-- **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（`live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
+- **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（detached，标签 `archive/live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
 - **整洁度还剩的**：雷达模型调用的 HTTP 一侧已走共享的 `llm_transport`（与 BioCheck、MechEvidence 相同），测量链路已归 Fabric（0010），来源目录的副本已删（0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。

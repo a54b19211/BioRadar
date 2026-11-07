@@ -3,7 +3,7 @@
 - Status: accepted (2026-11-06); since 0010 the gate reads Fabric's measurement objects (family, dims and their
   per-dimension check) instead of the radar's own BioCheck requests and answers - the rules are unchanged.
 - Code: `services/bioradar/research/domain.py`, `series_sync._join`, `db.SeriesPoint.dims*`
-- Design: `design/T-24-完整域-r2.md` (server, `.rebuild-work/design/`)
+- Design: `design/T-24-完整域-r2.md` (server, `devtools/design/`)
 
 ## Context
 
