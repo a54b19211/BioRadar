@@ -390,7 +390,7 @@ def test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so
         row = analyses.create(
             question=f"XQ-17 的PFS？{token}", direction="pipeline", sources=["clinicaltrials"], enqueue=False
         )
-        result = Run(row, s, fabric=FakeFabric([])).run()
+        result = Run(row, s, fabric=FakeFabric([], readable={"clinicaltrials"})).run()
         assert ("fetch" in kinds) is fetch
         notes = [n["code"] for n in result["notes"]]
         assert notes.count("fetch_not_configured") == (0 if fetch else 1)

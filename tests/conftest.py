@@ -88,9 +88,13 @@ class FakeFabric:
 
     PROCESSOR = "test.clean.v11"
 
-    def __init__(self, records, clean=False):
+    def __init__(self, records, clean=False, readable=()):
+        """readable: further source ids Fabric lets the radar read, besides the sources of the records."""
         from bioradar.adapters.fabric import document, part
         from bioradar.material import Material
+
+        self.extra_readable = set(readable)
+        self.caps = None
 
         self.docs = [document(r) for r in records]
         self.calls = []
@@ -153,7 +157,16 @@ class FakeFabric:
 
     def sources(self):
         """Fabric's source receipt: every source this fake holds records of is readable."""
-        return sources_receipt({d["source"] for d in self.docs})
+        return sources_receipt({d["source"] for d in self.docs} | self.extra_readable)
+
+    def load_capabilities(self):
+        from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
+
+        try:
+            self.caps = SourceCapabilities.parse(self.sources())
+        except CapabilityError:
+            self.caps = None
+        return self.caps
 
     def head(self, source, *, is_demo):
         return max([0] + [d["seq"] for d in self.docs if d["source"] == source])

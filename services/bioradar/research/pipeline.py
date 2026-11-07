@@ -191,7 +191,23 @@ class Run:
 
     # ---- driver --------------------------------------------------------------------------------
 
+    def plan_with_capabilities(self):
+        """Read what Fabric declares each source can do, once for this execution of the run, and keep which
+        receipt it was (planning and audit; every send asks Fabric again). Not readable: every capability is
+        unknown - no fresh collection, no attachment text, no registry diff - and the run says so."""
+        caps = self.fabric.load_capabilities()
+        if caps is None:
+            if all(n["code"] != "capability_unknown" for n in self.p.get("notes", [])):
+                self.note(
+                    "capability_unknown", "Fabric 的来源能力读不到：不发起新采集，不取附件正文和登记差分"
+                )
+            return
+        seen = self.p.setdefault("capability_snapshots", [])
+        if not seen or seen[-1].get("receipt_sha256") != caps.receipt_sha256:
+            seen.append(caps.snapshot())
+
     def run(self):
+        self.plan_with_capabilities()
         steps = {
             "plan": self.plan,
             "investigate": self.investigate,

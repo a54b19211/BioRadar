@@ -268,6 +268,8 @@ class RunState(TypedDict, total=False):
     # bookkeeping
     notes: Annotated[list[Note], SHOWN]
     fabric_requests: dict[str, RequestCount]  # Fabric endpoint -> requests sent by all processes so far
+    # which receipt of Fabric's source capabilities each execution planned with (audit, never a permission)
+    capability_snapshots: list[dict[str, Any]]
 
 
 class ResultReview(TypedDict, total=False):

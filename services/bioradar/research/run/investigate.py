@@ -22,7 +22,6 @@ if TYPE_CHECKING:
 BROWSE_TRIES = 2  # attempts per page of a browsed material set
 SUPPLY = 3  # usable unread records that make a plain new search worth less than reading them
 PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
-FETCHABLE = {"clinicaltrials", "pubmed", "fda_crl", "europe_pmc", "who_don"}
 
 
 def candidates(run: "Run"):
@@ -56,8 +55,8 @@ def fetch_allowed(run: "Run"):
 
 
 def searches(run: "Run", done, live):
-    """Each active search in every source not searched yet; once searched, a fresh fetch where the
-    source can be collected and the search found little."""
+    """Each active search in every source not searched yet; once searched, a fresh fetch where Fabric says
+    the source can be collected for a search term and the search found little."""
     # Semantic search is verified by Fabric at the analysis cutoff, so replays use it too.
     sources = list(run.input["sources"]) + (["weknora"] if run.s.semantic_search else [])
     result = []
@@ -78,7 +77,10 @@ def searches(run: "Run", done, live):
                     }
                 )
             elif (
-                live and source in FETCHABLE and ("fetch", source, tuple(q["terms"]), None, None) not in done
+                live
+                and run.fabric.caps is not None
+                and run.fabric.caps.query_fetch(source)
+                and ("fetch", source, tuple(q["terms"]), None, None) not in done
             ):
                 page = run.p["pages"].get(f"{source}|{'|'.join(q['terms'])}", {})
                 if page.get("found", 0) < 3:
