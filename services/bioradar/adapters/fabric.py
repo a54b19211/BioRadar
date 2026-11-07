@@ -864,3 +864,27 @@ class Fabric:
         if response.status_code >= 400:
             raise FabricError(f"archive_http_{response.status_code}", response.text[:500])
         return response.json()
+
+    def measurement_changes(self, *, is_demo, after_seq=0, limit=100):
+        """Fabric's measurement event feed after a sequence number (datafabric.measurement_changes.v1):
+        {items, next_after, more, withheld: {source: count}} - events of sources not readable now are only
+        counted (docs/decisions/0010)."""
+        return self._get(
+            "/api/history/measurements/changes",
+            {"is_demo": str(is_demo).lower(), "after_seq": after_seq, "limit": limit},
+        )
+
+    def measurements(self, source, version_ids, *, is_demo, mode, cutoff, include_history=False):
+        """Fabric's checked measurement objects of these versions (datafabric.measurements.v1), each with its
+        state at the cutoff; with include_history also the ones not current."""
+        return self._get(
+            "/api/history/measurements",
+            {
+                "source_id": source,
+                "is_demo": str(is_demo).lower(),
+                "mode": mode,
+                "cutoff": cutoff,
+                "version_ids": list(version_ids),
+                "include_history": str(include_history).lower(),
+            },
+        )

@@ -3,7 +3,7 @@
 BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 1. **回答研究问题**：你问一个问题，它到 Data-Fabric 里找材料、逐篇阅读、需要时让程序算数，再交给 BioCheck 写稿并逐句核验，最后给出带引用的报告和结构化判断（结论、置信、真实性、后果、核实优先级）。
-2. **持续监测**：新材料一进 Fabric，它就分诊、归入专题，按资料时间推进专题状态（萌发 → 升温 → 降温 → 休眠 → 再唤醒），重要变化自动触发一次分析。
+2. **持续监测**：新材料一进 Fabric，它就分诊、归入专题，按资料时间推进专题状态（萌发 → 升温 → 降温 → 休眠 → 再唤醒）；Fabric 抽出并核验过的测量对象按专题进序列，重要变化自动触发一次分析。
 
 历史回放（例如 2019 年底的武汉）走同一套流程，只是每一步都带截止时间，Fabric 只返回截止前公开可见的版本。
 
@@ -12,7 +12,7 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 | 部分 | 维护人 | 位置 |
 | --- | --- | --- |
 | 运行、接入、部署 | 李明洋 | `services/bioradar/app.py`、`config.py`、`db.py`、`ops.py`、`text.py`、`adapters/`、`research/analyses.py`、`research/views.py`、`research/lease.py`、`research/clock.py`、`research/lineage.py`、`db/`、`ops/` |
-| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`run/`（各阶段）、`state.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py`、`topics.py`、`triage.py`、`series_store.py`、`scheduling.py` |
+| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`run/`（各阶段）、`state.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py`、`topics.py`、`triage.py`、`series_sync.py`、`domain.py`、`series.py`、`scheduling.py` |
 | 页面、导出、验收评测 | 刘金彦 | `apps/web/`、`scripts/scenarios.py` |
 | 资料、版本、材料关系 | 徐子雯（图谱：唐蔚雯） | 仓库 ZK_Data-Fabric-test |
 | 下一步选择与停止 | 李明洋 / 孙博文 | 仓库 query-planner |
@@ -53,8 +53,7 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
   `execute` 认领时写入，`recover` 释放；分析的每一次写入（进度、证据、材料发送记录、模型调用记录、最终结果）都在行锁里核对令牌，
   每一次对外发送（模型、BioCheck、MechEvidence）之前也核对；核对是“令牌仍是自己的**且**租约未过期”的一条 UPDATE，同时续租，所以过期的租约不会被复活。被取代或过期的 worker 得到 `lease.Lost`、什么也不写并记一条日志；它在失去租约之前已经发出的请求，晚到的回答、用量和原文仍记入旧尝试的审计（`llm_calls.lease_token`、`llm_outputs`），计入这份分析的预算
   （见 [`docs/decisions/0007`](docs/decisions/0007-rq-dispatch-and-database-lease.md)）。
-- 测量核对任务（`measurement_check_tasks`）和阅读窗口（`record_read_windows`）：不经 RQ，由 monitor 每轮轮询认领，
-  结果写入前核对令牌，令牌已不是自己的就丢弃。
+- Fabric 测量变更流（`series_sync`）：不经 RQ，由 monitor 每轮读；每一页和游标在同一个事务里提交，同一专题同一测量对象只连一次（唯一约束 + 保存点，见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)）。
 - 这些保证在真实 PostgreSQL 上由 `make test-pg`（`tests_pg/`）验证；SQLite 没有行锁，单元测试证明不了。测试会 `TRUNCATE`，所以只对脚本为本次运行新建的容器和专用库（`radar_pgtest_<随机>`）运行：运行前核对库里的运行标记、容器 ID、端口和库名与清单一致（`tests_pg/guard.py`），手工给的 URL（含回环地址、现役库）一律拒绝。
 
 ## 启动
@@ -66,7 +65,7 @@ make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Pyt
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-测量核对要用共享契约包 `extraction-contract`（和 Fabric 共用，这里固定 1.14.0：契约 v3、checker v16，另有 `mech_v2`：MechEvidence 评价契约的纯函数，雷达的 `bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
+MechEvidence 评价契约用共享契约包 `extraction-contract` 里的 `mech_v2`（纯函数，这里固定 1.14.0；测量核对已归 Fabric，雷达只用 `mech_v2`，`bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
 
 ```sh
 cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复现的 wheel，构建时会校验哈希
@@ -139,11 +138,11 @@ curl -b c.txt localhost:18100/api/analyses/<id>
 
 ```sh
 make bootstrap          # .venv 只按 uv.lock 安装
-make test               # 全部测试（SQLite；BioCheck 检出在 BIOCHECK_SRC 时含真实 BioCheck 规则）
-make test-pg            # 租约在真实 PostgreSQL 上的并发测试（tests_pg/）：临时 postgres:17-alpine 容器，按本次创建的 ID 拆除；没有 Docker 就失败，不跳过
+make test               # 全部测试（SQLite，Fabric、模型和各服务都是替身）
+make test-pg            # 真实 PostgreSQL 上的测试（tests_pg/）：租约与令牌、测量变更流与连接、冻结的旧测量表：临时 postgres:17-alpine 容器，按本次创建的 ID 拆除；没有 Docker 就失败，不跳过
 make test-redis         # 队列在真实 Redis 上的测试（tests_redis/）：临时 redis:7.4-alpine 容器（口令、运行标记、清单与 test-pg 同一套），只对本次创建的容器运行
 make check              # = make test + make test-pg + make test-redis + make lint + make metrics + make web-check
-make check-install      # 在 /tmp 用声明的版本新建环境，核对四处契约版本一致，逐个导入 bioradar 模块
+make check-install      # 在 /tmp 只按 uv.lock 新建环境（uv sync --locked），逐个导入 bioradar 模块
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
 
@@ -156,10 +155,7 @@ progress、证据和外发记录，以及对外视图（详情、列表、导出
 
 改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
 
-测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出和它自己的环境：
-`make test` 默认用同级的 `../clean-biocheck`（BioCheck 的集成线，先在那里 `make venv`），别处的检出用
-`make test BIOCHECK_SRC=<检出> [BIOCHECK_PYTHON=<它的 python>]`。找不到检出时这些测试显示为跳过，不会算作通过。
-已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：`make test` 0 个跳过（真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`，由 `devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑），`make test-pg` 另有一组通过（租约、令牌围栏与过期、晚到审计、recover 分类、monitor 互斥、锁连接掉线与晚到回答的审计、认领公平性，以及守卫），`make test-redis` 另有一组通过（JSON 队列、任务白名单、旧 pickle 任务恢复、对 RQ 的查询，以及守卫）。
+真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`（没有时显示为跳过，不算通过），`devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑。各项检查的实际结果（通过、跳过的个数）以那次运行的 `summary.tsv` 为准，这里不记数字。
 
 ## 验收实验
 
@@ -206,16 +202,22 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 
 来源能力只来自 Fabric 的 `/sources`（`capabilities`），雷达不再保存任何来源集合；新分析和监看只用 Fabric 标为可选的来源，`legacy_documents` 可读不可选。`BIORADAR_MECHEVIDENCE_CONTRACT=v2` 时机制评价走版本绑定契约：发出前向 Fabric 重读材料，雷达签发授权并在 `/internal/v1/model-attempts/*` 回答服务每次模型请求，回执只有在契约规则与雷达自己的尝试账本都一致时才采用。设计与取舍见 [`docs/decisions/0009`](docs/decisions/0009-fabric-capabilities-and-mechevidence-v2.md)。环境变量：`BIORADAR_MODEL_ATTEMPT_TOKEN`（服务令牌，MechEvidence 的 `MECH_AUTHORIZATION_TOKEN`），`MECH_AUTHORIZATION_URL` / `MECH_OUTCOME_URL` 指向本服务的 `/internal/v1/model-attempts/authorize` 与 `/{attempt_id}/outcome`。
 
+## 测量归 Fabric，雷达只管专题的序列（2026-11-07）
+
+客观测量（抽取、BioCheck 核验、覆盖与欠账、更正与撤回、处理器和核验器升级）全部归 Fabric 加工层（Fabric 的 ADR 0006）。雷达的分诊只做分类，不再抽数；雷达自己的抽取、核验、续读和运维代码已删除。`series_sync` 每轮读 Fabric 的测量变更流 `GET /api/history/measurements/changes`（每页与游标同一事务提交），分诊把版本放进专题时按版本拉 `GET /api/history/measurements`，两种先后顺序结果相同、不重复；来源撤权期间被扣下的事件在恢复读取后按版本重拉。专题把哪个 Fabric 测量对象放进哪条序列记在 `series_points`（只有已确认身份才跨记录合并，临时身份只在本记录内成组），完整可比域门槛（`domain.py`）、序列计算（`series.py`）、序列/更正/记录内矛盾事件和自动分析仍是雷达的。分析运行时每个序列点的状态都按截止时间、以当下权限重新向 Fabric 读。
+
+雷达原来的八张测量表（`measurements`、`measurement_candidates`、`measurement_check_tasks`、`measurement_checks`、`record_reads`、`record_read_windows`、`record_read_attempts`、`record_corrections`）连数据一起保留，冻结为只读：PostgreSQL 触发器拒绝任何写入和清空（迁移 0023），会话层在发出前就拒绝。旧分析和旧专题事件引用的旧测量点照常显示（`authority: radar_history`，从不算当前），`/api/measure-coverage` 照常显示旧的阅读计划。设计与取舍见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)。
+
 ## 2026-11-03 讨论室修订
 
 当时加的能力（观测账、评估核验、规划范围、读取排序、用户与角色、来源撤权、模型服务故障退避）和实测记录在 [`docs/decisions/0008-room-revision-record-2026-11-03.md`](docs/decisions/0008-room-revision-record-2026-11-03.md)；现行行为以代码和测试为准。
 
 ## 未完成
 
-- **待真实模型验证**：T-22 的真实阅读验收、观测抽取（T-24）的真实准确率、规模测试和 24 小时实际运行；Codex 提的回归用例（BioCheck 覆盖检查误判「情报假设」标题、C04-W2 矛盾、C05-W2「已定稿未生效」、research_scope 等内部字段名要译成中文）。
+- **待真实模型验证**：T-22 的真实阅读验收、Fabric 测量抽取的真实准确率、规模测试和 24 小时实际运行；Codex 提的回归用例（BioCheck 覆盖检查误判「情报假设」标题、C04-W2 矛盾、C05-W2「已定稿未生效」、research_scope 等内部字段名要译成中文）。
 - **T-22 未修完**：用 before 那份「题面没提武汉、待查问题却写武汉」的规划去读，阅读规则仍扳不过被收窄的待查问题（3 次实测结果不稳）；现在从规划处防（待查问题不得写题面未点名的地点、机构、病名），还要用新代码完整重跑 D-S1 验证。
 - **WeKnora 只接了 WHO**：桥的检索在同一知识库同一范围超过 1000 篇时返回 400，Europe PMC（已有约 1,444 篇、每周新增数千）和 ClinicalTrials（每周约 500 个新版本）一开就会打坏该范围的检索，需要李明洋放开桥的单范围上限后再开。桥没有截止时间参数，历史回放不走桥。知识库里还有 10-30 集成测试从另一个 Fabric 实例发布的旧条目，按名字分不开，读不到的由 Fabric 挡掉。
-- **观测账**：同名或更名对象不做合并（按原文名字精确分开）；比率不单独存分子分母；每条最多 3 个观测、超出部分不记也没有标记；期间写法不规范（「去年下半年」）的丢弃；页面只在专题事件里显示，没有序列图。
+- **测量迁移的后续**（`docs/decisions/0010`）：雷达旧测量数据导入 Fabric（映射表与等价证明）没做，旧点目前只作历史显示；planner 契约不收额外字段，`measurement_ref` / `check_ref` 要先改 planner；Fabric 现在只对 who_don 抽测量；Fabric 的测量对象不带阶段（计划/在建/投运），序列不再判阶段推进；没有确认身份的对象只在同一记录内成组；页面只在专题事件里显示序列，没有序列图。
 - **T-14 的边界**：一份分析里只要有一条材料不可读，整份正文都暂不显示（没有按句子拆分保留其余部分）；同时第一次登录建管理员有极小概率撞唯一约束，重试即可。现役上线时要在 `radar.env` 加 `BIORADAR_SESSION_SECRET`。
 - **C 的 planner 定向稿没有 PASS**（第十九节「跑通」标准里唯一没达到的一条）：数据、更正、程序计算都对，问题出在写稿模型的总结句自相矛盾（见上表），BioCheck 的覆盖检查判为不完整；修订只改单句，改不了全篇层面的矛盾。另外 planner 仍会读进 A/B 场景的更正记录（演示来源里三个场景混在一起）。下一步：潘倩在 BioCheck 写稿提示里要求总结句只复述正文已写的结论；或者覆盖检查判为不完整时让雷达带着理由重写一次全稿。
 - **公共卫生专题的「重新唤醒」**：最终代码的运行里，被唤醒的只有一个药品专题（沃森 13 价疫苗）；公共卫生专题走完萌发→升温→降温/休眠→唤醒，只在 11-02 第 4 轮（旧代码）的卫健委疫情通报专题上出现过。A 的 L4 按事件独立性开成了新专题而不是唤醒旧专题。下一步：孙博文确认 L4 应当唤醒原专题还是另开专题（`research/prompts.py` 的 TRIAGE），再用 `scenarios.py abc --only A` 验一次。
@@ -224,4 +226,4 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
 - **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（`live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
-- **整洁度第一波（2026-11-06）之后还剩的**：测量链路（`measure_checks`、`upkeep`、`continuation`、`series_store.adopt`、`domain`）按 v3 6.1 迁到 Fabric 派生数据层，之后再拆这些长函数；（来源目录的四份副本已删，见 0009）；三个服务共用一份 LLM 客户端。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。
+- **整洁度第一波（2026-11-06）之后还剩的**：三个服务共用一份 LLM 客户端（测量链路已归 Fabric，见 0010；来源目录的四份副本已删，见 0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告在页面上只显示空正文，还没有显示待核原因（`apps/web/`）；被待核的上一轮报告仍会交给追问作为上一轮报告（见 `docs/decisions/0005`）。

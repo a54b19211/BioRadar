@@ -1,6 +1,6 @@
 """Continuous monitoring, one round at a time (tick): new Fabric records -> routing and triage -> topics
--> measurement checks and series -> topic states -> automatic analyses. The parts are research/triage.py,
-topics.py, series_store.py and scheduling.py."""
+-> Fabric's measurement objects into the topics' series -> topic states -> automatic analyses. The parts are
+research/triage.py, series_sync.py (docs/decisions/0010), topics.py and scheduling.py."""
 
 import logging
 from datetime import datetime
@@ -8,10 +8,9 @@ from datetime import datetime
 from bioradar import db
 from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
-from bioradar.research import analyses, continuation, measure_checks
+from bioradar.research import analyses, series_sync
 from bioradar.research.clock import parse_time
 from bioradar.research.scheduling import start_analyses
-from bioradar.research.series_store import adopt, record_corrections
 from bioradar.research.topics import advance
 from bioradar.research.triage import (
     DEFERRED,
@@ -21,7 +20,6 @@ from bioradar.research.triage import (
     observe,
     route,
     settle_attachments,
-    triage,
 )
 
 log = logging.getLogger("bioradar")
@@ -43,15 +41,12 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
     budget = cutoff is None and not is_demo  # live real monitoring only
     paused = budget and analyses.over_auto_budget()
     skipped = monitored_sources(s, fabric.caps, is_demo)[1]
-    _prepare(s, fabric, is_demo)
     # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
     for source in skipped:
         log.warning(
             "monitor: %s is not offered by Fabric for selection (source_not_selectable), skipped", source
         )
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
-    with db.session() as session:  # a stated correction counts from when it is seen, triaged or not
-        record_corrections(session, s, docs, is_demo=is_demo)
     routed, triage_docs = _route_documents(docs, is_demo)
     if paused:
         log.info("monitor: daily_auto_tokens reached; model triage deferred, program routing continues")
@@ -60,14 +55,6 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         reasons, whole = (
             observe(s, triage_docs, is_demo=is_demo, budget=budget) if triage_docs else ({}, True)
         )
-    if not paused:  # a re-extraction is a model call: it waits while the token budget is spent
-        measure_checks.reextract(s, fabric, is_demo=is_demo, triage=triage, plan=continuation.plan)
-    with db.session() as session:  # plans paused by a withdrawn permission read on once it is back
-        continuation.periodic_resume(session, s, fabric, is_demo, db.now())
-    if not paused:  # continuation windows are model calls too
-        continuation.run(s, fabric, is_demo=is_demo, budget=budget)
-    for topic_id, reason in measure_checks.run(s, fabric, is_demo=is_demo, adopt=adopt).items():
-        reasons.setdefault(topic_id, reason)
     if not whole:
         # the budget ran out before or during triage: what was not triaged is owed, durably, and the
         # cursors move on (the retry path triages it once the budget allows)
@@ -75,6 +62,9 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         deferred = defer(triage_docs, is_demo=is_demo)
         if deferred:
             routed[DEFERRED] = deferred
+    if not paused:  # the objects of the versions placed now, in case their events are not in the feed yet
+        series_sync.link_versions(s, fabric, triage_docs, is_demo=is_demo, cutoff=cutoff)
+    measured = series_sync.sync(s, fabric, is_demo=is_demo, cutoff=cutoff)  # no model call: never paused
     _move_cursors(ends, docs, is_demo)
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
@@ -93,6 +83,7 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         "paused": "daily_auto_tokens" if paused else None,
         "clock": clock.isoformat(),
         "topics": reasons,
+        "measurements": measured,
         "analyses": created,
     }
 
@@ -111,15 +102,6 @@ def _without_capabilities(clock):
         "analyses": [],
         "source_not_selectable": [],
     }
-
-
-def _prepare(s, fabric, is_demo):
-    """What the round owes before it reads anything new."""
-    with db.session() as session:
-        measure_checks.backfill(session, s)  # a checker upgrade owes every candidate a new check
-        measure_checks.legacy_backlog(session, s)  # points stored before checking owe a re-extraction
-    # current read permission and binding of every stored point, before anything this round reads a series
-    measure_checks.refresh_bindings(s, fabric, is_demo=is_demo)
 
 
 def _route_documents(docs, is_demo):

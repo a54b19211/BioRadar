@@ -17,10 +17,11 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    event,
     select,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from bioradar import guard
 from bioradar.config import settings
@@ -733,6 +734,103 @@ class MeasurementCheck(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
+class MeasurementInbox(Base):
+    """One Fabric measurement object this workspace has heard of - from the change feed or a pull by version -
+    and what the radar did with it: pending_topic (its version is in no topic yet), linked (in its version's
+    topic, series_points), not_current (Fabric does not hold it current). due: to be linked or read again
+    (a later event of the object, a re-granted source). docs/decisions/0010."""
+
+    __tablename__ = "measurement_inbox"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "is_demo", "measurement_id", name="measurement_inbox_object"),
+        Index("ix_measurement_inbox_due", "workspace_id", "is_demo", "due", "updated_at"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    measurement_id: Mapped[str] = mapped_column(String(64))
+    version_id: Mapped[str] = mapped_column(String(128), index=True)
+    source_id: Mapped[str] = mapped_column(String(80))
+    last_seq: Mapped[int] = mapped_column(Integer, default=0)  # the latest feed event seen (0: pulled only)
+    last_kind: Mapped[str] = mapped_column(String(40))
+    state: Mapped[str] = mapped_column(String(20), default="pending_topic")
+    due: Mapped[bool] = mapped_column(Boolean, default=True)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class MeasurementWithheld(Base):
+    """Events of the feed Fabric withheld because their source (or their cause's source) was not readable:
+    counted per source. Once a pull of that source is answered again, the versions of it placed in topics are
+    pulled again page by page (position: the last observation done) and the source is released."""
+
+    __tablename__ = "measurement_withheld"
+    workspace_id: Mapped[str] = mapped_column(String(100), primary_key=True)
+    is_demo: Mapped[bool] = mapped_column(Boolean, primary_key=True)
+    source_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    events: Mapped[int] = mapped_column(Integer, default=0)
+    last_seq: Mapped[int] = mapped_column(Integer, default=0)  # the feed position of the latest withholding
+    state: Mapped[str] = mapped_column(String(20), default="withheld")  # withheld | released
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class SeriesPoint(Base):
+    """A topic's selection: this Fabric measurement object is a point of the topic's series (the object and
+    its check are Fabric's; the domain gate, the series key and the series events are the radar's). The values
+    are kept as the radar read them when it joined, so a series event can be recomputed and explained; the
+    object state of now is read from Fabric (series_sync.read_points). left_at: Fabric no longer holds it
+    current (corrected, retracted, superseded) - kept, out of the series."""
+
+    __tablename__ = "series_points"
+    __table_args__ = (
+        UniqueConstraint(
+            "workspace_id", "is_demo", "topic_id", "measurement_id", name="series_points_topic_object"
+        ),
+        Index("ix_series_points_series", "workspace_id", "is_demo", "topic_id", "series_key"),
+    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workspace_id: Mapped[str] = mapped_column(String(100))
+    is_demo: Mapped[bool] = mapped_column(Boolean)
+    topic_id: Mapped[str] = mapped_column(ForeignKey("topics.id"), index=True)
+    measurement_id: Mapped[str] = mapped_column(String(64), index=True)
+    source: Mapped[str] = mapped_column(String(80))
+    record_id: Mapped[str] = mapped_column(String(400))
+    version_id: Mapped[str] = mapped_column(String(128))
+    object: Mapped[str] = mapped_column(String(300))
+    metric: Mapped[str] = mapped_column(String(200))
+    unit: Mapped[str] = mapped_column(String(50))
+    measure_kind: Mapped[str] = mapped_column(String(20))
+    scope: Mapped[str] = mapped_column(String(200), default="")
+    scope_mode: Mapped[str] = mapped_column(String(30))
+    period: Mapped[str] = mapped_column(String(40))
+    period_type: Mapped[str] = mapped_column(String(10))
+    period_precision: Mapped[str] = mapped_column(String(10))
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    value_text: Mapped[str] = mapped_column(String(40))
+    status: Mapped[str] = mapped_column(String(30), default="other")  # Fabric states no stage: never ranked
+    quote: Mapped[str] = mapped_column(Text)
+    # the series this point is in: object key (a confirmed identity, else the literal within its record) and
+    # the rule that gave it, the complete domain (family, dimensions, gaps), the key they make with the topic
+    object_key: Mapped[str] = mapped_column(String(900))
+    joined_by_rule: Mapped[str] = mapped_column(String(40))
+    family: Mapped[str] = mapped_column(String(30), default="")
+    dims: Mapped[list] = mapped_column(Json, default=list)
+    dims_key: Mapped[str] = mapped_column(String(80))
+    gate_version: Mapped[str] = mapped_column(String(40))
+    gate_reasons: Mapped[list] = mapped_column(Json, default=list)
+    series_key: Mapped[str] = mapped_column(String(80))
+    check_status: Mapped[str] = mapped_column(String(20), default="")
+    check_ref: Mapped[str] = mapped_column(String(80), default="")  # Fabric's check run of the object
+    checker_version: Mapped[str] = mapped_column(String(80), default="")
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))  # when it could be known
+    joined_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+    left_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    left_reason: Mapped[str | None] = mapped_column(String(60))
+    left_by: Mapped[str | None] = mapped_column(String(64))  # the object that superseded it
+
+
 class TopicEvent(Base):
     __tablename__ = "topic_events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -779,6 +877,41 @@ class Review(Base):
     alert: Mapped[str | None] = mapped_column(String(20))
     note: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+# The radar's own measurement chain from before Fabric took it over (docs/decisions/0010): kept as it is, read
+# only. PostgreSQL refuses any write to these tables (migration 0023); a session refuses one before it is
+# sent.
+FROZEN_HISTORY = frozenset(
+    {
+        "measurements",
+        "measurement_candidates",
+        "measurement_check_tasks",
+        "measurement_checks",
+        "record_reads",
+        "record_read_windows",
+        "record_read_attempts",
+        "record_corrections",
+    }
+)
+
+
+class FrozenHistory(RuntimeError):
+    """A write to one of the frozen measurement tables."""
+
+
+@event.listens_for(Session, "before_flush")
+def _no_frozen_rows(session, _context, _instances):
+    for obj in (*session.new, *session.dirty, *session.deleted):
+        if obj.__table__.name in FROZEN_HISTORY:
+            raise FrozenHistory(f"{obj.__table__.name} is frozen read-only history")
+
+
+@event.listens_for(Session, "do_orm_execute")
+def _no_frozen_statements(state):
+    table = getattr(state.statement, "table", None) if not state.is_select else None
+    if getattr(table, "name", None) in FROZEN_HISTORY:
+        raise FrozenHistory(f"{table.name} is frozen read-only history")
 
 
 @lru_cache

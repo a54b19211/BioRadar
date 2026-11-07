@@ -186,9 +186,6 @@ def chat_json(
         call.setdefault("outputs", []).append(output)  # every answer as given, kept (llm_outputs)
         try:
             raw = json.loads(content)
-            aliases = getattr(model_cls, "source_aliases", None)
-            if aliases is not None:
-                raw, output["mappings"] = aliases(raw)  # measure.v10: mechanical, recorded
             parsed = model_cls.model_validate(raw)
         except (json.JSONDecodeError, ValidationError) as exc:
             call["error"], call["detail"] = "output_invalid", str(exc)[:300]

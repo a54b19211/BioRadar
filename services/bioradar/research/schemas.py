@@ -122,94 +122,6 @@ class Assessment(BaseModel):
     hypotheses: list[HypothesisLevel] = Field(default_factory=list, description="只给出现过的假设编号评级")
 
 
-class Dim(BaseModel):
-    """One dimension of the business domain a value belongs to, as the record writes it."""
-
-    kind: Literal[
-        "disease",
-        "population",
-        "date_basis",
-        "indication",
-        "product_or_class",
-        "milestone_definition",
-        "entity",
-        "stage",
-        "denominator_definition",
-    ] = Field(
-        description="维度：disease 病种/病原，population 人群或队列，"
-        "date_basis 日期口径（按报告日/发病日…），indication 适应症，product_or_class 产品或类别，"
-        "milestone_definition 里程碑定义，entity 企业或资产，"
-        "stage 阶段（计划/在建/投运/实际产出），"
-        "denominator_definition 比例的分母是什么（检测人数、全部病例…）"
-    )
-    text: str = Field(
-        description="原文写法，逐字；原文没写就不要列这一项（不要猜，不要用专题名称或发布者代替）"
-    )
-    source: Literal["quote", "window", "heading", "table_header", "table_title"] = Field(
-        default="quote", description="text 抄自哪里，只能是这次实际给你的材料"
-    )
-
-
-class Measure(BaseModel):
-    """One measured value as the record states it. Each *_text is copied verbatim from the
-    record and only used to find where it is written; the value checked and stored is the final one: the
-    number written in value_text, the period in its normalized form, object / metric / scope as written (no
-    synonyms). A measure enters a series only after BioCheck confirms every field at its place."""
-
-    object_text: str = Field(default="", description="对象原文写法（逐字，原文里的那个词），没写就留空")
-    metric_text: str = Field(
-        description="指标原文写法（逐字），包括限定语，如“suspected cases of anthrax in humans”"
-    )
-    value_text: str = Field(description="数值原文写法（逐字，如“1,444”“26”），必须出现在 quote 里")
-    unit_text: str = Field(default="", description="紧跟数值的单位原文（个、件、例、%、cases），没有就留空")
-    period_text: str = Field(
-        default="", description="期间原文写法（逐字，如“2026年4月”“截至2023年12月”），没写就留空"
-    )
-    period: str = Field(
-        default="",
-        description="期间规范写法：2026-04、2026Q2、2026H1、2026、2026-04-15、2022-09/2023-01、2020-01-22/2020-02-11；没写留空",
-    )
-    period_type: Literal["point", "interval", ""] = Field(
-        default="", description="point 截至某时点 / interval 某期间内；没写期间留空"
-    )
-    scope_text: str = Field(default="", description="统计口径或覆盖范围原文（逐字），没写就留空")
-    denominator_text: str = Field(default="", description="比例的分母原文（逐字），原文写出时才填")
-    kind: Literal["stock", "flow", "cumulative", "rate", "other"] = Field(
-        default="other", description="stock 某时点的存量/flow 当期新增/cumulative 累计/rate 比例"
-    )
-    qualifier: Literal["exact", "approximate", "at_least", "at_most", "more_than", "less_than"] = Field(
-        default="exact", description="约、近、超过、至少等写在数值旁时如实标出"
-    )
-    modality: Literal["actual", "planned", "projected"] = Field(
-        default="actual", description="原文说的是实际发生，还是计划、预计"
-    )
-    status: Literal["planned", "under_construction", "operational", "reported", "confirmed", "other"] = (
-        "other"
-    )
-    quote: str = Field(description="含这个数值的连续原文，逐字复制，不超过120字")
-    family: Literal["case_count", "milestone_count", "capacity", "efficacy", ""] = Field(
-        default="",
-        description="指标族：case_count 病例/公共卫生计数，milestone_count 注册/管线里程碑计数，"
-        "capacity 产业产能，efficacy 研究疗效/临床终点；都不是就留空",
-    )
-    dims: list[Dim] = Field(
-        default_factory=list,
-        max_length=6,
-        description="这个数值所属的病种、人群、日期口径等，原文写明的才列，每种最多一项",
-    )
-    sources: dict[
-        Literal["period", "object", "scope", "denominator"],
-        Literal["quote", "window", "heading", "table_header", "table_title"],
-    ] = Field(
-        default_factory=dict,
-        description="键只能是 period、object、scope、denominator 这四个（不要写成 period_text 等），"
-        "值只能是 quote（就在 quote 里）、window（窗口正文别处）、heading / table_header / table_title"
-        "（随窗口给出的上下文），表示对应的 period_text / object_text / scope_text / denominator_text"
-        "抄自哪里；"
-        '在 quote 里可以不填。只能写这次实际给你的材料。例：{"period": "heading", "scope": "quote"}',
-    )
-
-
 class TriageItem(BaseModel):
     index: int = Field(description="记录序号，从1开始")
     topic: int | None = Field(default=None, description="归入已有专题的序号；新事件填null")
@@ -238,62 +150,8 @@ class TriageItem(BaseModel):
     objects: list[PlanObject] = Field(default_factory=list, description="记录说到的具体对象")
     watch: str | None = Field(default=None, description="归入已有专题时，命中该专题哪条待验证信号（如W2）")
     closure: bool = Field(default=False, description="这条记录宣布该事件已结案或可以停止跟踪")
-    measures: list[Measure] = Field(default_factory=list, description="可跨期比较的数值，最多3个")
     reason: str = ""
 
 
-class ExtractItem(BaseModel):
-    index: int = Field(description="窗口序号，从1开始")
-    measures: list[Measure] = Field(
-        default_factory=list, description="这个窗口原文里的数值，最多3个；没有就空列表"
-    )
-
-
-# the only aliases mapped, mechanically, inside a measure's `sources` - each
-# <field>_text to its <field>; with the canonical key present too nothing is mapped (the alias then fails)
-SOURCE_ALIASES = {
-    "period_text": "period",
-    "object_text": "object",
-    "scope_text": "scope",
-    "denominator_text": "denominator",
-}
-
-
-def map_source_aliases(data):
-    """(data, mappings) - data with the aliases of every measure's sources renamed in place, and one mapping
-    {item, measure, from, to} per key renamed (item and measure are 0-based positions in the output). Values,
-    unknown keys and everything else are left as they are, for validation to judge."""
-    mappings = []
-    items = data.get("items") if isinstance(data, dict) else None
-    for i, item in enumerate(items if isinstance(items, list) else []):
-        measures = item.get("measures") if isinstance(item, dict) else None
-        for m_at, m in enumerate(measures if isinstance(measures, list) else []):
-            sources = m.get("sources") if isinstance(m, dict) else None
-            if not isinstance(sources, dict):
-                continue
-            aliased = [k for k in sources if k in SOURCE_ALIASES]
-            if any(SOURCE_ALIASES[k] in sources for k in aliased):
-                continue  # canonical and alias together: rejected by validation, never merged
-            renamed = {}
-            for k, v in sources.items():
-                if k in SOURCE_ALIASES:
-                    mappings.append({"item": i, "measure": m_at, "from": k, "to": SOURCE_ALIASES[k]})
-                    renamed[SOURCE_ALIASES[k]] = v
-                else:
-                    renamed[k] = v
-            m["sources"] = renamed
-    return data, mappings
-
-
-class Extraction(BaseModel):
-    source_aliases = staticmethod(map_source_aliases)
-
-    """The measures of each continuation window (every window gets one item)."""
-
-    items: list[ExtractItem]
-
-
 class Triage(BaseModel):
-    source_aliases = staticmethod(map_source_aliases)
-
     items: list[TriageItem]

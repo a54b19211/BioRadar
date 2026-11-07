@@ -641,13 +641,14 @@ def test_each_triaged_record_window_is_recorded_with_its_call_and_reads_back():
 
     from bioradar.config import settings
     from bioradar.material import part_key, reread
+    from bioradar.research import triage
 
     docs = FakeFabric([record("D1", "长文", "长文" * 2000), record("D2", "短文", "短文")]).docs
     sent = []
     original = llm.chat_json
     try:
         llm.chat_json = triage_by_title(sent)
-        monitor.triage(settings(), docs, [])
+        triage.triage(settings(), docs, [])
     finally:
         llm.chat_json = original
     with db.session() as s:

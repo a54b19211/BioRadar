@@ -1,7 +1,8 @@
 # 0002 Measure producer and checker versions
 
-- Status: accepted (2026-11-06)
-- Code: `services/bioradar/research/measure_checks.py` (`PRODUCER`, `CHECKER`, `CONTRACT`)
+- Status: superseded by 0010 (2026-11-07): Fabric extracts and checks measurements; the radar's own chain is
+  deleted and its tables are frozen history. The versions below still name what produced those rows.
+- Code (until 0010): `services/bioradar/research/measure_checks.py` (`PRODUCER`, `CHECKER`, `CONTRACT`)
 
 ## Context
 

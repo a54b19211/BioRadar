@@ -10,6 +10,7 @@ import os
 
 import pytest
 from guard import Refused, verify
+from pg_tables import truncate
 
 try:
     URL, DATABASE = verify(os.environ)
@@ -24,15 +25,12 @@ os.environ["BIORADAR_SESSION_SECRET"] = "test-session-key"
 os.environ["BIORADAR_PLANNER_URL"] = "http://planner.invalid"
 os.environ["BIORADAR_BIOCHECK_URL"] = "http://biocheck.invalid"
 
-from sqlalchemy import text  # noqa: E402
 
 from bioradar import db  # noqa: E402
 
-# the tables the lease code works on, with everything that refers to them
-LEASED_TABLES = (
-    "measurement_check_tasks, measurement_checks, measurement_candidates, record_read_attempts, "
-    "record_read_windows, record_reads, analyses, investigations"
-)
+# the tables the tests write, with everything that refers to them (CASCADE)
+TEST_TABLES = "analyses, investigations, topics, monitor_cursors, measurement_inbox, measurement_withheld"
+TEST_TABLES += ", record_corrections"
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -44,9 +42,9 @@ def verified_database():
 
 
 @pytest.fixture(autouse=True)
-def empty_leased_tables(verified_database):
+def empty_tables(verified_database):
     with db.engine().begin() as connection:
-        connection.execute(text(f"TRUNCATE {LEASED_TABLES} RESTART IDENTITY CASCADE"))
+        truncate(connection, TEST_TABLES)
     yield
 
 

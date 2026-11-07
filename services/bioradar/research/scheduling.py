@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import Settings
-from bioradar.research import analyses, measure_checks, prompts
+from bioradar.research import analyses, measure_history, prompts, series_sync
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import ALERTS, event, owed_at
 
@@ -25,39 +25,60 @@ def series_basis_points(session, topic_id, at=None) -> list:
         .order_by(db.TopicEvent.id.desc())
         .limit(1)
     )
-    used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])})
-    return measure_checks.series_points(session, used, at) if used else []  # current or not, with its state
+    used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])}, key=str)
+    return described(session, topic_id, used, at)  # current or not, with its state
+
+
+def _fabric(ids):
+    return [i for i in ids if series_sync.is_fabric_id(i)], [
+        i for i in ids if not series_sync.is_fabric_id(i)
+    ]
+
+
+def recorded(session, topic_id, ids) -> list:
+    """The points an event names: the topic's points of Fabric objects (series_points), or points of the
+    radar's own frozen chain (measurements, read only)."""
+    objects, frozen = _fabric(ids)
+    rows = series_sync.rows(session, topic_id, objects)
+    if frozen:
+        rows += list(session.scalars(select(db.Measurement).where(db.Measurement.id.in_(frozen))))
+    return rows
+
+
+def point_id(p):
+    return p.measurement_id if isinstance(p, db.SeriesPoint) else p.id
+
+
+def described(session, topic_id, ids, at=None) -> list:
+    """The structured, read-only record of these points (the planner's series input)."""
+    objects, frozen = _fabric(ids)
+    out = series_sync.points(session, topic_id, objects, at)
+    return out + (measure_history.series_points(session, frozen, at) if frozen else [])
 
 
 def series_basis(session, topic_id, at=None) -> str:
     """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
     and records, so the investigation starts from what the program found instead of searching blind. As of
-    `at` (a cutoff): the latest series event visible then."""
+    `at` (a cutoff): the latest series event visible then. Only a change computed from Fabric's objects whose
+    points are all still in the series with a proven domain is stated; the radar's own frozen points are
+    history and never a current conclusion."""
     last = session.scalar(
         visible(select(db.TopicEvent), db.TopicEvent.at, at)
         .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
         .order_by(db.TopicEvent.id.desc())
         .limit(1)
     )
-    if last is None:
+    if last is None or last.detail.get("authority") != "fabric":
         return ""
     d = last.detail
     used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
-    if not used or measure_checks.is_effective(session, used) != set(used):
-        return ""  # a point it used is no longer checked and readable: not a current conclusion
-    rows = list(
-        session.scalars(
-            select(db.Measurement).where(db.Measurement.id.in_(used)).order_by(db.Measurement.period_end)
+    rows = series_sync.rows(session, topic_id, used)
+    if not used or len(rows) != len(used) or not all(series_sync.proven(r) for r in rows):
+        return (
+            ""  # a point it used left the series (corrected, superseded) or has a gap: no current conclusion
         )
-    )
-    states = [measure_checks.comparability(session, r, at) for r in rows]
-    if any(c["state"] != "comparable" for c in states):
-        return ""  # a point it used is no longer comparable (withdrawn, gaps): not a current conclusion
     points = "；".join(
-        f"{r.period or '当时'} {r.value_text or format(r.value, 'g')}{r.unit}"
-        f"（{r.status}，记录 {r.record_id}，"
-        f"已核 check {r.check_id}）"
-        for r in rows
+        f"{r.period} {r.value_text}{r.unit}（记录 {r.record_id}，已核 check {r.check_ref}）" for r in rows
     )
     scope = f"（{d['scope']}）" if d.get("scope") else ""
     found = "、".join(sorted({c["kind"] for c in d["changes"]}))
@@ -143,11 +164,10 @@ def conflict_basis(session, topic_id, since, at=None, limit=10):
     lines, seeds, ids, seen = [], [], [], set()
     for e in rows:
         d = e.detail
-        points = [session.get(db.Measurement, x["id"]) for x in d.get("points") or []]
-        points = [p for p in points if p is not None]
+        points = recorded(session, topic_id, [x["id"] for x in d.get("points") or []])
         if not points:
             continue
-        ids += [p.id for p in points if p.id not in ids]
+        ids += [point_id(p) for p in points if point_id(p) not in ids]
         key = (points[0].source, d["record"], d.get("version"))
         if key not in seen:
             seen.add(key)
@@ -204,7 +224,7 @@ def correction_basis(session, topic_id, since, at=None, events=None) -> str:
     lines = []
     for e in events if events is not None else correction_events(session, topic_id, since, at):
         d = e.detail
-        old = session.scalars(select(db.Measurement).where(db.Measurement.id.in_(d["withdrawn"])))
+        old = recorded(session, topic_id, d["withdrawn"])
         olds = "、".join(f"{m.period} {m.value_text}{m.unit}（记录 {m.record_id}）" for m in old)
         notice = f"记录 {d['record']}" + (
             f"（{d['by_source']}，版本 {d['by_version_id']}）" if d.get("by_source") else ""
@@ -384,7 +404,7 @@ def _bases(session, owed_topic, reason, cutoff, question, seeds):
         seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
         known = {p["measurement_id"] for p in points}
         points = list(points) + [
-            p for p in measure_checks.series_points(session, ids, cutoff) if p["measurement_id"] not in known
+            p for p in described(session, topic_id, ids, cutoff) if p["measurement_id"] not in known
         ]
     return question, seeds, points, handed, leftover
 
