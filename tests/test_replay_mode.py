@@ -12,6 +12,7 @@ from conftest import FakeFabric
 from mech_support import Fab, attempt_body, service_client, started
 from test_access import admin_client, fabric_sources  # noqa: F401 - the fixture these tests take
 from test_pipeline import RECORDS, empty_report, fake_model, first_policy
+from test_propositions import topic_row
 
 from bioradar import db
 from bioradar.adapters import llm, services
@@ -138,6 +139,22 @@ def test_the_task_input_keeps_the_mode_and_a_follow_up_inherits_it(client):
     plain = client.post("/api/analyses", json={**ASK, "cutoff": WHEN, "question": "另一个问题？"}).json()
     again = client.post(f"/api/analyses/{plain['id']}/followup", json={"question": "再后续呢？"}).json()
     assert all("replay_mode" not in analyses.get(a["id"]).input for a in (plain, again))
+
+
+def test_the_task_entry_takes_the_topic_and_seeds_a_t1_selection_names(client):
+    with db.session() as s:
+        topic_id = topic_row(s).id
+    seeds = [{"source": "who_don", "record_id": "D1", "version_id": "v1"}]
+    ask = {**ASK, "cutoff": WHEN, "replay_mode": "operational_replay"}
+
+    under = client.post("/api/analyses", json={**ask, "topic_id": topic_id}).json()
+    seeded = client.post("/api/analyses", json={**ask, "seed_records": seeds}).json()
+
+    with db.session() as s:
+        assert s.get(db.Investigation, analyses.get(under["id"]).investigation_id).topic_id == topic_id
+    assert analyses.get(seeded["id"]).input["seed_records"] == seeds
+    missing = client.post("/api/analyses", json={**ask, "topic_id": "no-such-topic"})
+    assert (missing.status_code, missing.json()["message"]) == (422, "topic_not_found")
 
 
 def test_a_mode_that_contradicts_the_cutoff_is_refused(client):

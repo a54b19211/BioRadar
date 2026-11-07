@@ -548,6 +548,12 @@ def options():
     }
 
 
+class SeedRecord(BaseModel):
+    source: str = Field(max_length=80)
+    record_id: str = Field(max_length=400)
+    version_id: str | None = Field(default=None, max_length=128)
+
+
 class Ask(BaseModel):
     question: str = Field(min_length=4, max_length=2000)
     direction: Literal["pipeline", "science", "business", "public_health"]
@@ -561,6 +567,16 @@ class Ask(BaseModel):
         "另两种必须带 cutoff",
     )
     scope_record_ids: list[str] = Field(default=[], description="只在这些记录里检索和阅读（固定材料集）")
+    topic_id: str | None = Field(
+        default=None,
+        max_length=36,
+        description="任务挂在这个专题名下（t1 选样的 submit.topic_id）；专题必须存在，is_demo 与本任务一致",
+    )
+    seed_records: list[SeedRecord] = Field(
+        default=[],
+        max_length=8,
+        description="先读这些固定版本的记录（t1 选样的 submit.seed_records）；只是阅读线索，不赋予确认状态",
+    )
 
 
 def fabric_capabilities() -> SourceCapabilities:
@@ -573,6 +589,11 @@ def fabric_capabilities() -> SourceCapabilities:
 
 @app.post("/api/analyses", dependencies=analyst)
 def ask(body: Ask):
+    if body.topic_id:
+        with db.session() as s:
+            topic = s.get(db.Topic, body.topic_id)
+        if topic is None or topic.is_demo != body.is_demo:
+            raise analyses.InvalidInput("topic_not_found")
     row = analyses.create(
         capabilities=fabric_capabilities,
         question=body.question,
@@ -583,6 +604,8 @@ def ask(body: Ask):
         cutoff=body.cutoff.isoformat() if body.cutoff else None,
         replay_mode=body.replay_mode,
         scope_record_ids=body.scope_record_ids,
+        topic_id=body.topic_id,
+        seed_records=[seed.model_dump(exclude_none=True) for seed in body.seed_records],
     )
     return analyses.view(row)
 
