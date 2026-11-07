@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 from bioradar.research.run import slots, submit
 from bioradar.research.run.report import searched_checks
-from bioradar.research.state import RunState, Section, SectionItem, VisibleRecord, WrittenItem
+from bioradar.research.state import RunState, Section, SectionItem, VisibleRecord, VisibleTime, WrittenItem
 
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
@@ -32,6 +32,17 @@ MECH_NOT_RUN_TEXT = {
     "not_configured": "机制评价服务未配置",
     "no_research_material": "本次材料中没有可评的原始研究",
     "no_bound_material": "可评材料都未能按固定版本重新读取",
+}
+
+
+UNKNOWN = "未知"
+# The times of a record read, with what each is. They stay apart and none stands in for another (task book 06
+# 2.4): the date the source states is not when this system could read the version.
+TIME_LABELS = {
+    "published_at": "发布日期（来源自述）",
+    "first_seen_at": "本系统首见时间",
+    "proof_available_at": "档案证明的可得时间",
+    "replay_mode": "回放模式",
 }
 
 
@@ -235,6 +246,25 @@ def scenarios_section(p: RunState) -> Section:
     return section("scenarios", items, None if items else "no_review_condition")
 
 
+def record_times(r) -> list[VisibleTime]:
+    """The times of one record read, as its evidence row holds them: the published date, when this system
+    first saw the version, when a reviewed archive proves it readable (listed only when there is such a proof)
+    and the mode its read ran in. A row stored before the radar kept them has none of the last three: that is
+    said as 未知, and the merged available_at is not used in their place."""
+    meta = r.meta or {}
+    held = {
+        "published_at": r.published_at,
+        "first_seen_at": meta.get("first_seen_at"),
+        "proof_available_at": meta.get("proof_available_at"),
+        "replay_mode": meta.get("replay_mode"),
+    }
+    return [
+        {"kind": kind, "label": label, "value": held[kind] or UNKNOWN}
+        for kind, label in TIME_LABELS.items()
+        if held[kind] or kind != "proof_available_at"
+    ]
+
+
 def visibility_section(gaps: list[SectionItem], inp: dict, rows) -> Section:
     """What the report could see: the cutoff, how many records were read, the key gaps with their numbers;
     each record read (its version and times) in the appendix."""
@@ -266,6 +296,7 @@ def visibility_section(gaps: list[SectionItem], inp: dict, rows) -> Section:
             "available_at": r.available_at,
             "material_kind": r.material_kind,
             "verified": r.verified,
+            "times": record_times(r),
         }
         for r in rows
     ]

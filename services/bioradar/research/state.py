@@ -377,6 +377,15 @@ class SectionItem(TypedDict, total=False):
     trigger: Annotated[list[Trigger], SHOWN]  # the new versions that made it be judged again
 
 
+class VisibleTime(TypedDict):
+    """One of the times of a record read, apart from the others: what it is and its value, or 未知 when the
+    evidence row does not hold it."""
+
+    kind: Annotated[Literal["published_at", "first_seen_at", "proof_available_at", "replay_mode"], SHOWN]
+    label: Annotated[str, SHOWN]
+    value: Annotated[str, SHOWN]
+
+
 class VisibleRecord(TypedDict):
     """One record the run read, as the visibility section's appendix lists it."""
 
@@ -388,6 +397,7 @@ class VisibleRecord(TypedDict):
     available_at: Annotated[str | None, SHOWN]
     material_kind: Annotated[str | None, SHOWN]
     verified: Annotated[bool, SHOWN]
+    times: Annotated[list[VisibleTime], SHOWN]
 
 
 class Section(TypedDict, total=False):

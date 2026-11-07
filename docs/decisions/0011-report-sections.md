@@ -18,8 +18,14 @@ run's state without a model call. The free-text `draft` is unchanged and still w
 | `evidence` | the facts read, for and against each check; a check in conflict lists both sides | evidence for and against |
 | `gaps` | the scope of the searches, each check not searched or not answered, failed searches, why the mechanism did not run | limits |
 | `scenarios` | what the assessment says is still unproven, and the signals that confirm or refute each graded hypothesis | the evidence that would change the judgment |
-| `visibility` | cutoff, records read, the key gaps with their numbers; each record's version and times in `appendix` | - |
+| `visibility` | cutoff, records read, the key gaps with their numbers; each record's version and its `times` in `appendix` (see below) | - |
 | `recommendation` | the requester's objectives; the run takes none yet, so it is empty with reason `no_objectives` | - |
+
+Each record of the `appendix` lists its times apart, from the evidence row (task book 06 2.4): `published_at` (the
+date the source states), `first_seen_at` (when this system first saw the version), `proof_available_at` (when a
+reviewed archive proves it readable; listed only for a row that has one) and `replay_mode` (the mode its read ran
+in). What a row does not hold - one stored before the radar kept them - is `未知`; the merged `available_at` never
+stands in for a time it cannot be split into.
 
 A section the run cannot fill is `missing` with a reason (`SECTION_REASONS`). `views.publication` holds a report
 that has a missing section even when BioCheck's status is PASS: `publishable: false`, `hold: pending_verification`,

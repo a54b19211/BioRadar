@@ -157,6 +157,35 @@ def test_the_visibility_section_counts_the_key_gaps_and_lists_each_record_in_its
     assert visibility["appendix"][0]["available_at"] == "2026-09-27T08:00:00+08:00"
 
 
+def test_the_appendix_gives_each_record_its_three_times_and_says_unknown_for_what_a_row_does_not_hold():
+    proven = {
+        "first_seen_at": "2026-11-06T03:10:00+00:00",
+        "proof_available_at": "2020-05-08T00:00:00+00:00",
+        "replay_mode": "operational_replay",
+    }
+    rows = [
+        record("E1", published_at="2020-05-07", meta=proven),
+        record("E2", published_at=None),  # stored before the times were kept: its meta holds none of them
+        record("E3", meta={**proven, "proof_available_at": None}),  # a proof it does not have is not listed
+    ]
+
+    appendix = by_kind(build(run_state(), INPUT, rows))["visibility"]["appendix"]
+
+    def times(n):
+        return [(t["kind"], t["value"]) for t in appendix[n]["times"]]
+
+    assert times(0) == [
+        ("published_at", "2020-05-07"),
+        ("first_seen_at", "2026-11-06T03:10:00+00:00"),
+        ("proof_available_at", "2020-05-08T00:00:00+00:00"),
+        ("replay_mode", "operational_replay"),
+    ]
+    assert appendix[0]["times"][0]["label"] == "发布日期（来源自述）"
+    # the merged available_at (2026-09-27T08:00:00+08:00 on every row here) never fills in for a time
+    assert times(1) == [("published_at", "未知"), ("first_seen_at", "未知"), ("replay_mode", "未知")]
+    assert [kind for kind, _ in times(2)] == ["published_at", "first_seen_at", "replay_mode"]
+
+
 def test_the_recommendation_is_empty_and_says_why_when_the_requester_gave_no_objective():
     recommendation = by_kind(build(run_state(), INPUT, ROWS))["recommendation"]
     assert recommendation == {
