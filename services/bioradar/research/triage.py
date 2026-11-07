@@ -44,16 +44,26 @@ def route(doc) -> str | None:
     say) -> attachment_pending, kept for the retry path; parsing finally failed or the format is unsupported
     -> attachment_unparsed, recorded as a gap. An attachment is never triaged with an empty text."""
     if doc.get("role") == "attachment":
-        state = doc.get("attachment_text") or {}
-        if state.get("status") == "parsed" and (doc.get("text") or "").strip():
-            return None
-        if state.get("status") == "unsupported" or (
-            state.get("status") == "failed" and (state.get("attempt") or 0) >= ATTACHMENT_MAX_ATTEMPTS
-        ):
-            return "attachment_unparsed"
-        return "attachment_pending"
+        return _route_attachment(doc)
     if doc["source"] not in REGISTRY_DIFF_SOURCES or doc.get("retry"):
         return None
+    return _route_registry(doc)
+
+
+def _route_attachment(doc) -> str | None:
+    state = doc.get("attachment_text") or {}
+    if state.get("status") == "parsed" and (doc.get("text") or "").strip():
+        return None
+    if state.get("status") == "unsupported" or (
+        state.get("status") == "failed" and (state.get("attempt") or 0) >= ATTACHMENT_MAX_ATTEMPTS
+    ):
+        return "attachment_unparsed"
+    return "attachment_pending"
+
+
+def _route_registry(doc) -> str | None:
+    """A trial registry record: settled by Fabric's diff against the previous version, or (first adoption)
+    triaged only when the registry says it is new or just changed in a way worth checking."""
     diff = doc.get("registry_diff") or {}
     if diff.get("state") == "processed":
         return None if diff.get("material_count") else "registry_minor_change"
@@ -183,111 +193,140 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     Replay: everything visible at the cutoff that was not observed yet.
     Returns (docs, cursor ends, backlog)."""
     sources = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
-    live = cutoff is None
     room = s.monitor_max_records
-    docs, ends, more = [], {}, set()
+    ends, more = {}, False
     with db.session() as session:
-        # Records still owed a triage (the call failed, or the daily automatic budget deferred it) are read
-        # again (live mode: the change cursor moved on), using at most half of the round. Not while the
-        # budget is used up: they would only be deferred again.
-        # Owed work is on one fixed version: read that version, not the record's current head (an
-        # older deferred version read by record id never got done and blocked the queue head).
-        failed = {}
-        for source, record_id, version_id in session.execute(
-            select(db.Observation.source, db.Observation.record_id, db.Observation.version_id)
-            .where(
-                db.Observation.is_demo == is_demo,
-                db.Observation.reason.in_(RETRYABLE),
-                db.Observation.source.in_(sources),  # same source set as this round
-            )
-            .order_by(db.Observation.id)
-            .limit(max(1, room // 2) if retry else 0)
-        ):
-            failed.setdefault(source, []).append((record_id, version_id))
-        for source, refs in failed.items():
-            items, missing = fabric.read_versions(source, refs, is_demo=is_demo, cutoff=cutoff)
-            docs += [dict(d, retry=True) for d in unseen(session, items)]
-            if missing:
-                # the owed version can no longer be read (revoked, or not visible): a recorded gap, so it
-                # stops occupying the queue; not a triage result
-                for obs in session.scalars(
-                    select(db.Observation).where(
-                        db.Observation.source == source,
-                        db.Observation.is_demo == is_demo,
-                        db.Observation.version_id.in_(missing),
-                        db.Observation.reason.in_(RETRYABLE),
-                    )
-                ):
-                    obs.reason = "triage_unavailable: 固定版本已不可读（撤权或不可见），未分诊"
-        if not live:
-            for source in sources:
-                page = None
-                while True:
-                    items, page = fabric.search(
-                        source, (), is_demo=is_demo, cutoff=cutoff, cursor=page, limit=100
-                    )
-                    docs += unseen(session, items)
-                    if not page:
-                        break
+        docs = _owed_again(session, fabric, sources, is_demo=is_demo, cutoff=cutoff, room=room, retry=retry)
+        if cutoff is not None:
+            docs += _visible_at(session, fabric, sources, is_demo=is_demo, cutoff=cutoff)
         else:
-            for source in sources:
-                cursor = session.get(db.Cursor, (source, is_demo))
-                if cursor is None:
-                    # A real feed starts at its current end (legacy_documents alone holds 600k records);
-                    # history is for replays. Demo feeds are scenario data and start at 0.
-                    try:
-                        start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
-                    except FabricError as exc:
-                        if exc.code not in NOT_VISIBLE:
-                            raise
-                        log.info("monitor: %s not readable now (%s), skipped this round", source, exc.code)
-                        continue  # no cursor yet: it starts at the end once the source is readable
-                    cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
-                    session.add(cursor)
-                ends[source] = cursor.after_seq
-            sources = [x for x in sources if x in ends]
-
-            scanned = len(docs)
-
-            def take(source, limit):
-                """Scan up to `limit` records of one feed; ends[source] moves past what was scanned."""
-                nonlocal scanned
-                got = 0
-                while got < limit:
-                    at = ends[source]
-                    try:
-                        items, after = fabric.changes(
-                            source, is_demo=is_demo, after=at, limit=min(100, limit - got)
-                        )
-                    except FabricError as exc:
-                        if exc.code not in NOT_VISIBLE:
-                            raise
-                        # this source is not readable now (revoked): its cursor stays, the other feeds go on
-                        log.info("monitor: %s not readable now (%s), skipped this round", source, exc.code)
-                        more.discard(source)
-                        return
-                    docs.extend(unseen(session, items))
-                    got += len(items)
-                    scanned += len(items)
-                    if after == at:
-                        more.discard(source)
-                        return
-                    ends[source] = after
-                more.add(source)
-
-            global _turn
-            _turn += 1
-            k = _turn % max(1, len(sources))
-            order = sources[k:] + sources[:k]  # a different source goes first each round
-            share = max(1, (room - scanned) // max(1, len(order)))
-            for source in order:
-                take(source, min(share, max(0, room - scanned)))
-            for source in [x for x in order if x in more]:
-                if scanned >= room:
-                    break
-                take(source, room - scanned)
+            ends, more = _feed(session, fabric, sources, docs, is_demo=is_demo, room=room)
     unique = {d["version_id"]: d for d in docs}
-    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, bool(more)
+    return sorted(unique.values(), key=lambda d: parse_time(d["available_at"])), ends, more
+
+
+def _owed_again(session, fabric, sources, *, is_demo, cutoff, room, retry):
+    """Records still owed a triage (the call failed, or the daily automatic budget deferred it) are read
+    again (live mode: the change cursor moved on), using at most half of the round. Not while the
+    budget is used up: they would only be deferred again.
+    Owed work is on one fixed version: read that version, not the record's current head (an
+    older deferred version read by record id never got done and blocked the queue head)."""
+    docs, failed = [], {}
+    for source, record_id, version_id in session.execute(
+        select(db.Observation.source, db.Observation.record_id, db.Observation.version_id)
+        .where(
+            db.Observation.is_demo == is_demo,
+            db.Observation.reason.in_(RETRYABLE),
+            db.Observation.source.in_(sources),  # same source set as this round
+        )
+        .order_by(db.Observation.id)
+        .limit(max(1, room // 2) if retry else 0)
+    ):
+        failed.setdefault(source, []).append((record_id, version_id))
+    for source, refs in failed.items():
+        items, missing = fabric.read_versions(source, refs, is_demo=is_demo, cutoff=cutoff)
+        docs += [dict(d, retry=True) for d in unseen(session, items)]
+        if missing:
+            # the owed version can no longer be read (revoked, or not visible): a recorded gap, so it
+            # stops occupying the queue; not a triage result
+            for obs in session.scalars(
+                select(db.Observation).where(
+                    db.Observation.source == source,
+                    db.Observation.is_demo == is_demo,
+                    db.Observation.version_id.in_(missing),
+                    db.Observation.reason.in_(RETRYABLE),
+                )
+            ):
+                obs.reason = "triage_unavailable: 固定版本已不可读（撤权或不可见），未分诊"
+    return docs
+
+
+def _visible_at(session, fabric, sources, *, is_demo, cutoff):
+    """Replay: everything visible at the cutoff that was not observed yet."""
+    docs = []
+    for source in sources:
+        page = None
+        while True:
+            items, page = fabric.search(source, (), is_demo=is_demo, cutoff=cutoff, cursor=page, limit=100)
+            docs += unseen(session, items)
+            if not page:
+                break
+    return docs
+
+
+def _cursor_ends(session, fabric, sources, *, is_demo):
+    """source -> where its change feed was read up to; a source with no cursor starts at its current end."""
+    ends = {}
+    for source in sources:
+        cursor = session.get(db.Cursor, (source, is_demo))
+        if cursor is None:
+            # A real feed starts at its current end (legacy_documents alone holds 600k records);
+            # history is for replays. Demo feeds are scenario data and start at 0.
+            try:
+                start = 0 if is_demo else fabric.head(source, is_demo=is_demo)
+            except FabricError as exc:
+                if exc.code not in NOT_VISIBLE:
+                    raise
+                log.info("monitor: %s not readable now (%s), skipped this round", source, exc.code)
+                continue  # no cursor yet: it starts at the end once the source is readable
+            cursor = db.Cursor(source=source, is_demo=is_demo, after_seq=start)
+            session.add(cursor)
+        ends[source] = cursor.after_seq
+    return ends
+
+
+class _Scan:
+    """One round's reading of the change feeds, within the room of the round."""
+
+    def __init__(self, session, fabric, docs, ends, *, is_demo):
+        self.session, self.fabric, self.docs, self.ends, self.is_demo = session, fabric, docs, ends, is_demo
+        self.scanned = len(docs)
+        self.more = set()  # sources that still have records after what was scanned
+
+    def take(self, source, limit):
+        """Scan up to `limit` records of one feed; ends[source] moves past what was scanned."""
+        got = 0
+        while got < limit:
+            at = self.ends[source]
+            try:
+                items, after = self.fabric.changes(
+                    source, is_demo=self.is_demo, after=at, limit=min(100, limit - got)
+                )
+            except FabricError as exc:
+                if exc.code not in NOT_VISIBLE:
+                    raise
+                # this source is not readable now (revoked): its cursor stays, the other feeds go on
+                log.info("monitor: %s not readable now (%s), skipped this round", source, exc.code)
+                self.more.discard(source)
+                return
+            self.docs.extend(unseen(self.session, items))
+            got += len(items)
+            self.scanned += len(items)
+            if after == at:
+                self.more.discard(source)
+                return
+            self.ends[source] = after
+        self.more.add(source)
+
+
+def _feed(session, fabric, sources, docs, *, is_demo, room):
+    """Live: the new records of every change feed, a different source first each round. Appends to `docs`;
+    returns (cursor ends, whether a source still has more)."""
+    global _turn
+    ends = _cursor_ends(session, fabric, sources, is_demo=is_demo)
+    sources = [x for x in sources if x in ends]
+    scan = _Scan(session, fabric, docs, ends, is_demo=is_demo)
+    _turn += 1
+    k = _turn % max(1, len(sources))
+    order = sources[k:] + sources[:k]  # a different source goes first each round
+    share = max(1, (room - scan.scanned) // max(1, len(order)))
+    for source in order:
+        scan.take(source, min(share, max(0, room - scan.scanned)))
+    for source in [x for x in order if x in scan.more]:
+        if scan.scanned >= room:
+            break
+        scan.take(source, room - scan.scanned)
+    return ends, bool(scan.more)
 
 
 KEY = (
@@ -416,118 +455,130 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False):
             known = known_series(session, s, is_demo, max(parse_time(d["available_at"]) for d in batch))
         reads = []
         decisions = triage(s, batch, topics, watch, known, reads=reads)
-        with db.session() as session:
-            topics = [session.get(db.Topic, t.id) for t in topics]
-            flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
-            touched = {}  # topic id -> latest record time in this batch, for the activity baseline
-            for n, (doc, item) in enumerate(zip(batch, decisions)):
-                at = parse_time(doc["available_at"])
-                alert = item.alert if item else "none"
-                topic = None
-                if item and item.topic and 1 <= item.topic <= len(topics):
-                    topic = topics[item.topic - 1]
-                elif (
-                    item
-                    and item.new_topic
-                    and alert != "none"
-                    and any(t.title == item.new_topic[:200] for t in topics)
-                ):
-                    topic = next(t for t in topics if t.title == item.new_topic[:200])
-                elif item and item.new_topic and alert != "none":
-                    topic = db.Topic(
-                        workspace_id=s.workspace_id,
-                        title=item.new_topic[:200],
-                        direction=item.direction,
-                        is_demo=is_demo,
-                        first_seen_at=at,
-                        last_activity_at=at,
-                        alert=alert,
-                    )
-                    session.add(topic)
-                    session.flush()
-                    topics.append(topic)
-                    event(session, topic, at, "created", record=doc["record_id"], title=doc["title"])
-                session.execute(
-                    delete(db.Observation).where(
-                        db.Observation.version_id == doc["version_id"],
-                        db.Observation.reason.in_(RETRYABLE),
-                    )
-                )
-                session.add(
-                    db.Observation(
-                        workspace_id=s.workspace_id,
-                        source=doc["source"],
-                        record_id=doc["record_id"],
-                        version_id=doc["version_id"],
-                        is_demo=is_demo,
-                        title=doc["title"],
-                        available_at=at,
-                        topic_id=topic.id if topic else None,
-                        alert=alert,
-                        closure=bool(item and item.closure),
-                        activity_key=activity_key(doc),
-                        reason=(item.reason + (" [观测超过3个，只记前3个]" if len(item.measures) > 3 else ""))
-                        if item
-                        else "triage_failed",
-                    )
-                )
-                # measures become candidates; only the check worker turns a checked one into a series point
-                measure_checks.enqueue(
-                    session,
-                    s,
-                    doc,
-                    item,
-                    topic,
-                    at,
-                    is_demo,
-                    window=(0, TRIAGE_CHARACTERS),
-                    material_read_id=reads[n] if n < len(reads) else None,
-                )
-                if item:  # its first window was read: the windows after it are owed
-                    continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
-                if topic is None:
-                    continue
-                if topic.state in {"cooling", "dormant"} and not (item and item.closure):
-                    topic.awakenings += 1
-                    topic.closed = False
-                    set_state(
-                        session, topic, "rising", at, reason="new_related_record", record=doc["record_id"]
-                    )
-                    wake[topic.id] = "awakened"
-                    owe(topic, "awakened", at)
-                topic.last_activity_at = max(parse_time(topic.last_activity_at), at)
-                topic.heat += WEIGHT[alert]
-                if ALERTS.index(alert) > ALERTS.index(topic.alert):
-                    topic.alert = alert
-                    if alert in {"important", "urgent"}:
-                        wake[topic.id] = f"alert_{alert}"
-                        owe(topic, f"alert_{alert}", at)
-                if item and item.closure:
-                    topic.closed = True
-                hit = (
-                    item.watch if item and item.watch in {w["id"] for w in watch.get(topic.id, [])} else None
-                )
-                if hit:
-                    wake[topic.id] = "watch_hit"
-                    owe(topic, "watch_hit", at)
-                event(
-                    session,
-                    topic,
-                    at,
-                    "observed",
-                    record=doc["record_id"],
-                    alert=alert,
-                    closure=bool(item and item.closure),
-                    signal=item.signal if item else "other",
-                    objects=[o.name for o in item.objects] if item else [],
-                    watch=hit,
-                )
-                touched[topic.id] = max(touched.get(topic.id, at), at)
-            session.flush()
-            for topic_id, at in sorted(touched.items()):
-                if activity(session, s, session.get(db.Topic, topic_id), at, is_demo):
-                    wake[topic_id] = "activity_anomaly"
+        _record_batch(s, batch, decisions, topics, watch, reads, wake, is_demo=is_demo)
     return wake, True
+
+
+def _record_batch(s, batch, decisions, topics, watch, reads, wake, *, is_demo):
+    """One batch's decisions in one transaction: observations, the topics they touch and their candidates."""
+    with db.session() as session:
+        topics = [session.get(db.Topic, t.id) for t in topics]
+        flag_corrections(batch, is_demo=is_demo, session=session)  # same transaction as the observations
+        touched = {}  # topic id -> latest record time in this batch, for the activity baseline
+        for n, (doc, item) in enumerate(zip(batch, decisions)):
+            at = parse_time(doc["available_at"])
+            alert = item.alert if item else "none"
+            topic = _topic_for(session, s, item, topics, alert, at, doc, is_demo)
+            session.execute(
+                delete(db.Observation).where(
+                    db.Observation.version_id == doc["version_id"],
+                    db.Observation.reason.in_(RETRYABLE),
+                )
+            )
+            session.add(_observation(s, doc, item, topic, alert, at, is_demo))
+            # measures become candidates; only the check worker turns a checked one into a series point
+            measure_checks.enqueue(
+                session,
+                s,
+                doc,
+                item,
+                topic,
+                at,
+                is_demo,
+                window=(0, TRIAGE_CHARACTERS),
+                material_read_id=reads[n] if n < len(reads) else None,
+            )
+            if item:  # its first window was read: the windows after it are owed
+                continuation.plan(session, s, doc, topic, item.direction, at, is_demo)
+            if topic is None:
+                continue
+            _touch_topic(session, topic, item, doc, alert, at, watch, wake)
+            touched[topic.id] = max(touched.get(topic.id, at), at)
+        session.flush()
+        for topic_id, at in sorted(touched.items()):
+            if activity(session, s, session.get(db.Topic, topic_id), at, is_demo):
+                wake[topic_id] = "activity_anomaly"
+
+
+def _topic_for(session, s, item, topics, alert, at, doc, is_demo):
+    """The topic a decision puts the record on: the one the model numbered, an existing topic of the same
+    new-topic title, or a new topic (only for a record that raises an alert); None when it joins none."""
+    if item and item.topic and 1 <= item.topic <= len(topics):
+        return topics[item.topic - 1]
+    if not (item and item.new_topic and alert != "none"):
+        return None
+    title = item.new_topic[:200]
+    for existing in topics:
+        if existing.title == title:
+            return existing
+    topic = db.Topic(
+        workspace_id=s.workspace_id,
+        title=title,
+        direction=item.direction,
+        is_demo=is_demo,
+        first_seen_at=at,
+        last_activity_at=at,
+        alert=alert,
+    )
+    session.add(topic)
+    session.flush()
+    topics.append(topic)
+    event(session, topic, at, "created", record=doc["record_id"], title=doc["title"])
+    return topic
+
+
+def _observation(s, doc, item, topic, alert, at, is_demo):
+    return db.Observation(
+        workspace_id=s.workspace_id,
+        source=doc["source"],
+        record_id=doc["record_id"],
+        version_id=doc["version_id"],
+        is_demo=is_demo,
+        title=doc["title"],
+        available_at=at,
+        topic_id=topic.id if topic else None,
+        alert=alert,
+        closure=bool(item and item.closure),
+        activity_key=activity_key(doc),
+        reason=(item.reason + (" [观测超过3个，只记前3个]" if len(item.measures) > 3 else ""))
+        if item
+        else "triage_failed",
+    )
+
+
+def _touch_topic(session, topic, item, doc, alert, at, watch, wake):
+    """What one observed record does to its topic: waking a cooling one, heat, alert, closure, a watch hit."""
+    if topic.state in {"cooling", "dormant"} and not (item and item.closure):
+        topic.awakenings += 1
+        topic.closed = False
+        set_state(session, topic, "rising", at, reason="new_related_record", record=doc["record_id"])
+        wake[topic.id] = "awakened"
+        owe(topic, "awakened", at)
+    topic.last_activity_at = max(parse_time(topic.last_activity_at), at)
+    topic.heat += WEIGHT[alert]
+    if ALERTS.index(alert) > ALERTS.index(topic.alert):
+        topic.alert = alert
+        if alert in {"important", "urgent"}:
+            wake[topic.id] = f"alert_{alert}"
+            owe(topic, f"alert_{alert}", at)
+    if item and item.closure:
+        topic.closed = True
+    hit = item.watch if item and item.watch in {w["id"] for w in watch.get(topic.id, [])} else None
+    if hit:
+        wake[topic.id] = "watch_hit"
+        owe(topic, "watch_hit", at)
+    event(
+        session,
+        topic,
+        at,
+        "observed",
+        record=doc["record_id"],
+        alert=alert,
+        closure=bool(item and item.closure),
+        signal=item.signal if item else "other",
+        objects=[o.name for o in item.objects] if item else [],
+        watch=hit,
+    )
 
 
 def flag_corrections(docs, *, is_demo: bool, session=None) -> int:

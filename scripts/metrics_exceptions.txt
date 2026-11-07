@@ -34,8 +34,5 @@ services/bioradar/adapters/llm.py:chat_json  LLM client consolidation across the
 # test_access, test_deferred_revisions.
 services/bioradar/research/monitor.py:tick  the round's order in one place; split pending (wave 2)
 services/bioradar/research/scheduling.py:start_analyses  split pending (wave 2)
-services/bioradar/research/triage.py:new_documents  split pending (wave 2)
-services/bioradar/research/triage.py:observe  split pending (wave 2)
-services/bioradar/research/triage.py:route  one rule table of program routing; split pending (wave 2)
 services/bioradar/research/analyses.py:create  split pending (wave 2)
 services/bioradar/research/analyses.py:review  split pending (wave 2)
