@@ -25,7 +25,7 @@
 
 - `BIORADAR_MECHEVIDENCE_CONTRACT=v2` (default `v1`, unchanged). `bioradar.mech` uses the contract (key, evaluator id,
   echo, receipt validation, adopt) from the shared package `extraction_contract.mech_v2` (extraction-contract
-  1.14.0), the same code MechEvidence imports. MechEvidence's published fixtures (pinned) are run against it here
+  1.14.1), the same code MechEvidence imports. MechEvidence's published fixtures (pinned) are run against it here
   too: 12 reuse keys, 51 receipt outcomes, the identity contract, 19 negative requests.
 - The radar issues an authorization (`model_attempt_authorizations`) per evaluation and answers
   `POST /internal/v1/model-attempts/authorize` before every model request and `/{attempt_id}/outcome` after

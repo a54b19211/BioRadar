@@ -12,6 +12,7 @@ from extraction_contract.mech_v2.contract import (  # noqa: F401 - the radar's c
     CONTRACT_V2,
     INCOMPLETE_CODES,
     binding_hashes,
+    call_shape_problems,
     canonical,
     digest,
     evaluator_id_of,
