@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import type { AnalysisFull } from "../api";
-import { pretty } from "../labels";
+import { label, pretty } from "../labels";
 import CiteLink from "./CiteLink.vue";
 import StatusTag from "./StatusTag.vue";
 
@@ -98,7 +98,7 @@ const mechanismParts = computed(() =>
 
   <template v-if="mechanism">
     <h3>机制评价　<StatusTag kind="mechanismStatus" :value="mechanism.status" /></h3>
-    <p v-if="mechanism.reason" class="muted">{{ mechanism.reason }}</p>
+    <p v-if="mechanism.reason" class="muted">{{ label("mechanismReason", mechanism.reason) }}</p>
     <div v-for="part in mechanismParts" :key="part.key">
       <b>{{ part.title }}</b>
       <pre class="text">{{ part.text }}</pre>

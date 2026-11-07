@@ -37,8 +37,11 @@ def describe(row) -> dict:
 
 def mechanism(run: "Run"):
     target = run.p.get("mechanism")
-    if not target or not run.s.mechevidence_url:
-        run.p["mechanism_result"] = None if not target else {"status": "not_run", "reason": "not_configured"}
+    if not target:
+        run.p["mechanism_result"] = {"status": "not_run", "reason": "no_mechanism_question"}
+        return
+    if not run.s.mechevidence_url:
+        run.p["mechanism_result"] = {"status": "not_run", "reason": "not_configured"}
         return
     cited = {f["ref"] for f in run.p["facts"]}
     rows = [r for r in submit.evidence_rows(run) if r.ref in cited and r.material_kind in MECH_KIND]

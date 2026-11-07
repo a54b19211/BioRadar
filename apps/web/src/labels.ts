@@ -41,6 +41,13 @@ const maps = {
   judgmentCheck: { supported: "核验通过", contradicted: "与原文矛盾", unverified: "未核验通过" },
   checkStatus: { open: "未查清", answered: "已回答", conflict: "有冲突" },
   mechanismStatus: { not_run: "未运行", failed: "失败", completed: "已完成" },
+  // why the mechanism stage did not run (MECH_NOT_RUN_REASONS in research/state.py)
+  mechanismReason: {
+    no_mechanism_question: "本题未提出机制问题",
+    not_configured: "机制服务未配置",
+    no_research_material: "本次材料中没有可评的原始研究",
+    no_bound_material: "可评材料都未能按固定版本重新读取",
+  },
   action: {
     search: "检索",
     fetch: "联网抓取",

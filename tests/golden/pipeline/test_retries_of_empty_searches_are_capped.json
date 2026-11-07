@@ -281,7 +281,10 @@
      "是否为重要进展"
     ],
     "mechanism": null,
-    "mechanism_result": null,
+    "mechanism_result": {
+     "reason": "no_mechanism_question",
+     "status": "not_run"
+    },
     "needs_calculation": true,
     "objects": [],
     "pages": {
@@ -8271,7 +8274,10 @@
      "是否为重要进展"
     ],
     "mechanism": null,
-    "mechanism_result": null,
+    "mechanism_result": {
+     "reason": "no_mechanism_question",
+     "status": "not_run"
+    },
     "needs_calculation": true,
     "objects": [],
     "pages": {
@@ -8882,7 +8888,10 @@
      "是否为重要进展"
     ],
     "mechanism": null,
-    "mechanism_result": null,
+    "mechanism_result": {
+     "reason": "no_mechanism_question",
+     "status": "not_run"
+    },
     "needs_calculation": true,
     "objects": [],
     "pages": {
@@ -9501,7 +9510,10 @@
      "是否为重要进展"
     ],
     "mechanism": null,
-    "mechanism_result": null,
+    "mechanism_result": {
+     "reason": "no_mechanism_question",
+     "status": "not_run"
+    },
     "needs_calculation": true,
     "objects": [],
     "pages": {

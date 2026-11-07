@@ -11,7 +11,7 @@ import typing
 from datetime import datetime
 from typing import Annotated, Any
 
-from bioradar.research.state import SHOWN, Result, RunState
+from bioradar.research.state import MECH_NOT_RUN_REASONS, SHOWN, Result, RunState
 
 
 def is_shown(tp) -> bool:
@@ -61,10 +61,15 @@ KEEP = {
 }
 
 
+def is_not_run_reason(key, value) -> bool:
+    """Why a mechanism result did not run: a code the program wrote, not model text."""
+    return key == "reason" and value in MECH_NOT_RUN_REASONS
+
+
 def blank(value):
     """Model-written text derived from the materials, with the words removed and the structure kept."""
     if isinstance(value, dict):
-        return {k: (v if k in KEEP else blank(v)) for k, v in value.items()}
+        return {k: (v if k in KEEP or is_not_run_reason(k, v) else blank(v)) for k, v in value.items()}
     if isinstance(value, list):
         return [blank(v) for v in value]
     return "" if isinstance(value, str) else value

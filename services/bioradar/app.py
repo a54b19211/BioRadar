@@ -22,7 +22,7 @@ from bioradar.config import settings
 from bioradar.research import analyses, lineage, measure_history, monitor
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import level_gates, observation_view, topic_view
-from bioradar.research.views import KEEP, blank
+from bioradar.research.views import KEEP, blank, is_not_run_reason
 from bioradar.text import squash
 
 app = FastAPI(title="BioRadar", version="1.0.0")
@@ -265,7 +265,10 @@ PROGRAM_STRING = re.compile(r"[A-Z]{1,3}\d{1,4}|\d{4}-\d{2}-\d{2}([T ][0-9:.+\-Z
 def withhold(value):
     """Model-written text removed everywhere, the structure, numbers, states and program numbers kept."""
     if isinstance(value, dict):
-        return {k: (v if k in PROGRAM and isinstance(v, str) else withhold(v)) for k, v in value.items()}
+        return {
+            k: (v if isinstance(v, str) and (k in PROGRAM or is_not_run_reason(k, v)) else withhold(v))
+            for k, v in value.items()
+        }
     if isinstance(value, list):
         return [withhold(v) for v in value]
     if isinstance(value, str):

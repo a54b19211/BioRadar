@@ -207,9 +207,19 @@ class Computation(TypedDict):
     operands: Annotated[list[ComputedOperand], SHOWN]
 
 
+# Why the mechanism stage did not evaluate: codes the program writes, never model text, so the external views
+# keep them where they withhold words (views.blank). apps/web/src/labels.ts gives each its Chinese wording.
+MECH_NOT_RUN_REASONS = (
+    "no_mechanism_question",  # the plan raised no mechanism question
+    "not_configured",  # it did, and MechEvidence is not configured
+    "no_research_material",  # it did, and nothing read is research material (a notice or a news item is not)
+    "no_bound_material",  # contract v2: no research material could be re-read by its fixed-version binding
+)
+
+
 class MechanismResult(TypedDict, total=False):
     status: Literal["completed", "failed", "not_run"]
-    reason: str
+    reason: str  # not_run: one of MECH_NOT_RUN_REASONS; failed: the error code of the service
     # status completed: the rest is MechEvidence's evaluation as returned (overall, rationale, gaps, ...).
     # Under
     # contract v2 also which evaluator and reuse key it is the result of, whether it came from the cache, and
