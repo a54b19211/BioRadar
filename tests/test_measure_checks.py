@@ -1,4 +1,4 @@
-"""T-29 P3: a measure becomes a series point only through its own check (contract v2 / checker v6).
+"""A measure becomes a series point only through its own check (contract v2 / checker v6).
 
 The gate, the Fabric readback (binding and permission, before the call and again before adoption), the
 append-only checks, lossless storage and the effective view (checker upgrade, revocation, recovery). The
@@ -447,7 +447,7 @@ def test_real_chain_wrong_normalized_period_is_inconsistent(monkeypatch):
     assert [(c.status, c.gate) for c in rows(db.MeasurementCheck)] == [("inconsistent", "candidate")]
 
 
-# ---- Codex r137: consumption-time permission, effective context, any call failure, legacy points -----------
+# ---- Consumption-time permission, effective context, any call failure, legacy points -----------
 
 
 def test_an_ordinary_round_reads_permission_before_it_reads_series(monkeypatch):
@@ -480,7 +480,7 @@ def test_an_effective_plan_heading_reaches_the_checker(monkeypatch):
 
 def test_a_context_beyond_the_contract_limit_stays_pending(monkeypatch):
     """The value is 20,000 characters into its section: triage cannot have read it, the continuation window
-    that reads it finds it (T-31) - and its context is past the contract's limit, so it is not built."""
+    that reads it finds it - and its context is past the contract's limit, so it is not built."""
     text = "# 建设计划\n\n" + "背景资料。" * 4100 + "\n\n" + TEXT
     s = monitor.settings()
     for name, value in (
@@ -647,7 +647,7 @@ def test_nothing_the_planner_or_an_analysis_answers_can_write_a_point_or_a_check
         assert not re.search(r"db\.Measurement(Candidate|Check|CheckTask)?\b", source), module.__name__
 
 
-# ---- the planner reads the series state and cannot promote anything (Codex DECISION, behaviour) ------------
+# ---- the planner reads the series state and cannot promote anything ------------
 
 
 def with_records(fabric):
@@ -826,7 +826,7 @@ def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
         sent and answers and all(a["decision"] in ("continue", "complete", "insufficient") for a in answers)
     )
     assert sent[0]["series"][0]["current"] is False
-    # the second layer reaches the planner too (T-24); a planner without the field refuses the body (422)
+    # the second layer reaches the planner too; a planner without the field refuses the body (422)
     assert sent[0]["series"][0]["comparability"]["version"] == "series_domain.v2"
     body = copy.deepcopy(sent[0])
     body["candidates"].append(
@@ -843,7 +843,7 @@ def test_real_planner_receives_the_series_state_and_decides_on_it(monkeypatch):
     assert state() == before  # the planner's answers changed no point, candidate, check or effective view
 
 
-# ---- Codex r138: unknown authorization, failed re-extraction, the current check cited everywhere -----------
+# ---- Unknown authorization, failed re-extraction, the current check cited everywhere -----------
 
 
 def test_an_unknown_authorization_takes_a_point_out_until_it_is_read_back_and_checked(monkeypatch):
@@ -953,7 +953,7 @@ def test_after_an_upgrade_every_reader_cites_the_current_check(monkeypatch):
     assert effective_ids() == [now.id]
 
 
-# ---- Codex r140: an analysis reads the authority of its own values at each decide ------------------------
+# ---- An analysis reads the authority of its own values at each decide ------------------------
 
 
 def analysis_of(monkeypatch, point_ids, fabric):

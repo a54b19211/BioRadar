@@ -295,7 +295,7 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
 
 
 def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
-    """v3 3.3/6.1 (Codex 470): the radar reads Fabric's cleaned text of the version (for a trial its
+    """v3 3.3/6.1: the radar reads Fabric's cleaned text of the version (for a trial its
     summary and every registry field, untruncated), not the version's projection text; a version not
     processed yet keeps its own text and says so. Each part of what is read is bound to its fixed version
     and processor, and a bound window reads back exactly."""
@@ -381,7 +381,7 @@ def test_a_record_is_read_as_the_cleaning_layers_text_and_every_part_is_bound():
 
 
 def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resumed_run():
-    """Codex r44: a read served from the run's cache sends nothing, so request counts come from the
+    """A read served from the run's cache sends nothing, so request counts come from the
     client, not from the number of actions. Counts only: endpoint, requests, errors."""
     from bioradar.adapters.fabric import Fabric, FabricError
     from bioradar.research import analyses
@@ -409,7 +409,7 @@ def test_fabric_requests_are_counted_where_they_are_sent_and_kept_across_a_resum
 
 
 def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
-    """Codex 470: a semantic hit names the cleaned artifact it was verified against (processor version and
+    """A semantic hit names the cleaned artifact it was verified against (processor version and
     full-text hash, an earlier processor's during a handover). Reading asks Fabric for exactly that one and
     binds it with Fabric's locators; an artifact that is not there any more is said so, never replaced by the
     current one, and the projection text read instead is not counted as cleaned or full text."""
@@ -496,7 +496,7 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
 
 
 def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one():
-    """Codex r86: the hit named attachment_parse.v1 and Fabric no longer has it; the current v2 text must not
+    """The hit named attachment_parse.v1 and Fabric no longer has it; the current v2 text must not
     take its place (it stays uncleaned, said so). When the named artifact is there, it is read and keeps its
     inputs: the artifact and the parent page it belongs to."""
     import hashlib

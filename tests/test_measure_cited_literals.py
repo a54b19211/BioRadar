@@ -1,4 +1,4 @@
-"""Producer measure.v6 (B r2 sections 2-3, Codex 691/711): a measure cites where its period / object / scope /
+"""Producer measure.v6: a measure cites where its period / object / scope /
 denominator literal is written; Radar looks only there, in the candidate's own send, bound to its artifact.
 Success and failure samples S1-S3, F1-F6 of the design; the checker stays v10 (judged as it is)."""
 

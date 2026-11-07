@@ -1,4 +1,4 @@
-"""T-24: values accumulate per object and metric across records; the program finds what changed."""
+"""Values accumulate per object and metric across records; the program finds what changed."""
 
 from datetime import UTC, datetime
 
@@ -104,7 +104,7 @@ def test_a_correction_counts_from_when_it_was_visible_and_revises_every_later_po
 
 def fake_triage(by_title, payloads, *, topic_title=""):
     def chat_json(settings_, stage, system, payload, model_cls, **options):
-        if stage == "extract":  # T-31 continuation windows: this stand-in states no further measures
+        if stage == "extract":  # continuation windows: this stand-in states no further measures
             call = {
                 "stage": stage,
                 "model": "fake",
@@ -326,10 +326,10 @@ WEEKS = [
 
 
 def test_a_rise_across_records_of_unknown_domain_is_kept_but_not_computed(monkeypatch):
-    """Each weekly report alone is unremarkable (alert none, no topic). Until T-24 the three-week rise
-    opened a topic named after object and metric; that grouped every topic-less point by name, which r160
-    rules out as a business identity. The points are kept, effective and pending a domain; no change, event
-    or topic."""
+    """Each weekly report alone is unremarkable (alert none, no topic). Before the comparable domain existed
+    the three-week rise opened a topic named after object and metric; that grouped every topic-less point by
+    name, which the comparable-domain rule rules out as a business identity. The points are kept, effective
+    and pending a domain; no change, event or topic."""
     checked(monkeypatch)
     payloads = []
     by_title = {title: (measures, "none") for _, _, title, measures in WEEKS}
@@ -407,7 +407,7 @@ def test_known_series_shown_to_a_replay_are_only_checked_ones_visible_then():
 
 
 def test_a_second_notice_correcting_the_same_value_does_not_bring_the_old_value_back(monkeypatch):
-    """Codex r15: 5, corrected to 4 on day 5, another notice corrects the same 5 to 3 on day 8. As of day 6
+    """5, corrected to 4 on day 5, another notice corrects the same 5 to 3 on day 8. As of day 6
     the value is 4 before and after the second notice arrives; from day 8 the two notices conflict."""
     checked(monkeypatch)
     payloads = []

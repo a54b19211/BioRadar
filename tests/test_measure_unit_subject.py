@@ -1,4 +1,4 @@
-"""Producer measure.v5 / checker v10 (Codex r163): a unit in the bound metric phrase is located only as the
+"""Producer measure.v5 / checker v10: a unit in the bound metric phrase is located only as the
 head of the phrase's own subject - a subset named after including / excluding / such as is not the unit."""
 
 import extraction_contract as ec

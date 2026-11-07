@@ -94,7 +94,7 @@ def test_older_fabric_without_the_endpoint_leaves_reading_unchanged():
     fabric, _ = fabric_answering(status=404)
     [doc], _ = fabric.search("clinicaltrials", (), is_demo=False)
     assert doc["registry_diff"] == {"state": "unavailable"}
-    # no diff block; the older Fabric gives no cleaned text either, and the text says so (Codex r85)
+    # no diff block; the older Fabric gives no cleaned text either, and the text says so
     assert doc["text"].endswith(document(trial())["text"])
     assert "清洗层正文不可用（unavailable）" in doc["text"]
     assert route(doc) is None  # unknown: triaged as before
@@ -135,7 +135,7 @@ def test_block_is_empty_for_first_adoption_and_caps_lines():
 
 
 def test_change_block_names_both_full_versions_and_is_marked_as_derived():
-    """Codex r58 #3: the block is a program-derived comparison of two versions, not the record's own text;
+    """The block is a program-derived comparison of two versions, not the record's own text;
     the document carries the full inputs so the evidence record can point back to both versions."""
     fabric, _ = fabric_answering({V2: processed(STATUS, SITES)})
     [doc], _ = fabric.search("clinicaltrials", (), is_demo=False)

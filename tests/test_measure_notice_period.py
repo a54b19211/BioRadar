@@ -1,4 +1,4 @@
-"""measure.v9 (Codex r186): the real NMPA notice shape - a 发布时间 line above the body - is built and
+"""measure.v9: the real NMPA notice shape - a 发布时间 line above the body - is built and
 checked by the real checker v16; measure.v8's period rule (extraction_normalize.v2) refused it before it was
 ever sent."""
 

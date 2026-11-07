@@ -1,5 +1,5 @@
-"""Owed triage is done on the fixed version that was deferred (Codex r62, adapted from its counterexample
-r62/radar/tests/test_codex_deferred_revisions.py): one record revised twice while the budget was used up,
+"""Owed triage is done on the fixed version that was deferred (adapted from a reviewer's counterexample):
+one record revised twice while the budget was used up,
 plus an unrelated record, plus a version that can no longer be read."""
 
 from conftest import FakeFabric, record

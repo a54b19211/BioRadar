@@ -1,4 +1,4 @@
-"""T-24 close-out (Codex 718, r168): a replay at a cutoff takes only the debt visible then and leaves the rest
+"""A replay at a cutoff takes only the debt visible then and leaves the rest
 owed; a correction notice is read as the version that corrected, not the record's head."""
 
 from datetime import UTC, datetime
@@ -145,7 +145,7 @@ def test_a_fixed_version_read_accepts_only_exactly_the_named_version():
 
 
 def test_a_fixed_version_read_needs_explicit_well_formed_metadata():
-    """Codex r170: a boolean demo kind and an aware time no later than the bound - never a parser error."""
+    """A boolean demo kind and an aware time no later than the bound - never a parser error."""
     from bioradar.adapters.fabric import fixed_version_is
 
     base = {
@@ -176,7 +176,7 @@ def test_a_fixed_version_read_needs_explicit_well_formed_metadata():
 
 
 def test_a_reason_owed_many_times_after_the_cutoff_is_one_mark_and_settles_in_parts(monkeypatch):
-    """Codex r172: 25 daily occurrences of one reason; partial settlements at successive cutoffs never repeat
+    """25 daily occurrences of one reason; partial settlements at successive cutoffs never repeat
     the mark (pending_reason stays one reason, well within its column) nor settle what comes later."""
     t = topic(*(("series_change", day(n)) for n in range(1, 26)))
     for n, cutoff in enumerate((2, 3, 10, 24), 1):

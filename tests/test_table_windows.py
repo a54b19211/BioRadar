@@ -1,4 +1,4 @@
-"""Codex 524: a table row keeps its column header in every window that goes out - read, BioCheck (report) and
+"""A table row keeps its column header in every window that goes out - read, BioCheck (report) and
 MechEvidence - as real slices of the same part with their own ranges, also after the window is stored and cut
 again; when the header does not fit, the window says so; a search hit is placed by its bound artifact range,
 not by the first matching text."""

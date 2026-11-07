@@ -1,4 +1,4 @@
-"""T-26: existing state carried on (Codex 708, r167) - a version already read from one cleaned artifact is
+"""Existing state carried on - a version already read from one cleaned artifact is
 upgraded to a new processor's artifact of the same raw version, and corrections seen before record_corrections
 existed are backfilled; both bounded, continued by run id, never by a cleared cursor or a fresh database."""
 
@@ -205,7 +205,7 @@ def test_a_value_the_upgraded_artifact_reads_differently_replaces_the_old_one_an
     )  # two readings of one raw version, not the record stating two values
     [changed] = events("artifact_value_changed")
     assert [p["value"] for p in changed["points"]] == ["318", "320"] and changed["reprocessed"] is True
-    with db.session() as s:  # dated when the reprocessing happened, not at the record's time (Codex 770)
+    with db.session() as s:  # dated when the reprocessing happened, not at the record's time
         [e] = s.scalars(select(db.TopicEvent).where(db.TopicEvent.kind == "artifact_value_changed"))
         assert monitor.parse_time(e.at) > datetime(2026, 11, 1, tzinfo=UTC)
         [p0, _] = s.scalars(select(db.Measurement).order_by(db.Measurement.id))
@@ -217,7 +217,7 @@ def test_a_value_the_upgraded_artifact_reads_differently_replaces_the_old_one_an
 def test_a_point_the_upgraded_artifact_did_not_give_again_stays_owed_not_proven_absent(
     stand_ins, monkeypatch, present
 ):
-    """Codex r184: the new reading found nothing - whether the sentence left the new text or the model gave no
+    """The new reading found nothing - whether the sentence left the new text or the model gave no
     item for it - the old point stays as it is and the run stays open, saying whether its quote is still
     there."""
     fabric = old_state(text_with(3000))
@@ -243,7 +243,7 @@ def test_a_point_the_upgraded_artifact_did_not_give_again_stays_owed_not_proven_
 
 
 def test_a_partial_upgrade_read_on_settles_once_complete(stand_ins):
-    """Codex r184: capped, then extended and read to the end - the same run settles and is done."""
+    """Capped, then extended and read to the end - the same run settles and is done."""
     fabric = old_state(text_with(3000))
     [old] = plans()
     fabric.v12[old.version_id] = text_with(3000) + TAIL
@@ -252,7 +252,9 @@ def test_a_partial_upgrade_read_on_settles_once_complete(stand_ins):
     new_id = plans()[1].id
     with db.session() as s:
         for w in s.scalars(select(db.RecordReadWindow).where(db.RecordReadWindow.read_id == new_id)):
-            w.state = "capped" if w.window_index else "sent"  # as Codex's probe: window 0 counted read
+            w.state = (
+                "capped" if w.window_index else "sent"
+            )  # as in the reviewer's probe: window 0 counted read
         continuation._settle(s, s.get(db.RecordRead, new_id))
     assert upgrade(fabric, run["run_id"])["items"] == {"upgrade_incomplete": 1}
     with db.session() as s:
@@ -353,7 +355,7 @@ def test_a_run_is_continued_only_as_what_it_is():
         upkeep.backfill_corrections(monitor.settings(), FakeFabric([]), is_demo=True, run_id=999)
 
 
-# ---- working off upgrade_unconfirmed (Codex 772) ----------------------------------------------------------
+# ---- working off upgrade_unconfirmed ----------------------------------------------------------
 
 
 def unconfirmed(monkeypatch, *texts, new=None):
@@ -500,7 +502,7 @@ def test_a_relocated_fact_takes_the_place_of_its_own_old_point_whatever_its_grou
     assert upgrade(fabric, run["run_id"])["state"] == "done"
 
 
-# ---- bounded and fair passes (Codex r185/r186) -----------------------------------------------------------
+# ---- bounded and fair passes -----------------------------------------------------------
 
 
 def counting(fabric, monkeypatch, denied=()):

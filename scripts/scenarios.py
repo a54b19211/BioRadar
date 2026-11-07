@@ -246,7 +246,7 @@ def run_d(args):
 
 
 def run_cases(args):
-    """A fixed-material case packet (e.g. the T-16 signal cases): import the archive in wave order
+    """A fixed-material case packet (e.g. the signal cases): import the archive in wave order
     without shifting dates, then run every case with the methods it lists, each with its own cutoff
     and fixed material set."""
     data, runner = Path(args.data), Runner(Path(args.out))

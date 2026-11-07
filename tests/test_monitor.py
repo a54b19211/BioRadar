@@ -503,7 +503,7 @@ def select_topics():
 
 
 def test_information_activity_above_a_seven_day_baseline_is_flagged_once(monkeypatch):
-    """T-15: activity, not incidence; days with nothing received are left out; reposts count once."""
+    """Activity, not incidence; days with nothing received are left out; reposts count once."""
     from datetime import UTC, timedelta
 
     from sqlalchemy import select
@@ -597,7 +597,7 @@ def test_recovery_does_not_queue_again_an_analysis_whose_job_is_still_waiting(mo
 
 
 def test_waiting_rows_at_the_front_do_not_hide_a_lost_one_and_redis_trouble_is_not_loss(monkeypatch):
-    """Codex r39: limit 4 was taken before the Redis check, so four waiting rows hid a lost fifth forever."""
+    """Limit 4 was taken before the Redis check, so four waiting rows hid a lost fifth forever."""
     from datetime import timedelta
 
     sent, waiting = [], set()

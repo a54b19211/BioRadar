@@ -1,4 +1,4 @@
-"""T-14: people and roles, human reviews, and material from sources Fabric no longer lets us read."""
+"""People and roles, human reviews, and material from sources Fabric no longer lets us read."""
 
 import pytest
 from fastapi.testclient import TestClient
@@ -64,7 +64,7 @@ def test_a_tampered_or_foreign_token_is_not_a_session():
     token = admin.cookies.get(api_module.COOKIE)
     user_id, version, expires, signature = token.split(".")
     body = f"{user_id}.{version}.{expires}"
-    # Codex r20: with no session key the dev credential used to sign, so whoever knew it could mint an admin
+    # With no session key the dev credential used to sign, so whoever knew it could mint an admin
     by_dev = hmac.new(settings().dev_credential.encode(), body.encode(), "sha256").hexdigest()
     for bad in (
         f"{user_id}.{version}.{int(expires) + 999}.{signature}",
@@ -83,7 +83,7 @@ def test_a_tampered_or_foreign_token_is_not_a_session():
 
 
 def test_a_new_credential_or_deactivation_ends_older_sessions_at_once():
-    """Codex r20: after alice's credential was replaced her old browser still read protected pages."""
+    """After alice's credential was replaced her old browser still read protected pages."""
     admin = admin_client()
     admin.post("/api/users", json={"name": "alice", "role": "analyst", "credential": "alice-pass-1"})
     old = signed_in("alice", "alice-pass-1")
@@ -154,7 +154,7 @@ def topic_analysis():
             },
             "mechanism": {"status": "completed", "overall": "撤权原文支持该机制"},
             "review": {
-                # the kept drafts carry the same words (Codex r28)
+                # the kept drafts carry the same words
                 "versions": [{"step": "generate", "draft": "第二句撤权原文[E2]。", "status": "REVIEW"}],
                 "claims": [
                     {
@@ -172,7 +172,7 @@ def topic_analysis():
             "computations": [{"id": "C1", "operands": [{"fact": "F2", "ref": "E2", "quote": "撤权原文"}]}],
         }
         a.progress = {
-            # names and search terms taken from the revoked record (Codex r35)
+            # names and search terms taken from the revoked record
             "queries": [
                 {"terms": ["XQ-17"], "checks": ["Q1"]},
                 {"terms": ["撤权原文城"], "checks": ["Q1"], "value": 3, "origin": "object:E2"},
@@ -180,7 +180,7 @@ def topic_analysis():
             ],
             "actions": [
                 {"kind": "search", "source": "gone_src", "args": {"terms": ["撤权原文城"]}},
-                # an older run: no origin anywhere, and the query it came from has retired (Codex r36)
+                # an older run: no origin anywhere, and the query it came from has retired
                 {"kind": "search", "source": "gone_src", "args": {"terms": ["撤权原文旧词"]}},
                 {"kind": "search", "source": "open_src", "args": {"terms": ["XQ-17"]}},
             ],
@@ -330,7 +330,7 @@ def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
     facts = {f["ref"]: f for f in detail["progress"]["facts"]}
     assert facts["E1"]["quote"] == "开放原文" and facts["E2"]["quote"] == "" and facts["E2"]["text"] == ""
     assert detail["result"]["computations"][0]["operands"][0]["quote"] == ""
-    # Codex r20: the same words also sat in the draft, the sentence checks, the judgments and the export
+    # The same words also sat in the draft, the sentence checks, the judgments and the export
     result = detail["result"]
     assert "E2（来源已撤权）" in result["withheld"] and result["draft"] == ""
     judgment = result["assessment"]["judgments"][0]
@@ -339,7 +339,7 @@ def test_a_revoked_source_shows_no_text_in_any_exit(fabric_sources):
     assert [c["index"] for c in result["review"]["claims"]] == [1, 2]
     import json
 
-    with db.session() as s:  # a reviewer's note quoting the sentence (Codex r22)
+    with db.session() as s:  # a reviewer's note quoting the sentence
         user_id = s.scalar(select(db.User.id).where(db.User.name == "admin"))
         s.add(
             db.Review(
@@ -383,7 +383,7 @@ def test_when_the_source_list_cannot_be_read_no_text_leaves_the_api(fabric_sourc
 
 
 def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_sources, monkeypatch):
-    """Codex r38: the follow-up got the revoked parent's draft as previous_report, the plan model saw it,
+    """The follow-up got the revoked parent's draft as previous_report, the plan model saw it,
     and a name from it came back in the follow-up's detail."""
     monkeypatch.setattr(analyses, "dispatch", lambda analysis_id: None)
     admin = admin_client()
@@ -404,7 +404,7 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
                 "draft": "依上一轮：撤权原文城的病例在增加。",
                 "report_status": "PASS",
                 "plan_basis": {"撤权原文城": "prior_report"},
-                # Codex r45: every model text of the round, wherever it sits
+                # Every model text of the round, wherever it sits
                 "computations": [
                     {
                         "description": "撤权原文城的人数",
@@ -421,7 +421,7 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
                 "stop": {"decision": "insufficient", "reason": "step_limit"},
             },
         )
-        # the plan wrote a check with a name from the earlier report (Codex r40)
+        # the plan wrote a check with a name from the earlier report
         row.progress = {
             "checks": [
                 {
@@ -432,7 +432,7 @@ def test_a_follow_up_of_a_revoked_report_neither_receives_nor_shows_it(fabric_so
                 }
             ],
             # the reader saw that check: the fact's text names the earlier project, its quote comes from a
-            # record still readable (Codex r45 inherited-fact-projection)
+            # record still readable
             "facts": [
                 {
                     "id": "F1",

@@ -1,4 +1,4 @@
-"""measure.v10 (Codex): the first real local-Qwen answer (qwen-run1 event 1, kept as given) keyed sources as
+"""measure.v10: the first real local-Qwen answer (qwen-run1 event 1, kept as given) keyed sources as
 period_text / scope_text; the four aliases are mapped mechanically inside sources only and recorded, the
 canonical key beside its alias, an unknown key or an unknown source still fail, and every answer is kept."""
 
@@ -85,7 +85,7 @@ def test_the_prompt_names_the_keys():
 
 
 def test_a_format_retry_and_a_429_resend_are_each_counted_through_a_real_http_chain(monkeypatch):
-    """Codex r192: the adapter's real HTTP path against a local server - an answer that fails validation, its
+    """The adapter's real HTTP path against a local server - an answer that fails validation, its
     format retry answered 429, the resend answered: 3 requests, each outcome kept, tokens of the 2 answers."""
     import threading
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

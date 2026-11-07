@@ -1,4 +1,4 @@
-"""T-24 DoD: two continuous inputs through the real checker v14 (BioCheck in-process, no model) -
+"""Definition of done: two continuous inputs through the real checker v14 (BioCheck in-process, no model) -
 public-health
 bulletins whose later issue revises an earlier month (late reports), and quarterly industrial output with one
 quarter restated later. Each: only the affected period is redone, a replay before the revision sees the old
@@ -250,7 +250,7 @@ def test_a_restated_quarter_is_redone_alone_and_a_replay_before_the_restatement_
 
 
 def test_the_company_written_fused_with_its_site_is_kept_but_never_compared(monkeypatch):
-    """Codex 783: the original business sentence - 甲公司苏州工厂 - proves no entity under v15 either; its
+    """The original business sentence - 甲公司苏州工厂 - proves no entity under v15 either; its
     points are kept, checked, and out of comparison with the entity gap; no series step is computed from
     them."""
     head = "## 按报告期统计\n\n"

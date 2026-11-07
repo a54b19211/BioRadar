@@ -1,7 +1,7 @@
-"""T-24 complete domain (design r2, Codex 725/730): a number is compared automatically only in a group whose
+"""Complete domain: a number is compared automatically only in a group whose
 metric family is determined and whose required dimensions are all proven - checked, or carried by a matched
 field with its full phrase. Gate cases D1-D12 on stored check records; grouping on a stand-in for checker v11
-(stated dimensions counted as checked) - the real v11 chain is still to be verified (Codex 730)."""
+(stated dimensions counted as checked) - the real v11 chain is still to be verified."""
 
 from datetime import timedelta
 from types import SimpleNamespace
@@ -79,7 +79,7 @@ def test_d9_efficacy_is_never_compared_automatically():
 def test_d10_a_rate_needs_its_denominator_definition():
     g = gate(kind="rate", stated=dims(disease="炭疽", population="成人", date_basis="按报告日"), **CASES)
     assert "dim_unknown:denominator_definition" in g["reasons"]
-    # the denominator field is the number (contract v2): a matched 100 proves no definition (Codex r171)
+    # the denominator field is the number (contract v2): a matched 100 proves no definition
     g = gate(kind="rate", stated=dims(disease="炭疽"), denominator=("100", "match"), **CASES)
     assert "dim_unknown:denominator_definition" in g["reasons"]
     g = gate(kind="rate", stated=dims(disease="炭疽", denominator_definition="检测人数"), **CASES)
@@ -267,7 +267,7 @@ def test_d4_a_point_with_an_unknown_dimension_is_never_grouped_with_one_that_sta
 
 
 def test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contradiction(monkeypatch):
-    """Codex r177: the same record version, group and period, 10 and 30 in two sentences - both stored with
+    """The same record version, group and period, 10 and 30 in two sentences - both stored with
     the
     gap record_internal_conflict, never compared, the topic told; the same value twice is one point."""
     v11_stand_in(monkeypatch)
@@ -336,7 +336,7 @@ def test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contrad
 def test_the_analysis_a_record_contradiction_triggers_receives_both_points_and_the_pinned_version(
     monkeypatch,
 ):
-    """Codex r180: the queued analysis gets both points (their check and comparability state) and the record
+    """The queued analysis gets both points (their check and comparability state) and the record
     at
     the version that contradicts itself as a pinned seed; the question names both values."""
     test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contradiction(monkeypatch)
@@ -360,7 +360,7 @@ def test_the_analysis_a_record_contradiction_triggers_receives_both_points_and_t
 
 def conflict_topic(monkeypatch, extra):
     """The R30 contradiction plus `extra` more record_conflict events naming the same two points, the later
-    ones sharing one time (Codex r182)."""
+    ones sharing one time."""
     monkeypatch.setattr(monitor.analyses, "dispatch", lambda analysis_id: None)
     test_one_record_stating_one_identity_with_two_values_keeps_both_as_a_contradiction(monkeypatch)
     with db.session() as s:
@@ -404,7 +404,7 @@ def conflict_rounds(tid, rounds):
 
 
 def test_a_bounded_conflict_hand_off_settles_only_what_it_handed_and_carries_on(monkeypatch):
-    """Codex r182: 12 contradictions (six at one time) - batches of at most 10, every record handed exactly
+    """12 contradictions (six at one time) - batches of at most 10, every record handed exactly
     once across fresh start_analyses calls, the reason owed until the last one is handed."""
     tid = conflict_topic(monkeypatch, 11)
     batches, owed = conflict_rounds(tid, 4)
@@ -423,7 +423,7 @@ def test_a_bounded_conflict_hand_off_settles_only_what_it_handed_and_carries_on(
 
 
 def test_a_conflict_hand_off_of_many_batches_keeps_events_of_one_time_apart(monkeypatch):
-    """Codex r182: 22 contradictions, seventeen at one time - three batches, none skipped, none repeated."""
+    """22 contradictions, seventeen at one time - three batches, none skipped, none repeated."""
     tid = conflict_topic(monkeypatch, 21)
     batches, owed = conflict_rounds(tid, 5)
     handed = [r for b in batches for r in b]
@@ -433,7 +433,7 @@ def test_a_conflict_hand_off_of_many_batches_keeps_events_of_one_time_apart(monk
 
 
 def test_a_correction_batch_hands_repeats_with_their_version_and_leaves_the_rest_owed(monkeypatch):
-    """Codex r182: twelve correcting record versions (one repeated) - a batch of ten with the repeat, the
+    """Twelve correcting record versions (one repeated) - a batch of ten with the repeat, the
     earliest time of the two left over, and once handed the next batch is exactly those two."""
     tid = conflict_topic(monkeypatch, 0)
     with db.session() as s:

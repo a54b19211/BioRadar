@@ -1,4 +1,4 @@
-"""B r2 section 0 (Codex 711.1): every context a continuation window sends - heading, table header, table
+"""B r2 section 0: every context a continuation window sends - heading, table header, table
 caption - is its own material_read of the same model call, its recorded text exactly the text sent; every
 candidate names the material_read of the window it was read from, never another send of the same text."""
 

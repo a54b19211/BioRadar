@@ -206,7 +206,7 @@ def biocheck_fake(answer=None, calls=None):
 @pytest.fixture
 def dims_verified(monkeypatch):
     """Series-kernel tests: every point's metric family and required dimensions count as proven (a stand-in
-    until checker v11 checks dimensions; the real gate is tested in test_complete_domain.py, Codex 730)."""
+    until checker v11 checks dimensions; the real gate is tested in test_complete_domain.py)."""
     from bioradar.research import domain
 
     monkeypatch.setattr(

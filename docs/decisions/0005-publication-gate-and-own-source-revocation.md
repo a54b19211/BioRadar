@@ -6,7 +6,7 @@
 - Code: `research/views.py` (`publication`, `gated`, `summary`), `research/pipeline.py`
   (`Run.result`, `Run.confirm_sources`, `Run.ask(carries=)`), `research/run/submit.py` (`service`,
   `outbound`), `research/run/{read,calculate,mechanism,assess}.py`, `app.py` (`held_notice`, `export`)
-- Tests: `tests/test_chain1_defects.py` (the two former strict xfails and four around them),
+- Tests: `tests/test_publication_gate_and_source_revocation.py` (the two former strict xfails and four around them),
   `tests/test_send_recheck.py` (every request re-checked, through the real llm client)
 
 ## (a) Only a report BioCheck passed is deliverable
@@ -77,7 +77,7 @@ start a new analysis on the sources still readable. Revocations are rare; the co
 
 ## Consequences
 
-- The two defects of `tests/test_chain1_defects.py` pass and are no longer xfail.
+- The two defects of `tests/test_publication_gate_and_source_revocation.py` pass and are no longer xfail.
 - External views gain `publishable`, `hold`, `hold_reason` on every result with a report status (golden view
   fixtures regenerated: only these keys added for PASS results).
 - Test fakes must answer `sources()`; `FakeFabric` lists the sources of its records.

@@ -1,4 +1,4 @@
-"""The complete-domain chain with the real checker v11 (Codex 730/740): triage -> measure.v8 locates the
+"""The complete-domain chain with the real checker v11: triage -> measure.v8 locates the
 stated
 dimensions in what was sent -> BioCheck v11 /v3 (real ASGI handler) judges each -> adopt groups by the proven
 domain -> a step inside one complete group; no comparison for a dimension in another sentence, a date value
@@ -154,7 +154,7 @@ def test_a_date_value_claimed_as_the_date_basis_keeps_the_point_out(monkeypatch)
 def test_an_institution_claimed_as_the_product_and_a_number_as_a_denominator_definition_prove_nothing(
     monkeypatch,
 ):
-    """Codex 740: the numbers stay consistent; the agency and the bare number are no product and no
+    """The numbers stay consistent; the agency and the bare number are no product and no
     denominator definition; the product class the text writes is checked."""
     from test_measure_checks import measure, one, rows
 
@@ -204,7 +204,7 @@ def test_a_product_class_the_text_writes_is_checked(monkeypatch):
 
 
 def test_a_dimension_citing_a_source_never_sent_is_kept_unlocated_and_the_value_is_still_checked(monkeypatch):
-    """Codex 740: triage sends no heading; a dimension citing one is not sent, kept with why - and the number
+    """Triage sends no heading; a dimension citing one is not sent, kept with why - and the number
     is still built and checked."""
     unsent = [
         schemas.Dim(kind="disease", text="炭疽"),
@@ -221,7 +221,7 @@ def test_a_dimension_citing_a_source_never_sent_is_kept_unlocated_and_the_value_
 
 
 def test_a_dimension_written_in_an_adjacent_table_is_not_this_values(monkeypatch):
-    """Codex 730: a population found in a neighbouring table (sent in the window, located once) is not the
+    """A population found in a neighbouring table (sent in the window, located once) is not the
     value's own - neither its sentence nor its ancestor heading: unsupported, the point stays out."""
     table = "| 人群 | 说明 |\n| --- | --- |\n| 成人 | 18岁及以上 |\n\n"
     text = f"## 按报告日统计\n\n{table}2026年1月，医院A在湖北省共报告炭疽确诊病例10例。"
@@ -241,7 +241,7 @@ def test_a_dimension_written_in_an_adjacent_table_is_not_this_values(monkeypatch
 
 
 def test_an_unproven_point_sharing_the_group_values_is_never_a_baseline(monkeypatch):
-    """Codex r178: the combined "成人和儿童" count stated as 成人 is unproven (v12: dim_qualifier_dropped) and
+    """The combined "成人和儿童" count stated as 成人 is unproven (v12: dim_qualifier_dropped) and
     shares the adult group's values - it must not be the baseline of the adult-only point that follows."""
     combined = "## 按报告日统计\n\n2026年1月，在成人和儿童中，医院A在湖北省共报告炭疽确诊病例10例。"
     adult = "## 按报告日统计\n\n2026年2月，在成人中，医院A在湖北省共报告炭疽确诊病例12例。"

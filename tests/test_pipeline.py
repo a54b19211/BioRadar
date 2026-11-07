@@ -120,7 +120,7 @@ def test_analysis_end_to_end(monkeypatch):
 
     with db.session() as s:
         evidence = list(s.scalars(select(db.Evidence).order_by(db.Evidence.ref)))
-    # the planner reads the newer of two equally matching records first (T-21), so the correction is E1
+    # the planner reads the newer of two equally matching records first, so the correction is E1
     assert [(e.ref, e.record_id) for e in evidence] == [("E1", "B41"), ("E2", "B31")]
     assert result["report_status"] == "PASS"
     # The invented quote is dropped, the real ones stay.
@@ -301,7 +301,7 @@ def test_a_check_with_supporting_facts_stays_open_until_the_reader_says_it_is_wh
 
 
 def test_facts_that_only_say_what_a_record_does_not_mention_do_not_answer_a_check(monkeypatch):
-    """PHX-W4: two routine weekly reports said "未提及更正" / "未提及独立来源"; the reader called every
+    """Two routine weekly reports said "未提及更正" / "未提及独立来源"; the reader called every
     required check answered and the planner stopped after two reads with 40 event records unread."""
     base = fake_model([])
 
@@ -322,7 +322,7 @@ def test_facts_that_only_say_what_a_record_does_not_mention_do_not_answer_a_chec
 
 
 def test_scenario_material_is_judged_inside_the_scenario_and_real_questions_stay_as_asked(monkeypatch):
-    """PHX: the materials say they are invented; the models concluded "fictional, so nothing to verify"."""
+    """The materials say they are invented; the models concluded "fictional, so nothing to verify"."""
     from bioradar.research.pipeline import DEMO_SETTING
 
     for is_demo in (True, False):
@@ -348,7 +348,7 @@ def test_scenario_material_is_judged_inside_the_scenario_and_real_questions_stay
 
 
 def test_a_next_page_in_current_mode_is_read_at_the_time_of_its_first_page(monkeypatch):
-    """T-19: live Europe PMC answered invalid_cursor twice; each page was asked "as of now" again."""
+    """Live Europe PMC answered invalid_cursor twice; each page was asked "as of now" again."""
     sent = []
     monkeypatch.setattr(llm, "chat_json", fake_model(sent))
     monkeypatch.setattr(services, "biocheck", empty_report)
@@ -372,7 +372,7 @@ def test_a_next_page_in_current_mode_is_read_at_the_time_of_its_first_page(monke
 
 
 def test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so(monkeypatch):
-    """T-19: an empty admin token went out as "Bearer " and failed as LocalProtocolError."""
+    """An empty admin token went out as "Bearer " and failed as LocalProtocolError."""
     sent = []
     monkeypatch.setattr(llm, "chat_json", fake_model(sent))
     kinds = []
@@ -396,7 +396,7 @@ def test_without_fabrics_admin_token_there_is_no_fetch_step_and_the_note_says_so
 
 
 def test_every_draft_and_its_check_are_kept_so_a_wrong_citation_can_be_traced(monkeypatch):
-    """Codex PHX r2: only revised=true survived, so nobody could tell which step mis-cited."""
+    """Only revised=true survived, so nobody could tell which step mis-cited."""
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
     checks = iter(["REVIEW", "PASS"])
@@ -429,7 +429,7 @@ def test_every_draft_and_its_check_are_kept_so_a_wrong_citation_can_be_traced(mo
 
 
 def test_a_draft_whose_check_failed_is_kept_unchecked_with_the_failure(monkeypatch):
-    """Codex r28: a version was kept only after verify returned, so a failed check lost that draft."""
+    """A version was kept only after verify returned, so a failed check lost that draft."""
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
 
@@ -447,7 +447,7 @@ def test_a_draft_whose_check_failed_is_kept_unchecked_with_the_failure(monkeypat
 
 
 def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatch):
-    """Codex PHX r2: an open question names no place, so every place found in the records was blanked and
+    """An open question names no place, so every place found in the records was blanked and
     events had nothing to hang on. Plan-stage guesses still never get in this way."""
     from bioradar.research.schemas import ReadFact
 
@@ -463,7 +463,7 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
     assert read.object_of(run, named, "E1") == "禾屿县" and read.object_of(run, guessed, "E2") == ""
     assert run.p["found_objects"] == [{"name": "禾屿县", "ref": "E1", "quote": "禾屿县本周报告3例发热伴皮疹"}]
     assert run.p["objects"] == []  # found objects do not narrow the question
-    # Codex r31: a known name still needs this fact's own quote, or two events get joined
+    # A known name still needs this fact's own quote, or two events get joined
     other = ReadFact(text="乙城医院收治2例", quote="乙城医院收治2例", stance="supports", object="禾屿县")
     assert read.object_of(run, other, "E3") == ""
     # background keeps its name but takes no place among the names followed up
@@ -475,7 +475,7 @@ def test_an_object_named_by_the_record_itself_is_kept_and_followed_up(monkeypatc
 
 
 def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
-    """Codex PHX r2: two background-only terms from the first record took the last free places; terms from
+    """Two background-only terms from the first record took the last free places; terms from
     the event records found later never got in, so the run depended on which record came first."""
     row = analyses.create(
         question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False
@@ -506,7 +506,7 @@ def test_a_full_query_pool_lets_evidence_replace_background_terms_not_yet_run():
 
 
 def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in():
-    """Codex r31: once all 12 searches had run, a new term from new evidence could never get in."""
+    """Once all 12 searches had run, a new term from new evidence could never get in."""
     row = analyses.create(
         question="当前有哪些异常聚集？", direction="public_health", is_demo=True, enqueue=False
     )
@@ -531,7 +531,7 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
     assert "新城" in terms and "词0" not in terms and "词3" in terms  # still paging, so it stays
     assert run.p["notes"][-1]["code"] == "query_retired"
     assert {"kind": "search", "source": "external_archive", "args": {"terms": ["词0"]}} in run.p["actions"]
-    # Codex r35: with two sources, a search run on one only is not done
+    # With two sources, a search run on one only is not done
     two = Run(
         analyses.create(
             question="两源？", direction="public_health", is_demo=True, sources=["a", "b"], enqueue=False
@@ -553,7 +553,7 @@ def test_searches_run_and_used_up_leave_the_active_pool_so_new_evidence_gets_in(
 
 
 def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
-    """Codex C05: 2 devices over 3 institutions came out as 66.6667%; a caveat does not make it valid."""
+    """2 devices over 3 institutions came out as 66.6667%; a caveat does not make it valid."""
     from bioradar.research import pipeline
 
     def calculate(settings_, stage, system, payload, model_cls, **options):
@@ -597,7 +597,7 @@ def test_a_percentage_of_different_things_is_not_computed(monkeypatch):
 
 
 def test_a_percentage_whose_units_cannot_be_read_from_the_quotes_is_not_computed(monkeypatch):
-    """Codex r32: with no units, or "人" claimed for both though the quotes say 套 and 家, 66.67% came out."""
+    """With no units, or "人" claimed for both though the quotes say 套 and 家, 66.67% came out."""
     from bioradar.research import pipeline
 
     claimed = {}
@@ -652,7 +652,7 @@ def test_a_percentage_whose_units_cannot_be_read_from_the_quotes_is_not_computed
 
 
 def test_reads_tell_the_planner_what_they_found_apart_from_answering(monkeypatch):
-    """Codex PHX r2: a read that found a key fact without finishing a broad check reported gain 0 only."""
+    """A read that found a key fact without finishing a broad check reported gain 0 only."""
     base = fake_model([])
     bodies = []
 
@@ -674,7 +674,7 @@ def test_reads_tell_the_planner_what_they_found_apart_from_answering(monkeypatch
 
 
 def test_the_report_input_keeps_every_quoted_fact_even_far_down_a_long_record():
-    """Codex r38: a trial's status fields filled the 4000 characters with context, the loop stopped, and
+    """A trial's status fields filled the 4000 characters with context, the loop stopped, and
     the results table the reader had quoted never reached BioCheck."""
     from bioradar.material import Material
     from bioradar.research.run.windows import excerpt
@@ -686,7 +686,7 @@ def test_the_report_input_keeps_every_quoted_fact_even_far_down_a_long_record():
 
 
 def test_a_queued_follow_up_checks_its_earlier_report_again_when_it_runs():
-    """Codex r38: permission is checked when the run uses the earlier report, not only at creation."""
+    """Permission is checked when the run uses the earlier report, not only at creation."""
     parent = analyses.create(question="上一轮？", direction="pipeline", is_demo=True, enqueue=False)
     with db.session() as s:
         row = s.get(db.Analysis, parent.id)
@@ -723,7 +723,7 @@ def test_a_queued_follow_up_checks_its_earlier_report_again_when_it_runs():
 
 
 def test_candidates_carry_what_they_are_expected_to_add():
-    """Codex r40: a plain search had impact 1 while reads had 0.4-0.7, so open questions kept searching."""
+    """A plain search had impact 1 while reads had 0.4-0.7, so open questions kept searching."""
     row = analyses.create(question="当前有哪些事件？", direction="public_health", is_demo=True, enqueue=False)
     run = Run(row, settings(), fabric=FakeFabric([]))
     hits = [
@@ -766,7 +766,7 @@ def test_candidates_carry_what_they_are_expected_to_add():
 
 
 def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_is_unknown():
-    """Codex r40: revoked between plan and report, the cached answer still sent the report to the writer;
+    """Revoked between plan and report, the cached answer still sent the report to the writer;
     round 21 of a chain lost its root's limits; a loop must not hang."""
     from bioradar.research.lineage import lineage, lineage_sources
 
@@ -821,7 +821,7 @@ def test_the_earlier_report_is_checked_at_each_use_and_a_long_or_looping_chain_i
 
 
 def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on_a_term():
-    """Codex r40 decision: within the task's own material set, list what is visible at the cutoff."""
+    """Within the task's own material set, list what is visible at the cutoff."""
     early = [
         record(f"S{i:03d}", f"记录{i}", "门诊登记", available="2026-09-20T08:00:00+08:00") for i in range(110)
     ]
@@ -897,7 +897,7 @@ def test_a_large_fixed_material_set_can_be_browsed_so_discovery_does_not_hang_on
 
 
 def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted_them():
-    """Codex r41: the reader never quoted the phase, so the writer wrote that the phase was not given. The
+    """The reader never quoted the phase, so the writer wrote that the phase was not given. The
     record is Fabric's cleaned trial text (v3 3.3): field headings "<名称> <field>:", nested lines as paths.
     Every window of the report input keeps its range in that text (v3 6.1)."""
     from bioradar.material import Material, part_key, reread
@@ -946,7 +946,7 @@ def test_a_registry_records_essentials_reach_the_writer_even_when_no_fact_quoted
 
 
 def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(monkeypatch):
-    """Codex r41: after the plan turned the earlier report into checks, revoking it only dropped the
+    """After the plan turned the earlier report into checks, revoking it only dropped the
     previous_report field; the checks still reached the writer through research_scope."""
     from bioradar.research.pipeline import Failed
 
@@ -989,7 +989,7 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
     with pytest.raises(Failed) as stopped:
         run.run()
     assert stopped.value.code == "upstream_access_withdrawn"
-    # Codex r43: revoked inside the investigation, after the stage started: the next Fabric action stops
+    # Revoked inside the investigation, after the stage started: the next Fabric action stops
     fabric.listed = ["gone", "external_archive"]
     inside = Run(analyses.get(child.id), settings(), fabric=fabric)
     inside.stage = "investigate"
@@ -1005,7 +1005,7 @@ def test_a_run_that_used_an_earlier_report_stops_when_its_sources_are_revoked(mo
     old.p.pop("used_previous", None)
     with pytest.raises(Failed):
         old.report_input()
-    # Codex r44: revoked while BioCheck generated the draft: verify/revise are not sent with the same scope
+    # Revoked while BioCheck generated the draft: verify/revise are not sent with the same scope
     fabric.listed = ["gone", "external_archive"]
     writer = Run(analyses.get(child.id), settings(), fabric=fabric)
     writer.stage = "report"
@@ -1272,7 +1272,7 @@ def test_no_budget_left_means_the_assessment_stays_unverified(monkeypatch):
 
 
 def test_names_the_question_does_not_give_never_narrow_relevance(monkeypatch):
-    """T-22: a plan that brings in a place the question never named keeps it as a search direction only."""
+    """A plan that brings in a place the question never named keeps it as a search direction only."""
     base = fake_model([])
     reads = []
 
@@ -1422,7 +1422,7 @@ def test_the_planner_reads_by_term_coverage_and_puts_copies_last_while_the_basel
 
 
 def test_same_opening_with_the_opposite_ending_is_not_a_copy():
-    """Codex r18: a length plus 120-character key called two texts with the same opening and opposite
+    """A length plus 120-character key called two texts with the same opening and opposite
     conclusions copies, so the second went behind unrelated background. Only identical full texts count."""
     opening = "XQ-17 上市申请进展：" + "审评资料补充说明。" * 20
     row = analyses.create(question="XQ-17 是否获批？", direction="pipeline", is_demo=True, enqueue=False)
@@ -1494,7 +1494,7 @@ def test_reposts_reach_biocheck_as_relations_with_both_ends_bound_or_marked_unre
 
 
 def test_question_objects_found_in_the_reviewed_graph_bring_their_source_records_to_read(monkeypatch):
-    """T-20: the graph adds reading candidates with the entity's identity status kept; it decides nothing."""
+    """The graph adds reading candidates with the entity's identity status kept; it decides nothing."""
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
     monkeypatch.setattr(services, "biocheck", empty_report)
@@ -1577,7 +1577,7 @@ def test_what_mechevidence_receives_is_recorded_with_the_binding_of_what_was_rea
 
 
 def test_every_outbound_attempt_keeps_its_own_record_and_status():
-    """Codex r85: a read sent and then repeated after a restart is two records, not one rewritten; each says
+    """A read sent and then repeated after a restart is two records, not one rewritten; each says
     whether it went out (sent), was not sent (no model budget) or failed, and a sent one stays sent."""
     import pytest
 
@@ -1611,7 +1611,7 @@ def test_every_outbound_attempt_keeps_its_own_record_and_status():
 
 
 def test_text_the_cleaning_layer_did_not_produce_says_so_to_every_receiver(monkeypatch):
-    """Codex r85: when Fabric's cleaned text is not there the version's own text is read, but the reader and
+    """When Fabric's cleaned text is not there the version's own text is read, but the reader and
     BioCheck receive it with the notice in the text (a fixed template, bound as such), and the analysis notes
     it; the text level is not full text."""
     from bioradar.adapters.fabric import UNCLEANED
@@ -1652,7 +1652,7 @@ def test_text_the_cleaning_layer_did_not_produce_says_so_to_every_receiver(monke
 
 
 def test_the_notice_heads_every_window_of_a_long_uncleaned_record():
-    """Codex 478: a long uncleaned text cut to the paragraphs that matter, then to the quoted passage for the
+    """A long uncleaned text cut to the paragraphs that matter, then to the quoted passage for the
     report, loses its first line; the notice is put back on every window sent, once."""
     from bioradar.adapters.fabric import UNCLEANED, noticed
     from bioradar.material import Material
@@ -1672,7 +1672,7 @@ def test_the_notice_heads_every_window_of_a_long_uncleaned_record():
 
 
 def test_each_biocheck_request_has_its_own_outbound_record(monkeypatch):
-    """Codex r86: generate succeeded, then verify failed; the two requests carrying the same report windows
+    """Generate succeeded, then verify failed; the two requests carrying the same report windows
     are two records (report:generate sent, report:verify failed), never one sent record hiding the failure."""
     from types import SimpleNamespace
 

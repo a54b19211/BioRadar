@@ -4,7 +4,7 @@
 # The measurement chain moves to Fabric's derived-data layer (v3 6.1, audit P3: extraction, BioCheck checking,
 # corrections and upkeep become Fabric's, Radar keeps the investigation's own selection). Splitting code that
 # is about to move would be done twice; until then it is covered by test_measure_checks, test_series*,
-# test_complete_domain, test_upkeep, test_continuation and the T-24 / v11 chains against real BioCheck.
+# test_complete_domain, test_upkeep, test_continuation and the series / complete-domain chains against real BioCheck.
 services/bioradar/research/measure_checks.py:_in_source  measurement chain, moves to Fabric (P3)
 services/bioradar/research/measure_checks.py:_states  measurement chain, moves to Fabric (P3)
 services/bioradar/research/measure_checks.py:build  measurement chain, moves to Fabric (P3)

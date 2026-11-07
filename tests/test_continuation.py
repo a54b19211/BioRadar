@@ -1,4 +1,4 @@
-"""T-31: bounded continuation reading. A record is read past its triage window, window by window, a bounded
+"""Bounded continuation reading. A record is read past its triage window, window by window, a bounded
 number per round, fairly across sources and records; every window's state says what happened to that text,
 and a measure found beyond the first window is a candidate checked like any other - located in the window
 that was read, once even when an overlap shows it twice, never reused across cleaned artifacts."""
@@ -487,7 +487,7 @@ def test_a_value_found_by_continuation_sets_off_what_one_found_by_triage_does(mo
     assert by_continuation == by_triage and len(by_triage[0]) == 2
 
 
-# ---- re-extraction and the coverage endpoint (Codex COORD 647) -------------------------------------
+# ---- re-extraction and the coverage endpoint -------------------------------------
 
 
 def test_a_re_extracted_legacy_version_gets_its_reading_plan(stand_ins):
@@ -556,7 +556,7 @@ def test_the_coverage_endpoint_is_read_only_signed_in_and_by_workspace_and_demo_
     assert client.post("/api/measure-coverage").status_code == 405  # read-only
 
 
-# ---- authority, isolation, leases (Codex r149) ---------------------------------------------------------
+# ---- authority, isolation, leases ---------------------------------------------------------
 
 
 @pytest.mark.parametrize("state", ["not_processed", None, "pending", "not_visible_or_not_processed"])

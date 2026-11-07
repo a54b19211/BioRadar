@@ -1,4 +1,4 @@
-"""Producer measure.v4 / checker v9 (Codex r161): Radar locates a period literal only as the whole written
+"""Producer measure.v4 / checker v9: Radar locates a period literal only as the whole written
 period and a unit in the bound metric phrase only as its head counting noun - extraction_normalize.v2, the
 functions BioCheck v9 uses. Generic format cases."""
 
@@ -10,7 +10,7 @@ from bioradar.research import schemas
 
 
 def test_the_producer_and_checker_versions():
-    # later producers keep this one's reading; the current versions (test_measure_v5)
+    # later producers keep this one's reading; the current versions (test_measure_unit_subject)
     assert mc.CHECKER == ec.CHECKER_V16 == "biocheck.extraction_rules.v16"
     assert mc.PRODUCER == {"name": "bioradar.triage", "version": "measure.v10"}
 

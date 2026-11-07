@@ -1,4 +1,4 @@
-"""T-24 comparable domain (Codex r160): a series is one key in one domain - the topic the record was placed
+"""Comparable domain: a series is one key in one domain - the topic the record was placed
 in. Known different domains are never compared; an unknown domain is kept, effective and computes nothing."""
 
 from datetime import timedelta
@@ -131,7 +131,7 @@ def test_a_correction_replaces_within_the_domain_and_an_unknown_domain_computes_
 
 
 def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its_topic(monkeypatch):
-    """Codex 695/696: Fabric's correction is a fact-validity boundary - the old value stops counting in its
+    """Fabric's correction is a fact-validity boundary - the old value stops counting in its
     own topic from when the correction is visible; that topic is told why, nothing is adopted across."""
     topics, points, events = run(
         monkeypatch,
@@ -157,7 +157,7 @@ def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its
                 )
             )
         }
-        # the record was corrected (seen with C1, Codex r166) and its replacement went to another topic
+        # the record was corrected (seen with C1) and its replacement went to another topic
         assert set(corrections) == {"source_correction", "cross_domain_correction"}
         assert corrections["source_correction"].detail["withdrawn"] == [points["A1"][3]]
         corr = corrections["cross_domain_correction"]
@@ -177,7 +177,7 @@ def test_a_correction_placed_in_another_topic_withdraws_the_point_and_routes_its
 
 
 def test_every_series_point_says_whether_it_may_be_compared_now(monkeypatch):
-    """Codex 695/696: comparability is a layer apart from the extraction check (current) -
+    """Comparability is a layer apart from the extraction check (current) -
     series_points and so
     the planner and the analysis see it; unknown domain and withdrawn points are not comparable."""
     topics, points, events = run(
@@ -206,7 +206,7 @@ def test_every_series_point_says_whether_it_may_be_compared_now(monkeypatch):
 
 
 def test_a_retraction_withdraws_the_point_from_when_it_is_seen_with_no_replacement(monkeypatch):
-    """Codex r166: the correction's own lifecycle - a retraction has no replacement value at all; the point
+    """The correction's own lifecycle - a retraction has no replacement value at all; the point
     leaves comparison from the retraction's time on, and a reader with an earlier cutoff still sees it."""
     topics, points, events = run(
         monkeypatch,
