@@ -373,12 +373,13 @@ def _object_key(receipt):
 
 
 def _open_ended(period):
-    """A period with its start and no end: it is not an interval a series can place."""
-    return "start" in period and "end" not in period
+    """A period with its start and no end, the end absent or null (Fabric sends null: its objects are dumped
+    with every field): it is not an interval a series can place."""
+    return period.get("start") is not None and period.get("end") is None
 
 
 def _period_text(period):
-    return period.get("value") or f"{period['start']}/{period.get('end', '')}"
+    return period.get("value") or f"{period['start']}/{period.get('end') or ''}"
 
 
 def _bounds(period, at):

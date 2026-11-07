@@ -479,7 +479,7 @@ def test_an_object_whose_period_has_only_a_start_is_no_point_of_a_series_and_is_
         record="who-a",
         value="1599",
         metric="报告马尔堡病毒病累计病例",
-        period={"type": "interval", "precision": "month", "start": "2012-09"},
+        period={"type": "interval", "precision": "month", "value": None, "start": "2012-09", "end": None},
     )
     measured = tick(fabric)["measurements"]
     assert measured["open_ended_period"] == 1 and measured["linked"] == 1
