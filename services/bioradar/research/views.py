@@ -152,7 +152,13 @@ def summary(stored: dict | None) -> dict:
 LEAD = "本系统于{at}收到来源{source}的线索：{title}（尚未核实）。"
 # What an observation's `reason` holds when the program settled the record (research/triage.py); any other
 # text is the triage model's.
-PROGRAM_REASONS = ("triage_failed", "triage_deferred", "triage_unavailable", "附件未能解析")
+PROGRAM_REASONS = (
+    "triage_failed",
+    "triage_deferred",
+    "triage_unavailable",
+    "background_backfill",
+    "附件未能解析",
+)
 
 
 def lead(source: str, title: str, at: datetime) -> str:

@@ -4,7 +4,9 @@ same way as live monitoring:
   emerging --(3 records or an important alert)--> rising
   rising --(no new record for topic_cool_days)--> cooling
   cooling --(topic_dormant_days without records, or a closure notice)--> dormant
-  cooling / dormant --(a new related record)--> rising again (an awakening)"""
+  cooling / dormant --(a new related record)--> rising again (an awakening)
+Versions a Fabric backfill run created are background, not news: the monitor puts them in no topic, and the
+counts here leave out any that are in one."""
 
 from datetime import UTC, datetime, timedelta
 
@@ -159,13 +161,15 @@ def set_state(session, topic, state, at, **detail):
         topic.state = state
 
 
-def advance(s: Settings, clock: datetime, *, is_demo: bool):
-    """Move topic states forward to the given source clock. Returns topics that started rising."""
+def advance(s: Settings, clock: datetime, *, is_demo: bool, background=frozenset()):
+    """Move topic states forward to the given source clock. Returns topics that started rising. `background`:
+    the versions Fabric backfill runs created; they are not among the records that make a topic rise."""
     rising = {}
     with db.session() as session:
         for topic in session.scalars(select(db.Topic).where(db.Topic.is_demo == is_demo)):
             idle = clock - parse_time(topic.last_activity_at)
-            count = session.scalar(select(func.count()).where(db.Observation.topic_id == topic.id)) or 0
+            records = db.Observation.topic_id == topic.id, db.Observation.version_id.not_in(list(background))
+            count = session.scalar(select(func.count()).where(*records)) or 0
             if topic.closed and topic.state != "dormant":
                 set_state(session, topic, "dormant", clock, reason="closure_notice")
             elif topic.state == "emerging" and (count >= 3 or topic.alert in {"important", "urgent"}):

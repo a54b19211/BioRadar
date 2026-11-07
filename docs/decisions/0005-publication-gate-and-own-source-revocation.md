@@ -99,9 +99,9 @@ is unchanged.
   `no_analysis`, `analysis_queued|running|failed`, the report's own reason (`biocheck_review`, ...), or
   `analysis_owed`.
 - **The model's verdict on a record does not leave.** An observation's `alert` is null and its `reason` is empty
-  unless the program wrote it (`triage_failed`, `triage_deferred`, `triage_unavailable`, an unparsed attachment;
-  `views.PROGRAM_REASONS`); an `observed` event carries `alert` null, `signal` empty and `objects` empty. The keys
-  stay.
+  unless the program wrote it (`triage_failed`, `triage_deferred`, `triage_unavailable`, `background_backfill`,
+  an unparsed attachment; `views.PROGRAM_REASONS`); an `observed` event carries `alert` null, `signal` empty and
+  `objects` empty. The keys stay.
 
 The level a released topic shows is still the triage level: the analysis passing says its report was verified, not
 that the triage level was. Showing the analysis's own `priority` and `consequence`, each behind its judgment's

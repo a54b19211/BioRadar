@@ -32,6 +32,8 @@ STOPPED = {"TERMINATED", "SUSPENDED", "WITHDRAWN"}
 # 用完，v3 3.7：额度只暂停模型阶段）。两者都是待办，由重试路径在之后的轮次补做；游标照常前进。
 DEFERRED = "triage_deferred"
 RETRYABLE = ("triage_failed", DEFERRED)
+# A version a Fabric backfill run created is background, not news: the program settles it, no triage.
+BACKGROUND = "background_backfill"
 ATTACHMENT_MAX_ATTEMPTS = 3  # Fabric db.derived_text.MAX_ATTEMPTS
 NEW_REGISTRATION_DAYS = 30
 RECENT_UPDATE_DAYS = 7
@@ -177,6 +179,30 @@ def defer(docs, *, is_demo: bool) -> int:
             have.add(doc["version_id"])
             added += 1
     return added
+
+
+def settle_background(docs, background, *, is_demo: bool) -> list:
+    """Keep the versions of Fabric backfill runs (`background`) as observations and leave them at that. They
+    are not triaged and belong to no topic, so they cannot open a topic or warm, alert or wake one, and no
+    series or seed list of a topic reaches them; the candidate groups still read them as background members.
+    A correction one states still flags the analyses that cited the corrected record. Returns the records
+    that are not background."""
+    kept = [d for d in docs if d["version_id"] in background]
+    if not kept:
+        return docs
+    s = settings()
+    with db.session() as session:
+        flag_corrections(kept, is_demo=is_demo, session=session)
+        for doc in kept:
+            session.execute(  # owed a triage until its receipt could be read
+                delete(db.Observation).where(
+                    db.Observation.version_id == doc["version_id"], db.Observation.reason.in_(RETRYABLE)
+                )
+            )
+            row = _observation(s, doc, None, None, "none", parse_time(doc["available_at"]), is_demo)
+            row.reason = BACKGROUND
+            session.add(row)
+    return [d for d in docs if d["version_id"] not in background]
 
 
 def unseen(session, items):
@@ -411,8 +437,8 @@ def triage(s: Settings, docs, topics, watch=None, reads=None):
 def observe(s: Settings, docs, *, is_demo: bool, budget=False, background=frozenset()):
     """Triage new documents and attach them to topics. Returns (topics that need an analysis,
     whether every document was triaged). With `budget`, stops before a batch once today's
-    automatic tokens reach the ceiling. `background`: the versions Fabric backfill runs created; they are
-    observed like any other but are not activity (topics.activity)."""
+    automatic tokens reach the ceiling. `background`: the versions Fabric backfill runs created, already
+    settled by settle_background; topics.activity leaves them out of its counts."""
     wake = {}
     for start in range(0, len(docs), BATCH):
         if budget and analyses.over_auto_budget():

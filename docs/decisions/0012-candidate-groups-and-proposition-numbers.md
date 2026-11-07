@@ -24,10 +24,12 @@ material is in (the display group) as the program found it at the analysis cutof
   the ordering fields (deduplicated confirmed groups, earliest first seen, id).
 - **Background**: versions listed in the `coverage.backfill.background_version_ids` of the Fabric runs named by
   `backfill_run_ids` stay members and candidates' targets but are out of the counts, the baseline and the
-  first-seen time. A receipt that cannot be read is listed in `background_unread`. The monitor's activity
-  check (`topics.activity`) leaves the same versions out of its counts and out of the days it received anything
-  on, so a backfill does not raise `activity_anomaly`; a receipt it cannot read is only logged, and those
-  versions then count.
+  first-seen time. A receipt that cannot be read is listed in `background_unread`. The monitor leaves the same
+  versions out of its topics: a round records each as an observation with the program reason
+  `background_backfill` (`triage.settle_background`) - not triaged, no topic - so it cannot open a topic or
+  warm, alert or wake one, nor serve as a topic's first sighting. `topics.activity` and `topics.advance` also
+  leave them out of their counts, and `activity` out of the days the monitor received anything on. A receipt
+  the monitor cannot read is only logged, and those versions are then news like any other.
 - **Counts** are per day: deduplicated groups (`activity_key`), how many are proven independent (none yet:
   Fabric states `same_origin` or nothing), how many are not known to be. The baseline is the rule the topic
   monitor uses (`topics.previous_days`, `topics.baseline`), not a new one.

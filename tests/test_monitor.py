@@ -588,19 +588,26 @@ def observed(session, topic, version, at):
     )
 
 
-def quiet_week(session, *, bare_day=None):
-    """A topic with two observations on each of the 7 days from START; on `bare_day` only three backfilled
-    ones (version ids bg-*). Returns (the topic, the backfilled version ids)."""
+def topic_at_start(session, title="T", **fields):
+    """A topic first seen, and last active, at START."""
     topic = db.Topic(
         workspace_id=settings().workspace_id,
-        title="T",
+        title=title,
         direction="public_health",
         is_demo=True,
         first_seen_at=START,
         last_activity_at=START,
+        **fields,
     )
     session.add(topic)
     session.flush()
+    return topic
+
+
+def quiet_week(session, *, bare_day=None):
+    """A topic with two observations on each of the 7 days from START; on `bare_day` only three backfilled
+    ones (version ids bg-*). Returns (the topic, the backfilled version ids)."""
+    topic = topic_at_start(session)
     backfilled = set()
     for day in range(7):
         if day == bare_day:
@@ -643,24 +650,137 @@ def test_a_day_with_only_backfilled_observations_is_not_a_day_the_monitor_receiv
 def test_a_round_keeps_the_versions_of_the_backfill_receipts_out_of_the_activity_check(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
     monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
-    versions = [f"bg-{i}" for i in range(6)]  # more than the quiet week's mean 2 + 3
-    fabric = FakeFabric(
-        [
-            record(f"B{i}", "门诊记录5人", "x", available=(START + timedelta(days=7)).isoformat(), version=v)
-            for i, v in enumerate(versions)
-        ]
-    )
-    fabric.background_version_ids = lambda run_ids: (set(versions), [])
+    today = (START + timedelta(days=7)).isoformat()
+    news = [record(f"N{i}", "门诊记录5人", "x", available=today, version=f"n-{i}") for i in range(6)]
+    fabric = FakeFabric(news)
     with db.session() as session:
-        topic_id = quiet_week(session)[0].id
+        backfilled = quiet_week(session, bare_day=3)[1]  # observed before their receipt could be read
+    fabric.background_version_ids = lambda run_ids: (backfilled, [])
 
     assert monitor.tick(is_demo=True, fabric=fabric)["records"] == 6
 
-    with db.session() as session:
-        on_topic = select(func.count()).select_from(db.Observation).where(db.Observation.topic_id == topic_id)
-        assert session.scalar(on_topic) == 14 + 6  # observed like any record, only not counted as activity
+    with db.session() as session:  # 6 days with news before today, not 7: today's 6 are not judged
         flagged = select(func.count()).select_from(db.TopicEvent).where(db.TopicEvent.kind == "activity")
         assert session.scalar(flagged) == 0
+
+
+def test_a_backfilled_record_opens_no_topic_and_is_not_triaged(monkeypatch):
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", triage_by_title(sent))
+    monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
+    old = record("B1", "两家医院确认7例", "x", available=DAY.format(1))
+    fabric = FakeFabric([old])
+    fabric.background_version_ids = lambda run_ids: ({old["version_id"]}, [])
+
+    ran = monitor.tick(is_demo=True, fabric=fabric)
+
+    assert ran["routed"] == {"background_backfill": 1} and sent == []  # settled by the program: no model call
+    assert _topics() == []  # the triage would have opened a topic on an alert
+    with db.session() as session:
+        [seen] = session.scalars(select(db.Observation))
+    assert (seen.topic_id, seen.alert, seen.reason) == (None, "none", "background_backfill")
+    assert seen.activity_key == "record:external_archive:B1"  # still a member for the candidate groups
+
+    fabric.docs += FakeFabric([record("N1", "两家医院确认7例", "x", available=DAY.format(3))]).docs
+    monitor.tick(is_demo=True, fabric=fabric)  # the same record as news
+    [topic] = _topics()
+    with db.session() as session:
+        arrived = {o.record_id: o.available_at.isoformat() for o in session.scalars(select(db.Observation))}
+    assert topic["first_seen_at"] == arrived["N1"] != arrived["B1"]  # first seen when the news came
+
+
+def test_a_backfilled_record_does_not_warm_alert_or_wake_a_topic(monkeypatch):
+    monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
+    monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
+    with db.session() as session:
+        topic_id = topic_at_start(session, state="dormant", alert="normal", heat=1).id
+
+    def standing():
+        with db.session() as session:
+            t = session.get(db.Topic, topic_id)
+            return t.state, t.alert, t.heat, t.awakenings, t.pending_reason, t.last_activity_at
+
+    before = standing()
+    old = record("B1", "两家医院确认7例", "x", available=(START + timedelta(days=20)).isoformat())
+    fabric = FakeFabric([old])
+    fabric.background_version_ids = lambda run_ids: ({old["version_id"]}, [])
+    monitor.tick(is_demo=True, fabric=fabric)
+    with db.session() as session:
+        assert session.scalar(select(func.count()).select_from(db.TopicEvent)) == 0
+    assert standing() == before  # not rising again, no heat, no alert, nothing owed, no new last activity
+
+    news = record("N1", "两家医院确认7例", "x", available=(START + timedelta(days=21)).isoformat())
+    fabric.docs += FakeFabric([news]).docs
+    monitor.tick(is_demo=True, fabric=fabric)  # the same record as news
+    state, alert, heat, awakenings, owed, last = standing()
+    assert (state, alert, heat, awakenings) == ("rising", "important", 3, 1)
+    assert owed == "awakened+alert_important" and last > before[-1]
+
+
+def test_advance_leaves_backfilled_observations_out_of_the_records_that_make_a_topic_rise():
+    with db.session() as session:
+        mixed, plain = topic_at_start(session, "mixed"), topic_at_start(session, "plain")
+        for version in ("m-0", "m-1", "bg-m"):
+            observed(session, mixed, version, START)
+        for version in ("p-0", "p-1", "p-2"):
+            observed(session, plain, version, START)
+        mixed_id, plain_id = mixed.id, plain.id
+
+    assert topics.advance(settings(), START, is_demo=True, background={"bg-m"}) == {plain_id: "rising"}
+    assert topics.advance(settings(), START, is_demo=True) == {mixed_id: "rising"}  # counted, it has 3
+
+
+def test_a_version_owed_a_triage_is_settled_as_background_once_its_receipt_names_it(monkeypatch):
+    def down(settings_, stage, system, payload, model_cls, **options):
+        call = {"stage": stage, "model": "fake", "finish_reason": None, "usage": {}, "seconds": 0}
+        return None, {**call, "error": "timeout"}
+
+    fabric = FakeFabric([record("T1", "两家医院确认7例", "x", available=DAY.format(3))])
+    monkeypatch.setattr(llm, "chat_json", down)
+    monitor.tick(is_demo=True, fabric=fabric)  # its triage failed: owed
+    monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
+    fabric.background_version_ids = lambda run_ids: ({fabric.docs[0]["version_id"]}, [])
+
+    assert monitor.tick(is_demo=True, fabric=fabric)["routed"] == {"background_backfill": 1}
+
+    with db.session() as session:
+        [seen] = session.scalars(select(db.Observation))  # the owed mark is replaced, not doubled
+    assert (seen.reason, seen.topic_id) == ("background_backfill", None)
+
+
+def test_a_backfilled_correction_still_marks_the_analyses_that_cited_the_old_record(monkeypatch):
+    monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
+    with db.session() as session:
+        inv = db.Investigation(workspace_id="w", question="q", direction="pipeline", is_demo=True)
+        session.add(inv)
+        session.flush()
+        session.add(
+            db.Analysis(
+                id="a",
+                investigation_id=inv.id,
+                trigger="manual",
+                method="planner",
+                input={},
+                input_hash="a",
+                progress={},
+                stage="done",
+                state="completed",
+                result={"draft": "x"},
+            )
+        )
+        session.flush()
+        cited = dict(analysis_id="a", ref="E1", source="external_archive", record_id="B31", version_id="v")
+        session.add(db.Evidence(**cited, title="初报", text="HR为0.62"))
+    correction = record(
+        "B41", "试验结果更正", "HR为0.69", available=DAY.format(2), relations=[("corrects", "B31")]
+    )
+    fabric = FakeFabric([correction])
+    fabric.background_version_ids = lambda run_ids: ({correction["version_id"]}, [])
+
+    monitor.tick(is_demo=True, fabric=fabric)
+
+    with db.session() as session:
+        assert session.get(db.Analysis, "a").result["source_updates"][0]["by_record"] == "B41"
 
 
 def test_activity_keys_keep_sources_apart_and_join_a_repost_to_its_original():

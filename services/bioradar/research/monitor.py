@@ -13,6 +13,7 @@ from bioradar.research.clock import parse_time
 from bioradar.research.scheduling import start_analyses
 from bioradar.research.topics import advance
 from bioradar.research.triage import (
+    BACKGROUND,
     DEFERRED,
     defer,
     monitored_sources,
@@ -20,6 +21,7 @@ from bioradar.research.triage import (
     observe,
     route,
     settle_attachments,
+    settle_background,
 )
 
 log = logging.getLogger("bioradar")
@@ -48,7 +50,10 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         )
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
     background = _background(s, fabric)
-    routed, triage_docs = _route_documents(docs, is_demo)
+    news = settle_background(docs, background, is_demo=is_demo)  # backfilled: observed, nothing more
+    routed, triage_docs = _route_documents(news, is_demo)
+    if len(news) < len(docs):
+        routed[BACKGROUND] = len(docs) - len(news)
     if paused:
         log.info("monitor: daily_auto_tokens reached; model triage deferred, program routing continues")
         reasons, whole = {}, False
@@ -71,7 +76,8 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
     _move_cursors(ends, docs, is_demo)
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
-    reasons.update({k: v for k, v in advance(s, clock, is_demo=is_demo).items() if k not in reasons})
+    rising = advance(s, clock, is_demo=is_demo, background=background)
+    reasons.update({k: v for k, v in rising.items() if k not in reasons})
     created = (
         start_analyses(s, is_demo=is_demo, cutoff=cutoff, budget=budget)
         if s.auto_analysis and not paused
@@ -92,9 +98,9 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
 
 
 def _background(s, fabric) -> set[str]:
-    """The versions the configured Fabric backfill runs created (their receipts): background, kept out of the
-    activity counts as research/groups.py keeps them out of its own. A run whose receipt cannot be read is
-    logged; its versions count like any other, as they do there."""
+    """The versions the configured Fabric backfill runs created (their receipts): background, settled by the
+    program and kept out of the topics' counts as research/groups.py keeps them out of its own. A run whose
+    receipt cannot be read is logged; its versions are news like any other, as they are there."""
     if not s.backfill_run_ids:
         return set()
     background, unread = fabric.background_version_ids(s.backfill_run_ids)
