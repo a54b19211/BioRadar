@@ -10,13 +10,14 @@ from conftest import FakeFabric, record
 from sqlalchemy import select
 from test_groups import EBOLA, day, mat, members, observation
 from test_monitor import DAY, START, _topics, observed, quiet_week, triage_by_title
+from test_pipeline import empty_report, fake_model, first_policy
 from test_propositions import analysis_row, topic_row
 
 from bioradar import db, ops
-from bioradar.adapters import llm
+from bioradar.adapters import llm, services
 from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
-from bioradar.research import groups, monitor, topics
+from bioradar.research import analyses, groups, monitor, topics
 from bioradar.research.pipeline import Run
 
 CUTOFF = day(3) + timedelta(hours=6)  # 2026-10-04 14:00 UTC
@@ -261,6 +262,55 @@ def test_the_t1_selection_registers_the_days_leads_and_their_window_gaps_and_kee
     registered = found["selection"]["coverage"]["leads"]["gdelt_doc"]
     assert (registered["count"], registered["coverage"]["gaps"]) == (1, [gap])
     assert found["selection"]["outcome"] == "selected"  # a gap is registered, not a verdict
+
+
+def test_a_lead_group_chosen_at_t1_is_investigated_through_its_seed_and_stays_an_unverified_lead(monkeypatch):
+    title = "两家医院确认7例"
+    lead_record = record("G1", title, title, source="gdelt_doc", kind="news_report", version="L1")
+    lead_record["first_seen_at"] = lead_record["availability_proof"]["available_at"]["value"] = day(
+        3
+    ).isoformat()
+    with db.session() as session:
+        session.add(observation("L1", "G1", day(3), None, source="gdelt_doc"))
+        session.flush()
+        selection = groups.for_selection(session, settings(), is_demo=True, cutoff=CUTOFF, background=set())[
+            "selection"
+        ]
+    seeds = [{"source": "gdelt_doc", "record_id": "G1", "version_id": "L1"}]
+    assert (selection["outcome"], selection["chosen_topics"], selection["lead_group"]) == (
+        "selected",
+        [],
+        True,
+    )
+    assert selection["submit"] == {"seed_records": seeds}  # no topic holds it: its fixed version is the seed
+    assert selection["ranking"][0]["confirmed_groups"] == 0
+
+    asked = []
+    monkeypatch.setattr(llm, "chat_json", fake_model([]))
+    monkeypatch.setattr(services, "decide", lambda s, body: asked.append(body) or first_policy(body))
+    monkeypatch.setattr(services, "biocheck", empty_report)
+    row = analyses.create(
+        question=f"{title}，是否属实？",
+        direction="public_health",
+        is_demo=True,
+        sources=["gdelt_doc"],
+        cutoff=CUTOFF.isoformat(),
+        replay_mode="operational_replay",
+        enqueue=False,
+        **selection["submit"],
+    )
+    Run(row, settings(), fabric=FakeFabric([lead_record])).run()
+
+    reads = [c for c in asked[0]["candidates"] if c["kind"] == "read"]
+    assert [(c["source"], c["args"], c["critical"]) for c in reads] == [
+        ("gdelt_doc", {"record_id": "G1", "version_id": "L1"}, True)
+    ]
+    with db.session() as session:
+        [read] = session.scalars(select(db.Evidence))
+        [seen] = session.scalars(select(db.Observation))
+        opened = session.scalars(select(db.Topic)).all()
+    assert (read.version_id, read.verified) == ("L1", False)  # read, and said to be unverified
+    assert (seen.topic_id, opened) == (None, [])  # the investigation opened no topic and confirmed nothing
 
 
 def test_a_day_with_only_leads_is_not_a_day_the_monitor_received_news():

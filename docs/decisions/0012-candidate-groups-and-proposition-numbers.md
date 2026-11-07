@@ -50,7 +50,10 @@ diagnosis): the versions of that run would be counted as news. `chosen_topics` l
 visible non-background material is in the chosen group - the topics whose display group it is - and each member
 row of the export lists its `topic_ids`, both from the same visible materials; the first judgment is submitted
 under such a topic with cutoff t1 and replay mode `operational_replay`. The group a topic's analysis stores
-(`view`) has no `topic_ids`.
+(`view`) has no `topic_ids`. `submit` says what the first judgment is created with (`analyses.create`): the first
+of `chosen_topics` as `topic_id`, else - a group no topic holds, as a group of leads is - the group's newest records
+(at most 8) as `seed_records`, each pinned to its newest visible version; `lead_group` marks a chosen group of
+leads alone (0 confirmed).
 The output is the selection list (ranking, outcome, coverage) and every group with its members and candidates;
 keeping it with a hash is the D1 script's job (devtools `env/d1/select_t1.sh`).
 

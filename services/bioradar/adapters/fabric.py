@@ -226,7 +226,10 @@ def document(record: dict) -> dict:
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
         "text_level": level,
-        "verified": evidence.get("statement_status") != "unverified_report" and kind not in UNVERIFIED_KINDS,
+        # a lead is a news index having seen an article, never a statement of its source (LEAD_SOURCES)
+        "verified": evidence.get("statement_status") != "unverified_report"
+        and kind not in UNVERIFIED_KINDS
+        and record["source_id"] not in LEAD_SOURCES,
         "relations": [
             {
                 "kind": r["relation_type"],

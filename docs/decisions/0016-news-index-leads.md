@@ -38,6 +38,15 @@ A record of a news index (`LEAD_SOURCES`: GDELT) is a lead, not a statement of i
   (`ops select-display`) registers the same in its `coverage.leads`, read in operational replay, the mode the
   first judgment is submitted in; a gap there changes no outcome.
 
+- **Investigated when chosen.** No topic holds a lead, so the t1 selection of a group of leads alone has no
+  `chosen_topics`. Its `submit` is then `seed_records`: the lead's fixed versions, which `analyses.create` keeps in
+  the task input and `plan.first_candidates` pins as critical reading candidates (read at the cutoff by version,
+  offered to the planner like any seed). Nothing else changes: no topic is opened, no alert or confirmed member
+  is made, the group stays at 0 confirmed. What the investigation reads of a lead is its title, and `document` marks a
+  record of a lead source as not verified (`verified: false`), so the reader, the report's appendix and BioCheck
+  take it as an unverified report; any body evidence is still checked as usual. The planner's `gdelt_leads`
+  channel stays `not_supported`: no lead list is searched, only the seeded versions are read.
+
 ## Why
 
 The view is computed from rows that already exist (ADR 0012), so a lead must be an observation to be in it; it is

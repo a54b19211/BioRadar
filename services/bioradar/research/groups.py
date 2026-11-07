@@ -45,6 +45,7 @@ CHUNK = 500
 # the newest leads of the 30 days a view reads, apart from MAX_MATERIALS: they come in thousands
 MAX_LEADS = 2000
 LEAD_ROWS = 20  # the newest leads of the day that a view lists; the count is of all of them
+SEED_RECORDS = 8  # the records a chosen group without a topic seeds the first judgment with (as a topic does)
 
 
 @dataclass(frozen=True)
@@ -389,6 +390,23 @@ def _chosen_topics(visible: list[Material], group_of: dict[str, Group], chosen: 
     return sorted(t for t, m in anchors.items() if group_of[m.version_id].id == chosen)
 
 
+def _submit(group: Group, chosen_topics: list[str]) -> dict:
+    """What the first judgment of the chosen group is created with (analyses.create): the first topic whose
+    display group it is, else - a group no topic holds, such as a lead - its newest records as seeds, each
+    pinned to its newest visible version. Seeds are reading candidates of the investigation and decide
+    nothing about the group: a lead stays unconfirmed."""
+    if chosen_topics:
+        return {"topic_id": chosen_topics[0]}
+    newest = {(m.source, m.record_id): m for m in group.members}  # by availability: the last version wins
+    seeds = sorted(newest.values(), key=lambda m: (m.available_at, m.version_id), reverse=True)
+    return {
+        "seed_records": [
+            {"source": m.source, "record_id": m.record_id, "version_id": m.version_id}
+            for m in seeds[:SEED_RECORDS]
+        ]
+    }
+
+
 def _with_topics(exported: dict, by_id: dict[str, Material]) -> dict:
     """An exported group whose member rows also name the topics of the material. Only the selection lists
     them; the group `view` stores in an analysis keeps its shape."""
@@ -407,7 +425,9 @@ def select_display(materials, *, cutoff: datetime, truncated: bool = False, unre
     result. So is `unread` (backfill receipts that could not be read): the versions of those runs are then not
     known to be background and would be counted, so with any the outcome is "unverified" and nothing is
     chosen; the ranking stays as a diagnosis. `chosen_topics` are the topics whose latest visible material
-    that is not background is in the chosen group; each member row of "groups" names its topics.
+    that is not background is in the chosen group; each member row of "groups" names its topics. `submit`
+    is what the first judgment is created with: a topic of `chosen_topics`, else the group's records as
+    seeds; `lead_group` says the chosen group holds leads alone.
     Returns {"selection": the list - ranking, outcome, reason, coverage; "groups": every group with its
     members and candidates}."""
     visible = _visible(materials, cutoff)
@@ -419,6 +439,8 @@ def select_display(materials, *, cutoff: datetime, truncated: bool = False, unre
     # why nothing is chosen, if nothing is: the ranking is not to be chosen by (a coverage gap), or empty
     reason = "backfill_unread" if unread else ("no_ranked_group" if not chosen_first else None)
     chosen = None if reason else chosen_first[0]
+    topics_of = _chosen_topics(visible, seen.group_of, chosen)
+    group = next((g for g in seen.groups if g.id == chosen), None)
     return {
         "selection": {
             "cutoff": cutoff.isoformat(),
@@ -426,7 +448,10 @@ def select_display(materials, *, cutoff: datetime, truncated: bool = False, unre
             "outcome": "unverified" if reason else "selected",
             "reason": reason,
             "chosen": chosen,
-            "chosen_topics": _chosen_topics(visible, seen.group_of, chosen),
+            "chosen_topics": topics_of,
+            # leads alone: confirmed 0, unconfirmed whatever the investigation finds
+            "lead_group": group is not None and all(m.source in LEAD_SOURCES for m in group.members),
+            "submit": None if group is None else _submit(group, topics_of),
             "coverage": {"materials": len(visible), "truncated": truncated, "backfill_unread": list(unread)},
             "ranking": [{**_summary(g, seen.candidate_times(g.id)), "rank": rank.get(g.id)} for g in listed],
         },
