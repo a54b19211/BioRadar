@@ -24,7 +24,7 @@
 | 部分 | 维护人 | 文件 |
 | --- | --- | --- |
 | 运行、接入、预算、部署 | 李明洋 | `app.py`、`config.py`、`db.py`、`ops.py`、`text.py`、`adapters/`、`research/analyses.py`、`research/views.py`、`research/lease.py`、`research/clock.py`、`research/lineage.py`、`db/`、`ops/` |
-| 研究方法：调查流程、提示词、计算、监测与专题规则 | 孙博文 | `research/pipeline.py`、`research/run/`、`research/state.py`、`research/prompts.py`、`research/schemas.py`、`research/compute.py`、`research/monitor.py`、`research/topics.py`、`research/triage.py`、`research/series_store.py`、`research/scheduling.py` |
+| 研究方法：调查流程、提示词、计算、监测与专题规则 | 孙博文 | `research/pipeline.py`、`research/run/`、`research/state.py`、`research/prompts.py`、`research/schemas.py`、`research/compute.py`、`research/monitor.py`、`research/topics.py`、`research/triage.py`、`research/series_sync.py`、`research/domain.py`、`research/series.py`、`research/scheduling.py` |
 | 页面、导出、效果评测 | 刘金彦 | `apps/web/`、`scripts/scenarios.py` |
 
 一个文件一个维护人。跨模块先对齐输入输出，各改各的。
