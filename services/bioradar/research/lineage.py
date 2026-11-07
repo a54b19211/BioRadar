@@ -10,20 +10,36 @@ LINEAGE_DEPTH = 500  # rounds followed back; a longer, looping or broken chain c
 PENDING_LABEL = (
     "【上一轮报告未通过 BioCheck 核验（report_status={status}），只能作为待核线索，不能作为已核实的依据】\n"
 )
+# the same, for a report the publication gate held and said why
+HELD_LABEL = (
+    "【上一轮报告被发布门槛挡下（report_status={status}，原因：{reason}），只能作为待核线索，不能作为已核实的依据】\n"
+)
 
 
 def previous_check(previous: dict) -> dict:
     """The earlier report's verification as a follow-up hands it on: its report_status, and whether it is
-    pending - held by the publication gate (anything but PASS), or recorded before the status was kept, so
-    unknown. A pending report may still steer the follow-up, only as leads to verify (ADR 0006)."""
+    pending - held by the publication gate, or recorded before the status was kept, so unknown. The gate's
+    own answer (publishable, hold_reason) decides when the report carries it, so a PASS report that lacks
+    a section is pending, with the reason; a record without it is pending unless its status is PASS. A
+    pending report may still steer the follow-up, only as leads to verify (ADR 0006)."""
     status = previous.get("report_status")
-    return {"report_status": status or "unknown", "pending": status != "PASS"}
+    check = {"report_status": status or "unknown", "pending": status != "PASS"}
+    if "publishable" in previous:
+        check["pending"] = previous["publishable"] is not True
+        if check["pending"]:
+            check["hold_reason"] = previous.get("hold_reason")
+    return check
 
 
 def previous_for_biocheck(previous: dict) -> dict:
     """The earlier report as BioCheck gets it: the draft (labelled when pending), its date and its check."""
     check = previous_check(previous)
-    label = PENDING_LABEL.format(status=check["report_status"]) if check["pending"] else ""
+    status, reason = check["report_status"], check.get("hold_reason")
+    label = ""
+    if check["pending"] and reason:
+        label = HELD_LABEL.format(status=status, reason=reason)
+    elif check["pending"]:
+        label = PENDING_LABEL.format(status=status)
     return {**previous, "draft": label + previous["draft"], **check}
 
 

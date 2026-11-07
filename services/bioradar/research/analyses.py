@@ -189,6 +189,8 @@ def _previous_report(session, parent_id: str) -> dict | None:
         "draft": parent.result["draft"],
         "date": parent.completed_at.isoformat() if parent.completed_at else None,
         "report_status": parent.result.get("report_status"),
+        # the publication gate's answer as the run stored it: a PASS report that lacks a section is held too
+        **{k: parent.result[k] for k in ("publishable", "hold_reason") if k in parent.result},
     }
 
 

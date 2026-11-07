@@ -16,9 +16,12 @@ pending draft.
 
 - A held report may still be used to continue investigating, but only as context labelled 待核 and as leads
   to verify - never as confirmed basis, and it never bypasses the output gate of the new round.
-- `analyses.create` stores the parent's `report_status` with the earlier report. `lineage.previous_check`
-  gives `{report_status, pending}`: pending unless the status is PASS; a record from before the status was
-  kept has no status and counts as unverified (`report_status: "unknown"`, `pending: true`).
+- `analyses.create` stores the parent's `report_status` with the earlier report, and the publication gate's
+  answer (`publishable`, `hold_reason`) when the parent's result has one. `lineage.previous_check` gives
+  `{report_status, pending}`: with the gate's answer, pending is its negation and the reason goes along
+  (`hold_reason`), so a PASS report held for a missing section is pending too; without it, pending unless
+  the status is PASS. A record from before the status was kept has no status and counts as unverified
+  (`report_status: "unknown"`, `pending: true`).
 - The plan payload carries `previous_report_check` next to the draft (the draft itself unchanged, so the
   name-basis rule of the plan still reads it), and the PLAN rules say what pending means: leads, objects and
   search directions only; nothing is written as established from it.
