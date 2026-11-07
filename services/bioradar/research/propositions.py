@@ -10,7 +10,7 @@ raises `content_rev`."""
 
 import hashlib
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 
 from bioradar import db
 from bioradar.research.domain import norm
@@ -58,13 +58,16 @@ def _reads(session, analysis_id: str) -> dict:
     return {ref: (meta or {}).get("material_read_id") for ref, meta in session.execute(query)}
 
 
-def _checked_by(session, analysis_id: str) -> int | None:
-    """The analysis's last BioCheck call: the one that checked the conclusions comes after the report's."""
-    return session.scalar(
-        select(func.max(db.LlmCall.id)).where(
-            db.LlmCall.analysis_id == analysis_id, db.LlmCall.service == "biocheck"
-        )
-    )
+# what a judgment's slot item takes from it
+NUMBERED = ("prop_id", "question_key", "content_rev", "derived_from")
+
+
+def _stamp(sections: list[dict], judgment: dict) -> None:
+    """The slot item of the judgment (the writer's paragraph of the same slot) carries its numbers."""
+    for section in sections:
+        for item in section.get("items", []):
+            if item.get("slot") and item["slot"] == judgment.get("slot"):
+                item.update({k: judgment[k] for k in NUMBERED if k in judgment})
 
 
 def number(session, row: db.Analysis, result: dict) -> None:
@@ -79,7 +82,7 @@ def number(session, row: db.Analysis, result: dict) -> None:
     topic = session.get(db.Topic, topic_id, with_for_update=True)
     scope = {"group": (result.get("groups") or {}).get("display", "")}
     earlier, taken = _earlier(session, row), set()
-    reads, checked_by = _reads(session, row.id), _checked_by(session, row.id)
+    reads = _reads(session, row.id)
     for j in judgments:
         key = question_key(topic.id, j["question"])
         old = _same(earlier, key, scope, taken)
@@ -100,8 +103,10 @@ def number(session, row: db.Analysis, result: dict) -> None:
             content_rev=rev,
             depends_on={
                 "material_reads": [reads[g] for g in j.get("grounds", []) if reads.get(g)],
-                "checked_by": checked_by if j.get("check") in CHECKED else None,
+                # the llm_calls row of the call that checked this conclusion, as assess recorded it
+                "checked_by": j.get("checked_by") if j.get("check") in CHECKED else None,
             },
         )
         if derived:
             j["derived_from"] = derived
+        _stamp(result.get("sections") or [], j)

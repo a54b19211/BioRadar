@@ -282,6 +282,7 @@ class Run:
 
     def assess(self):
         assess.assess(self)
+        report.reconcile(self)
 
     def report_input(self):
         """The report input BioCheck writes and checks from; assess verifies its own text against it too."""

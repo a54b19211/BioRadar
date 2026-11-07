@@ -58,13 +58,33 @@ def planner_health(settings: Settings) -> dict:
     return _post("planner", settings.planner_url, settings.planner_token, "/health", None, 10, "GET")
 
 
+def verify_v2_body(body: dict) -> dict:
+    """The request /v2/verify takes: that endpoint rejects a field it does not name, where /v1 ignores it.
+    The earlier report goes as its draft and date (its verification travels in the draft's label), the
+    research scope as its three lists."""
+    out = dict(body)
+    if out.get("previous_report"):
+        previous = out["previous_report"]
+        out["previous_report"] = {"draft": previous["draft"], "date": previous.get("date") or ""}
+    if "research_scope" in out:
+        out["research_scope"] = {k: out["research_scope"][k] for k in ("checked", "not_checked", "failed")}
+    return out
+
+
 def biocheck(settings: Settings, operation: str, body: dict) -> dict:
-    """operation: generate | verify | revise"""
+    """operation: generate | verify | revise. verify checks by assertion unit (/v2/verify, the report section
+    of every sentence in `sections`) unless settings.biocheck_verify is v1, which knows no sections."""
+    path = f"/v1/{operation}"
+    if operation == "verify":
+        if settings.biocheck_verify == "v2":
+            path, body = "/v2/verify", verify_v2_body(body)
+        else:
+            body = {k: v for k, v in body.items() if k != "sections"}
     return _post(
         "biocheck",
         settings.biocheck_url,
         settings.biocheck_token,
-        f"/v1/{operation}",
+        path,
         body,
         settings.service_timeout_seconds,
     )

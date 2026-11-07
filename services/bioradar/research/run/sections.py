@@ -2,21 +2,25 @@
 holds into sections of fixed kinds, with no model call, and shows which of the five things every report must
 say are there.
 
-Until the writer fills the sections itself, each one is made from the run's structured results: the main
-judgment and its business impact from the assessment (a judgment's conclusion and the consequence it was
-graded, a hypothesis's level), the evidence for and against from the facts the investigation read, the limits
-from what it did not find or could not read, and the evidence that would change the judgment from what the
-assessment says is still unproven. A section the run cannot fill is `missing`, with a reason, and
-views.publication holds a report with a missing section as 待核 even when BioCheck passed it.
+The writer answers by slot (research/run/slots.py, ADR 0014): the main judgment is its paragraph for each
+of the plan's judgment questions, with the status it states and what assess graded the same slot, and the
+evidence that would change the judgment is its scenarios paragraph; its evidence and gaps paragraphs follow
+the program's own items. A writer that gives a draft only leaves those two sections to be made from the
+assessment (a judgment's conclusion and the consequence it was graded, a hypothesis's level; what the
+assessment says is still unproven). The evidence for and against is the facts the investigation read, the
+limits what it did not find or could not read. A section the run cannot fill is `missing`, with a reason, and
+views.publication holds a report with a missing section as 待核 even when BioCheck passed it; so is a slot
+whose paragraph states a conclusion that assess grades insufficient, which the revision in the report stage
+could not settle (`slot_mismatch`).
 
 The recommendation section is for the requester's objectives. The run takes none, so the section is empty and
 says why."""
 
 from typing import TYPE_CHECKING
 
-from bioradar.research.run import submit
+from bioradar.research.run import slots, submit
 from bioradar.research.run.report import searched_checks
-from bioradar.research.state import RunState, Section, SectionItem, VisibleRecord
+from bioradar.research.state import RunState, Section, SectionItem, VisibleRecord, WrittenItem
 
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
@@ -42,7 +46,7 @@ def build(p: RunState, inp: dict, rows) -> list[Section]:
         section("question", [{"text": inp["question"]}]),
         judgment_section(p),
         evidence_section(p),
-        section("gaps", gaps),
+        section("gaps", gaps + written_texts(p, "gaps")),
         scenarios_section(p),
         visibility_section(gaps, inp, rows),
         recommendation_section(),
@@ -80,7 +84,62 @@ def standing_judgments(assessment: dict) -> list[dict]:
     return [j for j in assessment.get("judgments", []) if j.get("check") != "contradicted"]
 
 
+def written_items(p: RunState) -> list[WrittenItem]:
+    return (p.get("report") or {}).get("written") or []
+
+
+def written_texts(p: RunState, kind: str) -> list[SectionItem]:
+    """The writer's paragraphs of a section that answer no slot, as items."""
+    return [{"text": w["text"]} for w in written_items(p) if w["kind"] == kind and not w.get("slot")]
+
+
+def hypothesis_items(assessment: dict) -> list[SectionItem]:
+    return [
+        {
+            "id": h["id"],
+            "text": h["reason"],
+            "level": h["level"],
+            "check": h.get("check", "unverified"),
+            "grounds": h["grounds"],
+        }
+        for h in assessment.get("hypotheses", [])
+    ]
+
+
+def slot_judgment_section(p: RunState, written: list[WrittenItem]) -> Section:
+    """The judgment section of a report written by slot: for each slot its paragraph and the status it states,
+    with what assess graded the same slot; a slot with no paragraph is cannot_judge, with the reason."""
+    assessment = p.get("assessment") or {}
+    graded = {j["slot"]: j for j in assessment.get("judgments", []) if j.get("slot")}
+    items: list[SectionItem] = []
+    for asked in slots.slots_of(p):
+        item: SectionItem = {"slot": asked["slot"], "question": asked["question"]}
+        paragraph = next((w for w in written if w.get("slot") == asked["slot"]), None)
+        if paragraph is None:
+            item.update(status=slots.CANNOT_JUDGE, reason="no_paragraph")
+        else:
+            item.update(text=paragraph["text"], status=paragraph["status"])
+        if asked["slot"] in graded:
+            j = graded[asked["slot"]]
+            item.update(
+                confidence=j["confidence"],
+                consequence=j["consequence"],
+                check=j.get("check", "unverified"),
+                grounds=j["grounds"],
+            )
+        items.append(item)
+    items += [{"text": w["text"]} for w in written if w["kind"] == "judgment" and not w.get("slot")]
+    items += hypothesis_items(assessment)
+    if all(i.get("status") == slots.CANNOT_JUDGE for i in items):
+        return section("judgment", items, "no_main_judgment")
+    if slots.mismatched(written, assessment.get("judgments", [])):
+        return section("judgment", items, "slot_mismatch")
+    return section("judgment", items, None if any(i.get("consequence") for i in items) else "no_impact")
+
+
 def judgment_section(p: RunState) -> Section:
+    if written_items(p):
+        return slot_judgment_section(p, written_items(p))
     assessment = p.get("assessment") or {}
     judgments = standing_judgments(assessment)
     items: list[SectionItem] = [
@@ -93,16 +152,7 @@ def judgment_section(p: RunState) -> Section:
             "grounds": j["grounds"],
         }
         for j in judgments
-    ] + [
-        {
-            "id": h["id"],
-            "text": h["reason"],
-            "level": h["level"],
-            "check": h.get("check", "unverified"),
-            "grounds": h["grounds"],
-        }
-        for h in assessment.get("hypotheses", [])
-    ]
+    ] + hypothesis_items(assessment)
     if not items:
         return section("judgment", items, "no_main_judgment")
     return section("judgment", items, None if any(j["consequence"] for j in judgments) else "no_impact")
@@ -130,7 +180,7 @@ def evidence_section(p: RunState) -> Section:
                 "grounds": cited,
             }
         )
-    return section("evidence", items, None if items else "no_evidence")
+    return section("evidence", items + written_texts(p, "evidence"), None if items else "no_evidence")
 
 
 def gap_items(p: RunState, inp: dict) -> list[SectionItem]:
@@ -166,11 +216,15 @@ def scenarios_section(p: RunState) -> Section:
     """What would change the judgment: what the assessment says is still unproven (and which evidence
     separates the cases), and the signals that would confirm or refute each graded hypothesis."""
     assessment = p.get("assessment") or {}
-    items: list[SectionItem] = [
-        {"question": j["question"], "text": j["unproven"]}
-        for j in standing_judgments(assessment)
-        if j["unproven"]
-    ]
+    items: list[SectionItem] = (
+        written_texts(p, "scenarios")
+        if written_items(p)
+        else [
+            {"question": j["question"], "text": j["unproven"]}
+            for j in standing_judgments(assessment)
+            if j["unproven"]
+        ]
+    )
     graded = {h["id"] for h in assessment.get("hypotheses", [])}
     for h in p.get("hypotheses", []):
         if h["id"] in graded:

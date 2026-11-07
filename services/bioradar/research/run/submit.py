@@ -163,5 +163,8 @@ def service(run: "Run", operation, body):
     except services.ServiceError as exc:
         exc.reads = ids  # the caller logs the calls the failed request paid for, with the reads that fed them
         raise
-    run.log(response.pop("llm_calls", []), "biocheck", reads=ids)
+    calls = response.pop("llm_calls", [])
+    made = run.log(calls, "biocheck", reads=ids)
+    # which llm_calls row each of the service's calls is: a sentence check names the call that made it
+    response["logged"] = [{"id": i, "stage": c.get("stage")} for i, c in zip(made, calls)]
     return response

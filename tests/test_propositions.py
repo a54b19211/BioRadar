@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import settings
@@ -76,7 +76,9 @@ def test_judgments_are_numbered_from_the_topic_and_say_what_they_depend_on():
     with db.session() as s:
         topic = topic_row(s)
         row = analysis_row(s, topic)
-        s.add(db.LlmCall(analysis_id=row.id, stage="verify", service="biocheck"))
+        # the check of the conclusions is not the last call: the coverage check came after it
+        s.add(db.LlmCall(analysis_id=row.id, stage="verify_claims", service="biocheck"))
+        s.add(db.LlmCall(analysis_id=row.id, stage="verify_coverage", service="biocheck"))
         s.add(
             db.Evidence(
                 analysis_id=row.id,
@@ -90,8 +92,10 @@ def test_judgments_are_numbered_from_the_topic_and_say_what_they_depend_on():
             )
         )
         s.flush()
-        call = s.scalar(select(db.LlmCall.id).where(db.LlmCall.analysis_id == row.id))
-        checked = judgment("是否人传人", grounds=["E1", "E2"], check="supported")
+        call = s.scalar(
+            select(db.LlmCall.id).where(db.LlmCall.analysis_id == row.id, db.LlmCall.stage == "verify_claims")
+        )
+        checked = judgment("是否人传人", grounds=["E1", "E2"], check="supported", checked_by=call)
         unchecked = judgment("病原是什么", check="unverified")
 
         propositions.number(s, row, result_of(checked, unchecked))
@@ -101,6 +105,10 @@ def test_judgments_are_numbered_from_the_topic_and_say_what_they_depend_on():
         assert topic.next_prop_seq == 3
         assert checked["depends_on"] == {"material_reads": [7], "checked_by": call}  # E2 was never read
         assert unchecked["depends_on"]["checked_by"] is None  # no check of its conclusion happened
+        # the number is the call assess recorded for the conclusion, not a guess from the analysis's calls
+        assert checked["depends_on"]["checked_by"] != s.scalar(
+            select(func.max(db.LlmCall.id)).where(db.LlmCall.analysis_id == row.id)
+        )
 
 
 def test_the_same_question_and_scope_keep_their_id_and_a_new_conclusion_raises_the_rev():

@@ -1237,10 +1237,11 @@ def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
             ]
         ],
     )
-    drafts = []
+    drafts, sections = [], []
 
     def biocheck(s, operation, body):
         drafts.append(body["draft"])
+        sections.append(body["sections"])
         return line_verifier(lambda line: "contradicted" if "下降" in line else "supported")(
             s, operation, body
         )
@@ -1249,9 +1250,11 @@ def test_a_judgment_that_contradicts_the_evidence_is_withdrawn(monkeypatch):
     monkeypatch.setattr(run, "report_input", lambda: {"evidence": []})
     monkeypatch.setattr(services, "biocheck", biocheck)
     run.assess()
+    # BioCheck cuts the clauses of a conclusion itself; the whole text is sent as a judgment section
     assert drafts == [
-        "验收台数增加到18台[E2]。\n仅部分转化：岚舟均增长[E2]。衡简验收、收入、回款均同比下降[E2]。"
+        "验收台数增加到18台[E2]。\n仅部分转化：岚舟均增长；衡简验收、收入、回款均同比下降[E2]。"
     ]
+    assert sections == [[{"kind": "judgment", "start": 0, "end": len(drafts[0])}]]
     judgments = run.p["assessment"]["judgments"]
     assert [(j["check"], j["confidence"]) for j in judgments] == [
         ("supported", "probable"),

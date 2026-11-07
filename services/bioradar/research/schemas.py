@@ -100,6 +100,7 @@ class Calculations(BaseModel):
 
 
 class Judgment(BaseModel):
+    slot: str = Field(default="", description="题号：judgments 里给出的编号（如J1），原样填回")
     question: str
     conclusion: str = Field(description="一句话结论，未证实的写明待证实")
     confidence: Literal["insufficient", "possible", "probable", "confirmed"]

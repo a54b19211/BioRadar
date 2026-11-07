@@ -42,6 +42,9 @@ class Settings(BaseSettings):
     planner_token: str = ""
     biocheck_url: str = ""
     biocheck_token: str = ""
+    # The sentence check: v2 verifies by assertion unit (POST /v2/verify, each sentence with its report
+    # section); v1 is the earlier sentence-level check, kept as the way back until the switch is done.
+    biocheck_verify: Literal["v1", "v2"] = "v2"
     mechevidence_url: str = ""
     mechevidence_token: str = ""
     service_timeout_seconds: float = 900

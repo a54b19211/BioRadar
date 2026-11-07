@@ -10,7 +10,7 @@ from sqlalchemy import select
 from bioradar import db
 from bioradar.adapters.services import ServiceError
 from bioradar.research import prompts, schemas
-from bioradar.research.run import submit
+from bioradar.research.run import slots, submit
 
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
@@ -61,6 +61,7 @@ def assess(run: "Run"):
         run.p["assessment"] = None
         return
     assessment, verified = grounded(run, result, report)
+    slots.bind(assessment["judgments"], slots.slots_of(run.p))
     check_assessment(run, assessment)
     cap_judgments(run, assessment)
     cap_hypotheses(run, assessment, verified, report["status"])
@@ -75,7 +76,7 @@ def ask_assessment(run: "Run", report):
         prompts.ASSESS,
         {
             "question": run.asked,
-            "judgments": run.p.get("judgments", []),
+            "judgments": slots.slots_of(run.p),
             "report": report["draft"],
             "report_status": report["status"],
             "hypotheses": [{"id": h["id"], "statement": h["statement"]} for h in run.p.get("hypotheses", [])],
@@ -161,41 +162,60 @@ def cap_hypotheses(run: "Run", assessment, verified, report_status):
             h["level"] = cap
 
 
+def assessment_line(item: dict) -> str:
+    """One conclusion or reason as a sentence with its grounds, for BioCheck to check against the same
+    evidence. How a sentence is cut into the statements to check is BioCheck's; here a line is one
+    sentence."""
+    refs = "".join(f"[{g}]" for g in item["grounds"])
+    text = item.get("conclusion", item.get("reason", "")).strip().rstrip("。.；;")
+    return f"{text}{refs}。" if text else refs + "。"
+
+
+def verifying_call(claim: dict, logged: list[dict]) -> int | None:
+    """The llm_calls row of the call that checked this sentence: the call BioCheck names for it (`call`, a
+    position in the calls of its answer), else the request's only sentence-check call. None when the answer
+    does not say and there were several."""
+    named = claim.get("call")
+    if isinstance(named, int) and 0 <= named < len(logged):
+        return logged[named]["id"]
+    ids = [c["id"] for c in logged if c["stage"] == "verify_claims"]
+    return ids[0] if len(ids) == 1 else None
+
+
 def check_assessment(run: "Run", assessment):
     """Judgment conclusions and hypothesis reasons are written after the report, so BioCheck
-    verifies them, one line each with their grounds, in one call against the same evidence. Sets
-    check: supported / contradicted / unverified (also when BioCheck fails or has no budget)."""
+    verifies them, one line each with their grounds, in one call against the same evidence; the whole text is
+    a judgment section. Sets check: supported / contradicted / unverified (also when BioCheck fails or has no
+    budget), and checked_by: the call that checked it, when that is known."""
     items = assessment["judgments"] + assessment["hypotheses"]
     if not items:
         return
-    lines, starts, at = [], [], 0
-    for item in items:
-        # Each clause is checked on its own: a long conclusion verified whole hid a reversed figure.
-        refs = "".join(f"[{g}]" for g in item["grounds"])
-        text = item.get("conclusion", item.get("reason", ""))
-        line = "".join(p.strip() + refs + "。" for p in re.split(r"[；;。\n]", text) if p.strip())
-        lines.append(line or refs + "。")
-        starts.append(at)
-        at += len(line) + 1
-    verdicts = [[] for _ in items]
+    lines = [assessment_line(item) for item in items]
+    starts = [sum(len(line) + 1 for line in lines[:n]) for n in range(len(lines))]
+    draft = "\n".join(lines)
+    verdicts, calls = [[] for _ in items], [set() for _ in items]
     try:
         if run.calls_left() <= 0:
             raise ServiceError("biocheck", "no_budget")
-        review = submit.service(run, "verify", dict(run.report_input(), draft="\n".join(lines)))
+        sections = [{"kind": "judgment", "start": 0, "end": len(draft)}]
+        review = submit.service(run, "verify", dict(run.report_input(), draft=draft, sections=sections))
         for c in review["claims"]:
             n = bisect.bisect_right(starts, c["start"]) - 1
             if n >= 0 and c["verdict"] != "no_claim":
                 verdicts[n].append(c["verdict"])
+                calls[n].add(verifying_call(c, review.get("logged", [])))
     except ServiceError as exc:
         run.log(exc.calls, "biocheck", reads=exc.reads)
         run.note(f"assessment_biocheck_{exc.code}")
-    for item, found in zip(items, verdicts):
+    for item, found, made in zip(items, verdicts, calls):
         if "contradicted" in found:
             item["check"] = "contradicted"
         elif found and all(v == "supported" for v in found):
             item["check"] = "supported"
         else:
             item["check"] = "unverified"
+        if len(made) == 1 and None not in made:
+            item["checked_by"] = next(iter(made))
 
 
 def watch(run: "Run"):

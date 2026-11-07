@@ -240,6 +240,8 @@ SECTION_REASONS = (
     "no_impact",  # judgment: none of its judgments states the consequence if it is true
     "no_evidence",  # evidence: no fact reads for or against any check
     "no_review_condition",  # scenarios: nothing says which evidence would change the judgment
+    "no_paragraph",  # a judgment slot the writer wrote no paragraph for (shown as cannot_judge)
+    "slot_mismatch",  # judgment: a paragraph states a conclusion its slot's assessment grades insufficient
 )
 
 
@@ -264,6 +266,17 @@ class ReportVersion(TypedDict, total=False):
     status: Annotated[str, SHOWN]  # unchecked until its check answered, then BioCheck's status
     claims: Annotated[list[dict[str, Any]], SHOWN]
     error: Annotated[str, SHOWN]
+    checker: Annotated[dict[str, str], SHOWN]  # checker_version, rules_version of the check
+
+
+class WrittenItem(TypedDict, total=False):
+    """One paragraph the writer wrote by slot (research/run/slots.py): a section of its kind; for a judgment
+    the slot (or hypothesis) it answers and the status it states."""
+
+    kind: Literal["judgment", "evidence", "gaps", "scenarios"]
+    slot: str  # J1 ... of a judgment's slot, or a hypothesis id
+    status: str  # a slot's: supported | refuted | insufficient | open | conflict
+    text: str  # one paragraph
 
 
 class Report(TypedDict, total=False):
@@ -273,9 +286,10 @@ class Report(TypedDict, total=False):
     versions: list[ReportVersion]
     reason: str
     changed: Any
-    claims: list[dict[str, Any]]  # BioCheck's sentence checks
+    claims: list[dict[str, Any]]  # BioCheck's sentence checks (a /v2 check: with its units)
     coverage: Any
     read_requests: list[Any]
+    written: list[WrittenItem]  # the draft's paragraphs when the writer answered by slot, in draft order
 
 
 class RunState(TypedDict, total=False):
@@ -323,10 +337,15 @@ class SectionItem(TypedDict, total=False):
     (research/run/sections.py)."""
 
     id: Annotated[str, SHOWN]  # a check (Q1) or a hypothesis (H1)
+    slot: Annotated[str, SHOWN]  # a judgment slot (J1): the question the paragraph answers
+    prop_id: Annotated[str, SHOWN]  # the slot's proposition, numbered when the result is stored
+    question_key: Annotated[str, SHOWN]
+    content_rev: Annotated[int, SHOWN]
+    derived_from: Annotated[str, SHOWN]
     text: Annotated[str, SHOWN]
     question: Annotated[str, SHOWN]
     stance: Annotated[Literal["supports", "refutes"], SHOWN]
-    status: Annotated[str, SHOWN]  # a check's status; a gap's kind (not_searched, not_found, ...)
+    status: Annotated[str, SHOWN]  # a check's status; a gap's kind (not_searched ...); a slot's status
     confidence: Annotated[str, SHOWN]
     level: Annotated[str, SHOWN]
     consequence: Annotated[str, SHOWN]

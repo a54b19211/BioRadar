@@ -1,11 +1,12 @@
-"""Stage report: the report input from the evidence read, then BioCheck writes, checks and revises."""
+"""Stage report: the report input from the evidence read, then BioCheck writes (by slot, ADR 0014), checks
+and revises; after assess, reconcile settles the paragraphs the assessment disagrees with."""
 
 from typing import TYPE_CHECKING
 
 from bioradar.adapters.fabric import noticed
 from bioradar.adapters.services import ServiceError
 from bioradar.research.lineage import previous_for_biocheck
-from bioradar.research.run import submit
+from bioradar.research.run import slots, submit
 from bioradar.research.run.assess import hypothesis_stance
 from bioradar.research.run.windows import report_text
 
@@ -14,7 +15,9 @@ if TYPE_CHECKING:
 
 
 OVERALL = {"supported": "机制获得支持", "partial": "机制部分获得支持", "insufficient": "机制证据不足"}
-REVISIONS = 2  # revise -> re-verify rounds; each only touches the sentences the last check flagged
+REVISIONS = 2  # revise -> re-verify rounds, the writer's and the reconcile's together; each only touches the
+# sentences the last check flagged
+MISMATCH = "assess_insufficient: 评估判本命题证据不足，本段应收窄到证据真正支持的说法"
 KIND = {
     "primary_research": "research",
     "review": "research",
@@ -216,61 +219,199 @@ def hypotheses_input(run: "Run", cited):
     ]
 
 
-def report(run: "Run"):
-    body = run.report_input()
-    report = {"status": "NOT_RUN", "draft": "", "revised": False, "versions": []}
-    run.p["report"] = report
+def keep(report, step):
+    """Every draft as soon as it exists, checked afterwards by checked(); if the check fails, the draft stays
+    with status "unchecked" and the failure code, so a wrong citation can be traced."""
+    report["versions"].append({"step": step, "draft": report["draft"], "status": "unchecked"})
 
-    def keep(step):
-        """Every draft as soon as it exists, checked afterwards by checked(); if the check fails, the
-        draft stays with status "unchecked" and the failure code, so a wrong citation can be traced."""
-        report["versions"].append({"step": step, "draft": report["draft"], "status": "unchecked"})
 
-    def checked(review):
-        report["versions"][-1].update(
-            status=review["status"],
-            claims=[
-                {k: c.get(k) for k in ("index", "start", "end", "verdict", "citations", "labels")}
-                for c in review["claims"]
-            ],
-        )
+def checked(report, review):
+    version = report["versions"][-1]
+    version.update(
+        status=review["status"],
+        claims=[
+            {k: c.get(k) for k in ("index", "start", "end", "verdict", "citations", "labels")}
+            for c in review["claims"]
+        ],
+    )
+    named = {k: review[k] for k in ("checker_version", "rules_version") if k in review}
+    if named:
+        version["checker"] = named
 
-    if not body["evidence"]:
-        report["reason"] = "no_evidence"
-        return
-    try:
-        report["draft"] = submit.service(run, "generate", dict(body))["draft"]
-        keep("generate")
-        review = submit.service(run, "verify", dict(body, draft=report["draft"]))
-        checked(review)
-        for n in range(REVISIONS):
-            fixable = [
-                c
-                for c in review["claims"]
-                if c["verdict"] == "contradicted"
-                or c.get("scope_span")
-                or (c["verdict"] == "insufficient" and c["citations"] and c["labels"])
-                or (c["verdict"] == "insufficient" and not c["citations"])
-            ]
-            if review["status"] == "PASS" or not fixable or run.calls_left() <= 2:
-                break
-            revised = submit.service(run, "revise", dict(body, draft=report["draft"], review=review))
-            if not revised.get("changed"):
-                break
-            report.update(draft=revised["draft"], revised=True, changed=revised["changed"])
-            keep(f"revise_{n + 1}")
-            review = submit.service(run, "verify", dict(body, draft=report["draft"]))
-            checked(review)
-    except ServiceError as exc:
-        run.log(exc.calls, "biocheck", reads=exc.reads)
-        report["reason"] = f"biocheck_{exc.code}"
-        if report["versions"] and report["versions"][-1]["status"] == "unchecked":
-            report["versions"][-1]["error"] = exc.code
-        run.note(report["reason"])
-        return
+
+def settle(report, review):
+    """The report's status and the sentence checks are those of its last check."""
     report.update(
         status=review["status"],
         claims=review["claims"],
         coverage=review.get("coverage"),
         read_requests=review.get("read_requests", []),
     )
+
+
+def check(run: "Run", body, report):
+    """Verify the draft. When the writer wrote by slot the request says which section each paragraph is
+    (BioCheck lets an inference be supported only in a judgment, scenarios or recommendation section)."""
+    request = dict(body, draft=report["draft"])
+    spans = slots.spans_of(report["written"], report["draft"]) if report.get("written") else None
+    if spans:
+        request["sections"] = spans
+    review = submit.service(run, "verify", request)
+    checked(report, review)
+    return review
+
+
+def write(run: "Run", body, report):
+    """BioCheck writes the report, by slot when the plan named judgment questions: one call, the report as
+    sections. A writer that answers with a draft only (an older BioCheck) leaves the sections to be made from
+    the assessment (research/run/sections.py). Returns the draft's check."""
+    request = dict(body)
+    asked = slots.slots_of(run.p)
+    if asked:
+        request["slots"] = asked
+    answer = submit.service(run, "generate", request)
+    items, dropped = slots.read_written(answer, asked, [h["id"] for h in run.p.get("hypotheses", [])])
+    for why in dropped:
+        run.note("writer_section_dropped", why)
+    if items:
+        report.update(written=items, draft=slots.draft_of(items))
+    else:
+        report["draft"] = answer.get("draft", "")
+        if not report["draft"]:
+            raise ServiceError("biocheck", "empty_draft", "the writer gave no usable section and no draft")
+    keep(report, "generate")
+    return check(run, body, report)
+
+
+def fixable(claims):
+    return [
+        c
+        for c in claims
+        if c["verdict"] == "contradicted"
+        or c.get("scope_span")
+        or (c["verdict"] == "insufficient" and c["citations"] and c["labels"])
+        or (c["verdict"] == "insufficient" and not c["citations"])
+    ]
+
+
+def for_revise(review):
+    """The review /v1/revise reads. It takes a sentence's short quotes from `quotes`; a /v2 check keeps them
+    in the sentence's units, so they go back there (a quote found once or several times is found)."""
+    claims = []
+    for c in review["claims"]:
+        if c.get("units") and not c.get("quotes"):
+            quotes = [
+                {"ref": q["ref"], "quote": q["quote"], "found": q["status"] in ("found", "ambiguous")}
+                for u in c["units"]
+                for q in u.get("quotes", [])
+            ]
+            c = dict(c, quotes=quotes)
+        claims.append(c)
+    return {"status": review["status"], "claims": claims}
+
+
+def revise(run: "Run", body, report, review, step):
+    """One revise -> re-verify round over `review`: the new check, or None when the revision changed nothing
+    or its paragraphs cannot be put back into the sections. Once the draft changed it is not checked until
+    the re-verify answers, so the report is not PASS meanwhile."""
+    revised = submit.service(run, "revise", dict(body, draft=report["draft"], review=for_revise(review)))
+    if not revised.get("changed"):
+        return None
+    if report.get("written") and not slots.apply_draft(report["written"], revised["draft"]):
+        run.note("writer_sections_lost", step)
+        return None
+    report.update(draft=revised["draft"], revised=True, changed=revised["changed"], status="NOT_RUN")
+    keep(report, step)
+    return check(run, body, report)
+
+
+def fail(run: "Run", report, exc: ServiceError):
+    """A BioCheck request failed: the model calls it paid for are logged, the unchecked draft keeps the
+    code, and a report whose draft is not the one last checked is held with it (the PASS of an earlier draft
+    is not kept)."""
+    run.log(exc.calls, "biocheck", reads=exc.reads)
+    run.note(f"biocheck_{exc.code}")
+    if report["versions"] and report["versions"][-1]["status"] == "unchecked":
+        report["versions"][-1]["error"] = exc.code
+    if report["status"] != "PASS":
+        report["reason"] = f"biocheck_{exc.code}"
+        for key in ("claims", "coverage", "read_requests"):
+            report.pop(key, None)
+
+
+def report(run: "Run"):
+    body = run.report_input()
+    report = {"status": "NOT_RUN", "draft": "", "revised": False, "versions": []}
+    run.p["report"] = report
+    if not body["evidence"]:
+        report["reason"] = "no_evidence"
+        return
+    try:
+        review = write(run, body, report)
+        for n in range(REVISIONS):
+            if review["status"] == "PASS" or not fixable(review["claims"]) or run.calls_left() <= 2:
+                break
+            again = revise(run, body, report, review, f"revise_{n + 1}")
+            if again is None:
+                break
+            review = again
+    except ServiceError as exc:
+        fail(run, report, exc)
+        return
+    settle(report, review)
+
+
+def downgraded(report, bad):
+    """The last check's sentences, with the supported ones inside the mismatched paragraphs marked
+    insufficient for going beyond their evidence (label STR), as the sentence check marks such a sentence:
+    that is the kind of sentence the revise step narrows."""
+    spans = dict(zip((id(i) for i in report["written"]), slots.paragraph_spans(report["draft"])))
+    inside = [spans[id(i)] for i in bad]
+    return [
+        dict(
+            c,
+            verdict="insufficient",
+            labels=list(dict.fromkeys([*c.get("labels", []), "STR"])),
+            reason=MISMATCH,
+            scope_span=None,
+        )
+        if c["verdict"] == "supported" and any(s <= c["start"] < e for s, e in inside)
+        else c
+        for c in report["claims"]
+    ]
+
+
+def reconcile(run: "Run"):
+    """After assess (task book 08 2.3): a paragraph that states its slot's conclusion where the assessment
+    grades the slot insufficient is revised and re-checked, in the revisions the report stage left. A
+    paragraph the revision rewrote is then the weaker claim (its status becomes insufficient); one it could
+    not (no revision left, no budget, nothing changed) stays inconsistent, and the judgment section is held
+    (research/run/sections.py). A report that is not PASS is held already and is left alone."""
+    report, assessment = run.p.get("report") or {}, run.p.get("assessment") or {}
+    items = report.get("written")
+    if not items or report.get("status") != "PASS" or not report.get("claims"):
+        return
+    used = sum(1 for v in report["versions"] if v["step"].startswith("revise"))
+    body = None
+    try:
+        for n in range(used, REVISIONS):
+            bad = slots.mismatched(items, assessment.get("judgments", []))
+            if report["status"] != "PASS" or not bad or run.calls_left() <= 2:
+                return
+            body = body or run.report_input()
+            before = {id(i): i["text"] for i in bad}
+            again = revise(
+                run,
+                body,
+                report,
+                {"status": report["status"], "claims": downgraded(report, bad)},
+                f"revise_{n + 1}",
+            )
+            if again is None:
+                return
+            for item in bad:
+                if item["text"] != before[id(item)]:
+                    item["status"] = "insufficient"
+            settle(report, again)
+    except ServiceError as exc:
+        fail(run, report, exc)
