@@ -740,7 +740,8 @@ class MeasurementCheck(Base):
 class MeasurementInbox(Base):
     """One Fabric measurement object this workspace has heard of - from the change feed or a pull by version -
     and what the radar did with it: pending_topic (its version is in no topic yet), linked (in its version's
-    topic, series_points), not_current (Fabric does not hold it current). due: to be linked or read again
+    topic, series_points), not_current (Fabric does not hold it current), open_ended_period (its period has a
+    start and no end: it is no point of a series). due: to be linked or read again
     (a later event of the object, a re-granted source). docs/decisions/0010."""
 
     __tablename__ = "measurement_inbox"

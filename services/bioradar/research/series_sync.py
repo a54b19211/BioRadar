@@ -17,6 +17,8 @@ events and analyses that follow from them.
   object had a later event (superseded, corrected, retracted, a correction withdrawn) is read again and its
   point leaves the series or comes back. A link is unique per (workspace, kind, topic, object), so a replayed
   feed or a second pull adds nothing.
+- An object whose period has a start and no end ("since September 2012") is no point of a series: no end is
+  made up, its inbox row says open_ended_period and the round counts it under that name.
 - A series is one key in one topic: (object key, metric, unit, kind, scope, period type and precision, metric
   family, dimension group). The object key is Fabric's identity key only for a confirmed or rule-confirmed
   identity; otherwise it is the literal object within its own record, so two records never merge on a name."""
@@ -49,6 +51,7 @@ CONFIRMED = ("confirmed", "rule_confirmed")
 CORRECTED = ("corrected", "retracted")
 SUPERSEDED = ("superseded",)
 RECORD_CONFLICT = "record_internal_conflict"
+OPEN_ENDED = "open_ended_period"  # inbox state and round count of an object whose period has no end
 NO_VERSION = "0" * 64  # a pull of no version: asks only whether the source may be read now
 FABRIC_ID = re.compile(r"[0-9a-f]{64}")
 KINDS = {
@@ -343,6 +346,9 @@ def _apply(session, s, row, receipt, topic_id):
             _leave(session, point, receipt, topic)
             return "left"
         return "not_current"
+    if _open_ended(receipt["period"]):
+        row.state = OPEN_ENDED
+        return OPEN_ENDED
     row.state = "linked"
     if point is None:
         return "linked" if _join(session, s, row, receipt, topic) else "linked_elsewhere"
@@ -366,12 +372,20 @@ def _object_key(receipt):
     )
 
 
+def _open_ended(period):
+    """A period with its start and no end: it is not an interval a series can place."""
+    return "start" in period and "end" not in period
+
+
 def _period_text(period):
-    return period.get("value") or f"{period['start']}/{period['end']}"
+    return period.get("value") or f"{period['start']}/{period.get('end', '')}"
 
 
 def _bounds(period, at):
-    """(start, end) of a structured period: a month range spans whole months; else series.period_bounds."""
+    """(start, end) of a structured period: a month range spans whole months; else series.period_bounds.
+    None for a period open at its end: no end is made up."""
+    if _open_ended(period):
+        return None
     if period.get("start") and period.get("precision") == "month":
         (y1, m1), (y2, m2) = (map(int, period["start"].split("-")), map(int, period["end"].split("-")))
         return datetime(y1, m1, 1, tzinfo=UTC), series._month_end(y2, m2)

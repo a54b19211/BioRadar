@@ -463,3 +463,27 @@ def test_a_real_planner_takes_fabric_points_and_asks_to_verify_one_that_is_no_lo
     }
     answer = services.decide(s, body)
     assert answer["reason"] == "verify_series_value" and answer["candidate"] == 1
+
+
+def test_an_object_whose_period_has_only_a_start_is_no_point_of_a_series_and_is_recorded(placing):
+    """An object that begins at "since September 2012" and never ends: no end is made up, nothing raises, it
+    joins no series, and its inbox row and the round's counts say why. The other objects link as before."""
+    fabric = FakeFabric([who()])
+    tick(fabric)
+    ordinary = fabric.measured.add(
+        V, source=SOURCE, record="who-a", value="66", metric="报告马尔堡病毒病确诊病例"
+    )
+    since = fabric.measured.add(
+        V,
+        source=SOURCE,
+        record="who-a",
+        value="1599",
+        metric="报告马尔堡病毒病累计病例",
+        period={"type": "interval", "precision": "month", "start": "2012-09"},
+    )
+    measured = tick(fabric)["measurements"]
+    assert measured["open_ended_period"] == 1 and measured["linked"] == 1
+    assert [link[1] for link in links()] == [ordinary]
+    with db.session() as s:
+        row = s.scalar(select(db.MeasurementInbox).filter_by(measurement_id=since))
+        assert (row.state, row.due) == ("open_ended_period", False)
