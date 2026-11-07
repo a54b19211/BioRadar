@@ -1,9 +1,6 @@
 # Functions allowed over 80 lines or complexity 20 (scripts/code_metrics.py --check), each with its reason.
 # Format: <path>:<qualified name>  <reason>. The check fails on an entry no longer needed: the list only shrinks.
 #
-# The comparable-domain gate of a checked point (ADR 0003): one rule table per family, until it reads
-# Fabric's measurement objects (docs/decisions/0010).
-services/bioradar/research/domain.py:series_gate  the comparable-domain gate (ADR 0003), one rule table per family
 # Series comparison of one point against the points before it: one pass, one branch per kind of change.
 services/bioradar/research/series.py:evaluate  series comparison, one branch per kind of change (step, high/low, streak, stage)
 #
