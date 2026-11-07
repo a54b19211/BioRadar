@@ -29,18 +29,10 @@ KIND = {
 }
 
 
-SOURCE_KIND = {
-    "clinicaltrials": "registry",
-    "pubmed": "research",
-    "europe_pmc": "research",
-    "who_don": "official",
-    "fda_crl": "official",
-}
-
-
-def source_kind(material_kind, source):
-    """Fabric material kind -> the six source kinds BioCheck understands."""
-    return KIND.get(material_kind) or SOURCE_KIND.get(source, "news")
+def source_kind(material_kind):
+    """Fabric material kind -> the six source kinds BioCheck understands; a kind Fabric did not state (or one
+    not listed) is read as news, the most cautious of them, never guessed from the source's name."""
+    return KIND.get(material_kind, "news")
 
 
 def report_input(run: "Run"):
@@ -88,7 +80,7 @@ def report_evidence(run: "Run", rows):
             "title": r.title,
             "source": r.source,
             "published_at": r.published_at,
-            "source_kind": source_kind(r.material_kind, r.source),
+            "source_kind": source_kind(r.material_kind),
             "verified": r.verified,
             "text": texts[r.ref],
             # Fabric's explicit same-origin group; absent means independence is unknown, not proven
