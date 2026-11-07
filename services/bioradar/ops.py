@@ -10,9 +10,7 @@ import logging
 import sys
 import time
 
-from redis import Redis
-from rq import Worker
-
+from bioradar import jobs
 from bioradar.config import settings
 from bioradar.research import analyses, monitor
 from bioradar.research.leader import Leader
@@ -21,8 +19,7 @@ log = logging.getLogger("bioradar")
 
 
 def worker():
-    s = settings()
-    Worker([s.queue_name], connection=Redis.from_url(s.redis_url)).work(with_scheduler=False)
+    jobs.worker(settings()).work(with_scheduler=False)
 
 
 def monitor_round(leader, s=None) -> bool:

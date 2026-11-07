@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -78,6 +79,17 @@ class Settings(BaseSettings):
     quiet_hours: int = 72  # no new record for this long, and no collection status: "待核"
     topic_cool_days: int = 7
     topic_dormant_days: int = 21
+
+    @field_validator("queue_name")
+    @classmethod
+    def _own_queue(cls, name: str) -> str:
+        from bioradar.jobs import valid_queue_name  # the one rule, kept next to the worker that relies on it
+
+        if not valid_queue_name(name):
+            raise ValueError(
+                "queue_name must be 'bioradar' or start with 'bioradar-' (e.g. bioradar-staging)"
+            )
+        return name
 
 
 @lru_cache

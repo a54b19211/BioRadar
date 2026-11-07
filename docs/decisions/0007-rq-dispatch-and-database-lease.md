@@ -34,6 +34,12 @@ answer different questions, so the wording was wrong, not the design.
   that holds a PostgreSQL advisory lock on a dedicated connection (`research/leader.py`). The database drops the
   lock when that process exits or its connection breaks, so a crashed leader leaves nothing to clean up; the
   other monitor processes skip their rounds and try again at the next one.
+- **The radar's corner of a shared Redis** (`bioradar/jobs.py`). The queue name must be `bioradar` or start with
+  `bioradar-` (one per environment on a shared Redis, e.g. `bioradar-staging`); jobs travel as JSON, so a pickled
+  payload of another application is refused at read time and never unpickled; and a job whose function is not on
+  the radar's list (`JOB_FUNCTIONS`) fails with `ForeignJob` without running it or its callbacks. Checked on a
+  throwaway Redis by hand (a pickled `os.getcwd` job on the radar's queue fails with DeserializationError; the
+  radar's own job is picked up); the unit tests cover the job class and the settings without a Redis.
 - Who uses what:
   - analyses: RQ delivers; `analyses.execute` takes the row lock and returns when a lease is live or the
     analysis is finished; `analyses.recover` (monitor loop) re-queues rows whose lease expired or whose job

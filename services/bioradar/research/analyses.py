@@ -7,11 +7,9 @@ import traceback
 from contextlib import nullcontext
 from datetime import datetime, timedelta
 
-from redis import Redis
-from rq import Queue
 from sqlalchemy import func, select
 
-from bioradar import db
+from bioradar import db, jobs
 from bioradar.config import settings
 from bioradar.research import lease, topics, views
 from bioradar.research.pipeline import Failed, Run
@@ -30,7 +28,7 @@ class InvalidInput(ValueError):
 
 
 def queue():
-    return Queue(settings().queue_name, connection=Redis.from_url(settings().redis_url))
+    return jobs.queue(settings())
 
 
 def input_hash(value: dict) -> str:
@@ -134,10 +132,12 @@ def job_id(analysis_id: str) -> str:
 
 def waiting_in_queue(analysis_id: str) -> bool:
     """Whether this analysis's job is still in Redis, waiting or being worked on."""
-    from rq.job import Job, NoSuchJobError
+    from rq.job import NoSuchJobError
 
     try:
-        job = Job.fetch(job_id(analysis_id), connection=queue().connection)
+        job = jobs.RadarJob.fetch(
+            job_id(analysis_id), connection=queue().connection, serializer=jobs.JSONSerializer
+        )
     except NoSuchJobError:
         return False
     return job.get_status(refresh=False) in {"queued", "started", "deferred", "scheduled"}
