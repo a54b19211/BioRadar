@@ -13,9 +13,11 @@ from bioradar.research.clock import parse_time
 from bioradar.research.scheduling import start_analyses
 from bioradar.research.topics import advance
 from bioradar.research.triage import (
+    BACKFILL_SOURCES,
     BACKGROUND,
     DEFERRED,
     defer,
+    defer_backfill_source,
     monitored_sources,
     new_documents,
     observe,
@@ -49,11 +51,9 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
             "monitor: %s is not offered by Fabric for selection (source_not_selectable), skipped", source
         )
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
-    background = _background(s, fabric)
-    news = settle_background(docs, background, is_demo=is_demo)  # backfilled: observed, nothing more
+    background, news, set_apart = _set_background_apart(s, fabric, docs, is_demo)
     routed, triage_docs = _route_documents(news, is_demo)
-    if len(news) < len(docs):
-        routed[BACKGROUND] = len(docs) - len(news)
+    routed.update(set_apart)
     if paused:
         log.info("monitor: daily_auto_tokens reached; model triage deferred, program routing continues")
         reasons, whole = {}, False
@@ -69,7 +69,7 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         paused = True
         deferred = defer(triage_docs, is_demo=is_demo)
         if deferred:
-            routed[DEFERRED] = deferred
+            routed[DEFERRED] = routed.get(DEFERRED, 0) + deferred
     if not paused:  # the objects of the versions placed now, in case their events are not in the feed yet
         series_sync.link_versions(s, fabric, triage_docs, is_demo=is_demo, cutoff=cutoff)
     measured = series_sync.sync(s, fabric, is_demo=is_demo, cutoff=cutoff)  # no model call: never paused
@@ -97,16 +97,33 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
     }
 
 
-def _background(s, fabric) -> set[str]:
-    """The versions the configured Fabric backfill runs created (their receipts): background, settled by the
-    program and kept out of the topics' counts as research/groups.py keeps them out of its own. A run whose
-    receipt cannot be read is logged; its versions are news like any other, as they are there."""
+def _set_background_apart(s, fabric, docs, is_demo):
+    """(the background versions, the records that are news, how many records the round set apart, by reason).
+    Backfilled versions are observed and nothing more; while a receipt is unreadable the backfill source's
+    other versions are put off a round, as triage_deferred."""
+    background, unread = _background(s, fabric)
+    news = settle_background(docs, background, is_demo=is_demo)
+    apart = {BACKGROUND: len(docs) - len(news)}
+    if unread:
+        news, apart[DEFERRED] = defer_backfill_source(news, is_demo=is_demo)
+    return background, news, {reason: count for reason, count in apart.items() if count}
+
+
+def _background(s, fabric) -> tuple[set[str], list[str]]:
+    """(the versions the configured Fabric backfill runs created, from their receipts: background, settled by
+    the program and kept out of the topics' counts as research/groups.py keeps them out of its own; the runs
+    whose receipt cannot be read). With a run unread the round cannot tell the backfill source's new versions
+    from a backfill, so it does not treat them as news (defer_backfill_source)."""
     if not s.backfill_run_ids:
-        return set()
+        return set(), []
     background, unread = fabric.background_version_ids(s.backfill_run_ids)
     if unread:
-        log.warning("monitor: backfill runs %s: receipt unreadable, their versions count as new", unread)
-    return background
+        log.warning(
+            "monitor: backfill runs %s: receipt unreadable, the new versions of %s wait for the next round",
+            unread,
+            sorted(BACKFILL_SOURCES),
+        )
+    return background, unread
 
 
 def _without_capabilities(clock):

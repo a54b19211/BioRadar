@@ -748,6 +748,58 @@ def test_a_version_owed_a_triage_is_settled_as_background_once_its_receipt_names
     assert (seen.reason, seen.topic_id) == ("background_backfill", None)
 
 
+def unread_receipt_round(monkeypatch):
+    """A round whose backfill receipt cannot be read, over two WHO records (B1 is in fact a backfilled one,
+    N1 is news) and one record of another source. Returns (Fabric, what was sent to triage, B1's version)."""
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", triage_by_title(sent))
+    monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
+    monkeypatch.setattr(settings(), "demo_sources", ["external_archive", "who_don"])
+    old = record("B1", "两家医院确认7例", "x", source="who_don", available=DAY.format(1))
+    fabric = FakeFabric(
+        [
+            old,
+            record("E1", "门诊记录5人", "x", available=DAY.format(2)),
+            record("N1", "另一医院新聚集4人", "x", source="who_don", available=DAY.format(3)),
+        ]
+    )
+    fabric.background_version_ids = lambda run_ids: (set(), ["run-1"])
+    monitor.tick(is_demo=True, fabric=fabric)
+    return fabric, sent, old["version_id"]
+
+
+def observed_by_record():
+    with db.session() as session:
+        return {o.record_id: (o.reason, o.topic_id) for o in session.scalars(select(db.Observation))}
+
+
+def test_a_round_puts_off_what_it_cannot_tell_from_a_backfill_while_a_receipt_is_unreadable(monkeypatch):
+    _, sent, _ = unread_receipt_round(monkeypatch)
+
+    seen = observed_by_record()
+    assert seen["B1"] == seen["N1"] == ("triage_deferred", None)  # the WHO versions wait, in no topic
+    assert seen["E1"][1] is not None  # another source is no backfill: triaged as ever
+    assert [r["title"] for payload in sent for r in payload["records"]] == ["门诊记录5人"]
+    with db.session() as session:
+        [topic] = session.scalars(select(db.Topic))
+        assert topic.alert == "normal"  # B1's alert important never reached it
+
+
+def test_the_put_off_versions_are_settled_the_round_after_the_receipt_reads(monkeypatch):
+    fabric, sent, backfilled = unread_receipt_round(monkeypatch)
+    sent.clear()
+    fabric.background_version_ids = lambda run_ids: ({backfilled}, [])
+
+    ran = monitor.tick(is_demo=True, fabric=fabric)
+
+    assert ran["routed"] == {"background_backfill": 1, "triage": 1}
+    assert [r["title"] for payload in sent for r in payload["records"]] == ["另一医院新聚集4人"]
+    seen = observed_by_record()
+    assert seen["B1"] == ("background_backfill", None)  # the owed mark is replaced, not doubled
+    assert seen["N1"][0] != "triage_deferred" and seen["N1"][1] is not None
+    assert len(seen) == 3
+
+
 def test_a_backfilled_correction_still_marks_the_analyses_that_cited_the_old_record(monkeypatch):
     monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
     with db.session() as session:

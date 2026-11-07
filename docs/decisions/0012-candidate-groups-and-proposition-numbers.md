@@ -28,8 +28,10 @@ material is in (the display group) as the program found it at the analysis cutof
   versions out of its topics: a round records each as an observation with the program reason
   `background_backfill` (`triage.settle_background`) - not triaged, no topic - so it cannot open a topic or
   warm, alert or wake one, nor serve as a topic's first sighting. `topics.activity` and `topics.advance` also
-  leave them out of their counts, and `activity` out of the days the monitor received anything on. A receipt
-  the monitor cannot read is only logged, and those versions are then news like any other.
+  leave them out of their counts, and `activity` out of the days the monitor received anything on. While a
+  receipt cannot be read the round cannot tell which versions that run created, so it records the new versions
+  of the backfill source (`triage.BACKFILL_SOURCES`, WHO DON) as `triage_deferred`: not triaged, in no topic.
+  The next round that reads every receipt settles them as above.
 - **Counts** are per day: deduplicated groups (`activity_key`), how many are proven independent (none yet:
   Fabric states `same_origin` or nothing), how many are not known to be. The baseline is the rule the topic
   monitor uses (`topics.previous_days`, `topics.baseline`), not a new one.

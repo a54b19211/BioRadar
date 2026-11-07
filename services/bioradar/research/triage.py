@@ -34,6 +34,9 @@ DEFERRED = "triage_deferred"
 RETRYABLE = ("triage_failed", DEFERRED)
 # A version a Fabric backfill run created is background, not news: the program settles it, no triage.
 BACKGROUND = "background_backfill"
+# The sources Fabric backfills (flows.who_backfill reads WHO Disease Outbreak News only): what a backfill
+# run's receipt can name. A run whose receipt cannot be read leaves its versions among this source's.
+BACKFILL_SOURCES = frozenset({"who_don"})
 ATTACHMENT_MAX_ATTEMPTS = 3  # Fabric db.derived_text.MAX_ATTEMPTS
 NEW_REGISTRATION_DAYS = 30
 RECENT_UPDATE_DAYS = 7
@@ -203,6 +206,15 @@ def settle_background(docs, background, *, is_demo: bool) -> list:
             row.reason = BACKGROUND
             session.add(row)
     return [d for d in docs if d["version_id"] not in background]
+
+
+def defer_backfill_source(docs, *, is_demo: bool) -> tuple[list, int]:
+    """A configured backfill receipt could not be read, so which of `docs` that run created is not known.
+    The versions of the backfill source are owed instead (triage_deferred: not triaged, in no topic, so no
+    heat or alert) and read again the next round, when the receipt may tell. Returns (the other records, how
+    many were newly put off)."""
+    held = [d for d in docs if d["source"] in BACKFILL_SOURCES]
+    return [d for d in docs if d["source"] not in BACKFILL_SOURCES], defer(held, is_demo=is_demo)
 
 
 def unseen(session, items):
