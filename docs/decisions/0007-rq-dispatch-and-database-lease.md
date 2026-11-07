@@ -30,6 +30,10 @@ answer different questions, so the wording was wrong, not the design.
   `recovered_unknown_outcome` to the analysis's notes (count and stage) and sends the job again - the resumed
   run records its send as a new attempt. After `MAX_UNKNOWN_RECOVERIES` such crashes the analysis is not sent
   again: it ends `failed` / `recovery_unknown_outcome` for review.
+- **One monitor at a time.** The monitor loop (`monitor.tick` and `analyses.recover`) runs only in the process
+  that holds a PostgreSQL advisory lock on a dedicated connection (`research/leader.py`). The database drops the
+  lock when that process exits or its connection breaks, so a crashed leader leaves nothing to clean up; the
+  other monitor processes skip their rounds and try again at the next one.
 - Who uses what:
   - analyses: RQ delivers; `analyses.execute` takes the row lock and returns when a lease is live or the
     analysis is finished; `analyses.recover` (monitor loop) re-queues rows whose lease expired or whose job

@@ -15,6 +15,7 @@ from rq import Worker
 
 from bioradar.config import settings
 from bioradar.research import analyses, monitor
+from bioradar.research.leader import Leader
 
 log = logging.getLogger("bioradar")
 
@@ -24,18 +25,33 @@ def worker():
     Worker([s.queue_name], connection=Redis.from_url(s.redis_url)).work(with_scheduler=False)
 
 
+def monitor_round(leader, s=None) -> bool:
+    """One round of the monitor, only while this process is the leader (research.leader); False when another
+    monitor process is."""
+    s = s or settings()
+    if not leader.acquire():
+        log.info("monitor: another process holds the monitor lock, this round is skipped")
+        return False
+    if s.monitor_enabled:
+        log.info("monitor %s", monitor.tick(is_demo=False))
+    recovered = analyses.recover()
+    if recovered:
+        log.info("re-queued %s analyses", recovered)
+    return True
+
+
 def monitor_loop():
     s = settings()
-    while True:
-        try:
-            if s.monitor_enabled:
-                log.info("monitor %s", monitor.tick(is_demo=False))
-            recovered = analyses.recover()
-            if recovered:
-                log.info("re-queued %s analyses", recovered)
-        except Exception:  # keep the loop alive; the next round retries
-            log.exception("monitor round failed")
-        time.sleep(s.monitor_seconds)
+    leader = Leader()
+    try:
+        while True:
+            try:
+                monitor_round(leader, s)
+            except Exception:  # keep the loop alive; the next round retries
+                log.exception("monitor round failed")
+            time.sleep(s.monitor_seconds)
+    finally:
+        leader.release()
 
 
 def upkeep_command(argv):
