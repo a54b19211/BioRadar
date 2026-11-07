@@ -13,7 +13,7 @@ import hashlib
 from bioradar.adapters.fabric import FabricError
 
 KINDS = ("created", "superseded_by_processor", "corrected", "retracted", "correction_withdrawn")
-CHECKER = "biocheck.extraction_rules.v16"
+CHECKER = "biocheck.extraction_rules.v17"
 
 
 def hexid(*parts):
