@@ -66,15 +66,6 @@ make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Pyt
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-测量核对要用共享契约包 `extraction-contract`（和 Fabric 共用，这里固定 1.13.1：契约 v3、checker v16；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
-
-```sh
-cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复现的 wheel，构建时会校验哈希
-uv pip install --no-index --find-links "${EXTRACTION_CONTRACT_WHEELS:-../extraction-contract/dist}" --require-hashes -r requirements-contract.txt
-```
-
-`pyproject.toml` 的 find-links 指向 `../extraction-contract/dist`；放在别处时用 `EXTRACTION_CONTRACT_WHEELS` 指定。uv.lock 不会记录本地 wheel 的哈希，所以哈希只在上面这一步按 `requirements-contract.txt` 校验。
-
 编辑 `ops/.env`：填 Fabric 地址和令牌、三个服务的地址和令牌、模型的地址/模型名/密钥（变量名就是 `services/bioradar/config.py` 里的设置名加 `BIORADAR_` 前缀）。JSON 值要加单引号，例如 `BIORADAR_SOURCES='["pubmed","clinicaltrials"]'`。然后：
 
 ```sh

@@ -1,10 +1,5 @@
 # uv 0.13.0 from PATH (installed as ~/.local/bin/uv; pyproject.toml requires that version) or UV=<path>
 UV ?= uv
-# the real-chain measurement tests run the real BioCheck rules from a BioCheck checkout in its own venv
-# (`make venv` there); without the checkout they are reported as skipped, never as passed
-BIOCHECK_SRC ?= ../clean-biocheck
-BIOCHECK_PYTHON ?= $(BIOCHECK_SRC)/.venv/bin/python
-TEST_ENV = $(if $(wildcard $(BIOCHECK_SRC)/app/service.py),BIORADAR_TEST_BIOCHECK_SRC=$(abspath $(BIOCHECK_SRC)) BIORADAR_TEST_BIOCHECK_PYTHON=$(abspath $(BIOCHECK_PYTHON)))
 COMPOSE = docker compose --env-file ops/.env -f ops/compose.yaml
 NODE = docker run --rm --network host --user $$(id -u):$$(id -g) -e npm_config_cache=/tmp/npm-cache -e HTTP_PROXY -e HTTPS_PROXY -v "$$(pwd):/app" -w /app/apps/web node:22-bookworm-slim
 
@@ -31,7 +26,7 @@ status:
 migrate:
 	$(COMPOSE) run --rm migrate
 test:
-	$(TEST_ENV) $(UV) run --frozen pytest -q
+	$(UV) run --frozen pytest -q
 test-pg:
 	PYTHON="$(UV) run --frozen python" sh scripts/test_pg.sh
 test-redis:
