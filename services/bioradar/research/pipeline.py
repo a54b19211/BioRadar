@@ -202,6 +202,12 @@ class Run:
                     "capability_unknown", "Fabric 的来源能力读不到：不发起新采集，不取附件正文和登记差分"
                 )
             return
+        chosen, skipped = caps.choose(self.input["sources"])
+        if skipped:
+            # an analysis made before the source was retired or withdrawn from selection: its other sources
+            # still run, these are left out and the run says so
+            self.input = {**self.input, "sources": chosen}
+            self.note("source_not_selectable", ", ".join(skipped))
         seen = self.p.setdefault("capability_snapshots", [])
         if not seen or seen[-1].get("receipt_sha256") != caps.receipt_sha256:
             seen.append(caps.snapshot())

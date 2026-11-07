@@ -184,6 +184,16 @@ def unseen(session, items):
     return [d for d in items if d["version_id"] not in done]
 
 
+def monitored_sources(s: Settings, caps, is_demo: bool):
+    """(the configured sources this round reads, the ones it leaves out). With Fabric's capabilities known,
+    only the sources Fabric offers for selection are read; the others are reported by the round (tick), round
+    after round, until the configuration is corrected."""
+    configured = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
+    if caps is None:
+        return list(configured), []
+    return caps.choose(configured)
+
+
 def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetime | None, retry: bool = True):
     """Live: the change feed after the saved cursor, at most monitor_max_records per round; the rest
     stays in the feed (backlog) and the cursor only moves past what this round takes. After failed
@@ -192,7 +202,7 @@ def new_documents(fabric: Fabric, s: Settings, *, is_demo: bool, cutoff: datetim
     Every scanned record counts against the room, seen or not, so a lagging cursor cannot scan forever.
     Replay: everything visible at the cutoff that was not observed yet.
     Returns (docs, cursor ends, backlog)."""
-    sources = s.demo_sources if is_demo else (s.monitor_sources or s.sources)
+    sources, _ = monitored_sources(s, fabric.caps, is_demo)
     room = s.monitor_max_records
     ends, more = {}, False
     with db.session() as session:

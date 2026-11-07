@@ -16,6 +16,7 @@ from bioradar.research.topics import advance
 from bioradar.research.triage import (
     DEFERRED,
     defer,
+    monitored_sources,
     new_documents,
     observe,
     route,
@@ -34,6 +35,24 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
     fabric = fabric or Fabric(s)
     budget = cutoff is None and not is_demo  # live real monitoring only
     paused = budget and analyses.over_auto_budget()
+    if fabric.load_capabilities() is None:
+        # which sources may be read, and what text to expect of them, is not known: nothing is read and no
+        # cursor moves, so the round is simply done again once Fabric can say
+        log.warning("monitor: Fabric's source capabilities cannot be read, the round does nothing")
+        return {
+            "records": 0,
+            "routed": {},
+            "backlog": False,
+            "paused": "source_capabilities_unavailable",
+            "clock": (clock or cutoff or db.now()).isoformat(),
+            "topics": {},
+            "analyses": [],
+            "source_not_selectable": [],
+        }
+    for source in monitored_sources(s, fabric.caps, is_demo)[1]:
+        log.warning(
+            "monitor: %s is not offered by Fabric for selection (source_not_selectable), skipped", source
+        )
     _prepare(s, fabric, is_demo)
     # v3 3.7：额度只暂停模型阶段。读取、确定性路由、附件待办照常；要模型的记成 triage_deferred 待办。
     docs, ends, backlog = new_documents(fabric, s, is_demo=is_demo, cutoff=cutoff, retry=not paused)
@@ -72,6 +91,7 @@ def tick(*, is_demo=False, cutoff: datetime | None = None, clock: datetime | Non
         else []
     )
     return {
+        "source_not_selectable": monitored_sources(s, fabric.caps, is_demo)[1],
         "records": len(docs),
         # how many records went to model triage and how many the program settled, by reason
         "routed": routed,

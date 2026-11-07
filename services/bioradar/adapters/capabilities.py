@@ -75,6 +75,14 @@ class SourceCapabilities:
         """May be an option of a new analysis or of monitoring (Fabric: select)."""
         return self._flag(source, "select")
 
+    def choose(self, sources) -> tuple[list[str], list[str]]:
+        """(the sources that may be chosen, in order and without repeats; the ones that may not). A source
+        Fabric does not list, lists as not readable, retired or as a graph is not selectable."""
+        chosen, skipped = [], []
+        for source in dict.fromkeys(sources):
+            (chosen if self.selectable(source) else skipped).append(source)
+        return chosen, skipped
+
     def query_fetch(self, source: str) -> bool:
         """Fabric can collect fresh records of this source for a search term."""
         fetch = self.by_source.get(source, {}).get("fetch") if source in self.readable else None

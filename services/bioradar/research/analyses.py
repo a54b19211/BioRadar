@@ -27,6 +27,19 @@ class InvalidInput(ValueError):
     pass
 
 
+class SourceNotSelectable(InvalidInput):
+    """A source named for a new analysis that Fabric does not offer for selection (a retired source such as
+    legacy_documents, one not readable now, a graph, a misspelling)."""
+
+    def __init__(self, sources):
+        super().__init__("source_not_selectable: " + ", ".join(sources))
+        self.sources = list(sources)
+
+
+class CapabilitiesUnavailable(Exception):
+    """Fabric's source capabilities cannot be read now: which sources may be chosen is not known."""
+
+
 def queue():
     return jobs.queue(settings())
 
@@ -53,10 +66,14 @@ def create(
     session=None,
     previous=True,
     series_points=(),
+    capabilities=None,
 ) -> db.Analysis:
     """With `session`, the row is added to the caller's transaction and not queued: the caller
     commits it together with its own changes and then calls dispatch(). previous=False leaves the
-    parent's report out (the follow-up of a report whose sources cannot be read now)."""
+    parent's report out (the follow-up of a report whose sources cannot be read now).
+    capabilities: a function returning Fabric's SourceCapabilities (raising CapabilitiesUnavailable). Given,
+    the sources are checked against what Fabric offers for selection: a source named by the caller that is
+    not offered is SourceNotSelectable; one that only comes from the configured defaults is left out."""
     s = settings()
     if direction not in DIRECTIONS:
         raise InvalidInput("direction")
@@ -64,12 +81,13 @@ def create(
         raise InvalidInput("method")
     if cutoff and datetime.fromisoformat(cutoff).tzinfo is None:
         raise InvalidInput("cutoff_needs_timezone")
+    chosen = _selectable(capabilities, list(sources or []), s.demo_sources if is_demo else s.sources)
     value = {
         "question": question.strip(),
         "direction": direction,
         "method": method,
         "is_demo": is_demo,
-        "sources": list(sources or (s.demo_sources if is_demo else s.sources)),
+        "sources": chosen,
         "cutoff": cutoff,
         "seed_records": list(seed_records),
         "scope_record_ids": list(dict.fromkeys(scope_record_ids)),
@@ -110,6 +128,21 @@ def create(
     if enqueue:
         dispatch(row.id)
     return row
+
+
+def _selectable(capabilities, named: list[str], defaults: list[str]) -> list[str]:
+    """The sources of a new analysis: those named, else the configured defaults (a copy)."""
+    if capabilities is None:
+        return list(named or defaults)
+    caps = capabilities()
+    chosen, skipped = caps.choose(named or defaults)
+    if named and skipped:
+        raise SourceNotSelectable(skipped)
+    if skipped:
+        log.warning("configured sources skipped, Fabric does not offer them for selection: %s", skipped)
+    if not chosen:
+        raise SourceNotSelectable(skipped)
+    return chosen
 
 
 def _new_investigation(session, value: dict, topic_id) -> str:

@@ -161,10 +161,11 @@ class FakeFabric:
 
     def load_capabilities(self):
         from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
+        from bioradar.adapters.fabric import FabricError
 
         try:
             self.caps = SourceCapabilities.parse(self.sources())
-        except CapabilityError:
+        except (FabricError, CapabilityError):
             self.caps = None
         return self.caps
 

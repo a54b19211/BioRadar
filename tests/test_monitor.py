@@ -241,8 +241,8 @@ def test_a_flooding_source_does_not_starve_a_quiet_one(monkeypatch):
     monkeypatch.setattr(llm, "chat_json", triage_by_title([]))
     s = settings()
     monkeypatch.setattr(s, "monitor_max_records", 20)
-    monkeypatch.setattr(s, "monitor_sources", ["legacy_documents", "who_don"])
-    who, legacy = {"source": "who_don"}, {"source": "legacy_documents"}
+    monkeypatch.setattr(s, "monitor_sources", ["bulk_source", "who_don"])
+    who, legacy = {"source": "who_don"}, {"source": "bulk_source"}
     fabric = FakeFabric([record("Q0", "历史", "x", **who), record("Z0", "历史", "x", **legacy)])
     monitor.tick(is_demo=False, fabric=fabric)  # both feeds start at their current end
     flood = [record(f"Z{i:03d}", "噪声", "x", **legacy) for i in range(1, 60)]

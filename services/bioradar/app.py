@@ -36,6 +36,21 @@ def not_found(_, exc):
     return JSONResponse({"error_code": "not_found", "message": str(exc)}, status_code=404)
 
 
+@app.exception_handler(analyses.SourceNotSelectable)
+def source_not_selectable(_, exc):
+    return JSONResponse(
+        {"error_code": "source_not_selectable", "message": str(exc), "sources": exc.sources}, status_code=422
+    )
+
+
+@app.exception_handler(analyses.CapabilitiesUnavailable)
+def capabilities_unavailable(_, exc):
+    return JSONResponse(
+        {"error_code": "source_capabilities_unavailable", "message": "Fabric 的来源能力暂时读不到"},
+        status_code=503,
+    )
+
+
 @app.exception_handler(analyses.InvalidInput)
 def bad_input(_, exc):
     return JSONResponse({"error_code": "invalid_input", "message": str(exc)}, status_code=422)
@@ -539,9 +554,18 @@ class Ask(BaseModel):
     scope_record_ids: list[str] = Field(default=[], description="只在这些记录里检索和阅读（固定材料集）")
 
 
+def fabric_capabilities() -> SourceCapabilities:
+    """Fabric's source capabilities as of this request (what may be chosen for a new analysis)."""
+    try:
+        return SourceCapabilities.parse(Fabric(settings()).sources())
+    except (FabricError, httpx.HTTPError, CapabilityError):
+        raise analyses.CapabilitiesUnavailable from None
+
+
 @app.post("/api/analyses", dependencies=analyst)
 def ask(body: Ask):
     row = analyses.create(
+        capabilities=fabric_capabilities,
         question=body.question,
         direction=body.direction,
         method=body.method,
