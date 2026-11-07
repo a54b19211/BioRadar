@@ -179,6 +179,42 @@ class FakeFabric:
     def fetch(self, source, query, **_):
         return []
 
+    def part_texts(self, parts):
+        """Fabric's full text of each bound part ({part_key: text}); a revoked version is left out and a
+        tampered one reads as another text."""
+        from bioradar.material import part_key
+
+        out = {}
+        for p in parts:
+            doc = next(
+                (
+                    d
+                    for d in self.docs
+                    if (d["source"], d["record_id"], d["version_id"])
+                    == (p["source"], p["record_id"], p["version_id"])
+                ),
+                None,
+            )
+            if doc is not None and doc["version_id"] not in self.revoked:
+                out[part_key(p)] = doc["text"] + (" tampered" if doc["version_id"] in self.tampered else "")
+        return out
+
+    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None):
+        """Whether the fixed version can be read now, or at the cutoff (not before it was available)."""
+        from bioradar.research.monitor import parse_time
+
+        doc = next(
+            (
+                d
+                for d in self.docs
+                if (d["source"], d["record_id"], d["version_id"]) == (source, record_id, version_id)
+            ),
+            None,
+        )
+        if doc is None or version_id in self.revoked:
+            return False
+        return cutoff is None or parse_time(doc["available_at"]) <= cutoff
+
 
 def biocheck_fake(answer=None, calls=None):
     """BioCheck /v2 stand-in for series-logic tests: every field of every item answered match by checker v6

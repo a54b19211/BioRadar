@@ -115,7 +115,14 @@ def analysis_results(run: "Run"):
                     "overall": OVERALL.get(mech.get("overall"), mech.get("overall")),
                     **{k: mech.get(k) for k in ("rationale", "gaps", "conflicts")},
                 },
-                "calculation_basis": {"mechanism": run.p["mechanism"]["statement"]},
+                "calculation_basis": {
+                    "mechanism": run.p["mechanism"]["statement"],
+                    **{
+                        k: mech[k]
+                        for k in ("contract_version", "evaluator_id", "reuse_key", "reused", "materials")
+                        if k in mech
+                    },
+                },
                 "limitations": ["机制评价是专业判断，不是实验原件"],
             }
         )

@@ -210,7 +210,16 @@ class Computation(TypedDict):
 class MechanismResult(TypedDict, total=False):
     status: Literal["completed", "failed", "not_run"]
     reason: str
-    # status completed: the rest is MechEvidence's evaluation as returned (overall, rationale, gaps, ...)
+    # status completed: the rest is MechEvidence's evaluation as returned (overall, rationale, gaps, ...).
+    # Under
+    # contract v2 also which evaluator and reuse key it is the result of, whether it came from the cache, and
+    # the sha256 of the binding of each material it read; a result written before v2 has none of these and is
+    # an evaluation that names neither its evaluator nor its materials
+    contract_version: str
+    evaluator_id: str
+    reuse_key: str
+    reused: bool
+    materials: list[dict[str, str]]  # [{ref, binding_sha256}]
 
 
 class ReportVersion(TypedDict, total=False):

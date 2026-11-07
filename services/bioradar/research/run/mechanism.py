@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from bioradar.adapters import services
 from bioradar.adapters.services import ServiceError
-from bioradar.research.run import submit
+from bioradar.research.run import mech_v2, submit
 
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
@@ -24,6 +24,17 @@ MECH_KIND = {
 MECH_LEVEL = {"full_text": "full", "abstract": "abstract"}
 
 
+def describe(row) -> dict:
+    """What MechEvidence is told about a material besides its text: the kind of source and document the record
+    is (from Fabric's material kind) and how much of the record the text is."""
+    return {
+        **MECH_KIND[row.material_kind],
+        "text_level": "excerpt"
+        if row.meta.get("window") == "selected"
+        else MECH_LEVEL.get(row.meta.get("text_level"), "excerpt"),
+    }
+
+
 def mechanism(run: "Run"):
     target = run.p.get("mechanism")
     if not target or not run.s.mechevidence_url:
@@ -34,20 +45,12 @@ def mechanism(run: "Run"):
     if not rows:
         run.p["mechanism_result"] = {"status": "not_run", "reason": "no_research_material"}
         return
+    if run.s.mechevidence_contract == "v2":
+        mech_v2.evaluate(run, target, rows, describe)
+        return
     run.upstream_still_readable()
     texts, sent_ids = submit.send_rows(run, "mechanism", "mechevidence", rows)
-    materials = [
-        {
-            "id": r.ref,
-            "title": r.title,
-            "text": texts[r.ref],
-            **MECH_KIND[r.material_kind],
-            "text_level": "excerpt"
-            if r.meta.get("window") == "selected"
-            else MECH_LEVEL.get(r.meta.get("text_level"), "excerpt"),
-        }
-        for r in rows
-    ]
+    materials = [{"id": r.ref, "title": r.title, "text": texts[r.ref], **describe(r)} for r in rows]
     try:
         with submit.outbound(run, sent_ids):
             run.confirm_sources({r.source for r in rows})

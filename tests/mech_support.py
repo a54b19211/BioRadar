@@ -4,6 +4,7 @@ service protocol as MechEvidence's authorization.py performs it."""
 
 import hashlib
 import json
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,9 +12,12 @@ from fabric_receipts import sources_receipt
 from fastapi.testclient import TestClient
 
 from bioradar import db, service_api
+from bioradar.adapters import services
 from bioradar.adapters.fabric import FabricError
+from bioradar.adapters.services import ServiceError
 from bioradar.app import app
 from bioradar.config import settings
+from bioradar.mech import contract
 from bioradar.research import analyses, attempts, lease
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mech-contract-v2"
@@ -147,3 +151,134 @@ def acknowledged(ack, decision, body) -> bool:
     return isinstance(ack, dict) and all(
         key in ack and ack[key] == value and type(ack[key]) is type(value) for key, value in expected.items()
     )
+
+
+# ---- a stand-in MechEvidence that speaks the service side of the protocol against the radar's endpoints ----
+
+DECOMPOSE = '{"claims":[{"text":"A changes M","kind":"causal"}],"joins":[]}'
+REVIEW = '{"observations":[]}'
+PROVIDER_USAGE = {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}
+
+
+class FakeMech:
+    """MechEvidence v2 as the radar sees it: GET /v2/evaluator, POST /v2/evaluate. Each evaluation makes
+    two model "requests" (decompose, review); before each it asks the radar's authorize endpoint and sends
+    only on a decision that echoes its attempt, after each it posts the outcome and believes it only on an
+    acknowledgement that echoes every field - the rules of MechEvidence's authorization.py. Its receipt is
+    the committed fixture receipt re-made for the request it was given. `edit` may damage it; `between`
+    runs after request n."""
+
+    def __init__(self, client, evaluator=EVALUATOR, usage=PROVIDER_USAGE):
+        self.client, self.evaluator, self.usage = client, evaluator, usage
+        self.requests, self.edit, self.between = [], (lambda receipt: receipt), (lambda n: None)
+        self.swap_before_answering = None  # an evaluator that replaces the current one when a request arrives
+        self.extra_attempt = False  # asks for a third permission and never reports it
+        self.counter = 0
+
+    def evaluator_answer(self, settings):
+        return {
+            "contract_version": contract.CONTRACT_V2,
+            "evaluator": self.evaluator,
+            "authorization": {"mode": "per_attempt_trusted_endpoint", "configured": True},
+        }
+
+    def evaluate(self, settings, request):
+        self.requests.append(request)
+        if self.swap_before_answering is not None:
+            self.evaluator, self.swap_before_answering = self.swap_before_answering, None
+        if request.get("expected_evaluator_id") != self.evaluator["evaluator_id"]:
+            body = {"error_code": "evaluator_changed", "evaluator": self.evaluator, "llm_calls": []}
+            raise ServiceError("mechevidence", "evaluator_changed", "", (), body)
+        key = contract.reuse_key(request, self.evaluator)
+        calls = []
+        for index, stage in enumerate(
+            ("decompose", "review") + (("review",) if self.extra_attempt else ()), 1
+        ):
+            call = self.attempt(request, key, stage, index, calls, last=self.extra_attempt and index == 3)
+            if call is not None:
+                calls.append(call)
+            self.between(index)
+        return self.edit(self.receipt(request, key, calls))
+
+    def attempt(self, request, key, stage, index, done, last):
+        self.counter += 1
+        config = self.evaluator["model_config"]
+        attempt_id = uuid.uuid4().hex
+        body = {
+            "contract_version": attempts.AUTHORIZE_V1,
+            "service": "mechevidence",
+            "authorization_ref": request["authorization_ref"],
+            "evaluation_key": key,
+            "evaluator_id": self.evaluator["evaluator_id"],
+            "attempt": {
+                "id": attempt_id,
+                "stage": stage,
+                "index": index,
+                "request_body_sha256": hashlib.sha256(f"{attempt_id}".encode()).hexdigest(),
+                "model": config["model"],
+                "endpoint_id": config["endpoint_id"],
+            },
+        }
+        answer = self.client.post("/internal/v1/model-attempts/authorize", json=body)
+        decision = answer.json()
+        echoed = (decision.get("attempt_id"), decision.get("evaluation_key"), decision.get("evaluator_id"))
+        if (
+            answer.status_code != 200
+            or decision.get("valid") is not True
+            or echoed != (attempt_id, key, self.evaluator["evaluator_id"])
+        ):
+            error = ServiceError("mechevidence", "authorization_blocked", "", done, {"llm_calls": done})
+            raise error
+        if last:
+            return None  # permission taken, request "sent", nothing ever reported
+        text = DECOMPOSE if stage == "decompose" else REVIEW
+        outcome = outcome_body(request["authorization_ref"], decision, index, text=text)
+        ack = self.client.post(f"/internal/v1/model-attempts/{attempt_id}/outcome", json=outcome)
+        if ack.status_code != 200 or not acknowledged(ack.json(), decision, outcome):
+            raise ServiceError("mechevidence", "authorization_blocked", "outcome not recorded", done, {})
+        return {
+            "stage": stage,
+            "model": "stub",
+            "finish_reason": "stop",
+            "usage": self.usage,
+            "seconds": 0,
+            "error": None,
+            "requests": 1,
+            "outputs": [
+                {
+                    "attempt": 1,
+                    "index": index,
+                    "attempt_id": attempt_id,
+                    "decision_id": decision["decision_id"],
+                    "delivered": "yes",
+                    "status": 200,
+                    "error": None,
+                    "content": text,
+                    "sha256": hashlib.sha256(text.encode()).hexdigest(),
+                    "truncated": False,
+                }
+            ],
+        }
+
+    def receipt(self, request, key, calls):
+        first = request["materials"][0]["id"]
+        template = json.dumps(json.loads((FIXTURES / "receipt.json").read_text("utf-8")))
+        receipt = json.loads(
+            template.replace('"E1"', json.dumps(first))
+            .replace("E1.", first + ".")
+            .replace("text:E1", "text:" + first)
+        )
+        receipt.update(
+            evaluator=json.loads(json.dumps(self.evaluator)),
+            reuse_key=key,
+            scope=contract.normal_scope(request["scope"]),
+            materials=contract.material_echo(request),
+            llm_calls=calls,
+        )
+        return receipt
+
+
+def install(monkeypatch, mech):
+    """The radar's calls to MechEvidence go to the stand-in."""
+    monkeypatch.setattr(services, "mechevidence_evaluator", mech.evaluator_answer)
+    monkeypatch.setattr(services, "mechevidence_v2", mech.evaluate)
