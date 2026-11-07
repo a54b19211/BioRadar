@@ -1,5 +1,5 @@
 # The shared extraction-consistency contract (extraction-contract, same package as Fabric's), pinned here to
-# 1.13.1 (checker v16 under contract v3, the same contract and checker as 1.13.0) by the sha256 of its
+# 1.14.0 (checker v16 under contract v3 and extraction_contract.mech_v2, the MechEvidence evaluate.v2 rules) by the sha256 of its
 # reproducible wheel. uv.lock does not record a local wheel's hash, so install it explicitly (README, 启动):
 #   uv pip install --no-index --find-links "${EXTRACTION_CONTRACT_WHEELS:-../extraction-contract/dist}" --require-hashes -r requirements-contract.txt
-extraction-contract==1.13.1 --hash=sha256:e8a1e14bfd9687920187324cf0e6f1c9b634d17d29fafbdc81d5b1859a75b7cf
+extraction-contract==1.14.0 --hash=sha256:acc63122128c188a9089b1789a663028d55fb9c80079b0fd7ee214d671d27db9
