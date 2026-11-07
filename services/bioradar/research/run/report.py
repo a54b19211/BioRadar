@@ -88,6 +88,12 @@ def report_evidence(run: "Run", rows):
             "text": texts[r.ref],
             # Fabric's explicit same-origin group; absent means independence is unknown, not proven
             "origin_group": (r.meta or {}).get("origin_group"),
+            # The version time facts as Fabric gave them, one field each, never merged (task book 06 2.4).
+            # A row stored before they were kept sends None, which says unknown: the merged available_at
+            # cannot be split to fill them.
+            "first_seen_at": (r.meta or {}).get("first_seen_at"),
+            "proof_available_at": (r.meta or {}).get("proof_available_at"),
+            "replay_mode": (r.meta or {}).get("replay_mode"),
         }
         for r in sent
     ]

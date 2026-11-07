@@ -64,5 +64,7 @@
   `invalid_request`. Deploy BioCheck first, or set `BIORADAR_BIOCHECK_VERIFY=v1`.
 - With `v1` the conclusions are no longer cut into clauses by the radar, so a long conclusion is one sentence for
   BioCheck's v1 check.
-- Not done: `first_seen_at` and `proof_available_at` of the evidence (the radar keeps only the merged
-  `available_at`), `[R#]` receipts, per-slot scope and time (the run's own for all slots, so nothing to compare).
+- Each evidence item carries `first_seen_at`, `proof_available_at` (null: no proof) and `replay_mode` (the mode
+  its read ran in), as Fabric gave them. The merged `available_at` stays an internal clock for cutoffs and is
+  never sent: `/v2/verify` rejects it. An evidence row stored before these were kept sends null.
+- Not done: `[R#]` receipts, per-slot scope and time (the run's own for all slots, so nothing to compare).

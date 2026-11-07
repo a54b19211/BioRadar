@@ -214,6 +214,11 @@ def document(record: dict) -> dict:
         # each with its meaning; a record without a published time has none (event_time is not it)
         "published_at": stated_time(record.get("source_published_at")),
         "event_time": stated_time(record.get("event_time")),
+        # Fabric's two availability times, kept apart: when this system first saw the version, and when a
+        # reviewed archive proves it could be read (None: no proof). `available_at` is the radar's own clock
+        # for cutoffs and ordering (the proof if there is one, else the first sight); it goes to no service.
+        "first_seen_at": record.get("first_seen_at"),
+        "proof_available_at": _time(proof.get("available_at")),
         "available_at": _time(proof.get("available_at")) or record.get("first_seen_at"),
         "material_kind": kind,
         "text_level": level,

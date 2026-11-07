@@ -137,6 +137,11 @@ def store(run: "Run", hit, ref, doc, material, window, omitted):
                 text=material.text,
                 meta={
                     "url": doc["url"],
+                    # the time facts BioCheck gets (report.report_evidence); the merged available_at above
+                    # cannot be split back, so they are kept as read, with the mode of this read
+                    "first_seen_at": doc["first_seen_at"],
+                    "proof_available_at": doc["proof_available_at"],
+                    "replay_mode": doc["read_at"]["mode"],
                     "window": window,
                     "text_level": doc["text_level"],
                     "relations": doc["relations"],

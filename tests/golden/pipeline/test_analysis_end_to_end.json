@@ -509,8 +509,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -519,6 +521,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -792,8 +795,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -802,6 +807,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -824,9 +830,12 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-29T08:00:00+08:00",
       "material_read_id": 2,
       "origin_group": null,
+      "proof_available_at": "2026-09-29T08:00:00+08:00",
       "relations": [],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -1183,8 +1192,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -1193,6 +1204,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -1215,9 +1227,12 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-29T08:00:00+08:00",
       "material_read_id": 2,
       "origin_group": null,
+      "proof_available_at": "2026-09-29T08:00:00+08:00",
       "relations": [],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -1574,8 +1589,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -1584,6 +1601,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -1606,9 +1624,12 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-29T08:00:00+08:00",
       "material_read_id": 2,
       "origin_group": null,
+      "proof_available_at": "2026-09-29T08:00:00+08:00",
       "relations": [],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -2000,8 +2021,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -2010,6 +2033,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -2032,9 +2056,12 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-29T08:00:00+08:00",
       "material_read_id": 2,
       "origin_group": null,
+      "proof_available_at": "2026-09-29T08:00:00+08:00",
       "relations": [],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -2430,8 +2457,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -2440,6 +2469,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -2462,9 +2492,12 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-29T08:00:00+08:00",
       "material_read_id": 2,
       "origin_group": null,
+      "proof_available_at": "2026-09-29T08:00:00+08:00",
       "relations": [],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -3044,8 +3077,10 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-30T08:00:00+08:00",
       "material_read_id": 1,
       "origin_group": null,
+      "proof_available_at": "2026-09-30T08:00:00+08:00",
       "relations": [
        {
         "kind": "corrects",
@@ -3054,6 +3089,7 @@
         "target_version_id": null
        }
       ],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
@@ -3076,9 +3112,12 @@
       "clean_text_state": null,
       "derived": [],
       "events": [],
+      "first_seen_at": "2026-09-29T08:00:00+08:00",
       "material_read_id": 2,
       "origin_group": null,
+      "proof_available_at": "2026-09-29T08:00:00+08:00",
       "relations": [],
+      "replay_mode": "current",
       "table_header_omitted": 0,
       "text_level": "full_text",
       "url": null,
