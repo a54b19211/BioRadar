@@ -173,10 +173,7 @@ def test_source_status_keeps_collection_state_new_records_and_publication_apart(
     assert body["daily_auto_tokens"] == s.daily_auto_tokens
 
 
-def test_a_literature_record_without_document_evidence_is_not_given_a_kind_by_the_radar():
-    """What kind of material a record is, and what text level, is Fabric's document_evidence; the radar does
-    not read the source's own metadata (pubTypeList) to guess it. Without it the record keeps Fabric's
-    record_kind and no text level."""
+def test_a_literature_record_without_document_evidence_keeps_its_own_publication_type():
     import json
 
     from bioradar.adapters.fabric import document
@@ -195,11 +192,12 @@ def test_a_literature_record_without_document_evidence_is_not_given_a_kind_by_th
             rec["document_evidence"] = evidence
         return document(rec)
 
-    for types in (["research-article", "Journal Article"], ["Editorial"], ["Review", "Journal Article"]):
-        bare = epmc(types)
-        assert (bare["material_kind"], bare["text_level"]) == ("document", None), types
-    stated = epmc(["research-article"], {"material_kind": "primary_research", "text_level": "abstract"})
-    assert (stated["material_kind"], stated["text_level"]) == ("primary_research", "abstract")
+    research = epmc(["research-article", "Journal Article"])
+    assert (research["material_kind"], research["text_level"]) == ("primary_research", "abstract")
+    assert epmc(["Editorial", "Journal Article"])["material_kind"] == "document"  # not research
+    assert epmc(["Review", "Journal Article"])["material_kind"] == "review"
+    stated = epmc(["research-article"], {"material_kind": "news_report", "text_level": "full_text"})
+    assert (stated["material_kind"], stated["text_level"]) == ("news_report", "full_text")  # Fabric wins
 
 
 ARTIFACT = {
