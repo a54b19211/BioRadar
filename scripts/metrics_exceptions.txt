@@ -24,8 +24,11 @@ services/bioradar/research/series_store.py:adopt  storing a checked point; its s
 #
 # The Fabric adapter assembles a record's material from four Fabric layers on the client side (audit P5); it
 # shrinks to one call when Fabric serves the readable material in one response (wave 2, Fabric catalog API).
-services/bioradar/adapters/fabric.py:document  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
 services/bioradar/adapters/fabric.py:Fabric.attach_clean_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
 services/bioradar/adapters/fabric.py:Fabric.attach_attachment_text  client-side join of Fabric's layers, replaced by one Fabric material call (P5)
 # The LLM JSON client is consolidated across Radar, BioCheck and MechEvidence (audit P5, out of this wave).
 services/bioradar/adapters/llm.py:chat_json  LLM client consolidation across the three services (P5)
+# MechEvidence's receipt rules, vendored byte for byte (sha256 pinned in tests/test_mech_contract.py);
+# it is not edited here, so its two table walkers keep the complexity they have there.
+services/bioradar/mech/receipt.py:_walk  vendored from MechEvidence unchanged (hash-pinned)
+services/bioradar/mech/receipt.py:_references  vendored from MechEvidence unchanged (hash-pinned)

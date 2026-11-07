@@ -33,6 +33,9 @@ pythonpath = ["services", "tests", "scripts"]
 [tool.ruff]
 target-version = "py312"
 line-length = 110
+# MechEvidence's receipt rules, vendored byte for byte (sha256 pinned in tests/test_mech_contract.py)
+extend-exclude = ["services/bioradar/mech/receipt.py"]
+force-exclude = true
 
 [tool.ruff.lint]
 select = ["E", "F", "I"]
