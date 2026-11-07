@@ -264,12 +264,12 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
             .where(db.Analysis.trigger == "topic", db.Analysis.created_at > db.now() - timedelta(hours=1))
         )
     for owed_topic in owed:
-        topic_id, reason = owed_topic.id, owed_topic.pending_reason
+        reason = owed_topic.pending_reason
         later = []
         if cutoff is not None:
             # a replay takes only the debt visible at its cutoff; what is owed later stays owed
             with db.session() as session:
-                visible_reasons, later = owed_at(session, session.get(db.Topic, topic_id), cutoff)
+                visible_reasons, later = owed_at(session, session.get(db.Topic, owed_topic.id), cutoff)
             if not visible_reasons:
                 continue
             reason = "+".join(visible_reasons)
@@ -282,105 +282,129 @@ def start_analyses(s: Settings, *, is_demo: bool, cutoff: datetime | None, budge
         # The new analysis and the cleared debt commit together; a round that dies before dispatch
         # leaves a queued row that analyses.recover() picks up, never a second analysis.
         with db.session() as session:
-            topic = session.get(db.Topic, topic_id)
-            records = list(
-                session.scalars(
-                    visible(select(db.Observation), db.Observation.available_at, cutoff)
-                    .where(db.Observation.topic_id == topic_id)
-                    .order_by(db.Observation.available_at.desc())
-                    .limit(8)
-                )
-            )
-            last = session.scalar(
-                visible(select(db.TopicEvent), db.TopicEvent.at, cutoff)
-                .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "observed")
-                .order_by(db.TopicEvent.id.desc())
-                .limit(1)
-            )
-            template = prompts.SIGNAL_QUESTIONS.get((last.detail if last else {}).get("signal", "other"))
-            question = (
-                template.format(title=topic.title) + f"（触发：{reason}）"
-                if template
-                else f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
-                "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
-            )
-            points = []
-            if "series_change" in reason.split("+"):
-                question += series_basis(session, topic_id, cutoff)
-                points = series_basis_points(session, topic_id, cutoff)
-            if "analyst_review" in reason.split("+"):
-                question += review_basis(session, topic_id, owed_topic.pending_since)
-            seeds = [{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records]
-            handed, leftover = [], {}  # what this analysis is given; what stays owed, from when
-            corrected = [r for r in reason.split("+") if r in {"cross_domain_correction", "source_corrected"}]
-            if corrected:
-                since = owed_topic.pending_since
-                batch, given, left = correction_batch(session, topic_id, since, cutoff)
-                handed += given
-                if left is not None:
-                    leftover.update(dict.fromkeys(corrected, left))
-                question += correction_basis(session, topic_id, since, cutoff, events=batch)
-                seeds += correction_seeds(
-                    session, topic_id, since, cutoff, events=batch
-                )  # pinned: never merged with a head
-            if "record_conflict" in reason.split("+"):
-                text, pinned, ids, given, left = conflict_basis(
-                    session, topic_id, owed_topic.pending_since, cutoff
-                )
-                handed += given
-                if left is not None:
-                    leftover["record_conflict"] = left
-                question += text
-                seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
-                known = {p["measurement_id"] for p in points}
-                points = list(points) + [
-                    p
-                    for p in measure_checks.series_points(session, ids, cutoff)
-                    if p["measurement_id"] not in known
-                ]
-            row = analyses.create(
-                question=question,
-                direction=topic.direction,
-                is_demo=topic.is_demo,
-                cutoff=cutoff.isoformat() if cutoff else None,
-                trigger="topic",
-                topic_id=topic.id,
-                parent_id=topic.last_analysis_id,
-                seed_records=seeds,
-                series_points=points,
-                session=session,
-            )
-            topic.last_analysis_id = row.id
-            asked = reason.split("+")
-            unplaced = [r for r in (topic.pending_reason or "").split("+") if r and r not in asked]
-            # occurrences after the cutoff stay owed: one mark per reason, each occurrence a dated owed event
-            unplaced += [r for r in dict.fromkeys(r for r, _ in later) if r not in unplaced]
-            if cutoff is not None and unplaced:
-                # later reasons (and any that cannot be placed in time) are still owed, from their own time
-                times = [parse_time(at) for r, at in later]
-                topic.pending_reason = "+".join(unplaced)
-                topic.pending_since = min(times) if times else topic.pending_since
-            else:
-                topic.pending_reason = topic.pending_since = None
-            if leftover:
-                # the events this bounded hand-off did not reach stay owed, from the earliest of them
-                kept = [r for r in (topic.pending_reason or "").split("+") if r]
-                times = list(leftover.values()) + ([parse_time(topic.pending_since)] if kept else [])
-                topic.pending_reason = "+".join(kept + [r for r in leftover if r not in kept])[:200]
-                topic.pending_since = min(times)
-            event(
-                session,
-                topic,
-                cutoff or db.now(),
-                "analysis",
-                analysis_id=row.id,
-                reason=reason,
-                handed_events=sorted(set(handed)),
-            )
-            for r, at in later:  # still owed after this analysis, from their own time
-                event(session, topic, at, "owed", reason=r, carried=True)
-            for r, at in leftover.items():  # dated after the analysis event, so the next round sees them
-                event(session, topic, at, "owed", reason=r, carried=True, left_over=True)
+            row = _start_one(session, owed_topic, reason, later, cutoff)
         analyses.dispatch(row.id)
         created.append(row.id)
     return created
+
+
+def _start_one(session, owed_topic, reason, later, cutoff):
+    """The analysis a topic's debt asks for, created in the caller's transaction together with the change of
+    the debt itself and the topic's events."""
+    topic_id = owed_topic.id
+    topic = session.get(db.Topic, topic_id)
+    question, seeds = _base_question(session, topic, reason, cutoff)
+    question, seeds, points, handed, leftover = _bases(session, owed_topic, reason, cutoff, question, seeds)
+    row = analyses.create(
+        question=question,
+        direction=topic.direction,
+        is_demo=topic.is_demo,
+        cutoff=cutoff.isoformat() if cutoff else None,
+        trigger="topic",
+        topic_id=topic.id,
+        parent_id=topic.last_analysis_id,
+        seed_records=seeds,
+        series_points=points,
+        session=session,
+    )
+    topic.last_analysis_id = row.id
+    _settle_debt(topic, reason, later, leftover, cutoff)
+    event(
+        session,
+        topic,
+        cutoff or db.now(),
+        "analysis",
+        analysis_id=row.id,
+        reason=reason,
+        handed_events=sorted(set(handed)),
+    )
+    for r, at in later:  # still owed after this analysis, from their own time
+        event(session, topic, at, "owed", reason=r, carried=True)
+    for r, at in leftover.items():  # dated after the analysis event, so the next round sees them
+        event(session, topic, at, "owed", reason=r, carried=True, left_over=True)
+    return row
+
+
+def _base_question(session, topic, reason, cutoff):
+    """The question of the signal the topic's last record showed, and the topic's latest records as seeds."""
+    records = list(
+        session.scalars(
+            visible(select(db.Observation), db.Observation.available_at, cutoff)
+            .where(db.Observation.topic_id == topic.id)
+            .order_by(db.Observation.available_at.desc())
+            .limit(8)
+        )
+    )
+    last = session.scalar(
+        visible(select(db.TopicEvent), db.TopicEvent.at, cutoff)
+        .where(db.TopicEvent.topic_id == topic.id, db.TopicEvent.kind == "observed")
+        .order_by(db.TopicEvent.id.desc())
+        .limit(1)
+    )
+    template = prompts.SIGNAL_QUESTIONS.get((last.detail if last else {}).get("signal", "other"))
+    question = (
+        template.format(title=topic.title) + f"（触发：{reason}）"
+        if template
+        else f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
+        "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
+    )
+    seeds = [{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records]
+    return question, seeds
+
+
+def _bases(session, owed_topic, reason, cutoff, question, seeds):
+    """What each reason of the debt adds to the question, the seeds and the series points; returns
+    (question, seeds, points, events handed over, events left over with the time they stay owed from)."""
+    topic_id = owed_topic.id
+    reasons = reason.split("+")
+    points = []
+    if "series_change" in reasons:
+        question += series_basis(session, topic_id, cutoff)
+        points = series_basis_points(session, topic_id, cutoff)
+    if "analyst_review" in reasons:
+        question += review_basis(session, topic_id, owed_topic.pending_since)
+    handed, leftover = [], {}  # what this analysis is given; what stays owed, from when
+    corrected = [r for r in reasons if r in {"cross_domain_correction", "source_corrected"}]
+    if corrected:
+        since = owed_topic.pending_since
+        batch, given, left = correction_batch(session, topic_id, since, cutoff)
+        handed += given
+        if left is not None:
+            leftover.update(dict.fromkeys(corrected, left))
+        question += correction_basis(session, topic_id, since, cutoff, events=batch)
+        seeds += correction_seeds(
+            session, topic_id, since, cutoff, events=batch
+        )  # pinned: never merged with a head
+    if "record_conflict" in reasons:
+        text, pinned, ids, given, left = conflict_basis(session, topic_id, owed_topic.pending_since, cutoff)
+        handed += given
+        if left is not None:
+            leftover["record_conflict"] = left
+        question += text
+        seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
+        known = {p["measurement_id"] for p in points}
+        points = list(points) + [
+            p for p in measure_checks.series_points(session, ids, cutoff) if p["measurement_id"] not in known
+        ]
+    return question, seeds, points, handed, leftover
+
+
+def _settle_debt(topic, reason, later, leftover, cutoff):
+    """Clear the debt this analysis answers; what is owed later, or was not handed over, stays owed."""
+    asked = reason.split("+")
+    unplaced = [r for r in (topic.pending_reason or "").split("+") if r and r not in asked]
+    # occurrences after the cutoff stay owed: one mark per reason, each occurrence a dated owed event
+    unplaced += [r for r in dict.fromkeys(r for r, _ in later) if r not in unplaced]
+    if cutoff is not None and unplaced:
+        # later reasons (and any that cannot be placed in time) are still owed, from their own time
+        times = [parse_time(at) for r, at in later]
+        topic.pending_reason = "+".join(unplaced)
+        topic.pending_since = min(times) if times else topic.pending_since
+    else:
+        topic.pending_reason = topic.pending_since = None
+    if leftover:
+        # the events this bounded hand-off did not reach stay owed, from the earliest of them
+        kept = [r for r in (topic.pending_reason or "").split("+") if r]
+        times = list(leftover.values()) + ([parse_time(topic.pending_since)] if kept else [])
+        topic.pending_reason = "+".join(kept + [r for r in leftover if r not in kept])[:200]
+        topic.pending_since = min(times)

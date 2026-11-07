@@ -33,6 +33,5 @@ services/bioradar/adapters/llm.py:chat_json  LLM client consolidation across the
 # Not split in cleanup wave 1 (no move pending); next in line, covered by test_monitor, test_owed_cutoff,
 # test_access, test_deferred_revisions.
 services/bioradar/research/monitor.py:tick  the round's order in one place; split pending (wave 2)
-services/bioradar/research/scheduling.py:start_analyses  split pending (wave 2)
 services/bioradar/research/analyses.py:create  split pending (wave 2)
 services/bioradar/research/analyses.py:review  split pending (wave 2)
