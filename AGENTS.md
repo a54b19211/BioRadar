@@ -40,7 +40,7 @@
 
 - 主动提问、追问、专题自动分析、历史回放都走 `research/analyses.py` → `research/pipeline.py`（`Run`：阶段表、存盘、记账；各阶段在 `research/run/`）。
 - 进度的每个键在 `research/state.py`（RunState）里声明；对外视图只输出标了 SHOWN 的字段（`research/views.py`），新字段默认不外露。
-- 只有 BioCheck 核验 PASS 的报告可交付，其余标为待核（`publishable: false`、`hold: pending_verification`）；每次带证据的外发前向 Fabric 确认来源仍可读（见 `docs/decisions/0005`）。
+- 只有 BioCheck 核验 PASS、且报告各节里设计 1.3 的五项（主要判断、业务影响、支持和反对的证据、局限、会改变判断的证据；`research/run/sections.py`）齐全的报告可交付，其余标为待核（`publishable: false`、`hold: pending_verification`）；每次带证据的外发前向 Fabric 确认来源仍可读（见 `docs/decisions/0005`）。
 - 每个阶段结束保存一次进度；中断后从保存的阶段继续，正在进行的那次调用会重发一次（已知成本）。
 - 历史回放必须带截止时间，Fabric 只返回截止前可见的版本。不得用后来才知道的名称或结局作检索词。
 - 保留 baseline（固定流程）作对照。改 planner 方法时不悄悄改 baseline 的顺序和范围。

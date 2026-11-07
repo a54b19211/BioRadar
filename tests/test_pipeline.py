@@ -76,6 +76,7 @@ def fake_model(sent):
                         consequence="high",
                         priority="high",
                         grounds=["E1", "E9"],
+                        unproven="还缺总生存期（OS）数据，这是最能区分的下一项证据",
                     )
                 ],
             )

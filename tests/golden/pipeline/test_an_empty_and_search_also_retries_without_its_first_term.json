@@ -98,7 +98,7 @@
        "grounds": [],
        "priority": "high",
        "question": "是否为重要进展",
-       "unproven": ""
+       "unproven": "还缺总生存期（OS）数据，这是最能区分的下一项证据"
       }
      ]
     },
@@ -4342,7 +4342,7 @@
        "grounds": [],
        "priority": "high",
        "question": "是否为重要进展",
-       "unproven": ""
+       "unproven": "还缺总生存期（OS）数据，这是最能区分的下一项证据"
       }
      ]
     },

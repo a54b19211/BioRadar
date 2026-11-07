@@ -22,7 +22,7 @@ from bioradar.config import settings
 from bioradar.research import analyses, lineage, measure_history, monitor
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import level_gates, observation_view, topic_view
-from bioradar.research.views import KEEP, blank, is_not_run_reason
+from bioradar.research.views import KEEP, blank, is_reason_code
 from bioradar.text import squash
 
 app = FastAPI(title="BioRadar", version="1.0.0")
@@ -266,7 +266,7 @@ def withhold(value):
     """Model-written text removed everywhere, the structure, numbers, states and program numbers kept."""
     if isinstance(value, dict):
         return {
-            k: (v if isinstance(v, str) and (k in PROGRAM or is_not_run_reason(k, v)) else withhold(v))
+            k: (v if isinstance(v, str) and (k in PROGRAM or is_reason_code(k, v)) else withhold(v))
             for k, v in value.items()
         }
     if isinstance(value, list):
@@ -371,11 +371,11 @@ def withhold_check_texts(progress, result, safe):
 
 
 def withhold_result(result, hidden, reason):
-    """The draft, sentence checks, judgments, hypotheses and mechanism text; a calculation keeps its
-    numbers, not the quotes of withheld records."""
+    """The draft, sentence checks, judgments, hypotheses, sections and mechanism text; a calculation keeps
+    its numbers, not the quotes of withheld records."""
     result["withheld"] = reason
     result["draft"] = ""
-    for key in ("review", "assessment", "mechanism"):
+    for key in ("review", "assessment", "mechanism", "sections"):
         if result.get(key):
             result[key] = blank(result[key])
     for c in result.get("computations") or []:

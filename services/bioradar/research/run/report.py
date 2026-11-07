@@ -171,9 +171,14 @@ def source_links(run: "Run", rows):
     return updates, relations
 
 
+def searched_checks(p) -> set[str]:
+    """The checks a completed search or read was aimed at."""
+    return {i for a in p.get("actions", []) if a["status"] == "completed" for i in a["target_checks"]}
+
+
 def research_scope(run: "Run"):
     """What was searched for each check and how far it got, what was not searched, and what failed."""
-    searched = {i for a in run.p["actions"] if a["status"] == "completed" for i in a["target_checks"]}
+    searched = searched_checks(run.p)
     failed = [
         f"{a['kind']} {a['source']} {a.get('error')}" for a in run.p["actions"] if a["status"] == "failed"
     ]

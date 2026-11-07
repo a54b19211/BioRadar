@@ -11,7 +11,7 @@ import typing
 from datetime import datetime
 from typing import Annotated, Any
 
-from bioradar.research.state import MECH_NOT_RUN_REASONS, SHOWN, Result, RunState
+from bioradar.research.state import MECH_NOT_RUN_REASONS, SECTION_REASONS, SHOWN, Result, RunState
 
 
 def is_shown(tp) -> bool:
@@ -61,28 +61,33 @@ KEEP = {
 }
 
 
-def is_not_run_reason(key, value) -> bool:
-    """Why a mechanism result did not run: a code the program wrote, not model text."""
-    return key == "reason" and value in MECH_NOT_RUN_REASONS
+def is_reason_code(key, value) -> bool:
+    """Why a mechanism did not run or a report section is empty or missing: a code the program wrote, not
+    model text."""
+    return key == "reason" and value in MECH_NOT_RUN_REASONS + SECTION_REASONS
 
 
 def blank(value):
     """Model-written text derived from the materials, with the words removed and the structure kept."""
     if isinstance(value, dict):
-        return {k: (v if k in KEEP or is_not_run_reason(k, v) else blank(v)) for k, v in value.items()}
+        return {k: (v if k in KEEP or is_reason_code(k, v) else blank(v)) for k, v in value.items()}
     if isinstance(value, list):
         return [blank(v) for v in value]
     return "" if isinstance(value, str) else value
 
 
-def publication(status, reason=None) -> dict:
+def publication(status, reason=None, missing=()) -> dict:
     """v3 6.2: whether a report may be delivered, decided by the program - never by a model or the planner:
-    only a report BioCheck's last check passed (PASS). Any other (the check did not run, did not answer, or
-    found problems) is held, publishable false with hold pending_verification and the reason; the run keeps
-    its draft and assessment for re-verification, and the external views show the hold instead of them."""
-    if status == "PASS":
+    only a report BioCheck's last check passed (PASS) and whose sections hold every item of design 1.3
+    (`missing`: the items they lack, research/run/sections.py). Any other (the check did not run, did not
+    answer, found problems, or an item is missing) is held, publishable false with hold pending_verification
+    and the reason; the run keeps its draft and assessment for re-verification, and the external views show
+    the hold instead of them."""
+    if status == "PASS" and not missing:
         return {"publishable": True, "hold": None, "hold_reason": None}
-    if not reason:
+    if not reason and status == "PASS":
+        reason = "sections_missing:" + ",".join(missing)
+    elif not reason:
         reason = "not_checked" if status in (None, "NOT_RUN") else f"biocheck_{str(status).lower()}"
     return {"publishable": False, "hold": "pending_verification", "hold_reason": reason}
 
@@ -97,8 +102,9 @@ def publication_of(result: dict) -> dict:
 
 def gated(result):
     """A result as the external views may show it. A held report is not shown as a finished one: its draft
-    and assessment are left out and the sentence checks and kept versions lose their words (numbers,
-    verdicts and references stay). A result stored before the gate is judged by its report status."""
+    and assessment are left out, the sentence checks and kept versions lose their words (numbers,
+    verdicts and references stay) and each section keeps only its kind, status and reason. A result stored
+    before the gate is judged by its report status."""
     if not result or "report_status" not in result:
         return result
     result = publication_of(dict(result))
@@ -108,6 +114,10 @@ def gated(result):
         result["assessment"] = None
         if result.get("review"):
             result["review"] = blank(result["review"])
+        if "sections" in result:
+            result["sections"] = [
+                {k: s[k] for k in ("kind", "status", "reason") if k in s} for s in result["sections"]
+            ]
     return result
 
 

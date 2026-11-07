@@ -22,6 +22,7 @@ from bioradar.config import Settings
 from bioradar.research import lease, state
 from bioradar.research.lineage import lineage_sources
 from bioradar.research.run import Failed, Withheld, assess, calculate, investigate, mechanism, plan, report
+from bioradar.research.run.sections import missing_items, report_sections
 from bioradar.research.state import RunState
 from bioradar.research.views import publication
 
@@ -403,11 +404,13 @@ class Run:
                 ).where(db.LlmCall.analysis_id == self.id)
             ).one()
         report = self.p.get("report") or {}
+        sections = report_sections(self)
         return {
             "report_status": report.get("status", "NOT_RUN"),
             # v3 6.2: whether the report may be delivered, decided here by the program
-            **publication(report.get("status", "NOT_RUN"), report.get("reason")),
+            **publication(report.get("status", "NOT_RUN"), report.get("reason"), missing_items(sections)),
             "draft": report.get("draft", ""),
+            "sections": sections,
             "review": {
                 k: report.get(k)
                 for k in ("claims", "coverage", "read_requests", "reason", "revised", "versions")

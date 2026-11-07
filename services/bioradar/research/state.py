@@ -217,6 +217,17 @@ MECH_NOT_RUN_REASONS = (
 )
 
 
+# Why a report section is empty or missing: codes the program writes, never model text, so the external views
+# keep them where they withhold words (views.is_reason_code).
+SECTION_REASONS = (
+    "no_objectives",  # recommendation: the requester gave no objective, so there is nothing to recommend
+    "no_main_judgment",  # judgment: the assessment holds no judgment and no graded hypothesis
+    "no_impact",  # judgment: none of its judgments states the consequence if it is true
+    "no_evidence",  # evidence: no fact reads for or against any check
+    "no_review_condition",  # scenarios: nothing says which evidence would change the judgment
+)
+
+
 class MechanismResult(TypedDict, total=False):
     status: Literal["completed", "failed", "not_run"]
     reason: str  # not_run: one of MECH_NOT_RUN_REASONS; failed: the error code of the service
@@ -291,6 +302,48 @@ class RunState(TypedDict, total=False):
     capability_snapshots: list[dict[str, Any]]
 
 
+class SectionItem(TypedDict, total=False):
+    """One statement of a report section; which fields are set depends on the section's kind
+    (research/run/sections.py)."""
+
+    id: Annotated[str, SHOWN]  # a check (Q1) or a hypothesis (H1)
+    text: Annotated[str, SHOWN]
+    question: Annotated[str, SHOWN]
+    stance: Annotated[Literal["supports", "refutes"], SHOWN]
+    status: Annotated[str, SHOWN]  # a check's status; a gap's kind (not_searched, not_found, ...)
+    confidence: Annotated[str, SHOWN]
+    level: Annotated[str, SHOWN]
+    consequence: Annotated[str, SHOWN]
+    check: Annotated[str, SHOWN]  # BioCheck's verdict on the judgment's own text
+    grounds: Annotated[list[str], SHOWN]  # evidence refs
+    count: Annotated[int, SHOWN]
+    reason: Annotated[str, SHOWN]  # a code (SECTION_REASONS, MECH_NOT_RUN_REASONS)
+
+
+class VisibleRecord(TypedDict):
+    """One record the run read, as the visibility section's appendix lists it."""
+
+    ref: Annotated[str, SHOWN]
+    source: Annotated[str, SHOWN]
+    record_id: Annotated[str, SHOWN]
+    version_id: Annotated[str, SHOWN]
+    published_at: Annotated[str | None, SHOWN]
+    available_at: Annotated[str | None, SHOWN]
+    material_kind: Annotated[str | None, SHOWN]
+    verified: Annotated[bool, SHOWN]
+
+
+class Section(TypedDict, total=False):
+    """One section of the report (research/run/sections.py). Status "missing" holds the report as 待核;
+    "empty" is a section that by rule has nothing to say. `reason` says why in both."""
+
+    kind: Annotated[str, SHOWN]
+    status: Annotated[Literal["ok", "empty", "missing"], SHOWN]
+    reason: Annotated[str, SHOWN]
+    items: Annotated[list[SectionItem], SHOWN]
+    appendix: Annotated[list[VisibleRecord], SHOWN]
+
+
 class ResultReview(TypedDict, total=False):
     claims: Annotated[list[dict[str, Any]] | None, SHOWN]  # BioCheck's sentence checks of the last check
     coverage: Annotated[Any, SHOWN]
@@ -308,6 +361,7 @@ class Result(TypedDict, total=False):
     hold: Annotated[str | None, SHOWN]  # pending_verification while not publishable
     hold_reason: Annotated[str | None, SHOWN]
     draft: Annotated[str, SHOWN]
+    sections: Annotated[list[Section], SHOWN]  # a held report's sections show only status and reason
     review: Annotated[ResultReview, SHOWN]
     assessment: Annotated[dict[str, Any] | None, SHOWN]
     checks: Annotated[list[Check], SHOWN]
