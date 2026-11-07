@@ -393,6 +393,32 @@ class Fabric:
         self.complete(docs, is_demo=is_demo, mode=mode, cutoff=at)
         return docs, missing
 
+    def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None) -> bool:
+        """Whether this exact fixed version can be read now (at the cutoff, for a replay): Fabric's
+        current answer for the identity named, nothing else. False: revoked, withdrawn from view or not
+        visible then. Raises FabricError / httpx.HTTPError when Fabric cannot answer (not an answer of
+        "no")."""
+        at = (cutoff or datetime.now(UTC)).isoformat()
+        try:
+            item = self._get(
+                f"/api/history/versions/{version_id}",
+                {
+                    "source_id": source,
+                    "source_record_id": record_id,
+                    "is_demo": str(is_demo).lower(),
+                    "mode": HISTORY if cutoff else CURRENT,
+                    "cutoff": at,
+                },
+            )
+        except FabricError as error:
+            if error.code in NOT_VISIBLE:
+                return False
+            raise
+        try:
+            return fixed_version_is(document(item), source, record_id, version_id, is_demo, cutoff)
+        except (KeyError, TypeError, ValueError, AttributeError):
+            return False  # a raw record that cannot be read as a HistoryRecord is never that version
+
     def registry_changes(self, source, version_ids, *, is_demo, mode, cutoff):
         """Fabric's registry diff of each version against its previous version: {version_id: {state, ...}}."""
         data = self._get(

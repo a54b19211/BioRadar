@@ -1,6 +1,7 @@
 """All runtime settings. Environment variables use the BIORADAR_ prefix."""
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -41,6 +42,12 @@ class Settings(BaseSettings):
     mechevidence_url: str = ""
     mechevidence_token: str = ""
     service_timeout_seconds: float = 900
+    # MechEvidence's contract: v1 (compatibility, unbound) or v2 (version-bound, cached, every model request
+    # authorized by the radar). The radar's own authorization endpoints answer only a service that presents
+    # model_attempt_token (empty: they answer no one).
+    mechevidence_contract: Literal["v1", "v2"] = "v1"
+    model_attempt_token: str = ""
+    mechevidence_authorization_seconds: int = 1200
 
     # The radar's own model calls (planning, reading, calculation, monitoring triage).
     llm_provider: str = "deepseek"

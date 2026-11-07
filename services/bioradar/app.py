@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select, text
 
-from bioradar import db
+from bioradar import db, service_api
 from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
 from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
@@ -26,6 +26,7 @@ from bioradar.research.views import KEEP, blank
 from bioradar.text import squash
 
 app = FastAPI(title="BioRadar", version="1.0.0")
+app.include_router(service_api.router)  # what the professional services call, not the people's API
 COOKIE = "bioradar_session"
 SESSION_SECONDS = 12 * 3600
 ROLES = {"viewer": 0, "analyst": 1, "admin": 2}  # viewer reads; analyst asks and reviews; admin manages users
