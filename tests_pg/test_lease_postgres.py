@@ -409,3 +409,20 @@ def test_a_job_that_never_reached_the_queue_is_dispatched_once(queue):
     assert analyses.recover() == 1 and queue == [lost]
     assert analyses.recover() == 0 and queue == [lost]
     assert analysis_of(fresh).state == "queued"
+
+
+def test_two_recovers_at_the_same_moment_requeue_each_row_once(monkeypatch):
+    sent = []
+
+    def slow_dispatch(analysis_id):  # the job takes a moment to reach Redis: the window for a second recover
+        time.sleep(0.5)
+        sent.append(analysis_id)
+
+    monkeypatch.setattr(analyses, "dispatch", slow_dispatch)
+    monkeypatch.setattr(analyses, "waiting_in_queue", lambda analysis_id: analysis_id in sent)
+    crashed = add_analysis("running", lease_until=utc_now() - timedelta(minutes=5))
+    lost = add_analysis("queued", age=timedelta(minutes=30))
+    results = race(analyses.recover)
+    assert sorted(sent) == sorted([crashed, lost])  # each dispatched once, not once per recover
+    assert sorted(results) == [0, 2]
+    assert analysis_of(crashed).state == "queued" and analysis_of(lost).state == "queued"

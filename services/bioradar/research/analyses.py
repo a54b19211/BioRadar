@@ -210,8 +210,13 @@ def recover(limit=4) -> int:
     A queued row whose job is still waiting in Redis is only behind others: re-queuing it every round
     piled up copies of the same job (24 on the live queue, 2026-11-03). Rows are looked at a bounded
     page at a time, moving on each round, so healthy waiting rows at the front cannot hide a lost one
-    behind them; when Redis cannot be asked, a row is left alone (unknown is not lost)."""
+    behind them; when Redis cannot be asked, a row is left alone (unknown is not lost).
+
+    The rows are locked (FOR UPDATE SKIP LOCKED) from the look to the commit, and the job is sent before
+    the commit: a second recover at the same moment skips the rows the first one holds, and one that comes
+    after finds the row queued with its job in Redis. Exactly one recover re-queues a given row."""
     stale = db.now() - timedelta(minutes=10)
+    lost = 0
     with db.session() as session:
         rows = list(
             session.scalars(
@@ -224,27 +229,25 @@ def recover(limit=4) -> int:
                 .order_by(db.Analysis.created_at, db.Analysis.id)
                 .offset(_scan["offset"])
                 .limit(RECOVER_SCAN)
+                .with_for_update(skip_locked=True)
             )
         )
         _scan["offset"] = _scan["offset"] + len(rows) if len(rows) == RECOVER_SCAN else 0
-        lost = []
         for row in rows:
-            if len(lost) >= limit:
+            if lost >= limit:
                 break
-            if row.lease_until is not None:  # the worker died while running it
-                lost.append(row)
-                continue
-            try:
-                if not waiting_in_queue(row.id):
-                    lost.append(row)
-            except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
-                continue
-        for row in lost:
+            if row.lease_until is None:  # a queued row: lost only when its job is not in Redis
+                try:
+                    if waiting_in_queue(row.id):
+                        continue
+                except Exception:  # noqa: BLE001 - Redis unreachable: not known to be lost
+                    continue
+            # else: the worker died while running it
             row.lease_until = None
             row.state = "queued"
-    for row in lost:
-        dispatch(row.id)
-    return len(lost)
+            dispatch(row.id)
+            lost += 1
+    return lost
 
 
 def view(row: db.Analysis, *, full=False) -> dict:
