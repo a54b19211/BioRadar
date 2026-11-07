@@ -40,6 +40,24 @@ answer different questions, so the wording was wrong, not the design.
   the radar's list (`JOB_FUNCTIONS`) fails with `ForeignJob` without running it or its callbacks. Checked on a
   throwaway Redis by hand (a pickled `os.getcwd` job on the radar's queue fails with DeserializationError; the
   radar's own job is picked up); the unit tests cover the job class and the settings without a Redis.
+- **The deadline counts as well as the token.** `lease.renew` is one UPDATE that extends the lease only while
+  the token is the row's and `lease_until` has not passed; `Run.check_lease`, `Run.writing` and the final write
+  use it, so a lease that ran out is not revived by a look-then-write gap and a worker whose lease ran out
+  sends and writes nothing even if nobody took the analysis over.
+- **A late answer is audit, not a business write.** A request registered by `check_lease` before the lease was
+  lost still has its answer, usage and raw text recorded (`llm_calls.lease_token`, `llm_outputs`), so the
+  successor's budget includes it. A call that no send was registered for is refused. When the lease goes
+  between the first request and a format retry, the guard turns it into `SendBlocked`, the part already sent is
+  returned and settled, and the run stops before the retry.
+- **An expired lease is a question for RQ.** `recover` re-queues a row whose job is not in Redis; leaves one
+  whose job is merely waiting; re-queues one whose job is started but whose worker is gone (key expired or
+  heartbeat older than the worker TTL) with `recovered_from_unknown` in the notes; leaves one whose worker still
+  beats and notes `stale_lease_running_worker` once. When Redis cannot be asked the row is left as it is.
+- **A round stops when the lock connection drops.** `bioradar/guard.py` carries a per-round check that
+  `ops.monitor_round` sets to `Leader.assert_held`; it runs before every database session and before its
+  commit, and before every model, BioCheck, MechEvidence and Fabric request and queue entry. A half-open
+  connection that the server already dropped but the client has not noticed is caught only when the next check
+  times out.
 - Who uses what:
   - analyses: RQ delivers; `analyses.execute` takes the row lock and returns when a lease is live or the
     analysis is finished; `analyses.recover` (monitor loop) re-queues rows whose lease expired or whose job

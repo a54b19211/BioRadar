@@ -68,8 +68,8 @@ def queue(settings: Settings) -> Queue:
     )
 
 
-def worker(settings: Settings) -> Worker:
-    return Worker(
+def worker(settings: Settings, worker_class: type[Worker] = Worker) -> Worker:
+    return worker_class(
         [settings.queue_name],
         connection=connection(settings),
         job_class=RadarJob,

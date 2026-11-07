@@ -1,6 +1,7 @@
 #!/bin/sh
-# Sourced by scripts/check_migrations.sh and scripts/test_pg.sh: one throwaway postgres:17-alpine container
-# per run, removed again also when a step fails or the run is interrupted.
+# Sourced by scripts/check_migrations.sh, scripts/test_pg.sh and scripts/test_redis.sh: one throwaway container
+# per run (postgres:17-alpine, or redis:7.4-alpine with redis_start), removed again also when a step fails or
+# the run is interrupted.
 #
 # The container carries the label radar-<PG_TAG>.run=<this run's random id>. Only the ID `docker run`
 # returned (or, when it created the container but could not start it, the ID of the container with this
@@ -47,7 +48,7 @@ register() {
   ID=$1
   VOLUMES=$(docker inspect -f '{{range .Mounts}}{{if eq .Type "volume"}}{{.Name}} {{end}}{{end}}' "$ID" 2>/dev/null || true)
   image=$(docker inspect -f '{{.Config.Image}} {{.Image}}' "$ID" 2>/dev/null || true)
-  record "\"event\":\"created\",\"role\":\"pg\",\"name\":\"$NAME\",\"id\":\"$ID\",\"port\":$PORT,\"database\":\"$DB\",\"image\":\"${image% *}\",\"image_id\":\"${image#* }\",\"anonymous_volumes\":[$(echo $VOLUMES | sed 's/\([^ ]*\)/"\1"/g; s/ /,/g')]"
+  record "\"event\":\"created\",\"role\":\"${ROLE:-pg}\",\"name\":\"$NAME\",\"id\":\"$ID\",\"port\":$PORT,\"database\":\"$DB\",\"image\":\"${image% *}\",\"image_id\":\"${image#* }\",\"anonymous_volumes\":[$(echo $VOLUMES | sed 's/\([^ ]*\)/"\1"/g; s/ /,/g')]"
 }
 teardown() {
   rc=$1
@@ -104,4 +105,26 @@ pg_start() {
       "CREATE TABLE radar_run_marker (run_id text NOT NULL, container_id text NOT NULL); \
        INSERT INTO radar_run_marker VALUES ('$RANDOM_ID', '$ID')" >/dev/null
   fi
+}
+
+redis_start() {
+  record "\"event\":\"run\",\"run\":\"$RANDOM_ID\",\"label\":\"$LABEL=$RANDOM_ID\""
+  if out=$(docker run -d --name "$NAME" --label "$LABEL=$RANDOM_ID" -p "127.0.0.1:$PORT:6379" \
+    redis:7.4-alpine redis-server --requirepass "$PASSWORD" --save ""); then
+    register "$out"
+  else
+    rc=$?
+    created=$(docker ps -aq --no-trunc --filter "label=$LABEL=$RANDOM_ID" --filter "name=^/$NAME\$" 2>/dev/null || true)
+    record "\"event\":\"start_failed\",\"name\":\"$NAME\",\"exit\":$rc,\"created_id\":\"$created\""
+    [ -z "$created" ] || register "$created"
+    exit 2
+  fi
+  echo "redis:7.4-alpine as $NAME on 127.0.0.1:$PORT (manifest $MANIFEST)"
+  for _ in $(seq 30); do
+    docker exec -e REDISCLI_AUTH="$PASSWORD" "$ID" redis-cli ping >/dev/null 2>&1 && break
+    sleep 1
+  done
+  docker exec -e REDISCLI_AUTH="$PASSWORD" "$ID" redis-cli ping >/dev/null
+  # the run marker a test run checks before it flushes anything
+  docker exec -e REDISCLI_AUTH="$PASSWORD" "$ID" redis-cli SET radar:run-marker "$RANDOM_ID:$ID" >/dev/null
 }

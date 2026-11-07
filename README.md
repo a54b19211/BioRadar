@@ -51,7 +51,7 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 - 分析（`analyses`）：RQ 派发。`execute` 在行锁里查租约，已有人持有或已结束就直接返回，同一个分析不会同时跑两份；
   monitor 每轮调用 `analyses.recover`，把租约过期（worker 崩溃）或任务没进 Redis 的分析重新入队。分析的租约带令牌（`analyses.lease_token`）：
   `execute` 认领时写入，`recover` 释放；分析的每一次写入（进度、证据、材料发送记录、模型调用记录、最终结果）都在行锁里核对令牌，
-  每一次对外发送（模型、BioCheck、MechEvidence）之前也核对，被取代的 worker 得到 `lease.Lost`、什么也不写并记一条日志
+  每一次对外发送（模型、BioCheck、MechEvidence）之前也核对；核对是“令牌仍是自己的**且**租约未过期”的一条 UPDATE，同时续租，所以过期的租约不会被复活。被取代或过期的 worker 得到 `lease.Lost`、什么也不写并记一条日志；它在失去租约之前已经发出的请求，晚到的回答、用量和原文仍记入旧尝试的审计（`llm_calls.lease_token`、`llm_outputs`），计入这份分析的预算
   （见 [`docs/decisions/0007`](docs/decisions/0007-rq-dispatch-and-database-lease.md)）。
 - 测量核对任务（`measurement_check_tasks`）和阅读窗口（`record_read_windows`）：不经 RQ，由 monitor 每轮轮询认领，
   结果写入前核对令牌，令牌已不是自己的就丢弃。
@@ -139,7 +139,8 @@ curl -b c.txt localhost:18100/api/analyses/<id>
 make bootstrap          # .venv 只按 uv.lock 安装
 make test               # 全部测试（SQLite；BioCheck 检出在 BIOCHECK_SRC 时含真实 BioCheck 规则）
 make test-pg            # 租约在真实 PostgreSQL 上的并发测试（tests_pg/）：临时 postgres:17-alpine 容器，按本次创建的 ID 拆除；没有 Docker 就失败，不跳过
-make check              # = make test + make test-pg + make lint + make metrics + make web-check
+make test-redis         # 队列在真实 Redis 上的测试（tests_redis/）：临时 redis:7.4-alpine 容器（口令、运行标记、清单与 test-pg 同一套），只对本次创建的容器运行
+make check              # = make test + make test-pg + make test-redis + make lint + make metrics + make web-check
 make check-install      # 在 /tmp 用声明的版本新建环境，核对四处契约版本一致，逐个导入 bioradar 模块
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
@@ -156,7 +157,7 @@ progress、证据和外发记录，以及对外视图（详情、列表、导出
 测量核对的真实链路测试会走真实的 BioCheck 规则（checker v16，契约 v3），需要一个 BioCheck 检出和它自己的环境：
 `make test` 默认用同级的 `../clean-biocheck`（BioCheck 的集成线，先在那里 `make venv`），别处的检出用
 `make test BIOCHECK_SRC=<检出> [BIOCHECK_PYTHON=<它的 python>]`。找不到检出时这些测试显示为跳过，不会算作通过。
-已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：`make test` 493 个通过、0 个跳过（真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`，由 `devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑），`make test-pg` 另有 42 个通过（租约、令牌围栏、recover、monitor 互斥、认领公平性，以及 15 个守卫）。
+已验证的组合：uv 0.13.0、CPython 3.12.15、BioCheck `refactor/biocheck-clean`：`make test` 493 个通过、0 个跳过（真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`，由 `devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑），`make test-pg` 另有 54 个通过（租约、令牌围栏与过期、晚到审计、recover 分类、monitor 互斥与锁连接掉线、认领公平性，以及 15 个守卫），`make test-redis` 18 个通过（JSON 队列、任务白名单、旧 pickle 任务恢复、对 RQ 的查询，以及 12 个守卫）。
 
 ## 验收实验
 
