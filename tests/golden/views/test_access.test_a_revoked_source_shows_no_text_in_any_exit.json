@@ -686,17 +686,20 @@
    "exit": "redact_topics",
    "value": [
     {
-     "alert": "normal",
+     "alert": null,
      "awakenings": 0,
      "closed": false,
      "direction": "pipeline",
      "first_seen_at": "<now>",
      "heat": 0.0,
+     "hold": "pending_verification",
+     "hold_reason": "no_analysis",
      "id": "<id3>",
      "is_demo": true,
      "last_activity_at": "<now>",
      "last_analysis_id": null,
      "pending_reason": null,
+     "publishable": false,
      "state": "emerging",
      "summary": "",
      "title": "（专题标题暂不显示）",
@@ -708,7 +711,7 @@
    "exit": "redact_topics",
    "value": [
     {
-     "alert": "normal",
+     "alert": null,
      "awakenings": 0,
      "closed": false,
      "direction": "pipeline",
@@ -723,15 +726,18 @@
      ],
      "first_seen_at": "<now>",
      "heat": 0.0,
+     "hold": "pending_verification",
+     "hold_reason": "no_analysis",
      "id": "<id3>",
      "is_demo": true,
      "last_activity_at": "<now>",
      "last_analysis_id": null,
      "observations": [
       {
-       "alert": "important",
+       "alert": null,
        "available_at": "<now>",
        "closure": false,
+       "lead": "",
        "reason": "",
        "record_id": "gone_src-1",
        "source": "gone_src",
@@ -740,6 +746,7 @@
       }
      ],
      "pending_reason": null,
+     "publishable": false,
      "state": "emerging",
      "summary": "",
      "title": "（专题标题暂不显示）",
@@ -967,7 +974,7 @@
    "exit": "redact_topics",
    "value": [
     {
-     "alert": "normal",
+     "alert": null,
      "awakenings": 0,
      "closed": false,
      "direction": "pipeline",
@@ -982,15 +989,18 @@
      ],
      "first_seen_at": "<now>",
      "heat": 0.0,
+     "hold": "pending_verification",
+     "hold_reason": "no_analysis",
      "id": "<id3>",
      "is_demo": true,
      "last_activity_at": "<now>",
      "last_analysis_id": null,
      "observations": [
       {
-       "alert": "important",
+       "alert": null,
        "available_at": "<now>",
        "closure": false,
+       "lead": "",
        "reason": "",
        "record_id": "gone_src-1",
        "source": "gone_src",
@@ -999,6 +1009,7 @@
       }
      ],
      "pending_reason": null,
+     "publishable": false,
      "state": "emerging",
      "summary": "",
      "title": "（专题标题暂不显示）",

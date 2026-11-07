@@ -21,7 +21,7 @@ from bioradar.adapters.fabric import Fabric, FabricError
 from bioradar.config import settings
 from bioradar.research import analyses, lineage, measure_history, monitor
 from bioradar.research.clock import parse_time
-from bioradar.research.topics import topic_view
+from bioradar.research.topics import level_gates, observation_view, topic_view
 from bioradar.research.views import KEEP, blank
 from bioradar.text import squash
 
@@ -485,7 +485,7 @@ def redact_summaries(values: list[dict]) -> list[dict]:
 
 def redact_observation(row: dict, readable) -> dict:
     reason = withheld(row["source"], readable)
-    return dict(row, title="", reason="", withheld=reason) if reason else row
+    return dict(row, title="", lead="", reason="", withheld=reason) if reason else row
 
 
 def redact_topics(values: list[dict]) -> list[dict]:
@@ -775,16 +775,18 @@ def topics(is_demo: bool = False):
                 select(db.Topic).where(db.Topic.is_demo == is_demo).order_by(db.Topic.last_activity_at.desc())
             )
         )
-    return redact_topics([topic_view(t) for t in rows])
+        gates = level_gates(s, rows)
+    return redact_topics([topic_view(t, gates[t.id]) for t in rows])
 
 
 @app.get("/api/topics/{topic_id}", dependencies=api)
 def topic(topic_id: str):
     with db.session() as s:
         row = s.get(db.Topic, topic_id)
+        gate = level_gates(s, [row])[row.id] if row else None
     if row is None:
         raise analyses.NotFound(topic_id)
-    return redact_topics([topic_view(row, events=True)])[0]
+    return redact_topics([topic_view(row, gate, events=True)])[0]
 
 
 class Tick(BaseModel):
@@ -811,22 +813,7 @@ def observations(is_demo: bool = False, limit: int = 50):
             )
         )
     readable = readable_sources()
-    return [
-        redact_observation(
-            {
-                "title": o.title,
-                "source": o.source,
-                "record_id": o.record_id,
-                "topic_id": o.topic_id,
-                "available_at": o.available_at.isoformat(),
-                "alert": o.alert,
-                "closure": o.closure,
-                "reason": o.reason,
-            },
-            readable,
-        )
-        for o in rows
-    ]
+    return [redact_observation({**observation_view(o), "topic_id": o.topic_id}, readable) for o in rows]
 
 
 def source_row(fabric: Fabric, source: str, cursor, now: datetime, quiet_hours: int) -> dict:

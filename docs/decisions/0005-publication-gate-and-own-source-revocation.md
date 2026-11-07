@@ -2,12 +2,14 @@
 
 - Status: accepted (2026-11-07; Codex: the PASS delivery gate and the per-send source permission check were accepted earlier, their fixes verified in r207/r209). An engineering decision, not a release or business-quality sign-off
 - Design: v3.1 6.2 (输出前 / 全程: what may be shown is decided by a program gate) and 6.1 (权限: revocation
-  must stop what was already read from leaking)
+  must stop what was already read from leaking); task book 06 section 2.5 (every exit behind one gate)
 - Code: `research/views.py` (`publication`, `gated`, `summary`), `research/pipeline.py`
   (`Run.result`, `Run.confirm_sources`, `Run.ask(carries=)`), `research/run/submit.py` (`service`,
-  `outbound`), `research/run/{read,calculate,mechanism,assess}.py`, `app.py` (`held_notice`, `export`)
+  `outbound`), `research/run/{read,calculate,mechanism,assess}.py`, `app.py` (`held_notice`, `export`, `topics`,
+  `observations`), `research/topics.py` (`level_gates`, `topic_view`, `observation_view`, `event_view`)
 - Tests: `tests/test_publication_gate_and_source_revocation.py` (the two former strict xfails and four around them),
-  `tests/test_send_recheck.py` (every request re-checked, through the real llm client)
+  `tests/test_send_recheck.py` (every request re-checked, through the real llm client),
+  `tests/test_alert_exit.py` (section c)
 
 ## (a) Only a report BioCheck passed is deliverable
 
@@ -75,9 +77,46 @@ Stopping is the conservative behaviour v3 6.1 asks for, it is one rule for every
 start a new analysis on the sources still readable. Revocations are rare; the cost is one Fabric request
 (`GET /api/history/sources`) per carrying call, counted in `fabric_requests` like every other request.
 
+## (c) The monitor's exits show a received lead at once and a level only behind the gate
+
+**Before.** The triage model's answer left the radar as it was: `/api/topics` showed the topic's level (the
+highest `alert` the model gave a record) and `summary`, `/api/monitor/observations` and the topic detail showed each
+record's `alert` and the model's `reason`, and the topic's `observed` events carried the model's `alert`,
+`signal` and `objects`. The source-revocation mask withheld text, but nothing asked whether anything shown had
+been verified.
+
+**Decision.** The same module that holds the report gate (`research/views.py`) decides every exit of the monitor.
+No new service, no new stored state; what is stored (and what scheduling reads: the triage level, `pending_reason`)
+is unchanged.
+
+- **Received lead, at once (program fact).** Every observation carries `lead`, built from the record's own fields
+  with no model and no analysis: `本系统于{available_at}收到来源{source}的线索：{title}（尚未核实）。` It is withheld
+  together with the title when the source cannot be read (`app.redact_observation`).
+- **A topic's level and summary follow the verification.** `alert` and `summary` are shown only when the topic's
+  latest analysis (`last_analysis_id`, the one that read its records) has a report that passed `publication`, and
+  the topic is not owed a newer analysis (`pending_reason`). Otherwise `alert` is null, `summary` is empty, and the
+  topic carries the gate's fields `publishable: false`, `hold: "pending_verification"` and `hold_reason`:
+  `no_analysis`, `analysis_queued|running|failed`, the report's own reason (`biocheck_review`, ...), or
+  `analysis_owed`.
+- **The model's verdict on a record does not leave.** An observation's `alert` is null and its `reason` is empty
+  unless the program wrote it (`triage_failed`, `triage_deferred`, `triage_unavailable`, an unparsed attachment;
+  `views.PROGRAM_REASONS`); an `observed` event carries `alert` null, `signal` empty and `objects` empty. The keys
+  stay.
+
+The level a released topic shows is still the triage level: the analysis passing says its report was verified, not
+that the triage level was. Showing the analysis's own `priority` and `consequence`, each behind its judgment's
+check, is a next step of task book 06 and needs the judgment-level receipt.
+
+**Still open (not done here).** The level also reaches the exits indirectly through scheduling codes
+(`alert_important|alert_urgent` in `pending_reason`, `owed` and `analysis` events, the monitor round's summary and
+the topic analysis's question) and through `heat`. The stored `alert_state` / receipt and the three display times of
+task book 06 section 2.5, and the page showing the hold, are later steps.
+
 ## Consequences
 
 - The two defects of `tests/test_publication_gate_and_source_revocation.py` pass and are no longer xfail.
 - External views gain `publishable`, `hold`, `hold_reason` on every result with a report status (golden view
   fixtures regenerated: only these keys added for PASS results).
 - Test fakes must answer `sources()`; `FakeFabric` lists the sources of its records.
+- The topic exits gain `publishable`, `hold`, `hold_reason` and lose the model's level and words (golden view
+  fixture of `test_a_revoked_source_shows_no_text_in_any_exit` regenerated); observations gain `lead`.

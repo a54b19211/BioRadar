@@ -52,7 +52,9 @@ def test_topic_lifecycle(monkeypatch):
     first = monitor.tick(is_demo=True, fabric=fabric)
     assert first["records"] == 3
     [topic] = [t for t in _topics() if t["title"] == "临岑聚集"]
-    assert topic["state"] == "rising" and topic["alert"] == "important"
+    assert topic["state"] == "rising"
+    with db.session() as s:  # the triage level is stored and drives the state; the exit holds it back
+        assert s.get(db.Topic, topic["id"]).alert == "important" and topic["alert"] is None
 
     # Blank rounds: no new records, the clock moves on. Cooling after 7 days, not yet dormant.
     monitor.tick(is_demo=True, fabric=fabric, clock=datetime.fromisoformat(DAY.format(12)))
@@ -90,7 +92,9 @@ def _topics():
     from bioradar import db
 
     with db.session() as s:
-        return [topics.topic_view(t) for t in s.scalars(select(db.Topic))]
+        rows = list(s.scalars(select(db.Topic)))
+        gates = topics.level_gates(s, rows)
+        return [topics.topic_view(t, gates[t.id]) for t in rows]
 
 
 def test_records_whose_triage_failed_are_triaged_again(monkeypatch):

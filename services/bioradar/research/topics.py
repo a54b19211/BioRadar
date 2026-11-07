@@ -13,6 +13,7 @@ from sqlalchemy.orm import object_session
 
 from bioradar import db
 from bioradar.config import Settings
+from bioradar.research import views
 from bioradar.research.clock import parse_time
 
 ALERTS = ["none", "normal", "important", "urgent"]
@@ -162,14 +163,52 @@ def advance(s: Settings, clock: datetime, *, is_demo: bool):
     return rising
 
 
-def topic_view(topic: db.Topic, *, events=False) -> dict:
+def level_gates(session, topics) -> dict[str, dict]:
+    """topic id -> `views.level_publication` of its level, from the stored outcome of its latest analysis."""
+    ids = {t.last_analysis_id for t in topics if t.last_analysis_id}
+    latest = {}
+    if ids:
+        query = select(db.Analysis.id, db.Analysis.state, db.Analysis.result).where(db.Analysis.id.in_(ids))
+        latest = {i: (state, result) for i, state, result in session.execute(query)}
+    return {
+        t.id: views.level_publication(latest.get(t.last_analysis_id), bool(t.pending_reason))
+        for t in topics
+    }
+
+
+def observation_view(o: db.Observation) -> dict:
+    """A record the monitor saw, as it leaves the radar: the lead notice, and the program's own status when it
+    settled the record. The triage model's alert and reason are not shown."""
+    return {
+        "title": o.title,
+        "source": o.source,
+        "record_id": o.record_id,
+        "available_at": o.available_at.isoformat(),
+        "lead": views.lead(o.source, o.title, o.available_at),
+        "alert": None,
+        "closure": o.closure,
+        "reason": o.reason if views.is_program_reason(o.reason) else "",
+    }
+
+
+def event_view(e: db.TopicEvent) -> dict:
+    """A topic event as it leaves the radar: the triage model's verdict on a record (alert, signal, objects)
+    is not shown; the record, the closure flag and what the program recorded are."""
+    detail = {**e.detail, "alert": None, "signal": "", "objects": []} if e.kind == "observed" else e.detail
+    return {"at": e.at.isoformat(), "kind": e.kind, **detail}
+
+
+def topic_view(topic: db.Topic, gate: dict, *, events=False) -> dict:
+    """A topic as it leaves the radar. `gate` (level_gates) decides its level and summary: until its latest
+    analysis passed they are not shown, and `hold` says why."""
     value = {
         "id": topic.id,
         "title": topic.title,
         "direction": topic.direction,
         "is_demo": topic.is_demo,
         "state": topic.state,
-        "alert": topic.alert,
+        "alert": topic.alert if gate["publishable"] else None,
+        **gate,
         "heat": topic.heat,
         "awakenings": topic.awakenings,
         "closed": topic.closed,
@@ -177,26 +216,18 @@ def topic_view(topic: db.Topic, *, events=False) -> dict:
         "last_activity_at": topic.last_activity_at.isoformat(),
         "last_analysis_id": topic.last_analysis_id,
         "pending_reason": topic.pending_reason,
-        "summary": topic.summary,
+        "summary": topic.summary if gate["publishable"] else "",
     }
     if events:
         with db.session() as session:
             value["events"] = [
-                {"at": e.at.isoformat(), "kind": e.kind, **e.detail}
+                event_view(e)
                 for e in session.scalars(
                     select(db.TopicEvent).where(db.TopicEvent.topic_id == topic.id).order_by(db.TopicEvent.id)
                 )
             ]
             value["observations"] = [
-                {
-                    "title": o.title,
-                    "source": o.source,
-                    "record_id": o.record_id,
-                    "available_at": o.available_at.isoformat(),
-                    "alert": o.alert,
-                    "closure": o.closure,
-                    "reason": o.reason,
-                }
+                observation_view(o)
                 for o in session.scalars(
                     select(db.Observation)
                     .where(db.Observation.topic_id == topic.id)

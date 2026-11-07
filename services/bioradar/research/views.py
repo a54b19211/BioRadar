@@ -4,10 +4,11 @@ Only fields research/state.py marks SHOWN leave the radar in the analysis detail
 field - including every one added later - is dropped here, before app.redact withholds, among the shown
 fields, what a source that cannot be read now makes unreadable. A value typed Any (another service's
 contract: BioCheck's claims, MechEvidence's evaluation, the assessment) is shown as stored, subject to the
-same withholding."""
+same withholding. The monitor's exits (topics, observations) are decided by the functions at the end."""
 
 import types
 import typing
+from datetime import datetime
 from typing import Annotated, Any
 
 from bioradar.research.state import SHOWN, Result, RunState
@@ -81,15 +82,21 @@ def publication(status, reason=None) -> dict:
     return {"publishable": False, "hold": "pending_verification", "hold_reason": reason}
 
 
+def publication_of(result: dict) -> dict:
+    """`result` with its publication fields: as the run stored them, else judged by its report status (a
+    result stored before the gate)."""
+    if "publishable" in result:
+        return result
+    return {**result, **publication(result["report_status"], (result.get("review") or {}).get("reason"))}
+
+
 def gated(result):
     """A result as the external views may show it. A held report is not shown as a finished one: its draft
     and assessment are left out and the sentence checks and kept versions lose their words (numbers,
     verdicts and references stay). A result stored before the gate is judged by its report status."""
     if not result or "report_status" not in result:
         return result
-    result = dict(result)
-    if "publishable" not in result:
-        result.update(publication(result["report_status"], (result.get("review") or {}).get("reason")))
+    result = publication_of(dict(result))
     if result["publishable"] is False:
         if "draft" in result:
             result["draft"] = ""
@@ -120,3 +127,38 @@ def summary(stored: dict | None) -> dict:
         return out
     gate = gated({**out, **{k: stored[k] for k in ("publishable", "hold", "hold_reason") if k in stored}})
     return gate
+
+
+# The monitor's exits. The triage model grades single records. What leaves the radar about them is a program
+# fact at once (the lead was received), and a topic's level only behind the gate of the analysis that read the
+# topic's records; the model's own verdict on a record (alert, signal, objects, reason) does not leave at all.
+LEAD = "本系统于{at}收到来源{source}的线索：{title}（尚未核实）。"
+# What an observation's `reason` holds when the program settled the record (research/triage.py); any other
+# text is the triage model's.
+PROGRAM_REASONS = ("triage_failed", "triage_deferred", "triage_unavailable", "附件未能解析")
+
+
+def lead(source: str, title: str, at: datetime) -> str:
+    """The fast rule path: that the radar received a lead is a program fact and is shown at once, with the
+    source, the record's own title and the time it became available - and that nothing is verified."""
+    return LEAD.format(at=at.isoformat(), source=source, title=title)
+
+
+def is_program_reason(reason: str) -> bool:
+    return reason.startswith(PROGRAM_REASONS)
+
+
+def level_publication(analysis: tuple[str, dict | None] | None, owed: bool) -> dict:
+    """Whether a topic's level and summary may leave the radar: the report gate applied to the topic. They
+    are shown once the topic's latest analysis, the one that read its records, has a report that passed
+    (`publication` of that result), and not while the topic is owed a newer analysis. `analysis` is that
+    analysis's (state, result); None when the topic has none."""
+    if analysis is None:
+        return publication(None, "no_analysis")
+    state, result = analysis
+    if not result or "report_status" not in result:  # not finished, or finished without a report
+        return publication(None, None if state == "completed" else f"analysis_{state}")
+    stored = publication_of(result)
+    if stored["publishable"] and owed:
+        return publication(None, "analysis_owed")
+    return {k: stored.get(k) for k in ("publishable", "hold", "hold_reason")}
