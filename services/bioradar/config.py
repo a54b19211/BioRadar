@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     # Live monitoring reads only these (default: sources). Bulk backfills such as legacy_documents
     # stay searchable for analyses but must not flood triage with old documents.
     monitor_sources: list[str] | None = None
+    # The ids of Fabric's backfill runs. Each run's receipt lists the versions it created: background only,
+    # kept out of the activity counts, the activity baseline and "first seen" (research/groups.py).
+    backfill_run_ids: list[str] = []
 
     # Semantic search through Fabric (POST /api/history/search): WeKnora recalls candidates, Fabric verifies
     # each one at the analysis cutoff (source permission, the version visible then, the fixed text) and only

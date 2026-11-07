@@ -373,6 +373,7 @@ class Result(TypedDict, total=False):
     notes: Annotated[list[Note], SHOWN]
     usage: Annotated[dict[str, int], SHOWN]
     source_updates: Annotated[Any, SHOWN]  # corrections that arrived during the run (analyses.execute)
+    groups: dict[str, Any]  # the display group of the analysed topic (research/groups.py); not shown yet
     trace: Annotated[str, SHOWN]  # an unexpected failure's trace (analyses.execute)
 
 

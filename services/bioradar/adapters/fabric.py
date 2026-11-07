@@ -890,6 +890,19 @@ class Fabric:
             raise FabricError(f"archive_http_{response.status_code}", response.text[:500])
         return response.json()
 
+    def background_version_ids(self, run_ids) -> tuple[set[str], list[str]]:
+        """(the versions these Fabric backfill runs created, the runs whose receipt could not be read). A
+        backfill run's receipt (coverage.backfill) lists them: background only, not new information."""
+        found, unread = set(), []
+        for run_id in run_ids:
+            try:
+                coverage = self._get(f"/api/history/runs/{run_id}", {}).get("coverage") or {}
+            except (FabricError, httpx.HTTPError):
+                unread.append(run_id)
+                continue
+            found.update((coverage.get("backfill") or {}).get("background_version_ids") or [])
+        return found, unread
+
     def measurement_changes(self, *, is_demo, after_seq=0, limit=100):
         """Fabric's measurement event feed after a sequence number (datafabric.measurement_changes.v1):
         {items, next_after, more, withheld: {source: count}} - events of sources not readable now are only

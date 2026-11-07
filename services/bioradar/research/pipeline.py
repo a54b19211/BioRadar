@@ -19,7 +19,7 @@ from bioradar.adapters import llm
 from bioradar.adapters.capabilities import CapabilityError, SourceCapabilities
 from bioradar.adapters.fabric import Fabric, FabricError, read_mode
 from bioradar.config import Settings
-from bioradar.research import lease, state
+from bioradar.research import groups, lease, state
 from bioradar.research.lineage import lineage_sources
 from bioradar.research.run import Failed, Withheld, assess, calculate, investigate, mechanism, plan, report
 from bioradar.research.run.sections import missing_items, report_sections
@@ -415,7 +415,7 @@ class Run:
             ).one()
         report = self.p.get("report") or {}
         sections = report_sections(self)
-        return {
+        result = {
             "report_status": report.get("status", "NOT_RUN"),
             # v3 6.2: whether the report may be delivered, decided here by the program
             **publication(report.get("status", "NOT_RUN"), report.get("reason"), missing_items(sections)),
@@ -436,3 +436,29 @@ class Run:
             # llm_calls: logical model calls; requests: HTTP requests behind them (what the budget counts)
             "usage": {"llm_calls": usage[0], "requests": int(usage[1]), "tokens": int(usage[2])},
         }
+        shown = self.display_group()
+        if shown is not None:
+            result["groups"] = shown
+        return result
+
+    def display_group(self):
+        """The display group of the analysed topic (research/groups.py) as of the cutoff, or of now when
+        the analysis has none, with the mode and run kind it was made under; None for an analysis without a
+        topic or a topic with no material in the 30 days before. The receipts of the configured backfill runs
+        name the versions that are background; one that cannot be read is listed, and its versions count like
+        any other."""
+        query = select(db.Investigation.topic_id).where(db.Investigation.id == self.row_investigation)
+        with db.session() as s:
+            topic_id = s.scalar(query)
+        if topic_id is None:
+            return None
+        background, unread = set(), []
+        if self.s.backfill_run_ids:
+            background, unread = self.fabric.background_version_ids(self.s.backfill_run_ids)
+        with db.session() as s:
+            topic = s.get(db.Topic, topic_id)
+            found = groups.for_topic(s, self.s, topic, cutoff=self.cutoff or db.now(), background=background)
+        if found is None:
+            return None
+        made = {"replay_mode": self.replay_mode, "run_kind": self.run_kind, "background_unread": unread}
+        return {**found, **made}
