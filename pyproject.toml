@@ -43,3 +43,7 @@ known-first-party = ["bioradar"]
 
 [tool.ruff.lint.per-file-ignores]
 "services/bioradar/research/prompts.py" = ["E501"]
+
+[tool.code-metrics]
+# what scripts/code_metrics.py measures (that script is the same file in every repository)
+paths = ["services"]
