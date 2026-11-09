@@ -258,15 +258,15 @@ class Run:
             # the run stops with the reason instead of passing those on
             if self.stage != "plan":
                 self.upstream_still_readable()
-            steps[self.stage]()
-            self.save(STAGES[STAGES.index(self.stage) + 1])
+            ended = steps[self.stage]()  # true: the stage left nothing to go on with (plan: see seeds.end)
+            self.save("done" if ended else STAGES[STAGES.index(self.stage) + 1])
         return self.result()
 
     # ---- stages: each is its module's function over this run; a method here, so one stage of one run
     # can be replaced (tests, tools) and the stage table above stays the one place that orders them
 
     def plan(self):
-        plan.plan(self)
+        return plan.plan(self)
 
     def investigate(self):
         investigate.investigate(self)

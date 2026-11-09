@@ -100,6 +100,21 @@ class GraphEntry(TypedDict):
     refs: list[GraphRef]
 
 
+class SeedVerdict(TypedDict):
+    """The relevance of one seed record (research/run/seeds.py): the triage model's verdict, the monitor's
+    stored one (`stored`) or one asked at the plan. `dropped`: it is no starting point (judged unrelated, and
+    it does not state a correction)."""
+
+    source: str
+    record_id: str
+    version_id: str
+    related: Literal["related", "unrelated", "uncertain"]
+    direction: str
+    reason: str
+    stored: bool
+    dropped: bool
+
+
 class ActionArgs(TypedDict, total=False):
     terms: Annotated[list[str], SHOWN]
     page: Annotated[int, SHOWN]
@@ -294,6 +309,7 @@ class Report(TypedDict, total=False):
 
 class RunState(TypedDict, total=False):
     # plan
+    seed_triage: list[SeedVerdict]  # only an analysis with seeds
     used_previous: bool
     hypotheses: list[Hypothesis]
     objects: list[str]

@@ -1,6 +1,6 @@
-"""Stage plan: the model's plan turned into checks, searches and hypotheses the program numbers and
-scopes; the question's objects looked up in the reviewed graph; a fixed material set's records as
-reading candidates."""
+"""Stage plan: the seeds looked at first (research/run/seeds.py: what they say, whether they are related at
+all); the model's plan turned into checks, searches and hypotheses the program numbers and scopes; the
+question's objects looked up in the reviewed graph; a fixed material set's records as reading candidates."""
 
 import json
 import re
@@ -9,9 +9,9 @@ from typing import TYPE_CHECKING
 import httpx
 
 from bioradar.adapters.fabric import FabricError
-from bioradar.research import prompts, schemas
+from bioradar.research import prompts, schemas, triage
 from bioradar.research.lineage import previous_check
-from bioradar.research.run import Failed, search
+from bioradar.research.run import Failed, search, seeds, submit
 from bioradar.research.run.search import FABRIC_PAGE, clean_terms
 from bioradar.text import squash
 
@@ -35,11 +35,19 @@ def code_roots(terms):
     return roots
 
 
-def plan(run: "Run"):
+def plan(run: "Run") -> bool:
     """The model's plan as the run's checks, searches, hypotheses and judgments; the program numbers them,
     decides where every planned name comes from, and adds the seeds, graph records and a small fixed
-    material set as the first reading candidates."""
-    model, shown = ask_plan(run)
+    material set as the first reading candidates. True when the run ends here instead: its seeds are all
+    unrelated, or too thin for the plan to ask anything of (seeds.end)."""
+    found = seeds.read_all(run)
+    seeds.judge(run, found)
+    starts = seeds.started(run, found)
+    if found and not starts:
+        return seeds.end(run, found, "unrelated")
+    model, shown = ask_plan(run, starts)
+    if not model.checks:  # ask_plan lets a plan with no checks through only when seeds were given
+        return seeds.end(run, starts, "insufficient")
     planned = [o.name.strip() for o in model.objects[:8]]
 
     def basis(name):
@@ -72,6 +80,7 @@ def plan(run: "Run"):
         retries=0,
     )
     first_candidates(run, required)
+    return False
 
 
 def judgment_questions(run: "Run", model) -> list[str]:
@@ -82,33 +91,51 @@ def judgment_questions(run: "Run", model) -> list[str]:
     return (asked or model.judgments)[:4]
 
 
-def ask_plan(run: "Run"):
-    """(the model's plan, (question, earlier report) as squashed text): the earlier round's report goes in
-    only while its sources can be read, and whether it did is kept (used_previous)."""
+def ask_plan(run: "Run", starts=()):
+    """(the model's plan, (question, earlier report, seeds) as squashed text): the earlier round's report goes
+    in only while its sources can be read, and whether it did is kept (used_previous). `starts`: the seeds
+    [(seed, document)] that stay starting points; the model gets what each says (seeds.payload), recorded
+    as outbound material. Only a plan of seeds may come back without checks (the caller ends the run)."""
     payload = {
         "question": run.asked,
         "direction": run.input["direction"],
         "history_cutoff": run.input.get("cutoff"),
     }
+    windows = [triage.window(doc) for _, doc in starts]
+    if starts:
+        payload["seeds"] = seeds.payload(run, starts, windows)
     previous = run.previous_report()
     run.p["used_previous"] = bool(previous)
     if previous:
         payload["previous_report"] = previous["draft"][:3000]
         payload["previous_report_check"] = previous_check(previous)
-    model = run.ask("plan", prompts.PLAN, payload, schemas.Plan, uses_previous=bool(previous))
-    if model is None or not model.checks:
+    ids = seeds.sent(run, "plan", [doc for _, doc in starts], windows)
+    with submit.outbound(run, ids, model=True):
+        model = run.ask(
+            "plan",
+            prompts.PLAN,
+            payload,
+            schemas.Plan,
+            carries={doc["source"] for _, doc in starts},
+            uses_previous=bool(previous),
+        )
+    if model is None or not (model.checks or starts):
         raise Failed("plan_failed")
-    return model, (squash(run.input["question"]), squash(payload.get("previous_report", "")))
+    said = "".join(s["title"] + s["text"] for s in payload.get("seeds", []))
+    return model, (squash(run.input["question"]), squash(payload.get("previous_report", "")), squash(said))
 
 
 def name_basis(name, shown):
-    """Where a planned name comes from, decided here and not reported by the model: the question, the
-    previous report (a draft, not an original record), or nowhere (exploratory). Only names from the
-    question become objects; the others may steer searching but never narrow what counts as relevant.
-    plan_basis records every planned name's basis and plan_removed the objects left out with the checks
-    they were attached to (the model's raw output is not kept in progress)."""
+    """Where a planned name comes from, decided here and not reported by the model: the question or the
+    seeds it starts from (the user's own material), the previous report (a draft, not an original record), or
+    nowhere (exploratory). Only names from the question and its seeds become objects; the others may steer
+    searching but never narrow what counts as relevant. plan_basis records every planned name's basis and
+    plan_removed the objects left out with the checks they were attached to (the model's raw output is not
+    kept in progress)."""
     name = squash(name)
-    return "question" if name in shown[0] else "prior_report" if name in shown[1] else "exploratory"
+    if name in shown[0] or name in shown[2]:
+        return "question"
+    return "prior_report" if name in shown[1] else "exploratory"
 
 
 def name_bases(model, planned, terms, basis):
@@ -201,8 +228,11 @@ def mark_exploratory(run: "Run", checks, exploratory):
 
 def first_candidates(run: "Run", required):
     """The seed records, the question's objects' graph records, and a small fixed material set's records
-    visible at the cutoff, as reading candidates."""
+    visible at the cutoff, as reading candidates. A seed judged unrelated is left out (seeds.judge)."""
+    gone = seeds.dropped(run)
     for seed in run.input.get("seed_records", []):
+        if (seed["source"], seed["record_id"]) in gone:
+            continue
         # a correction notice is pinned to the version that corrected; other seeds are not
         search.add_hit(
             run,
