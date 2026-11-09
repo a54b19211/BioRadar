@@ -3,7 +3,10 @@ python -m bioradar.ops worker    RQ worker that runs analyses
 python -m bioradar.ops monitor   live monitoring loop (BIORADAR_MONITOR_ENABLED=true) plus recovery
 python -m bioradar.ops select-display --cutoff T1
                                  prints, as JSON, the group the first judgment is about and every group
-                                 visible at T1 (research/groups.select_display); reads, writes nothing"""
+                                 visible at T1 (research/groups.select_display); reads, writes nothing
+python -m bioradar.ops retriage [--source S] [--since T] [--until T] [--limit N]
+                                 asks the triage model about the observations no model judged (relevance
+                                 null) and writes the answer to them (research/triage.retriage); real data"""
 
 import argparse
 import json
@@ -15,7 +18,7 @@ from datetime import datetime
 from bioradar import db, guard, jobs
 from bioradar.adapters.fabric import OPERATIONAL, Fabric
 from bioradar.config import settings
-from bioradar.research import analyses, groups, monitor
+from bioradar.research import analyses, groups, monitor, triage
 from bioradar.research.leader import Leader
 
 log = logging.getLogger("bioradar")
@@ -88,10 +91,35 @@ def select_display(argv) -> None:
     sys.stdout.write(json.dumps(found, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+def retriage(argv) -> None:
+    """Judge again, with the triage model, the observations of real data that no model judged (the old leads
+    of a database from before leads were triaged among them), and print the counts as JSON. A call does at
+    most --limit of them, oldest first; run it again for the rest."""
+    parser = argparse.ArgumentParser(prog="bioradar.ops retriage")
+    parser.add_argument("--source")
+    parser.add_argument("--since", type=moment)
+    parser.add_argument("--until", type=moment)
+    parser.add_argument("--limit", type=int, default=500)
+    arguments = parser.parse_args(argv)
+    s = settings()
+    counts = triage.retriage(
+        s,
+        Fabric(s),
+        is_demo=False,
+        source=arguments.source,
+        since=arguments.since,
+        until=arguments.until,
+        limit=arguments.limit,
+    )
+    sys.stdout.write(json.dumps(counts, ensure_ascii=False, sort_keys=True) + "\n")
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(message)s")
     command, *arguments = sys.argv[1:]
     if command == "select-display":
         select_display(arguments)
+    elif command == "retriage":
+        retriage(arguments)
     else:
         {"worker": worker, "monitor": monitor_loop}[command]()

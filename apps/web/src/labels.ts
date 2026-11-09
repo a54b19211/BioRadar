@@ -48,6 +48,11 @@ const maps = {
     no_research_material: "本次材料中没有可评的原始研究",
     no_bound_material: "可评材料都未能按固定版本重新读取",
   },
+  // how an investigation stopped (progress.stop.decision): the plan ends a run whose seeds are unrelated or too
+  // thin (research/run/seeds.py); the planner's own decisions are shown as they are
+  stopDecision: { unrelated: "方向不相关", insufficient: "材料不足" },
+  // why an analysis failed (error_code), for the codes that have a wording
+  errorCode: { seed_unreadable: "种子读不到" },
   action: {
     search: "检索",
     fetch: "联网抓取",

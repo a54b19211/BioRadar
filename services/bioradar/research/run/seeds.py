@@ -9,7 +9,7 @@ import httpx
 from sqlalchemy import select
 
 from bioradar import db
-from bioradar.adapters.fabric import FabricError, time_value
+from bioradar.adapters.fabric import NOT_VISIBLE, FabricError, time_value
 from bioradar.research import prompts, schemas, triage, views
 from bioradar.research.run import Failed, read, submit
 from bioradar.research.run.search import doc_key
@@ -17,11 +17,17 @@ from bioradar.research.run.search import doc_key
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
 
+# What Fabric says of a seed that is not there for this reader: revoked, withdrawn, not visible at the cutoff
+# (the adapter's NOT_VISIBLE; read.document says record_not_visible for the same). Anything else it says -
+# a 5xx, a version that is not the one named - is a fault, not an absent seed.
+ABSENT = NOT_VISIBLE | {"record_not_visible"}
+
 
 def read_all(run: "Run"):
     """[(seed, the document it names)] of the seeds inside the run's scope that Fabric can serve: the pinned
-    version for a seed that names one, else the record as visible at the cutoff. One Fabric refuses is noted
-    and left out (the reading stage fails on it like on any record); Fabric not answering fails the run."""
+    version for a seed that names one, else the record as visible at the cutoff. A seed Fabric says is not
+    there (ABSENT) is noted and left out; Fabric failing in any other way, or not answering, fails the run
+    (seed_unreadable) rather than passing for "no seeds"."""
     found = []
     for seed in run.input.get("seed_records", []):
         if run.scope and seed["record_id"] not in run.scope:
@@ -30,6 +36,8 @@ def read_all(run: "Run"):
         try:
             doc = read.document(run, hit, hit["version_id"])
         except FabricError as exc:
+            if exc.code not in ABSENT:
+                raise Failed("seed_unreadable") from exc
             run.note("seed_unreadable", f"{seed['source']}: {seed['record_id']} ({exc.code})")
             continue
         except httpx.HTTPError as exc:
@@ -118,13 +126,7 @@ def remember(run: "Run", verdicts: dict):
     if not verdicts:
         return
     with run.writing() as session:
-        rows = session.scalars(
-            select(db.Observation).where(
-                db.Observation.version_id.in_(list(verdicts)), db.Observation.relevance.is_(None)
-            )
-        )
-        for o in rows:
-            o.relevance, o.direction = verdicts[o.version_id]["related"], verdicts[o.version_id]["direction"]
+        triage.keep_relevance(session, verdicts)
 
 
 def dropped(run: "Run") -> set:

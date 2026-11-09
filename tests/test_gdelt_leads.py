@@ -137,6 +137,72 @@ def test_what_the_triage_judged_unrelated_is_in_no_group_and_what_it_was_unsure_
     assert (leads["count"], [r["relevance"] for r in leads["listed"]]) == (1, ["uncertain"])
 
 
+def test_retriage_judges_the_observations_no_model_judged_once_and_leaves_the_rest(monkeypatch, capsys):
+    sent = []
+    base = triage_by_title(sent)
+
+    def judged(settings_, stage, system, payload, model_cls, **options):
+        triaged, call = base(settings_, stage, system, payload, model_cls, **options)
+        for item, r in zip(triaged.items, payload["records"]):
+            item.related = "unrelated" if "封锁" in r["title"] else "related"
+        return triaged, call
+
+    monkeypatch.setattr(llm, "chat_json", judged)
+
+    def old(version, record_id, reason, source="gdelt_doc", **fields):
+        row = observation(version, record_id, day(1), None, source=source)
+        row.is_demo, row.reason = False, reason  # real data, as the t1 selection reads it
+        for key, value in fields.items():
+            setattr(row, key, value)
+        return row
+
+    rows = [
+        old("L1", "G1", "news_index_lead"),  # a lead from before leads were triaged: to judge
+        old(
+            "W1", "D1", "老分诊的理由", source="who_don"
+        ),  # judged by a model before relevance existed: to judge
+        old("L3", "G3", "已判", relevance="related"),  # judged: left alone
+        old("L4", "G4", "triage_failed"),  # owed to the monitor's retry path: left alone
+        old("L5", "G5", "background_backfill"),  # settled by the program: left alone
+    ]
+    with db.session() as session:
+        session.add_all(rows)
+    title = {"G1": "某海峡封锁引发油价上涨", "D1": "两家医院确认7例", "G3": "x", "G4": "x", "G5": "x"}
+    fabric = FakeFabric(
+        [record(r.record_id, title[r.record_id], "", source=r.source, version=r.version_id) for r in rows]
+    )
+    monkeypatch.setattr(ops, "Fabric", lambda s: fabric)
+
+    def retriage(*arguments):
+        ops.retriage(list(arguments))
+        return json.loads(capsys.readouterr().out)
+
+    # a used-up daily automatic budget does not keep an old lead from being judged
+    monkeypatch.setattr(analyses, "over_auto_budget", lambda: True)
+    first = retriage("--source", "gdelt_doc")
+    assert (first["candidates"], first["judged"], first["failed"]) == (1, 1, 0)
+    second = retriage()
+    assert (second["candidates"], second["judged"]) == (1, 1)  # the lead is judged: only the other is left
+    assert retriage()["candidates"] == 0  # nothing is judged twice
+    assert [[r["title"] for r in p["records"]] for p in sent] == [
+        ["某海峡封锁引发油价上涨"],
+        ["两家医院确认7例"],
+    ]
+    with db.session() as session:
+        seen = {
+            o.version_id: (o.relevance, o.reason, o.topic_id, o.alert)
+            for o in session.scalars(select(db.Observation))
+        }
+    assert seen == {
+        "L1": ("unrelated", "news_index_lead", None, "normal"),  # only relevance and direction are written
+        "W1": ("related", "老分诊的理由", None, "normal"),
+        "L3": ("related", "已判", None, "normal"),
+        "L4": (None, "triage_failed", None, "normal"),
+        "L5": (None, "background_backfill", None, "normal"),
+    }
+    assert _topics() == []  # nothing was placed in a topic a second time
+
+
 def test_a_group_of_leads_alone_confirms_nothing_yet_takes_part_in_the_ranking():
     news = mat("a", day(1), **EBOLA)
     alone = mat("g1", day(2), source="gdelt_doc")

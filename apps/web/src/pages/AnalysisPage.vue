@@ -141,7 +141,7 @@ async function download() {
       type="error"
       :closable="false"
       style="margin-top: 16px"
-      :title="`分析失败：${a.error_code ?? '未知原因'}`"
+      :title="`分析失败：${a.error_code ? label('errorCode', a.error_code) : '未知原因'}`"
     >
       <pre v-if="a.result?.trace" class="text">{{ a.result.trace }}</pre>
     </el-alert>

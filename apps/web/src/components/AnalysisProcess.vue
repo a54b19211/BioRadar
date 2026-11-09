@@ -29,7 +29,7 @@ const notes = computed(() => props.a.result?.notes ?? props.a.progress.notes ?? 
       <span v-if="x.error" style="color: var(--el-color-danger)">　{{ x.error }}</span>
     </el-timeline-item>
   </el-timeline>
-  <p v-if="stop">停止判断：{{ stop.decision }}（{{ stop.reason }}）</p>
+  <p v-if="stop">停止判断：{{ label("stopDecision", stop.decision) }}（{{ stop.reason }}）</p>
 
   <template v-if="facts.length">
     <h3>摘录的事实</h3>

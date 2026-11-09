@@ -20,7 +20,7 @@ from bioradar.adapters.fabric import (
 )
 from bioradar.config import Settings, settings
 from bioradar.material import of
-from bioradar.research import analyses, prompts, schemas
+from bioradar.research import analyses, prompts, schemas, views
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import ALERTS, WEIGHT, activity, activity_key, event, owe, set_state, watches
 
@@ -35,6 +35,9 @@ DEFERRED = "triage_deferred"
 RETRYABLE = ("triage_failed", DEFERRED)
 # A version a Fabric backfill run created is background, not news: the program settles it, no triage.
 BACKGROUND = "background_backfill"
+# What the reason of a lead's observation says when it was made before leads were triaged (no model, so no
+# relevance); `retriage` judges it now.
+OLD_LEAD = "news_index_lead"
 # The sources Fabric backfills (flows.who_backfill reads WHO Disease Outbreak News only): what a backfill
 # run's receipt can name. A run whose receipt cannot be read leaves its versions among this source's.
 BACKFILL_SOURCES = frozenset({"who_don"})
@@ -487,6 +490,75 @@ def observe(s: Settings, docs, *, is_demo: bool, budget=False, background=frozen
         decisions = triage(s, batch, topics, watch)
         _record_batch(s, batch, decisions, topics, watch, wake, is_demo=is_demo, background=background)
     return wake, True
+
+
+def keep_relevance(session, verdicts: dict) -> int:
+    """Write what the triage model judged into the observations of these versions that no model judged
+    ({version id: {"related", "direction"}}); nothing else of an observation changes. Returns how many."""
+    rows = session.scalars(
+        select(db.Observation).where(
+            db.Observation.version_id.in_(list(verdicts)), db.Observation.relevance.is_(None)
+        )
+    )
+    kept = 0
+    for o in rows:
+        o.relevance, o.direction = verdicts[o.version_id]["related"], verdicts[o.version_id]["direction"]
+        kept += 1
+    return kept
+
+
+def retriage(s: Settings, fabric: Fabric, *, is_demo: bool, source=None, since=None, until=None, limit=500):
+    """Ask the triage model about the observations no model judged (relevance null: made before the model
+    judged relevance, a lead among them), oldest first, at most `limit`, of one source and/or of the window
+    [since, until] of their available_at. The same triage call as the monitor's (`triage`), outside the feed:
+    the answer goes to the observation's relevance and direction and nowhere else - placing a record in a
+    topic is the monitor's, once, when the record is new, and doing it again would count it twice (`observe`
+    would also add a second observation of the version). Not touched: a triage owed (failed, deferred: the
+    monitor's retry path), a record the program settled (background, an unparsed attachment). Like `observe`
+    without `budget`, it is not held back by today's automatic budget: a stuck budget must not keep an old
+    lead undiagnosed. What it does not judge stays null, for the next call.
+    Returns the counts: candidates, judged, unreadable (the fixed version cannot be read now), failed (the
+    model gave no answer)."""
+    program = [r for r in views.PROGRAM_REASONS if r != OLD_LEAD]
+    where = [
+        db.Observation.workspace_id == s.workspace_id,
+        db.Observation.is_demo == is_demo,
+        db.Observation.relevance.is_(None),
+        *[~db.Observation.reason.startswith(r) for r in program],
+    ]
+    if source is not None:
+        where.append(db.Observation.source == source)
+    if since is not None:
+        where.append(db.Observation.available_at >= since)
+    if until is not None:
+        where.append(db.Observation.available_at <= until)
+    with db.session() as session:
+        found = session.execute(
+            select(db.Observation.source, db.Observation.record_id, db.Observation.version_id)
+            .where(*where)
+            .order_by(db.Observation.id)
+            .limit(limit)
+        ).all()
+    by_source = {}
+    for src, record_id, version_id in found:
+        by_source.setdefault(src, []).append((record_id, version_id))
+    docs, unreadable = [], 0
+    for src, refs in by_source.items():
+        read, missing = fabric.read_versions(src, refs, is_demo=is_demo)
+        docs += read
+        unreadable += len(missing)
+    counts = {"candidates": len(found), "judged": 0, "unreadable": unreadable, "failed": 0}
+    for start in range(0, len(docs), BATCH):
+        batch = docs[start : start + BATCH]
+        verdicts = {
+            d["version_id"]: {"related": item.related, "direction": item.direction}
+            for d, item in zip(batch, triage(s, batch, []))
+            if item
+        }
+        with db.session() as session:
+            counts["judged"] += keep_relevance(session, verdicts)
+        counts["failed"] += len(batch) - len(verdicts)
+    return counts
 
 
 def _record_batch(s, batch, decisions, topics, watch, wake, *, is_demo, background):

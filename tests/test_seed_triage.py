@@ -9,6 +9,7 @@ from test_groups import day, observation
 
 from bioradar import db
 from bioradar.adapters import llm
+from bioradar.adapters.fabric import FabricError
 from bioradar.config import settings
 from bioradar.research import analyses, groups, schemas
 from bioradar.research.pipeline import Run
@@ -154,6 +155,35 @@ def test_a_seed_too_thin_to_plan_from_ends_completed_and_a_plan_call_that_fails_
     with pytest.raises(Failed) as failed:
         Run(new_analysis(seeds, "另一个问题"), settings(), thin).run()
     assert failed.value.code == "plan_failed"
+
+
+def test_a_seed_fabric_says_is_not_there_is_left_out_but_a_failing_fabric_fails_the_run(monkeypatch):
+    sent = []
+    monkeypatch.setattr(llm, "chat_json", stand_in(sent))
+    seeds = [start("who_don", "D1", "V1")]
+
+    run = Run(new_analysis(seeds), settings(), FakeFabric([]))  # the version is not visible to this reader
+    assert run.plan() is False  # noted, not a seed: the plan goes on
+    [note] = [n for n in run.p["notes"] if n["code"] == "seed_unreadable"]
+    assert "record_not_visible" in note["detail"] and "seed_triage" not in run.p
+
+    class Down(FakeFabric):
+        code = "fabric_http_503"
+
+        def read_versions(self, *args, **kwargs):
+            raise FabricError(self.code, "unavailable")
+
+    sent.clear()
+    for code in (
+        "fabric_http_503",
+        "version_identity_mismatch",
+    ):  # a 5xx; a version that is not the one named
+        down = Down([record("D1", WHO, WHO_TEXT, source="who_don", version="V1")])
+        down.code = code
+        with pytest.raises(Failed) as failed:
+            Run(new_analysis(seeds, code), settings(), down).run()
+        assert failed.value.code == "seed_unreadable"
+    assert sent == []  # not passed on as "no seeds" to a plan
 
 
 def test_a_failed_triage_is_no_verdict_and_a_seed_that_corrects_is_read_whatever_the_model_says(monkeypatch):

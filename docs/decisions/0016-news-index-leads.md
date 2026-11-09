@@ -77,4 +77,8 @@ display group is stored, adds no table.
 - Every lead now costs its share of a triage call (a batch of 10). The leads come in thousands, so they spend the
   daily automatic budget (`daily_auto_tokens`) like any triage and are owed (`triage_deferred`) when it is used up.
   Observations made before this change keep `relevance` null: judged by no one, kept in the groups as they were;
-  an analysis seeded with one asks the triage once and stores the answer (`seeds.remember`).
+  an analysis seeded with one asks the triage once and stores the answer (`seeds.remember`), and
+  `python -m bioradar.ops retriage [--source S] [--since T] [--until T] [--limit N]` (`triage.retriage`) judges
+  them in bulk before the first selection: the same triage call, the answer written to the observation's
+  relevance and direction only (not placed in a topic again). Its calls count in the daily automatic budget like
+  any triage, but a used-up budget does not hold it back: it is run by hand, to diagnose what is already there.
