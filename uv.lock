@@ -74,7 +74,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.14,<2" },
-    { name = "extraction-contract", specifier = "==1.14.1" },
+    { name = "extraction-contract", specifier = "==2.0.0" },
     { name = "fastapi", specifier = ">=0.115,<1" },
     { name = "httpx", specifier = ">=0.28,<1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2,<4" },
@@ -133,10 +133,10 @@ wheels = [
 
 [[package]]
 name = "extraction-contract"
-version = "1.14.1"
+version = "2.0.0"
 source = { registry = "../extraction-contract/dist" }
 wheels = [
-    { path = "extraction_contract-1.14.1-py3-none-any.whl" },
+    { path = "extraction_contract-2.0.0-py3-none-any.whl" },
 ]
 
 [[package]]
