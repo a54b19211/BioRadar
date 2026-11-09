@@ -19,6 +19,13 @@ const citing = ref<string | null>(null); // evidence reference shown in the draw
 provide("cite", (ref: string) => (citing.value = ref));
 
 const running = computed(() => a.value?.state === "queued" || a.value?.state === "running");
+// the report's mark when it did not pass: its status and why (the draft is shown all the same)
+const pending = computed(() => {
+  const r = a.value?.result;
+  return r?.publishable === false
+    ? `${label("reportStatus", r.report_status)}（${label("hold", r.hold_reason)}）`
+    : "";
+});
 const usage = computed(() => {
   if (!a.value) return null;
   // result.usage exists only after the run; until then count the calls recorded so far
@@ -99,7 +106,7 @@ async function download() {
       <StatusTag kind="state" :value="a.state" />
       <StatusTag v-if="a.state !== 'completed'" kind="stage" :value="a.stage" />
       <span>核验</span>
-      <StatusTag :value="a.result?.report_status ?? 'NOT_RUN'" />
+      <StatusTag kind="reportStatus" :value="a.result?.report_status ?? 'NOT_RUN'" />
       <el-tag size="small" effect="plain">{{ label("direction", a.direction) }}</el-tag>
       <el-tag size="small" effect="plain">{{ label("method", a.method) }}</el-tag>
       <el-tag v-if="a.is_demo" size="small" effect="plain" type="warning">模拟资料</el-tag>
@@ -130,6 +137,17 @@ async function download() {
       style="margin-top: 12px"
       :title="a.result.withheld"
     />
+    <el-alert
+      v-if="pending"
+      type="warning"
+      :closable="false"
+      show-icon
+      style="margin-top: 12px"
+      title="报告待核：以下稿件没有通过 BioCheck 核验，不是定稿"
+    >
+      <div>核验状态：{{ pending }}</div>
+      <div class="muted">未核的稿件照常展示，请对照下方「逐句核验」和判断表里的核验列阅读。</div>
+    </el-alert>
     <div class="row" style="margin-top: 12px">
       <el-button v-if="canReview()" type="primary" @click="asking = true">追问</el-button>
       <el-button @click="download">导出</el-button>
@@ -146,8 +164,11 @@ async function download() {
       <pre v-if="a.result?.trace" class="text">{{ a.result.trace }}</pre>
     </el-alert>
 
-    <h3>报告草稿</h3>
-    <el-card v-if="a.result?.draft">
+    <h3>
+      报告草稿
+      <el-tag v-if="pending" type="warning" size="small">待核</el-tag>
+    </h3>
+    <el-card v-if="a.result?.draft" :class="{ pending: !!pending }">
       <p class="text">
         <template v-for="(part, i) in draftParts" :key="i">
           <CiteLink v-if="i % 2" :id="part" />

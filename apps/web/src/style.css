@@ -62,3 +62,9 @@ h3 {
 .el-table .cell {
   word-break: break-word;
 }
+.el-table .unproven td {
+  background: #fdf6ec;
+}
+.el-card.pending {
+  border-left: 4px solid #e6a23c;
+}

@@ -85,12 +85,12 @@ def blank(value):
 
 
 def publication(status, reason=None, missing=()) -> dict:
-    """v3 6.2: whether a report may be delivered, decided by the program - never by a model or the planner:
-    only a report BioCheck's last check passed (PASS) and whose sections hold every item of design 1.3
-    (`missing`: the items they lack, research/run/sections.py). Any other (the check did not run, did not
-    answer, found problems, or an item is missing) is held, publishable false with hold pending_verification
-    and the reason; the run keeps its draft and assessment for re-verification, and the external views show
-    the hold instead of them."""
+    """v3 6.2: the verification mark of a report, decided by the program - never by a model or the planner:
+    publishable is true only for a report BioCheck's last check passed (PASS) and whose sections hold every
+    item of design 1.3 (`missing`: the items they lack, research/run/sections.py). Any other (the check did
+    not run, did not answer, found problems, or an item is missing) is marked 待核: publishable false with
+    hold pending_verification and the reason. The mark hides nothing: the report goes out with it, and every
+    exit shows it beside the draft and the sentence checks."""
     if status == "PASS" and not missing:
         return {"publishable": True, "hold": None, "hold_reason": None}
     if not reason and status == "PASS":
@@ -102,31 +102,20 @@ def publication(status, reason=None, missing=()) -> dict:
 
 def publication_of(result: dict) -> dict:
     """`result` with its publication fields: as the run stored them, else judged by its report status (a
-    result stored before the gate)."""
+    result stored before the mark)."""
     if "publishable" in result:
         return result
     return {**result, **publication(result["report_status"], (result.get("review") or {}).get("reason"))}
 
 
-def gated(result):
-    """A result as the external views may show it. A held report is not shown as a finished one: its draft
-    and assessment are left out, the sentence checks and kept versions lose their words (numbers,
-    verdicts and references stay) and each section keeps only its kind, status and reason. A result stored
-    before the gate is judged by its report status."""
+def marked(result):
+    """A result as the external views show it: all of it - draft, sentence checks, assessment, sections -
+    with its verification mark (publishable, hold, hold_reason). A report that did not pass is shown as
+    待核, not hidden and never turned into a PASS. A result stored before the mark is judged by its report
+    status."""
     if not result or "report_status" not in result:
         return result
-    result = publication_of(dict(result))
-    if result["publishable"] is False:
-        if "draft" in result:
-            result["draft"] = ""
-        result["assessment"] = None
-        if result.get("review"):
-            result["review"] = blank(result["review"])
-        if "sections" in result:
-            result["sections"] = [
-                {k: s[k] for k in ("kind", "status", "reason") if k in s} for s in result["sections"]
-            ]
-    return result
+    return publication_of(dict(result))
 
 
 PROGRESS = {k: tp for k, tp in typing.get_type_hints(RunState, include_extras=True).items() if is_shown(tp)}
@@ -139,22 +128,22 @@ def progress(stored: dict | None) -> dict:
 
 
 def result(stored: dict | None) -> dict | None:
-    """The shown keys of a stored result, as far as they are there, behind the publication gate."""
-    return gated(shown(stored, Result))
+    """The shown keys of a stored result, as far as they are there, with the verification mark."""
+    return marked(shown(stored, Result))
 
 
 def summary(stored: dict | None) -> dict:
-    """What the analysis list shows of a result: its status, usage and assessment, behind the gate."""
+    """What the analysis list shows of a result: its status, usage and assessment, with the mark."""
     out = {k: (stored or {}).get(k) for k in ("report_status", "usage", "assessment")}
     if stored is None or "report_status" not in stored:
         return out
-    gate = gated({**out, **{k: stored[k] for k in ("publishable", "hold", "hold_reason") if k in stored}})
-    return gate
+    return marked({**out, **{k: stored[k] for k in ("publishable", "hold", "hold_reason") if k in stored}})
 
 
 # The monitor's exits. The triage model grades single records. What leaves the radar about them is a program
-# fact at once (the lead was received), and a topic's level only behind the gate of the analysis that read the
-# topic's records; the model's own verdict on a record (alert, signal, objects, reason) does not leave at all.
+# fact at once (the lead was received), and a topic's level with the mark of the analysis that read the
+# topic's records (待核 until that report passed); the model's own verdict on a record (alert, signal,
+# objects, reason) does not leave at all.
 LEAD = "本系统于{at}收到来源{source}的线索：{title}（尚未核实）。"
 # What an observation's `reason` holds when the program settled the record (research/triage.py); any other
 # text is the triage model's.
@@ -179,10 +168,10 @@ def is_program_reason(reason: str) -> bool:
 
 
 def level_publication(analysis: tuple[str, dict | None] | None, owed: bool) -> dict:
-    """Whether a topic's level and summary may leave the radar: the report gate applied to the topic. They
-    are shown once the topic's latest analysis, the one that read its records, has a report that passed
-    (`publication` of that result), and not while the topic is owed a newer analysis. `analysis` is that
-    analysis's (state, result); None when the topic has none."""
+    """The verification mark of a topic's level and summary: the report mark applied to the topic. The level
+    is verified once the topic's latest analysis, the one that read its records, has a report that passed
+    (`publication` of that result) and the topic is not owed a newer analysis; otherwise it is shown marked
+    待核, with the reason. `analysis` is that analysis's (state, result); None when the topic has none."""
     if analysis is None:
         return publication(None, "no_analysis")
     state, result = analysis

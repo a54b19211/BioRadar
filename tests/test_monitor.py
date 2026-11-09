@@ -55,8 +55,9 @@ def test_topic_lifecycle(monkeypatch):
     assert first["records"] == 3
     [topic] = [t for t in _topics() if t["title"] == "临岑聚集"]
     assert topic["state"] == "rising"
-    with db.session() as s:  # the triage level is stored and drives the state; the exit holds it back
-        assert s.get(db.Topic, topic["id"]).alert == "important" and topic["alert"] is None
+    with db.session() as s:  # the triage level is stored and drives the state; the exit shows it marked 待核
+        assert s.get(db.Topic, topic["id"]).alert == "important" and topic["alert"] == "important"
+    assert topic["publishable"] is False and topic["hold_reason"] == "no_analysis"
 
     # Blank rounds: no new records, the clock moves on. Cooling after 7 days, not yet dormant.
     monitor.tick(is_demo=True, fabric=fabric, clock=datetime.fromisoformat(DAY.format(12)))

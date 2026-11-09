@@ -19,6 +19,11 @@ events and analyses that follow from them.
   feed or a second pull adds nothing.
 - An object whose period has a start and no end ("since September 2012") is no point of a series: no end is
   made up, its inbox row says open_ended_period and the round counts it under that name.
+- Every current object is a point, whatever its check says (consistent, inconsistent, unchecked; an unknown
+  unit stays "unknown"): the point carries the mark (check_status) and is shown with it. Only a point whose
+  domain is complete and proven (domain.py: for that the check must be consistent) is compared and summed. The
+  check's answer is a second object of the same reading: the unchecked one is no longer current, its point
+  leaves, and the new object's point is the current one - count the current objects, not the created events.
 - A series is one key in one topic: (object key, metric, unit, kind, scope, period type and precision, metric
   family, dimension group). The object key is Fabric's identity key only for a confirmed or rule-confirmed
   identity; otherwise it is the literal object within its own record, so two records never merge on a name."""

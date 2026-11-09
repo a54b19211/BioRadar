@@ -27,14 +27,14 @@ reviewed archive proves it readable; listed only for a row that has one) and `re
 in). What a row does not hold - one stored before the radar kept them - is `未知`; the merged `available_at` never
 stands in for a time it cannot be split into.
 
-A section the run cannot fill is `missing` with a reason (`SECTION_REASONS`). `views.publication` holds a report
-that has a missing section even when BioCheck's status is PASS: `publishable: false`, `hold: pending_verification`,
+A section the run cannot fill is `missing` with a reason (`SECTION_REASONS`). `views.publication` marks a report
+that has a missing section 待核 even when BioCheck's status is PASS: `publishable: false`, `hold: pending_verification`,
 `hold_reason: sections_missing:<items>` (`main_judgment`, `impact`, `evidence`, `review_condition`). The limits
 cannot be missing: the gaps section always states the scope the searches stood on. A judgment BioCheck found
 contradicted was withdrawn by assess and does not count as a main judgment.
 
-A held report's sections show only kind, status and reason in the external views (`views.gated`); the reason
-codes are kept where text is withheld (`views.is_reason_code`).
+A report marked 待核 shows all its sections in the external views (`views.marked`), with the mark; the reason
+codes are kept where text is withheld for a source that cannot be read (`views.is_reason_code`).
 
 ## Why
 
@@ -46,7 +46,7 @@ added to `analyses.progress` and a resumed run builds the same sections.
 ## Consequences
 
 - A PASS report whose assessment has no judgment (the plan named no judgment question, or assess failed or had
-  no budget) is now held. That is the rule, not a defect of the check.
+  no budget) is now marked 待核. That is the rule, not a defect of the check.
 - Results stored before this change have no `sections` and are shown as before.
 - The business impact is the assessment's `consequence` grade; prose impact and the four uncertainty fields
   come with the next steps. The page and the export do not show sections yet.

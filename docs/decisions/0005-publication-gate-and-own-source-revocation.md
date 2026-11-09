@@ -1,9 +1,9 @@
 # 0005 Publication gate and own-source revocation
 
-- Status: accepted (2026-11-07; Codex: the PASS delivery gate and the per-send source permission check were accepted earlier, their fixes verified in r207/r209). An engineering decision, not a release or business-quality sign-off
+- Status: accepted (2026-11-07; Codex: the PASS delivery gate and the per-send source permission check were accepted earlier, their fixes verified in r207/r209). An engineering decision, not a release or business-quality sign-off. Revised in place 2026-11-09 (r4): (a) and (c) no longer hide what did not pass, they show it with its status
 - Design: v3.1 6.2 (输出前 / 全程: what may be shown is decided by a program gate) and 6.1 (权限: revocation
   must stop what was already read from leaking); task book 06 section 2.5 (every exit behind one gate)
-- Code: `research/views.py` (`publication`, `gated`, `summary`), `research/pipeline.py`
+- Code: `research/views.py` (`publication`, `marked`, `summary`), `research/pipeline.py`
   (`Run.result`, `Run.confirm_sources`, `Run.ask(carries=)`), `research/run/submit.py` (`service`,
   `outbound`), `research/run/{read,calculate,mechanism,assess}.py`, `app.py` (`held_notice`, `export`, `topics`,
   `observations`), `research/topics.py` (`level_gates`, `topic_view`, `observation_view`, `event_view`)
@@ -11,33 +11,35 @@
   `tests/test_send_recheck.py` (every request re-checked, through the real llm client),
   `tests/test_alert_exit.py` (section c)
 
-## (a) Only a report BioCheck passed is deliverable
+## (a) A report BioCheck did not pass is shown marked 待核
 
 **Before.** A report whose check did not run (BioCheck timed out, no budget) or did not pass was finished like
-any other: the draft and the assessment went to the detail, the list and the export.
+any other: nothing in the detail, the list or the export said it was unverified.
 
-**Decision.** The program decides, at the end of the run, from BioCheck's status of the last check:
+**Decision.** The program decides, at the end of the run, from BioCheck's status of the last check, the mark
+every exit shows with the report:
 
 - `report_status == "PASS"`: `publishable: true`, `hold: null`, `hold_reason: null`.
 - anything else: `publishable: false`, `hold: "pending_verification"`, `hold_reason`: the report's own failure
   reason when there is one (`biocheck_timeout`, `no_evidence`, ...), `not_checked` when the check did not
   run without one, `biocheck_<status>` when BioCheck answered with another status (`biocheck_review`, ...).
 
-One hold state for every non-PASS outcome: in each case the next step is the same - verify again (after a
+One mark for every non-PASS outcome: in each case the next step is the same - verify again (after a
 revision, or once BioCheck answers) - and the reason says why. The planner and the models never set these
-fields; v3 6.2 "planner 不能自己说证据充分就越过门槛".
+fields; v3 6.2 "planner 不能自己说证据充分就越过门槛". Nothing turns a result into a PASS to let it through.
 
-The run still stores its draft, every version, the sentence checks and the assessment (stored data is never
-changed by the gate), so a re-verification can start from them. The external views apply the gate
-(`views.gated`, used by `analyses.view` for the detail and the list): for a held report the draft is empty,
-the assessment is absent (null), and the review keeps its structure (sentence numbers, verdicts, citations)
-without the words; the hold, its reason, the numbers, computations and mechanism evaluation stay. The export
-prints `（报告待核：<reason>。…）` instead of the draft and no judgments. Results stored before the gate are
-judged by their `report_status` the same way.
+The mark hides nothing. The first version of this decision left a held report's draft, assessment and
+sentence-check words out of the external views; that kept every unverified report from being read, and its
+problems from showing early, so it was dropped. The run stores its draft, every version, the sentence checks
+and the assessment, and the external views (`views.marked`, used by `analyses.view` for the detail and the
+list) show all of it with `publishable`, `hold` and `hold_reason` beside it. The export prints
+`（报告待核：核验状态 …，<reason>。…）` above the draft and ends with the sentences BioCheck did not support
+(`app.held_notice`, `app.export`); the page shows 待核 and the reason beside the draft and the sentence checks
+(`apps/web/`). What a source that cannot be read now makes unreadable stays withheld, 待核 or not (b, ADR 0004).
+Results stored before the mark are judged by their `report_status` the same way.
 
-**Follow-ups.** A held report is still handed to a follow-up, labelled pending, as leads to verify only
-(ADR 0006). The web app shows
-the empty draft; showing the hold reason there is a page change (刘金彦) not made in this wave.
+**Follow-ups.** A report marked 待核 is still handed to a follow-up, labelled pending, as leads to verify only
+(ADR 0006).
 
 ## (b) The run's own sources are confirmed readable before anything carries them out
 
@@ -92,18 +94,18 @@ is unchanged.
 - **Received lead, at once (program fact).** Every observation carries `lead`, built from the record's own fields
   with no model and no analysis: `本系统于{available_at}收到来源{source}的线索：{title}（尚未核实）。` It is withheld
   together with the title when the source cannot be read (`app.redact_observation`).
-- **A topic's level and summary follow the verification.** `alert` and `summary` are shown only when the topic's
-  latest analysis (`last_analysis_id`, the one that read its records) has a report that passed `publication`, and
-  the topic is not owed a newer analysis (`pending_reason`). Otherwise `alert` is null, `summary` is empty, and the
-  topic carries the gate's fields `publishable: false`, `hold: "pending_verification"` and `hold_reason`:
-  `no_analysis`, `analysis_queued|running|failed`, the report's own reason (`biocheck_review`, ...), or
-  `analysis_owed`.
+- **A topic's level and summary carry the mark of the verification.** `alert` and `summary` are always shown.
+  They are verified when the topic's latest analysis (`last_analysis_id`, the one that read its records) has a
+  report that passed `publication` and the topic is not owed a newer analysis (`pending_reason`): then
+  `publishable` is true. Otherwise the topic carries `publishable: false`, `hold: "pending_verification"` and
+  `hold_reason`: `no_analysis`, `analysis_queued|running|failed`, the report's own reason (`biocheck_review`,
+  ...), or `analysis_owed`, and the page marks the level 待核.
 - **The model's verdict on a record does not leave.** An observation's `alert` is null and its `reason` is empty
   unless the program wrote it (`triage_failed`, `triage_deferred`, `triage_unavailable`, `background_backfill`,
   an unparsed attachment; `views.PROGRAM_REASONS`); an `observed` event carries `alert` null, `signal` empty and
   `objects` empty. The keys stay.
 
-The level a released topic shows is still the triage level: the analysis passing says its report was verified, not
+The level a topic shows is still the triage level: the analysis passing says its report was verified, not
 that the triage level was. Showing the analysis's own `priority` and `consequence`, each behind its judgment's
 check, is a next step of task book 06 and needs the judgment-level receipt.
 
@@ -118,5 +120,6 @@ task book 06 section 2.5, and the page showing the hold, are later steps.
 - External views gain `publishable`, `hold`, `hold_reason` on every result with a report status (golden view
   fixtures regenerated: only these keys added for PASS results).
 - Test fakes must answer `sources()`; `FakeFabric` lists the sources of its records.
-- The topic exits gain `publishable`, `hold`, `hold_reason` and lose the model's level and words (golden view
-  fixture of `test_a_revoked_source_shows_no_text_in_any_exit` regenerated); observations gain `lead`.
+- The topic exits gain `publishable`, `hold`, `hold_reason` and lose the model's words about a record (golden view
+  fixture of `test_a_revoked_source_shows_no_text_in_any_exit` regenerated); observations gain `lead`. The topic
+  detail lists the topic's readings with the mark of their check (ADR 0010).

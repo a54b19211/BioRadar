@@ -30,7 +30,7 @@ pending draft.
   `PreviousReport` model (draft, date) ignores fields it does not know, so the label is what its writer and
   checker actually see until BioCheck reads the fields itself.
 - What the external views show is unchanged: `progress.report` and `progress.assessment` carry no SHOWN mark,
-  so the detail view cannot show a held report past the gate.
+  so the detail view shows a report only through `result`, with its 待核 mark (ADR 0005).
 
 ## Consequences
 

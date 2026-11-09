@@ -129,7 +129,7 @@ async function submit() {
     </el-table-column>
     <el-table-column label="核验" width="100">
       <template #default="{ row }"
-        ><StatusTag v-if="row.result?.report_status" :value="row.result.report_status"
+        ><StatusTag v-if="row.result?.report_status" kind="reportStatus" :value="row.result.report_status"
       /></template>
     </el-table-column>
     <el-table-column label="创建时间" width="170">

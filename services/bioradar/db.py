@@ -829,6 +829,8 @@ class SeriesPoint(Base):
     gate_version: Mapped[str] = mapped_column(String(40))
     gate_reasons: Mapped[list] = mapped_column(Json, default=list)
     series_key: Mapped[str] = mapped_column(String(80))
+    # Fabric's mark of the object: consistent | inconsistent | unchecked. A point is made whatever it says;
+    # the mark decides only whether the point may be compared (gate_reasons) and is shown with it
     check_status: Mapped[str] = mapped_column(String(20), default="")
     check_ref: Mapped[str] = mapped_column(String(80), default="")  # Fabric's check run of the object
     checker_version: Mapped[str] = mapped_column(String(80), default="")

@@ -1,6 +1,6 @@
 """The monitor's exits (docs/decisions/0005, section c): a received lead is shown at once as a program fact;
-the triage model's verdict on a record never leaves, and a topic's level only once its latest analysis
-passed."""
+the triage model's verdict on a record never leaves, and a topic's level is shown with the mark of its latest
+analysis (待核 until that analysis's report passed)."""
 
 import pytest
 from conftest import FakeFabric, record
@@ -66,9 +66,9 @@ def test_a_lead_is_shown_at_once_as_a_program_fact_without_the_models_words(admi
     assert stored == "模型判断：疑似院内聚集"
 
 
-def test_a_level_is_not_shown_before_the_analysis_that_read_the_topic_passed(admin):
+def test_a_level_is_shown_marked_pending_until_the_analysis_that_read_the_topic_passed(admin):
     [topic] = admin.get("/api/topics?is_demo=true").json()
-    assert topic["alert"] is None and topic["summary"] == ""
+    assert topic["alert"] == "urgent" and topic["summary"] == ""
     gate = (topic["publishable"], topic["hold"], topic["hold_reason"])
     assert gate == (False, "pending_verification", "analysis_queued")
     detail = admin.get(f"/api/topics/{topic['id']}").json()
@@ -77,12 +77,12 @@ def test_a_level_is_not_shown_before_the_analysis_that_read_the_topic_passed(adm
     assert [o["alert"] for o in detail["observations"]] == [None]
     with db.session() as s:  # what is stored, and what scheduling reads, is untouched
         assert s.get(db.Topic, topic["id"]).alert == "urgent"
-    finish(topic["last_analysis_id"], {"report_status": "REVIEW"})  # a report that did not pass holds it too
+    finish(topic["last_analysis_id"], {"report_status": "REVIEW"})  # a report that did not pass is pending
     held = admin.get(f"/api/topics/{topic['id']}").json()
-    assert held["alert"] is None and held["hold_reason"] == "biocheck_review"
+    assert (held["alert"], held["publishable"], held["hold_reason"]) == ("urgent", False, "biocheck_review")
 
 
-def test_a_passed_analysis_releases_the_level_until_the_topic_is_owed_another(admin):
+def test_a_passed_analysis_verifies_the_level_until_the_topic_is_owed_another(admin):
     [topic] = admin.get("/api/topics?is_demo=true").json()
     finish(topic["last_analysis_id"], {"report_status": "PASS"})
     shown = admin.get(f"/api/topics/{topic['id']}").json()
@@ -92,4 +92,4 @@ def test_a_passed_analysis_releases_the_level_until_the_topic_is_owed_another(ad
     with db.session() as s:  # a newer record owes the topic another analysis
         s.get(db.Topic, topic["id"]).pending_reason = "alert_urgent"
     owed = admin.get(f"/api/topics/{topic['id']}").json()
-    assert owed["alert"] is None and owed["hold_reason"] == "analysis_owed"
+    assert (owed["alert"], owed["publishable"], owed["hold_reason"]) == ("urgent", False, "analysis_owed")

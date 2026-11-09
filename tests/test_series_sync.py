@@ -11,13 +11,14 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import FakeFabric, record
-from fabric_measurements import version_id
+from fabric_measurements import CHECKER, version_id
 from sqlalchemy import func, select
+from test_access import admin_client, fabric_sources  # noqa: F401 - the fixture the API test takes
 
-from bioradar import db
+from bioradar import app, db
 from bioradar.adapters import llm
 from bioradar.config import settings
-from bioradar.research import domain, monitor, scheduling, schemas, series_sync
+from bioradar.research import domain, monitor, scheduling, schemas, series_sync, topics
 from bioradar.research.run import investigate
 
 FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "measurement_feed_contract.json"
@@ -401,6 +402,89 @@ def test_one_record_stating_two_values_for_one_period_keeps_both_and_owes_the_to
         assert all(series_sync.RECORD_CONFLICT in p.gate_reasons for p in s.scalars(select(db.SeriesPoint)))
         text, seeds, ids, _, _ = scheduling.conflict_basis(s, topic.id, datetime(2026, 1, 1, tzinfo=UTC))
     assert "66例" in text and "68例" in text and seeds[0]["version_id"] == V and len(ids) == 2
+
+
+# ---- a reading is a point, marked by its check ----------------------------------------------------------
+
+
+def reading(fabric, check, **over):
+    """One reading of the Marburg record as Fabric publishes it: marked by its check. A reading no check has
+    cleared says "unknown" for its unit, as BioCheck's verdict on a unit-less reading does."""
+    over = dict(unit="例" if check == "consistent" else "unknown", dims=PROVEN) | over
+    return fabric.measured.add(V, source=SOURCE, record="who-a", value="66", check=check, **over)
+
+
+def readings():
+    with db.session() as s:
+        return topics.readings(s, s.scalar(select(db.Topic.id)))
+
+
+@pytest.mark.parametrize("check", ["unchecked", "inconsistent"])
+def test_a_reading_not_cleared_by_its_check_is_a_point_marked_by_it_and_never_compared(placing, check):
+    fabric = FakeFabric([who()])
+    tick(fabric)
+    mid = reading(fabric, check)
+    assert tick(fabric)["measurements"]["linked"] == 1
+    with db.session() as s:
+        point = s.scalar(select(db.SeriesPoint))
+        assert (point.measurement_id, point.check_status, point.left_at) == (mid, check, None)
+        assert point.unit == "unknown"
+        assert point.checker_version == (CHECKER if check == "inconsistent" else "unchecked")
+        assert point.gate_reasons == ["family_not_determined"] and not series_sync.proven(point)
+        assert s.scalar(select(db.MeasurementInbox.state)) == "linked"
+        [handed] = scheduling.described(s, point.topic_id, [mid])
+    assert handed["extraction_check"]["status"] == check
+    assert handed["comparability"]["state"] == "not_comparable"
+    assert topic_events("series") == []  # nothing is compared, so nothing is owed for it
+    [shown] = readings()
+    assert (shown["check"], shown["comparable"]) == (check, False)
+    assert (shown["value"], shown["unit"]) == ("66", "unknown")  # as stated: no unit is made up
+
+
+def test_the_checks_answer_replaces_the_unchecked_point_and_the_facts_are_the_current_objects(placing):
+    fabric = FakeFabric([who()])
+    tick(fabric)
+    waiting = reading(fabric, "unchecked")
+    tick(fabric)
+    assert [r["check"] for r in readings()] == ["unchecked"]
+    answer = reading(fabric, "consistent")  # the same reading, answered: Fabric publishes a second object
+    fabric.measured.recheck(waiting, answer)
+    tick(fabric)
+    with db.session() as s:
+        old = s.scalar(select(db.SeriesPoint).filter_by(measurement_id=waiting))
+        new = s.scalar(select(db.SeriesPoint).filter_by(measurement_id=answer))
+        assert (old.left_at is not None, old.left_by, old.check_status) == (True, answer, "unchecked")
+        assert (new.left_at, new.check_status, new.checker_version) == (None, "consistent", CHECKER)
+        assert new.gate_reasons == [] and series_sync.proven(new) and not series_sync.proven(old)
+    [left] = topic_events("measurement_left")
+    assert (left["measurement"], left["by"]) == (waiting, answer)
+    [shown] = readings()  # one fact, though Fabric created two objects for it
+    assert (shown["id"], shown["check"], shown["comparable"]) == (answer, "consistent", True)
+    assert count(db.SeriesPoint) == 2
+
+
+def test_a_topic_lists_its_readings_by_check_and_a_revoked_source_takes_their_words(placing, fabric_sources):  # noqa: F811
+    fabric_sources["value"] = [SOURCE]
+    fabric = FakeFabric([who()])
+    tick(fabric)
+    for check in ("consistent", "inconsistent", "unchecked"):
+        reading(fabric, check)
+    tick(fabric)
+    admin = admin_client()
+    [listed] = admin.get("/api/topics?is_demo=true").json()
+    shown = admin.get(f"/api/topics/{listed['id']}").json()["readings"]
+    comparable = {r["check"]: r["comparable"] for r in shown}
+    assert comparable == {"consistent": True, "inconsistent": False, "unchecked": False}
+    assert all(r["quote"] and r["object"] and "withheld" not in r for r in shown)
+    fabric_sources["value"] = []  # the source is revoked: the words go, the marks and the numbers stay
+    app._readable.update(at=None, sources=None)
+    hidden = admin.get(f"/api/topics/{listed['id']}").json()["readings"]
+    assert all(r["quote"] == "" and r["object"] == "" and r["withheld"] == "来源已撤权" for r in hidden)
+    assert sorted((r["check"], r["value"]) for r in hidden) == [
+        ("consistent", "66"),
+        ("inconsistent", "66"),
+        ("unchecked", "66"),
+    ]
 
 
 # ---- what an analysis is handed and reads ------------------------------------------------------------

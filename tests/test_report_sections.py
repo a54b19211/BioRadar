@@ -241,18 +241,16 @@ def test_a_finished_run_stores_its_sections_and_a_pass_with_all_five_items_is_pu
     assert views.result(result)["sections"] == result["sections"]  # a published report shows them all
 
 
-def test_a_passed_run_without_the_evidence_that_would_change_the_judgment_is_held(monkeypatch):
+def test_a_passed_run_without_the_evidence_that_would_change_the_judgment_is_marked_pending(monkeypatch):
     result = finished(monkeypatch, "")
     assert result["report_status"] == "PASS"
     assert (result["publishable"], result["hold_reason"]) == (False, "sections_missing:review_condition")
-    shown = views.result(result)  # a held report shows each section's status and reason, no words
-    assert shown["draft"] == "" and shown["assessment"] is None
-    assert by_kind(shown["sections"])["scenarios"] == {
-        "kind": "scenarios",
-        "status": "missing",
-        "reason": "no_review_condition",
-    }
-    assert all(set(s) <= {"kind", "status", "reason"} for s in shown["sections"])
+    shown = views.result(result)  # shown whole, with the mark: the draft, the assessment and every section
+    assert (shown["publishable"], shown["hold"]) == (False, "pending_verification")
+    assert shown["draft"] == result["draft"] != "" and shown["assessment"] == result["assessment"] is not None
+    assert shown["sections"] == result["sections"]
+    assert by_kind(shown["sections"])["scenarios"]["status"] == "missing"
+    assert by_kind(shown["sections"])["scenarios"]["reason"] == "no_review_condition"
 
 
 def test_the_words_of_the_sections_are_withheld_with_a_revoked_source_and_the_codes_stay(fabric_sources):  # noqa: F811

@@ -35,8 +35,18 @@ watch(
     <el-table-column label="状态" width="90">
       <template #default="{ row }"><StatusTag kind="topicState" :value="row.state" /></template>
     </el-table-column>
-    <el-table-column label="警示" width="80">
-      <template #default="{ row }"><StatusTag kind="alert" :value="row.alert" /></template>
+    <el-table-column label="警示" width="130">
+      <template #default="{ row }">
+        <StatusTag kind="alert" :value="row.alert" />
+        <el-tag
+          v-if="row.publishable === false"
+          type="warning"
+          size="small"
+          effect="plain"
+          :title="label('hold', row.hold_reason)"
+          >待核</el-tag
+        >
+      </template>
     </el-table-column>
     <el-table-column label="热度" prop="heat" width="70" />
     <el-table-column label="唤醒次数" prop="awakenings" width="90" />

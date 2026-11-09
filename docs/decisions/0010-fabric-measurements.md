@@ -33,7 +33,14 @@
     source may concern another source's object). The feed itself never replays them;
   - a linked object with a later event is read again: superseded, corrected or retracted -> its point leaves
     the series (kept); a correction or retraction is a `correction` event of the topic from when it was
-    visible and owes `source_corrected`; a correction withdrawn brings the point back.
+    visible and owes `source_corrected`; a correction withdrawn brings the point back;
+  - every current object is a point, whatever its check says: `check_status` is Fabric's mark (`consistent`
+    已核一致, `inconsistent` 有冲突, `unchecked` 未核; an unknown unit stays `unknown`). Only a point whose domain
+    is complete and proven (`domain.series_gate`: for that the check must be consistent) is compared, summed or
+    trended. Fabric publishes an object unchecked and, when the check answers, a second object of the same
+    reading; the first gets `rechecked_by_checker`, its point leaves and the new object's point is the current
+    one - the facts of a topic are its current objects, not the `created` events. The topic detail lists them
+    (`topics.readings`) with their mark.
 - **Series key** = (topic, object key, metric, unit, kind, scope, scope mode, period type and precision, family,
   dimension group). The object key is Fabric's `identity.key` only when `identity.state` is `confirmed` or
   `rule_confirmed`; otherwise it is `literal:<source>|<record>|<normalised object>` built by the radar, so a

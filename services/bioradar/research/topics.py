@@ -222,16 +222,55 @@ def event_view(e: db.TopicEvent) -> dict:
     return {"at": e.at.isoformat(), "kind": e.kind, **detail}
 
 
+READINGS = 200  # the readings a topic's detail lists
+
+
+def reading_view(p: db.SeriesPoint) -> dict:
+    """A reading of a topic (a point of its series) as it leaves the radar, with the mark of its check:
+    consistent (已核一致), inconsistent (有冲突) or unchecked (未核). Whether it may be compared is a separate
+    answer (`comparable`: its domain is complete and proven, research/domain.py), so a reading that is not
+    checked is shown and never summed or trended. A unit or period Fabric does not know stays as it says."""
+    return {
+        "id": p.measurement_id,
+        "object": p.object,
+        "metric": p.metric,
+        "scope": p.scope,
+        "value": p.value_text,
+        "unit": p.unit,
+        "period": p.period,
+        "source": p.source,
+        "record_id": p.record_id,
+        "quote": p.quote,
+        "check": p.check_status or "unchecked",
+        "comparable": not p.gate_reasons,
+        "reasons": list(p.gate_reasons),
+    }
+
+
+def readings(session, topic_id: str) -> list[dict]:
+    """The topic's readings Fabric holds current now, newest period first. A reading that was replaced (by
+    its check's answer, a newer processor, a correction) has left: the facts of a topic are its current
+    objects, never the count of the objects Fabric created."""
+    query = (
+        select(db.SeriesPoint)
+        .where(db.SeriesPoint.topic_id == topic_id, db.SeriesPoint.left_at.is_(None))
+        .order_by(db.SeriesPoint.period_end.desc(), db.SeriesPoint.id.desc())
+        .limit(READINGS)
+    )
+    return [reading_view(p) for p in session.scalars(query)]
+
+
 def topic_view(topic: db.Topic, gate: dict, *, events=False) -> dict:
-    """A topic as it leaves the radar. `gate` (level_gates) decides its level and summary: until its latest
-    analysis passed they are not shown, and `hold` says why."""
+    """A topic as it leaves the radar. `gate` (level_gates) is the verification mark of its level and summary:
+    until its latest analysis passed they carry `publishable: false` and `hold` says why; they are shown all
+    the same."""
     value = {
         "id": topic.id,
         "title": topic.title,
         "direction": topic.direction,
         "is_demo": topic.is_demo,
         "state": topic.state,
-        "alert": topic.alert if gate["publishable"] else None,
+        "alert": topic.alert,
         **gate,
         "heat": topic.heat,
         "awakenings": topic.awakenings,
@@ -240,7 +279,7 @@ def topic_view(topic: db.Topic, gate: dict, *, events=False) -> dict:
         "last_activity_at": topic.last_activity_at.isoformat(),
         "last_analysis_id": topic.last_analysis_id,
         "pending_reason": topic.pending_reason,
-        "summary": topic.summary if gate["publishable"] else "",
+        "summary": topic.summary,
     }
     if events:
         with db.session() as session:
@@ -258,4 +297,5 @@ def topic_view(topic: db.Topic, gate: dict, *, events=False) -> dict:
                     .order_by(db.Observation.available_at)
                 )
             ]
+            value["readings"] = readings(session, topic.id)
     return value

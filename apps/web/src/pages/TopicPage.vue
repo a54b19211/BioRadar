@@ -2,7 +2,15 @@
 import { ref, watch } from "vue";
 import { useRoute } from "vue-router";
 import { ElMessage } from "element-plus";
-import { addReview, canReview, getTopic, type Alert, type TopicEvent, type TopicFull } from "../api";
+import {
+  addReview,
+  canReview,
+  getTopic,
+  type Alert,
+  type Reading,
+  type TopicEvent,
+  type TopicFull,
+} from "../api";
 import { fmt, label } from "../labels";
 import StatusTag from "../components/StatusTag.vue";
 import ObservationTable from "../components/ObservationTable.vue";
@@ -25,6 +33,11 @@ async function setAlert(alert: Alert) {
   ElMessage.success("已记录");
   topic.value = await getTopic(t.id);
 }
+
+// a reading that is not 已核一致 is shaded, so the unchecked and the conflicting stand out
+const rowClass = ({ row }: { row: Reading }) => (row.check === "consistent" ? "" : "unproven");
+// the value as stated; an unknown unit is said so, never guessed
+const valueText = (r: Reading) => `${r.value} ${r.unit === "unknown" ? "（单位未知）" : r.unit}`;
 
 function describe(e: TopicEvent): string {
   switch (e.kind) {
@@ -50,6 +63,9 @@ function describe(e: TopicEvent): string {
     <div class="row">
       <StatusTag kind="topicState" :value="topic.state" />
       <StatusTag kind="alert" :value="topic.alert" />
+      <el-tag v-if="topic.publishable === false" type="warning" size="small" effect="plain"
+        >待核：{{ label("hold", topic.hold_reason) }}</el-tag
+      >
       <el-select
         v-if="canReview()"
         :model-value="topic.alert"
@@ -79,6 +95,36 @@ function describe(e: TopicEvent): string {
         <RouterLink v-if="e.analysis_id" :to="`/analyses/${e.analysis_id}`">查看分析</RouterLink>
       </el-timeline-item>
     </el-timeline>
+
+    <h3>指标读数</h3>
+    <p class="muted">
+      每条读数带核验标记；未核、有冲突的照常列出，但不参与比较、合计和趋势。单位未知的不换算。
+    </p>
+    <el-table :data="topic.readings" :row-class-name="rowClass">
+      <el-table-column label="对象 / 指标" min-width="240">
+        <template #default="{ row }">
+          <span v-if="row.withheld" class="muted">{{ row.withheld }}</span>
+          <span v-else>{{ row.object }} · {{ row.metric }}</span>
+          <span v-if="row.scope" class="muted">（{{ row.scope }}）</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="数值" width="140">
+        <template #default="{ row }">{{ valueText(row) }}</template>
+      </el-table-column>
+      <el-table-column label="期间" prop="period" width="130" />
+      <el-table-column label="核验" width="100">
+        <template #default="{ row }"><StatusTag kind="readingCheck" :value="row.check" /></template>
+      </el-table-column>
+      <el-table-column label="比较" width="90">
+        <template #default="{ row }"
+          ><span :title="row.reasons.join('、')">{{ row.comparable ? "可比" : "不比较" }}</span></template
+        >
+      </el-table-column>
+      <el-table-column label="原文" prop="quote" min-width="240" show-overflow-tooltip />
+      <el-table-column label="来源" min-width="160">
+        <template #default="{ row }">{{ row.source }} {{ row.record_id }}</template>
+      </el-table-column>
+    </el-table>
 
     <h3>观察到的材料</h3>
     <ObservationTable :rows="topic.observations" />

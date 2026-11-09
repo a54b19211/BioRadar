@@ -45,8 +45,9 @@ function what(r: AnalysisFull["reviews"][number]) {
       <el-table-column label="句" prop="index" width="60" />
       <el-table-column label="句子" prop="text" min-width="320" />
       <el-table-column label="核验" width="110">
-        <template #default="{ row }"><StatusTag :value="row.verdict" /></template>
+        <template #default="{ row }"><StatusTag kind="claimVerdict" :value="row.verdict" /></template>
       </el-table-column>
+      <el-table-column label="核验意见" prop="reason" min-width="160" />
       <el-table-column label="引用" width="140">
         <template #default="{ row }"><CiteLink v-for="c in row.citations" :key="c" :id="c" /></template>
       </el-table-column>

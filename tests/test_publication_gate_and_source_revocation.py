@@ -1,7 +1,8 @@
 """The two chain-1 defects that may not be waived, shown by fault injection, no model (fixed: see
 docs/decisions/0005-publication-gate-and-own-source-revocation.md); CHAIN1_DEFECT_OUTPUT (optional) receives
 what actually happened, as evidence.
-1. publication gate: a report whose check did not run is held as 待核 (pending_verification), not delivered;
+1. verification mark: a report whose check did not run is marked 待核 (pending_verification) and is delivered
+   with that mark, never as a finished report;
 2. own-source revocation: evidence of a source revoked after it was read never goes out again."""
 
 import json
@@ -51,7 +52,7 @@ def run_with(monkeypatch, biocheck, fabric=None):
     return Run(row, settings(), fabric=fabric or FakeFabric(RECORDS)).run()
 
 
-def test_a_report_whose_check_did_not_run_is_held_as_pending_not_delivered(monkeypatch):
+def test_a_report_whose_check_did_not_run_is_marked_pending(monkeypatch):
     def biocheck(s, operation, body):
         if operation == "generate":
             return {"draft": "同一试验更正后PFS的HR为0.69[E1]。", "llm_calls": []}
@@ -69,7 +70,7 @@ def test_a_report_whose_check_did_not_run_is_held_as_pending_not_delivered(monke
         },
     )
     assert result["report_status"] == "NOT_RUN"  # the check did not run ...
-    # ... so nothing is delivered as a finished report: it is held as 待核, explicitly not publishable
+    # ... so it is not delivered as a finished report: it is marked 待核, explicitly not publishable
     assert result.get("publishable") is False and result.get("hold") == "pending_verification"
 
 
@@ -128,7 +129,7 @@ def test_a_passed_report_is_publishable(monkeypatch):
     assert (result["publishable"], result["hold"], result["hold_reason"]) == (True, None, None)
 
 
-def test_a_held_report_shows_its_hold_and_not_its_draft_in_any_exit(monkeypatch, fabric_sources):  # noqa: F811
+def test_a_pending_report_shows_its_draft_and_the_mark_in_every_exit(monkeypatch, fabric_sources):  # noqa: F811
     from test_access import admin_client
 
     from bioradar import app
@@ -139,27 +140,49 @@ def test_a_held_report_shows_its_hold_and_not_its_draft_in_any_exit(monkeypatch,
         raise services.ServiceError("biocheck", "timeout")
 
     result = run_with(monkeypatch, biocheck)
-    assert result["hold_reason"] == "biocheck_timeout" and result["assessment"]  # kept for re-verification
+    assert result["hold_reason"] == "biocheck_timeout" and result["assessment"]
     with db.session() as s:  # as analyses.execute stores it
         row = s.scalars(select(db.Analysis)).one()
         row.state, row.result, analysis_id = "completed", result, row.id
-    fabric_sources["value"] = ["external_archive"]  # every source readable: only the gate decides
+    fabric_sources["value"] = ["external_archive"]  # every source readable
     app._readable.update(at=None, sources=None)
     admin = admin_client()
     detail = admin.get(f"/api/analyses/{analysis_id}").json()["result"]
-    assert (detail["publishable"], detail["hold"], detail["hold_reason"]) == (
-        False,
-        "pending_verification",
-        "biocheck_timeout",
-    )
-    assert detail["draft"] == "" and detail["assessment"] is None
-    assert all(v["draft"] == "" for v in detail["review"]["versions"])
+    mark = (detail["report_status"], detail["publishable"], detail["hold"], detail["hold_reason"])
+    assert mark == ("NOT_RUN", False, "pending_verification", "biocheck_timeout")
+    assert detail["draft"] == "未核验的稿件句子[E1]。" and detail["assessment"] == result["assessment"]
+    assert [v["draft"] for v in detail["review"]["versions"]] == ["未核验的稿件句子[E1]。"]
     listed = admin.get("/api/analyses").json()[0]["result"]
-    assert listed["assessment"] is None and listed["hold"] == "pending_verification"
+    assert listed["assessment"] == result["assessment"] and listed["hold"] == "pending_verification"
     export = admin.get(f"/api/analyses/{analysis_id}/export").text
-    assert "未核验的稿件句子" not in export and "报告待核：biocheck_timeout" in export
-    with db.session() as s:  # nothing stored is changed by the gate
+    assert "未核验的稿件句子" in export and "报告待核：核验状态 NOT_RUN，biocheck_timeout" in export
+    fabric_sources["value"] = []  # the source is revoked: the permission still withholds the words
+    app._readable.update(at=None, sources=None)
+    detail = admin.get(f"/api/analyses/{analysis_id}/export").text
+    assert "未核验的稿件句子" not in detail and "报告待核：核验状态 NOT_RUN" in detail
+    withheld = admin.get(f"/api/analyses/{analysis_id}").json()["result"]
+    assert withheld["draft"] == "" and withheld["withheld"] and withheld["hold"] == "pending_verification"
+    with db.session() as s:  # nothing stored is changed
         assert s.get(db.Analysis, analysis_id).result["draft"] == "未核验的稿件句子[E1]。"
+
+
+def test_the_export_of_a_pending_report_lists_the_sentences_its_check_did_not_support(fabric_sources):  # noqa: F811
+    from test_access import admin_client
+
+    claims = [
+        {"index": 1, "text": "第一句有来源", "verdict": "supported", "citations": ["E1"]},
+        {"index": 2, "text": "第二句无来源", "verdict": "insufficient", "citations": [], "reason": "no_cite"},
+    ]
+    draft = "第一句有来源[E1]。第二句无来源。"
+    stored = {"report_status": "REVIEW", "draft": draft, "review": {"claims": claims}}
+    row = analyses.create(question="XQ-17 的PFS怎样？", direction="pipeline", is_demo=True, enqueue=False)
+    with db.session() as s:
+        analysis = s.get(db.Analysis, row.id)
+        analysis.state, analysis.result = "completed", stored
+    export = admin_client().get(f"/api/analyses/{row.id}/export").text
+    assert "报告待核：核验状态 REVIEW，biocheck_review" in export and "第二句无来源[E1]" not in export
+    assert export.endswith("- 第 2 句（insufficient）第二句无来源 no_cite")
+    assert "第 1 句" not in export  # a sentence the check supported is not listed
 
 
 def test_a_resumed_run_checks_its_own_sources_again_before_anything_goes_out(monkeypatch):

@@ -39,6 +39,29 @@ const maps = {
   },
   level: { low: "低", medium: "中", high: "高", urgent: "紧急" },
   judgmentCheck: { supported: "核验通过", contradicted: "与原文矛盾", unverified: "未核验通过" },
+  // BioCheck's status of a whole report (result.report_status): anything but PASS is shown, marked 待核
+  reportStatus: { PASS: "核验通过", REVIEW: "待复核", FAIL: "核验未过", NOT_RUN: "未核验" },
+  // BioCheck's verdict on one sentence of the report
+  claimVerdict: {
+    supported: "核验通过",
+    contradicted: "与原文矛盾",
+    insufficient: "证据不足",
+    no_claim: "无需核验",
+  },
+  // the check of a measured reading (Fabric's check.status, SeriesPoint.check_status)
+  readingCheck: { consistent: "已核一致", inconsistent: "有冲突", unchecked: "未核" },
+  // why a report or a topic's level is marked 待核 (hold_reason); other reasons are shown as they are
+  hold: {
+    not_checked: "核验没有运行",
+    biocheck_review: "核验提出需复核的问题",
+    biocheck_fail: "核验未通过",
+    biocheck_timeout: "核验超时",
+    no_analysis: "还没有分析",
+    analysis_queued: "分析排队中",
+    analysis_running: "分析运行中",
+    analysis_failed: "分析失败",
+    analysis_owed: "有新材料，等待重新分析",
+  },
   checkStatus: { open: "未查清", answered: "已回答", conflict: "有冲突" },
   mechanismStatus: { not_run: "未运行", failed: "失败", completed: "已完成" },
   // why the mechanism stage did not run (MECH_NOT_RUN_REASONS in research/state.py)
@@ -116,6 +139,10 @@ const colors: Record<string, TagType> = {
   supported: "success",
   contradicted: "danger",
   unverified: "warning",
+  insufficient: "warning",
+  consistent: "success",
+  inconsistent: "danger",
+  unchecked: "warning",
   // alert, priority, confidence, topic state
   none: "info",
   normal: "info",

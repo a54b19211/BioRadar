@@ -12,8 +12,17 @@ import hashlib
 
 from bioradar.adapters.fabric import FabricError
 
-KINDS = ("created", "superseded_by_processor", "corrected", "retracted", "correction_withdrawn")
+KINDS = (
+    "created",
+    "superseded_by_processor",
+    "rechecked_by_checker",
+    "corrected",
+    "retracted",
+    "correction_withdrawn",
+)
+SUPERSEDING = ("superseded_by_processor", "rechecked_by_checker")
 CHECKER = "biocheck.extraction_rules.v17"
+NOT_CHECKED = "unchecked"  # the checker_version of an object no check has answered yet (Fabric's placeholder)
 
 
 def hexid(*parts):
@@ -72,7 +81,8 @@ class Measured:
         seen="2026-10-29T00:00:00+00:00",
         quote=None,
     ):
-        """One checked object of a fixed version (its created event is in the feed). Returns its id."""
+        """One object of a fixed version (its created event is in the feed), marked by its check: consistent,
+        inconsistent, or unchecked (a placeholder no check answered). Returns its id."""
         mid = hexid("measurement", source, record, version, value, metric, obj, period, len(self.objects))
         quote = quote or f"截至2026年10月28日，{obj}{scope}累计共{metric}{value}{unit}"
         dims = [{"kind": "disease", "value": "马尔堡病毒病", "check": "match"}] if dims is None else dims
@@ -120,7 +130,7 @@ class Measured:
             "dims": [dict({"start": 0, "end": len(d["value"])}, **d) for d in dims],
             "dims_unlocated": list(unlocated),
             "check": {
-                "checker_version": CHECKER,
+                "checker_version": NOT_CHECKED if check == "unchecked" else CHECKER,
                 "contract_version": "extraction_consistency.v3",
                 "run_id": "r-" + mid[:6],
                 "status": check,
@@ -147,8 +157,12 @@ class Measured:
             mid, "correction_withdrawn", cause_source=by_source, cause={"source_id": by_source}
         )
 
-    def supersede(self, mid, by):
-        return self._event(mid, "superseded_by_processor", by=by)
+    def supersede(self, mid, by, kind="superseded_by_processor"):
+        return self._event(mid, kind, by=by)
+
+    def recheck(self, mid, by):
+        """The check answered: the object `by` takes this one's place (Fabric's rechecked_by_checker)."""
+        return self.supersede(mid, by, "rechecked_by_checker")
 
     # ---- what the radar reads ----------------------------------------------------------------------------
 
@@ -199,7 +213,7 @@ class Measured:
             if "cause" in e:
                 summary["cause"] = e["cause"]
             applied.append(summary)
-            if e["kind"] == "superseded_by_processor":
+            if e["kind"] in SUPERSEDING:
                 status = {"state": "superseded", "reason": e["kind"], "superseded_by": e["superseded_by"]}
             elif e["kind"] == "correction_withdrawn":
                 active.clear()
@@ -230,7 +244,7 @@ class Measured:
             current=current,
             not_current_reason=None if current else status["state"],
             unresolved_corrections=[],
-            versions=self._versions(),
+            versions=dict(self._versions(), checker=body["check"]["checker_version"]),
         )
 
     def measurements(self, source, version_ids, *, is_demo, mode, cutoff, include_history=False):

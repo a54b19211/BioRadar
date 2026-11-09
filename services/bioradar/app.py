@@ -493,8 +493,9 @@ def redact_observation(row: dict, readable) -> dict:
 
 def redact_topics(values: list[dict]) -> list[dict]:
     """Topics and their observations copy record titles and triage text: a topic created from a record
-    whose source cannot be read now shows no title; such records' titles, reasons and event details
-    (titles, object names) are withheld. Record ids, states and numbers stay."""
+    whose source cannot be read now shows no title; such records' titles, reasons, event details
+    (titles, object names) and readings (object, metric, quote) are withheld. Record ids, states and numbers
+    stay."""
     readable = readable_sources()
     with db.session() as s:
         created = dict(
@@ -524,6 +525,10 @@ def redact_topics(values: list[dict]) -> list[dict]:
                         if key in e:
                             e[key] = [] if isinstance(e[key], list) else ""
                     e["withheld"] = withheld(sources.get(record, ""), readable)
+        for r in v.get("readings", []):  # a reading quotes its record: same rule as the events
+            why = withheld(r["source"], readable)
+            if why:
+                r.update(object="", metric="", scope="", unit="", quote="", withheld=why)
         out.append(v)
     return out
 
@@ -674,13 +679,14 @@ def evidence(analysis_id: str, ref: str):
 
 
 def held_notice(result) -> str:
-    """The export's line for a report the gate holds (views.publication): never its draft as a finished
-    report."""
+    """The export's line above the draft of a report that is marked 待核 (views.publication): the draft goes
+    out with it, never as a finished report."""
     if result.get("publishable") is not False:
         return ""
+    status, reason = result.get("report_status", "NOT_RUN"), result.get("hold_reason") or "未通过核验"
     return (
-        f"（报告待核：{result.get('hold_reason') or '未通过核验'}。未通过 BioCheck 核验的稿件不作为成稿导出，"
-        "原稿和评估保留，待重新核验）"
+        f"（报告待核：核验状态 {status}，{reason}。"
+        "以下稿件没有通过 BioCheck 核验，不是定稿；核验意见附在文末）"
     )
 
 
@@ -688,13 +694,15 @@ def held_notice(result) -> str:
 def export(analysis_id: str):
     value = redact(analyses.view(analyses.get(analysis_id), full=True))
     result = value["result"] or {}
+    held = held_notice(result)
     lines = [
         f"# {value['question']}",
         "",
         f"- 方法：{value['method']}　状态：{value['state']}　核验：{result.get('report_status', 'NOT_RUN')}",
         f"- 截止时间：{value['cutoff'] or '当前'}　模型调用：{result.get('usage', {}).get('llm_calls', 0)}",
         "",
-        result.get("withheld") or held_notice(result) or result.get("draft") or "（没有生成报告）",
+        *([held, ""] if held else []),
+        result.get("withheld") or result.get("draft") or "（没有生成报告）",
         "",
         "## 材料",
         "",
@@ -717,6 +725,13 @@ def export(analysis_id: str):
                 f"置信 {j['confidence']}，真实性 {j['credibility']}，"
                 f"后果 {j['consequence']}，优先级 {j['priority']}）待证实：{j['unproven']}"
             )
+    # BioCheck's opinion on the sentences it did not support, so a draft marked 待核 says where it is weak
+    claims = [c for c in (result.get("review") or {}).get("claims") or [] if c.get("verdict") != "supported"]
+    if claims:
+        lines += ["", "## 逐句核验意见（未通过的句子）", ""]
+        for c in claims:
+            says = f"{c.get('text', '')} {c.get('reason') or ''}".strip()
+            lines.append(f"- 第 {c.get('index')} 句（{c.get('verdict')}）{says}")
     return "\n".join(lines)
 
 

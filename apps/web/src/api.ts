@@ -82,6 +82,10 @@ export interface Note {
 
 export interface Result {
   report_status: "PASS" | "REVIEW" | "FAIL" | "NOT_RUN";
+  // the verification mark: publishable is false for every report that did not pass (shown as 待核, not hidden)
+  publishable: boolean;
+  hold: string | null;
+  hold_reason: string | null;
   draft: string;
   assessment: { alert: Alert; judgments: Judgment[] } | null;
   checks: Check[];
@@ -215,6 +219,29 @@ export interface Topic {
   first_seen_at: string;
   last_activity_at: string;
   last_analysis_id: string | null;
+  // the mark of its level: publishable is false until its latest analysis passed (the level is shown all the same)
+  publishable: boolean;
+  hold: string | null;
+  hold_reason: string | null;
+}
+
+// One reading of a topic, a point of its series, with the mark of its check. A reading whose source cannot be
+// read now has no words (object, metric, quote) and says why in `withheld`.
+export interface Reading {
+  id: string;
+  object: string;
+  metric: string;
+  scope: string;
+  value: string;
+  unit: string; // "unknown" when the check could not find one
+  period: string;
+  source: string;
+  record_id: string;
+  quote: string;
+  check: "consistent" | "inconsistent" | "unchecked";
+  comparable: boolean; // only a reading with a complete, proven domain is compared
+  reasons: string[];
+  withheld?: string;
 }
 
 // An event is { at, kind } plus the keys of its detail, which depend on the kind.
@@ -246,6 +273,7 @@ export interface Observation {
 export interface TopicFull extends Topic {
   events: TopicEvent[];
   observations: Observation[];
+  readings: Reading[];
 }
 
 export interface TickSummary {
