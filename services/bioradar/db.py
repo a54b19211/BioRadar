@@ -431,6 +431,10 @@ class Observation(Base):
     reason: Mapped[str] = mapped_column(Text, default="")
     # what daily activity counts once: a repost's original, else the same-origin group, else itself
     activity_key: Mapped[str | None] = mapped_column(String(700))
+    # the triage model's view of the record (research/triage.py): whether it is medical or public-health
+    # intelligence at all - related | unrelated | uncertain - and in which direction; null: no model judged it
+    relevance: Mapped[str | None] = mapped_column(String(12))
+    direction: Mapped[str | None] = mapped_column(String(20))
 
 
 class RecordCorrection(Base):

@@ -15,6 +15,10 @@ and still takes part in the ranking, task book 00 1.4), and only a group that al
 another source counts its leads. A lead is no day of the baseline. The view lists the cutoff day's leads
 apart (`leads`).
 
+What the triage model judged of a material is read as stored (observations.relevance), never asked here: a
+material it judged unrelated is no material of any group, one it was unsure of (uncertain) stays and carries
+the mark in its row, and a record whose triage failed was judged by no one, so it stays as it was.
+
 Everything is dated by when the radar could know it: a material by its `available_at`, a link by the later of
 its two ends. A view is built from what was visible at its cutoff only, so a replay never shows a link that a
 later material made. `select_display` chooses, by fixed keys, the group the first judgment is about."""
@@ -24,7 +28,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 
 from bioradar import db
 from bioradar.adapters.fabric import LEAD_SOURCES
@@ -46,6 +50,8 @@ CHUNK = 500
 MAX_LEADS = 2000
 LEAD_ROWS = 20  # the newest leads of the day that a view lists; the count is of all of them
 SEED_RECORDS = 8  # the records a chosen group without a topic seeds the first judgment with (as a topic does)
+# the observations a view reads: not those the triage model judged unrelated (null: judged by no one)
+JUDGED_RELATED = or_(db.Observation.relevance.is_(None), db.Observation.relevance != "unrelated")
 
 
 @dataclass(frozen=True)
@@ -67,6 +73,7 @@ class Material:
     relations: tuple[tuple[str, str, str], ...] = ()  # (kind, target source, target record id)
     mentions: tuple[tuple[str, str], ...] = ()  # (source, record id) the text names outright
     topics: tuple[str, ...] = ()  # the topics that hold this version
+    relevance: str = ""  # the triage model's: related | uncertain; "" is judged by no one (never unrelated)
 
 
 @dataclass(frozen=True)
@@ -226,6 +233,7 @@ def _row(m: Material) -> dict:
         "record_id": m.record_id,
         "available_at": m.available_at.isoformat(),
         "background": m.background,
+        "relevance": m.relevance,
     }
 
 
@@ -520,6 +528,7 @@ def _newest(session, s: Settings, *, is_demo: bool, cutoff: datetime, of_leads: 
                 db.Observation.workspace_id == s.workspace_id,
                 db.Observation.is_demo == is_demo,
                 lead if of_leads else ~lead,
+                JUDGED_RELATED,
                 db.Observation.available_at <= cutoff,
                 db.Observation.available_at >= cutoff - KEY_WINDOW,
             )
@@ -562,6 +571,7 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
                 quote=quote,
                 relations=tuple(sorted(stated)),
                 topics=(o.topic_id,) if o.topic_id else (),
+                relevance=o.relevance or "",
             )
         )
     return materials, truncated
@@ -591,13 +601,19 @@ def leads(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) 
             db.Observation.workspace_id == s.workspace_id,
             db.Observation.is_demo == is_demo,
             db.Observation.source == source,
+            JUDGED_RELATED,
             db.Observation.available_at >= start,
             db.Observation.available_at <= cutoff,
         )
         news = (*day, db.Observation.version_id.not_in(list(background)))
         total, count = (session.scalar(select(func.count()).where(*scope)) for scope in (day, news))
         newest = session.execute(
-            select(db.Observation.version_id, db.Observation.record_id, db.Observation.available_at)
+            select(
+                db.Observation.version_id,
+                db.Observation.record_id,
+                db.Observation.available_at,
+                db.Observation.relevance,
+            )
             .where(*news)
             .order_by(db.Observation.available_at.desc(), db.Observation.id.desc())
             .limit(LEAD_ROWS)
@@ -612,8 +628,9 @@ def leads(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) 
                     "source": source,
                     "record_id": record,
                     "available_at": utc(at).isoformat(),
+                    "relevance": relevance or "",
                 }
-                for version, record, at in newest
+                for version, record, at, relevance in newest
             ],
         }
     return found

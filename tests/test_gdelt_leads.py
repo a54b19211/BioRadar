@@ -1,6 +1,6 @@
-"""GDELT leads in the candidate-group view (task book 05, step 1; docs/decisions/0016): the program observes
-them, the view lists them apart and counts none as a member, a backfill's are left out, the gaps of the day's
-windows are registered."""
+"""GDELT leads in the candidate-group view (task book 05, step 1; docs/decisions/0016): the triage judges
+them for relevance alone, the view lists them apart and counts none as a member, a backfill's are left out,
+the gaps of the day's windows are registered."""
 
 import json
 from datetime import UTC, datetime, timedelta
@@ -28,24 +28,45 @@ def lead(name, **fields):
     return record(name, "两家医院确认7例", "两家医院确认7例", source="gdelt_doc", **fields)
 
 
-def test_a_lead_is_observed_by_the_program_whatever_its_title_says_and_a_backfilled_one_stays_background(
-    monkeypatch,
-):
+def test_a_lead_is_triaged_for_relevance_alone_and_a_backfilled_one_stays_background(monkeypatch):
     sent = []
-    monkeypatch.setattr(llm, "chat_json", triage_by_title(sent))
+    base = triage_by_title(sent)
+
+    def judged(settings_, stage, system, payload, model_cls, **options):
+        triaged, call = base(settings_, stage, system, payload, model_cls, **options)
+        for item, r in zip(triaged.items, payload["records"]):
+            item.related = "unrelated" if "封锁" in r["title"] else "related"
+            item.reason = "判断理由"
+        return triaged, call
+
+    monkeypatch.setattr(llm, "chat_json", judged)
     monkeypatch.setattr(settings(), "demo_sources", ["gdelt_doc"])
     monkeypatch.setattr(settings(), "backfill_run_ids", ["run-1"])
     news, backfilled = lead("G1", available=DAY.format(3)), lead("G2", available=DAY.format(1))
-    fabric = FakeFabric([news, backfilled])
+    politics = record(
+        "G3", "某海峡封锁引发油价上涨", "某海峡封锁", source="gdelt_doc", available=DAY.format(4)
+    )
+    fabric = FakeFabric([news, backfilled, politics])
     fabric.background_version_ids = lambda run_ids: ({backfilled["version_id"]}, [])
 
     ran = monitor.tick(is_demo=True, fabric=fabric)
 
-    assert ran["routed"] == {"news_index_lead": 1, "background_backfill": 1}
-    assert sent == [] and _topics() == []  # no model call; a triage would have opened a topic on the alert
+    assert ran["routed"] == {"triage": 2, "background_backfill": 1}
+    assert [[r["title"] for r in payload["records"]] for payload in sent] == [
+        ["两家医院确认7例", "某海峡封锁引发油价上涨"]
+    ]
+    # the model would have opened a topic on the alert of G1; a lead joins none and raises none
+    assert _topics() == []
     with db.session() as session:
-        seen = {o.record_id: (o.topic_id, o.alert, o.reason) for o in session.scalars(select(db.Observation))}
-    assert seen == {"G1": (None, "none", "news_index_lead"), "G2": (None, "none", "background_backfill")}
+        seen = {
+            o.record_id: (o.topic_id, o.alert, o.reason, o.relevance)
+            for o in session.scalars(select(db.Observation))
+        }
+    assert seen == {
+        "G1": (None, "none", "判断理由", "related"),
+        "G3": (None, "none", "判断理由", "unrelated"),
+        "G2": (None, "none", "background_backfill", None),  # settled by the program: judged by no model
+    }
 
 
 def test_a_lead_is_listed_apart_and_no_count_start_or_first_seen_of_the_display_group_takes_it_in():
@@ -84,6 +105,7 @@ def test_a_lead_is_listed_apart_and_no_count_start_or_first_seen_of_the_display_
                     "source": "gdelt_doc",
                     "record_id": "G1",
                     "available_at": day(3).isoformat(),  # when the radar could first read it
+                    "relevance": "",  # judged by no one
                 }
             ],
         }
@@ -96,6 +118,23 @@ def test_a_lead_is_listed_apart_and_no_count_start_or_first_seen_of_the_display_
         day(1).isoformat(),
         day(1).isoformat(),
     )
+
+
+def test_what_the_triage_judged_unrelated_is_in_no_group_and_what_it_was_unsure_of_stays_marked():
+    unsure = observation("L1", "G1", day(3), None, source="gdelt_doc")
+    off_topic = observation("L2", "G2", day(3), None, source="gdelt_doc")
+    failed = observation("v1", "D1", day(1), None)  # its triage failed: judged by no one, never unrelated
+    unsure.relevance, off_topic.relevance, failed.reason = "uncertain", "unrelated", "triage_failed"
+    with db.session() as session:
+        session.add_all([unsure, off_topic, failed, db.Cursor(source="gdelt_doc", is_demo=True, after_seq=2)])
+        session.flush()
+        found = groups.for_selection(session, settings(), is_demo=True, cutoff=CUTOFF, background=set())
+
+    rows = {m["version_id"]: m for g in found["groups"] for m in g["members"]}
+    assert {v: m["relevance"] for v, m in rows.items()} == {"v1": "", "L1": "uncertain"}  # no L2
+    assert [(g["rank"]) for g in found["selection"]["ranking"]] == [1, 2]
+    leads = found["selection"]["coverage"]["leads"]["gdelt_doc"]
+    assert (leads["count"], [r["relevance"] for r in leads["listed"]]) == (1, ["uncertain"])
 
 
 def test_a_group_of_leads_alone_confirms_nothing_yet_takes_part_in_the_ranking():

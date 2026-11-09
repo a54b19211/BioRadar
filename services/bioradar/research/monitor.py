@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 
 from bioradar import db
-from bioradar.adapters.fabric import Fabric
+from bioradar.adapters.fabric import LEAD_SOURCES, Fabric
 from bioradar.config import settings
 from bioradar.research import analyses, series_sync
 from bioradar.research.clock import parse_time
@@ -25,7 +25,6 @@ from bioradar.research.triage import (
     route,
     settle_attachments,
     settle_background,
-    settle_leads,
 )
 
 log = logging.getLogger("bioradar")
@@ -74,7 +73,8 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         if deferred:
             routed[DEFERRED] = routed.get(DEFERRED, 0) + deferred
     if not paused:  # the objects of the versions placed now, in case their events are not in the feed yet
-        series_sync.link_versions(s, fabric, triage_docs, is_demo=is_demo, cutoff=cutoff)
+        placed = [d for d in triage_docs if d["source"] not in LEAD_SOURCES]  # a lead is placed in no topic
+        series_sync.link_versions(s, fabric, placed, is_demo=is_demo, cutoff=cutoff)
     measured = series_sync.sync(s, fabric, is_demo=is_demo, cutoff=cutoff)  # no model call: never paused
     _move_cursors(ends, docs, is_demo)
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
@@ -153,7 +153,6 @@ def _route_documents(docs, is_demo):
         routed[reason or "triage"] = routed.get(reason or "triage", 0) + 1
     triage_docs = [d for d in docs if route(d) is None]
     settle_attachments(docs, is_demo=is_demo)
-    settle_leads(docs, is_demo=is_demo)
     if len(triage_docs) < len(docs):
         log.info("monitor routing %s", routed)
     return routed, triage_docs

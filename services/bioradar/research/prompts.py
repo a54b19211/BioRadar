@@ -95,5 +95,7 @@ TRIAGE = (
 - 记录开头的【与上一版相比的登记变化】是程序逐字段比对同一登记号两个固定版本的结果，可以直接作为“登记发生了什么变化”的依据；但登记状态改为终止/暂停/撤回、日期推迟、入组人数变化，本身不等于药物失败、疗效或安全结论，除非登记写明了原因（whyStopped）或结果。按登记写的如实定 signal（终止填 trial_stop，结果公布填 trial_result），不要推断原因。
 - signal：这条记录是哪类信号（capacity 产能/厂房、hiring 招聘、financing 融资、deal 并购授权、filing 申报受理、approval 批准、rejection 不批准/CRL、trial_start/trial_result/trial_stop 试验开始/结果/终止、publication 论文、policy 政策、outbreak 疫情、safety 安全事件、other 其他）。
 - objects：记录说到的具体对象（公司、药物、靶点、适应症、试验、地点、事件）。
-- watch：归入的已有专题有 watch 列表时，这条记录正好是其中某条待验证信号（证实或证伪）就填它的编号，否则留空。"""
+- watch：归入的已有专题有 watch 列表时，这条记录正好是其中某条待验证信号（证实或证伪）就填它的编号，否则留空。
+- related：这条记录是否属于医药或公共卫生情报：related 属于，unrelated 明确不属于，uncertain 拿不准或材料不足（例如只有标题）。只有明确无关才判 unrelated。
+- reason：一句话写判断理由。"""
 )

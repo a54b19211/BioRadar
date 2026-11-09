@@ -35,9 +35,6 @@ DEFERRED = "triage_deferred"
 RETRYABLE = ("triage_failed", DEFERRED)
 # A version a Fabric backfill run created is background, not news: the program settles it, no triage.
 BACKGROUND = "background_backfill"
-# A record of a lead source (a news index: adapters.fabric.LEAD_SOURCES) is a lead, not news about a topic:
-# the program observes it, with no triage and no topic, and the candidate groups' view lists it apart.
-LEAD = "news_index_lead"
 # The sources Fabric backfills (flows.who_backfill reads WHO Disease Outbreak News only): what a backfill
 # run's receipt can name. A run whose receipt cannot be read leaves its versions among this source's.
 BACKFILL_SOURCES = frozenset({"who_don"})
@@ -49,7 +46,8 @@ RECENT_UPDATE_DAYS = 7
 def route(doc) -> str | None:
     """Whether a record goes to model triage (None) or is settled by the program (the reason).
 
-    A record of a lead source is a lead (LEAD) whatever its title says: it is not triaged.
+    A record of a lead source (a news index: adapters.fabric.LEAD_SOURCES) is triaged like any other, for its
+    relevance alone: it joins no topic and raises no alert (_record_batch).
 
     Trial registries are settled by Fabric's field-by-field diff against the previous version: a version
     whose changes are all minor (contact or site list edits, wording, a start date moved) needs no model.
@@ -62,8 +60,6 @@ def route(doc) -> str | None:
     Attachment versions (v3 3.3a): triaged only with their parsed text. Not parsed yet (or Fabric unable to
     say) -> attachment_pending, kept for the retry path; parsing finally failed or the format is unsupported
     -> attachment_unparsed, recorded as a gap. An attachment is never triaged with an empty text."""
-    if doc["source"] in LEAD_SOURCES:
-        return LEAD
     if doc.get("role") == "attachment":
         return _route_attachment(doc)
     if doc.get("registry_diff") is None or doc.get("retry"):  # no diff declared for the source, or a retry
@@ -154,25 +150,6 @@ def settle_attachments(docs, *, is_demo: bool):
                     reason=text,
                 )
             )
-
-
-def settle_leads(docs, *, is_demo: bool):
-    """Observe the records routed as leads and leave them at that: no topic, no alert, no model call. A lead
-    is no member of a candidate group (research/groups.py lists it apart). An owed triage mark of an earlier
-    configuration is replaced, not doubled."""
-    s = settings()
-    with db.session() as session:
-        for doc in docs:
-            if route(doc) != LEAD:
-                continue
-            session.execute(
-                delete(db.Observation).where(
-                    db.Observation.version_id == doc["version_id"], db.Observation.reason.in_(RETRYABLE)
-                )
-            )
-            row = _observation(s, doc, None, None, "none", parse_time(doc["available_at"]), is_demo)
-            row.reason = LEAD
-            session.add(row)
 
 
 def defer(docs, *, is_demo: bool) -> int:
@@ -415,12 +392,17 @@ def _feed(session, fabric, sources, docs, *, is_demo, room):
     return ends, bool(scan.more)
 
 
-def triage(s: Settings, docs, topics, watch=None, reads=None):
-    """One triage call for a batch of records. reads: when given, a list filled with the material_read id of
-    each record's window, in order."""
+def window(doc):
+    """What a model reads of a record's text in a triage call, and of a seed in the plan: the first
+    TRIAGE_CHARACTERS, with the notice when it is not the cleaned text."""
+    return noticed(of(doc).slice(0, TRIAGE_CHARACTERS), doc.get("clean_text_state"))
+
+
+def triage_payload(docs, topics, watch=None):
+    """(what one triage call sends for a batch of records, the window of each record's text in it). The
+    analysis run asks the same for its seeds (research/run/seeds.py)."""
     watch = watch or {}
-    # what the model reads of each record, with the notice when it is not the cleaned text
-    windows = [noticed(of(d).slice(0, TRIAGE_CHARACTERS), d.get("clean_text_state")) for d in docs]
+    windows = [window(d) for d in docs]
     payload = {
         "topics": [
             {"index": i, "title": t.title, "state": t.state, "watch": watch.get(t.id, [])}
@@ -439,6 +421,13 @@ def triage(s: Settings, docs, topics, watch=None, reads=None):
             for i, (d, w) in enumerate(zip(docs, windows), 1)
         ],
     }
+    return payload, windows
+
+
+def triage(s: Settings, docs, topics, watch=None, reads=None):
+    """One triage call for a batch of records. reads: when given, a list filled with the material_read id of
+    each record's window, in order."""
+    payload, windows = triage_payload(docs, topics, watch)
     # each record's window, recorded with its binding before it goes out (v3 6.1); settled after the call
     with db.session() as session:
         rows = [
@@ -508,8 +497,11 @@ def _record_batch(s, batch, decisions, topics, watch, wake, *, is_demo, backgrou
         touched = {}  # topic id -> latest record time in this batch, for the activity baseline
         for doc, item in zip(batch, decisions):
             at = parse_time(doc["available_at"])
-            alert = item.alert if item else "none"
-            topic = _topic_for(session, s, item, topics, alert, at, doc, is_demo)
+            # a lead (a news index's record) is judged for its relevance alone: it is no news about a topic,
+            # joins none, raises no alert and stays unverified whatever the model says of it
+            lead = doc["source"] in LEAD_SOURCES
+            alert = item.alert if item and not lead else "none"
+            topic = None if lead else _topic_for(session, s, item, topics, alert, at, doc, is_demo)
             session.execute(
                 delete(db.Observation).where(
                     db.Observation.version_id == doc["version_id"],
@@ -568,6 +560,9 @@ def _observation(s, doc, item, topic, alert, at, is_demo):
         closure=bool(item and item.closure),
         activity_key=activity_key(doc),
         reason=item.reason if item else "triage_failed",
+        # a failed call judged nothing: null, never "unrelated"
+        relevance=item.related if item else None,
+        direction=item.direction if item else None,
     )
 
 

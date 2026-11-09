@@ -154,7 +154,11 @@ class TriageItem(BaseModel):
     objects: list[PlanObject] = Field(default_factory=list, description="记录说到的具体对象")
     watch: str | None = Field(default=None, description="归入已有专题时，命中该专题哪条待验证信号（如W2）")
     closure: bool = Field(default=False, description="这条记录宣布该事件已结案或可以停止跟踪")
-    reason: str = ""
+    related: Literal["related", "unrelated", "uncertain"] = Field(
+        default="uncertain",
+        description="记录是否属于医药或公共卫生情报：related属于，unrelated明确不属于，uncertain拿不准或材料不足",
+    )
+    reason: str = Field(default="", description="一句话判断理由")
 
 
 class Triage(BaseModel):
