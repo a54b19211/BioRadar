@@ -1740,7 +1740,7 @@ def test_the_window_of_a_long_record_goes_from_the_reader_to_biocheck(monkeypatc
     risk = "The risk in the Democratic Republic of the Congo was assessed as very high."
     text = (
         "XQ-17 PFS的HR为0.69。\n"
-        + "\n".join(f"第{i}段背景说明。" + "无关内容" * 60 for i in range(60))
+        + "\n".join(f"第{i}段背景说明。" + "无关内容" * 60 for i in range(30))
         + "\n"
         + risk
         + "，"
@@ -1772,7 +1772,9 @@ def test_the_window_of_a_long_record_goes_from_the_reader_to_biocheck(monkeypatc
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
     monkeypatch.setattr(services, "biocheck", fake_biocheck)
     row = analyses.create(question="XQ-17 的PFS结果？", direction="pipeline", is_demo=True, enqueue=False)
-    run = Run(row, settings(), fabric=FakeFabric([record("L1", "XQ-17 长文", text)], clean=True))
+    # a record of 8,000 characters is long enough when the reader gets 5,000
+    short = settings().model_copy(update={"read_characters": 5000})
+    run = Run(row, short, fabric=FakeFabric([record("L1", "XQ-17 长文", text)], clean=True))
     run.run()
 
     def ranges_of(window, shown):
@@ -1783,7 +1785,7 @@ def test_the_window_of_a_long_record_goes_from_the_reader_to_biocheck(monkeypatc
         assert all(text[a : a + 10] in shown and text[b - 10 : b] in shown for a, b in window["ranges"])
         return window["ranges"]
 
-    assert len(reads) == 1 and len(text) > settings().read_characters
+    assert len(reads) == 1 and len(text) > short.read_characters
     read_ranges = ranges_of(reads[0]["window"], reads[0]["text"])
     assert len(biocheck) >= 2  # generate and verify
     for body in biocheck:
