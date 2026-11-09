@@ -426,7 +426,8 @@ def _base_question(session, topic, reason, cutoff):
         template.format(title=topic.title) + f"（触发：{reason}）"
         if template
         else f"专题“{topic.title}”出现新进展（{reason}）。基于目前可见的材料，现在应当怎样判断？"
-        "请区分已证实、待证实和被更正的内容，给出真实性置信、潜在后果和核实优先级，并指出最该补查的证据。"
+        "请区分已证实、待证实和被更正的内容，给出真实性、潜在影响（机会和风险都算）和核实优先级，"
+        "并指出最该补查的证据。"
     )
     seeds = [{"source": r.source, "record_id": r.record_id, "title": r.title} for r in records]
     return question, seeds

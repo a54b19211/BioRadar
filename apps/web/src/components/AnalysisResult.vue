@@ -40,10 +40,10 @@ const mechanismParts = computed(() =>
       <el-table-column label="置信" width="90">
         <template #default="{ row }"><StatusTag kind="confidence" :value="row.confidence" /></template>
       </el-table-column>
-      <el-table-column label="真实性置信" width="100">
+      <el-table-column label="真实性" width="100">
         <template #default="{ row }"><StatusTag kind="level" :value="row.credibility" /></template>
       </el-table-column>
-      <el-table-column label="潜在后果" width="90">
+      <el-table-column label="潜在影响" width="90">
         <template #default="{ row }"><StatusTag kind="level" :value="row.consequence" /></template>
       </el-table-column>
       <el-table-column label="核实优先级" width="100">

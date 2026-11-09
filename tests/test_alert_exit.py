@@ -20,6 +20,7 @@ def urgent_outbreak(settings_, stage, system, payload, model_cls, **options):
     item = schemas.TriageItem(
         index=1,
         new_topic="临岑聚集",
+        direction="public_health",
         alert="urgent",
         signal="outbreak",
         objects=[schemas.PlanObject(name="临岑医院", kind="place")],

@@ -20,11 +20,12 @@ def triage_by_title(sent):
         for r in payload["records"]:
             known = 1 if payload["topics"] else None
             if "噪声" in r["title"]:
-                items.append(schemas.TriageItem(index=r["index"], alert="none"))
+                items.append(schemas.TriageItem(index=r["index"], direction="public_health", alert="none"))
             else:
                 items.append(
                     schemas.TriageItem(
                         index=r["index"],
+                        direction="public_health",
                         topic=known,
                         new_topic="" if known else "临岑聚集",
                         alert="important" if "确认" in r["title"] else "normal",

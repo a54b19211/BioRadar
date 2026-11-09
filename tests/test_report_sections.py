@@ -272,7 +272,7 @@ def test_a_judgment_the_model_cannot_grade_says_unknown_in_the_result_the_view_a
     shown = admin.get(f"/api/analyses/{analysis_id}").json()["result"]
     assert shown["assessment"]["judgments"][0]["consequence"] == "unknown"
     assert by_kind(shown["sections"])["judgment"]["items"][0]["consequence"] == "unknown"
-    assert "真实性 未知，后果 未知" in admin.get(f"/api/analyses/{analysis_id}/export").text
+    assert "真实性 未知，潜在影响 未知" in admin.get(f"/api/analyses/{analysis_id}/export").text
 
 
 def test_the_words_of_the_sections_are_withheld_with_a_revoked_source_and_the_codes_stay(fabric_sources):  # noqa: F811

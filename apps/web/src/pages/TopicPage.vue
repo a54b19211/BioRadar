@@ -44,7 +44,7 @@ function describe(e: TopicEvent): string {
     case "created":
       return `首条记录 ${e.record}：${e.title}`;
     case "observed":
-      return `观察到记录 ${e.record}，警示${label("alert", e.alert)}${e.closure ? "，宣布结案" : ""}`;
+      return `观察到记录 ${e.record}，情报等级${label("alert", e.alert)}${e.closure ? "，宣布结案" : ""}`;
     case "alert":
       return `${label("alert", e.before)} → ${label("alert", e.after)}（${e.by}）`;
     case "state":

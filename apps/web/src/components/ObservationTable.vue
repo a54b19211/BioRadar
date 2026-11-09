@@ -15,7 +15,7 @@ defineProps<{ rows: Observation[] }>();
     <el-table-column label="可见时间" width="170">
       <template #default="{ row }">{{ fmt(row.available_at) }}</template>
     </el-table-column>
-    <el-table-column label="警示" width="80">
+    <el-table-column label="情报等级" width="100">
       <template #default="{ row }"><StatusTag kind="alert" :value="row.alert" /></template>
     </el-table-column>
     <el-table-column label="结案" width="70">

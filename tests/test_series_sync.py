@@ -47,10 +47,11 @@ def placing(monkeypatch):
     def chat_json(settings_, stage, system, payload, model_cls, **options):
         index = {t["title"]: t["index"] for t in payload["topics"]}
         items = [
-            schemas.TriageItem(index=r["index"], alert="none")
+            schemas.TriageItem(index=r["index"], direction="public_health", alert="none")
             if "噪声" in r["title"]
             else schemas.TriageItem(
                 index=r["index"],
+                direction="public_health",
                 topic=index.get(TOPIC),
                 new_topic="" if TOPIC in index else TOPIC,
                 alert="normal",

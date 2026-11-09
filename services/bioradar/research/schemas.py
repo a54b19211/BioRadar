@@ -45,7 +45,8 @@ class Plan(BaseModel):
     checks: list[PlanCheck]
     queries: list[PlanQuery]
     judgments: list[str] = Field(
-        default_factory=list, description="最后要给出明确判断的问题，如病原性质、是否人传人"
+        default_factory=list,
+        description="最后要给出明确判断的问题，如是否值得继续投入、机制是否成立、病原性质",
     )
     needs_calculation: bool = Field(default=False, description="回答需要程序计算比例、增减或利用率时为true")
     mechanism: PlanMechanism | None = None
@@ -105,12 +106,12 @@ class Judgment(BaseModel):
     conclusion: str = Field(description="一句话结论，未证实的写明待证实")
     confidence: Literal["insufficient", "possible", "probable", "confirmed"]
     credibility: Literal["low", "medium", "high", "unknown"] = Field(
-        description="真实性置信；评不了时写 unknown"
+        description="真实性的依据有多可靠；评不了时写 unknown"
     )
     consequence: Literal["low", "medium", "high", "unknown"] = Field(
-        description="若属实的潜在后果；评不了时写 unknown"
+        description="若属实可能带来的潜在影响，机会、收益、代价和风险都算；评不了时写 unknown"
     )
-    priority: Literal["low", "medium", "high", "urgent"] = Field(description="核实优先级")
+    priority: Literal["low", "medium", "high", "urgent"] = Field(description="核实优先级，值得多快去核实")
     grounds: list[str] = Field(default_factory=list, description="依据编号，如E2")
     unproven: str = Field(default="", description="还没有证实的部分和最能区分的下一项证据")
     basis_confidence: Literal["high", "medium", "low", ""] = Field(
@@ -135,7 +136,7 @@ class TriageItem(BaseModel):
     topic: int | None = Field(default=None, description="归入已有专题的序号；新事件填null")
     new_topic: str = Field(default="", description="不属于已有专题且值得跟踪时，给新专题一句话标题")
     direction: Literal["pipeline", "science", "business", "public_health"] = Field(
-        default="public_health", description="新专题的研究方向"
+        description="这条记录所属的研究方向，必填，不能不答"
     )
     alert: Literal["none", "normal", "important", "urgent"]
     signal: Literal[
@@ -157,10 +158,11 @@ class TriageItem(BaseModel):
     ] = Field(default="other", description="信号类型")
     objects: list[PlanObject] = Field(default_factory=list, description="记录说到的具体对象")
     watch: str | None = Field(default=None, description="归入已有专题时，命中该专题哪条待验证信号（如W2）")
-    closure: bool = Field(default=False, description="这条记录宣布该事件已结案或可以停止跟踪")
+    closure: bool = Field(default=False, description="这条记录说明该事项已经结束或可以停止跟踪")
     related: Literal["related", "unrelated", "uncertain"] = Field(
         default="uncertain",
-        description="记录是否属于医药或公共卫生情报：related属于，unrelated明确不属于，uncertain拿不准或材料不足",
+        description="记录是否属于医药 / 生命科学产业的情报："
+        "related属于，unrelated明确不属于，uncertain拿不准或材料不足",
     )
     reason: str = Field(default="", description="一句话判断理由")
 

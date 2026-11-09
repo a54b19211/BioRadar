@@ -35,7 +35,7 @@ watch(
     <el-table-column label="状态" width="90">
       <template #default="{ row }"><StatusTag kind="topicState" :value="row.state" /></template>
     </el-table-column>
-    <el-table-column label="警示" width="130">
+    <el-table-column label="情报等级" width="130">
       <template #default="{ row }">
         <StatusTag kind="alert" :value="row.alert" />
         <el-tag

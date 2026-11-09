@@ -32,9 +32,9 @@ export interface Judgment {
   question: string;
   conclusion: string;
   confidence: "insufficient" | "possible" | "probable" | "confirmed";
-  credibility: Level | "unknown"; // 真实性置信；评不了时 unknown
-  consequence: Level | "unknown"; // 潜在后果；评不了时 unknown
-  priority: Level | "urgent"; // 核实优先级
+  credibility: Level | "unknown"; // 真实性的依据；评不了时 unknown
+  consequence: Level | "unknown"; // 若属实的潜在影响（机会和风险都算）；评不了时 unknown
+  priority: Level | "urgent"; // 核实优先级，值得多快去核实
   grounds: string[]; // evidence refs, e.g. "E2"
   unproven: string;
   check?: "supported" | "contradicted" | "unverified"; // BioCheck on the conclusion; absent before T-13

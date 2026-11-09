@@ -33,6 +33,7 @@ def stand_in(sent, *, related=lambda title: "related", triage=True, plan=True):
             items = [
                 schemas.TriageItem(
                     index=r["index"],
+                    direction="public_health",
                     alert="none",
                     related=related(r["title"]),
                     reason="理由：" + r["title"][:12],

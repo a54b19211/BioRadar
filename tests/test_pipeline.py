@@ -67,7 +67,9 @@ def fake_model(sent):
         elif stage == "seed_triage":  # the seeds of an analysis are all medical news here
             value = schemas.Triage(
                 items=[
-                    schemas.TriageItem(index=r["index"], alert="normal", related="related")
+                    schemas.TriageItem(
+                        index=r["index"], direction="public_health", alert="normal", related="related"
+                    )
                     for r in payload["records"]
                 ]
             )
