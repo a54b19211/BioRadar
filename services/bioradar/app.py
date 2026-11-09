@@ -494,8 +494,8 @@ def redact_observation(row: dict, readable) -> dict:
 def redact_topics(values: list[dict]) -> list[dict]:
     """Topics and their observations copy record titles and triage text: a topic created from a record
     whose source cannot be read now shows no title; such records' titles, reasons, event details
-    (titles, object names) and readings (object, metric, quote) are withheld. Record ids, states and numbers
-    stay."""
+    (titles, object names) are withheld; a reading keeps only its ids, check and the reason. Record ids and
+    states stay."""
     readable = readable_sources()
     with db.session() as s:
         created = dict(
@@ -525,10 +525,11 @@ def redact_topics(values: list[dict]) -> list[dict]:
                         if key in e:
                             e[key] = [] if isinstance(e[key], list) else ""
                     e["withheld"] = withheld(sources.get(record, ""), readable)
-        for r in v.get("readings", []):  # a reading quotes its record: same rule as the events
+        for r in v.get("readings", []):  # a reading is the record's content: only its ids and mark stay
             why = withheld(r["source"], readable)
             if why:
-                r.update(object="", metric="", scope="", unit="", quote="", withheld=why)
+                r.update(object="", metric="", scope="", value="", unit="", period="", quote="")
+                r.update(comparable=False, reasons=[], withheld=why)
         out.append(v)
     return out
 

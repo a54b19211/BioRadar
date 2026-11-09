@@ -463,7 +463,10 @@ def test_the_checks_answer_replaces_the_unchecked_point_and_the_facts_are_the_cu
     assert count(db.SeriesPoint) == 2
 
 
-def test_a_topic_lists_its_readings_by_check_and_a_revoked_source_takes_their_words(placing, fabric_sources):  # noqa: F811
+def test_a_topic_lists_its_readings_by_check_and_a_revoked_source_takes_their_content(
+    placing,
+    fabric_sources,  # noqa: F811
+):
     fabric_sources["value"] = [SOURCE]
     fabric = FakeFabric([who()])
     tick(fabric)
@@ -476,15 +479,14 @@ def test_a_topic_lists_its_readings_by_check_and_a_revoked_source_takes_their_wo
     comparable = {r["check"]: r["comparable"] for r in shown}
     assert comparable == {"consistent": True, "inconsistent": False, "unchecked": False}
     assert all(r["quote"] and r["object"] and "withheld" not in r for r in shown)
-    fabric_sources["value"] = []  # the source is revoked: the words go, the marks and the numbers stay
+    fabric_sources["value"] = []  # the source is revoked: the content goes, the ids and the check stay
     app._readable.update(at=None, sources=None)
     hidden = admin.get(f"/api/topics/{listed['id']}").json()["readings"]
-    assert all(r["quote"] == "" and r["object"] == "" and r["withheld"] == "来源已撤权" for r in hidden)
-    assert sorted((r["check"], r["value"]) for r in hidden) == [
-        ("consistent", "66"),
-        ("inconsistent", "66"),
-        ("unchecked", "66"),
-    ]
+    assert all(r["withheld"] == "来源已撤权" and r["comparable"] is False for r in hidden)
+    for key in ("object", "metric", "scope", "value", "unit", "period", "quote"):
+        assert {r[key] for r in hidden} == {""}
+    assert sorted(r["check"] for r in hidden) == ["consistent", "inconsistent", "unchecked"]
+    assert {(r["source"], r["record_id"]) for r in hidden} == {(SOURCE, "who-a")}
 
 
 # ---- what an analysis is handed and reads ------------------------------------------------------------
