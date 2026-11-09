@@ -720,11 +720,13 @@ def export(analysis_id: str):
     if assessment.get("judgments"):
         lines += ["", "## 判断", ""]
         checked = {"supported": "核验通过", "contradicted": "与原文矛盾", "unverified": "未核验通过"}
+        level = {"low": "低", "medium": "中", "high": "高", "unknown": "未知"}
         for j in assessment["judgments"]:
             lines.append(
                 f"- {j['question']}：{j['conclusion']}（{checked.get(j.get('check'), '未核验')}，"
-                f"置信 {j['confidence']}，真实性 {j['credibility']}，"
-                f"后果 {j['consequence']}，优先级 {j['priority']}）待证实：{j['unproven']}"
+                f"置信 {j['confidence']}，真实性 {level.get(j['credibility'], j['credibility'])}，"
+                f"后果 {level.get(j['consequence'], j['consequence'])}，优先级 {j['priority']}）"
+                f"待证实：{j['unproven']}"
             )
     # BioCheck's opinion on the sentences it did not support, so a draft marked 待核 says where it is weak
     claims = [c for c in (result.get("review") or {}).get("claims") or [] if c.get("verdict") != "supported"]

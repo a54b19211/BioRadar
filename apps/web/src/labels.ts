@@ -37,7 +37,7 @@ const maps = {
     probable: "很可能",
     confirmed: "已证实",
   },
-  level: { low: "低", medium: "中", high: "高", urgent: "紧急" },
+  level: { low: "低", medium: "中", high: "高", urgent: "紧急", unknown: "未知" },
   judgmentCheck: { supported: "核验通过", contradicted: "与原文矛盾", unverified: "未核验通过" },
   // BioCheck's status of a whole report (result.report_status): anything but PASS is shown, marked 待核
   reportStatus: { PASS: "核验通过", REVIEW: "待复核", FAIL: "核验未过", NOT_RUN: "未核验" },

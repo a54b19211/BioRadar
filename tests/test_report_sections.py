@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 from conftest import FakeFabric
+from sqlalchemy import select
 from test_access import admin_client, fabric_sources, topic_analysis  # noqa: F401 - the fixture a test here takes
 from test_pipeline import RECORDS, fake_model, first_policy
 from test_publication_gate_and_source_revocation import passing
@@ -13,7 +14,7 @@ from test_publication_gate_and_source_revocation import passing
 from bioradar import db
 from bioradar.adapters import llm, services
 from bioradar.config import settings
-from bioradar.research import analyses, views
+from bioradar.research import analyses, schemas, views
 from bioradar.research.pipeline import Run
 from bioradar.research.run.sections import MECH_NOT_RUN_TEXT, build, missing_items
 from bioradar.research.state import MECH_NOT_RUN_REASONS
@@ -209,16 +210,18 @@ def test_the_gaps_say_in_one_sentence_why_the_mechanism_did_not_run(reason):
     assert all(i.get("status") != "not_run" for i in by_kind(build(done, INPUT, ROWS))["gaps"]["items"])
 
 
-def finished(monkeypatch, unproven):
+def finished(monkeypatch, unproven, **grades):
     """A run to its result with fake models and a BioCheck that passes; the assessment's judgment says
-    `unproven`."""
+    `unproven` and carries `grades` (put through the schema, as a model's answer is)."""
     model = fake_model([])
 
     def chat_json(settings_, stage, system, payload, model_cls, **options):
         value, call = model(settings_, stage, system, payload, model_cls, **options)
         if stage == "assess":
-            for judgment in value.judgments:
-                judgment.unproven = unproven
+            value.judgments = [
+                schemas.Judgment.model_validate({**j.model_dump(), "unproven": unproven, **grades})
+                for j in value.judgments
+            ]
         return value, call
 
     monkeypatch.setattr(llm, "chat_json", chat_json)
@@ -251,6 +254,25 @@ def test_a_passed_run_without_the_evidence_that_would_change_the_judgment_is_mar
     assert shown["sections"] == result["sections"]
     assert by_kind(shown["sections"])["scenarios"]["status"] == "missing"
     assert by_kind(shown["sections"])["scenarios"]["reason"] == "no_review_condition"
+
+
+def test_a_judgment_the_model_cannot_grade_says_unknown_in_the_result_the_view_and_the_export(
+    monkeypatch,
+    fabric_sources,  # noqa: F811
+):
+    """Credibility and consequence may be answered unknown, instead of a guessed low, medium or high."""
+    result = finished(monkeypatch, "还缺总生存期（OS）数据", credibility="unknown", consequence="unknown")
+    judgment = result["assessment"]["judgments"][0]
+    assert (judgment["credibility"], judgment["consequence"]) == ("unknown", "unknown")
+    with db.session() as s:  # as analyses.execute stores it
+        row = s.scalars(select(db.Analysis)).one()
+        row.state, row.result, analysis_id = "completed", result, row.id
+    fabric_sources["value"] = ["external_archive"]  # every source readable
+    admin = admin_client()
+    shown = admin.get(f"/api/analyses/{analysis_id}").json()["result"]
+    assert shown["assessment"]["judgments"][0]["consequence"] == "unknown"
+    assert by_kind(shown["sections"])["judgment"]["items"][0]["consequence"] == "unknown"
+    assert "真实性 未知，后果 未知" in admin.get(f"/api/analyses/{analysis_id}/export").text
 
 
 def test_the_words_of_the_sections_are_withheld_with_a_revoked_source_and_the_codes_stay(fabric_sources):  # noqa: F811

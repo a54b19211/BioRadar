@@ -32,8 +32,8 @@ export interface Judgment {
   question: string;
   conclusion: string;
   confidence: "insufficient" | "possible" | "probable" | "confirmed";
-  credibility: Level; // 真实性置信
-  consequence: Level; // 潜在后果
+  credibility: Level | "unknown"; // 真实性置信；评不了时 unknown
+  consequence: Level | "unknown"; // 潜在后果；评不了时 unknown
   priority: Level | "urgent"; // 核实优先级
   grounds: string[]; // evidence refs, e.g. "E2"
   unproven: string;

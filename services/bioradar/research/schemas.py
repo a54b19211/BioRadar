@@ -104,8 +104,12 @@ class Judgment(BaseModel):
     question: str
     conclusion: str = Field(description="一句话结论，未证实的写明待证实")
     confidence: Literal["insufficient", "possible", "probable", "confirmed"]
-    credibility: Literal["low", "medium", "high"] = Field(description="真实性置信")
-    consequence: Literal["low", "medium", "high"] = Field(description="若属实的潜在后果")
+    credibility: Literal["low", "medium", "high", "unknown"] = Field(
+        description="真实性置信；评不了时写 unknown"
+    )
+    consequence: Literal["low", "medium", "high", "unknown"] = Field(
+        description="若属实的潜在后果；评不了时写 unknown"
+    )
     priority: Literal["low", "medium", "high", "urgent"] = Field(description="核实优先级")
     grounds: list[str] = Field(default_factory=list, description="依据编号，如E2")
     unproven: str = Field(default="", description="还没有证实的部分和最能区分的下一项证据")
