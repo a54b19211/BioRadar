@@ -1,7 +1,10 @@
 # 0002 Measure producer and checker versions
 
 - Status: superseded by 0010 (2026-11-07): Fabric extracts and checks measurements; the radar's own chain is
-  deleted and its tables are frozen history. The versions below still name what produced those rows.
+  deleted and its tables are frozen history. The versions below still name what produced those rows:
+  measure.v9 with checker v16 is the last the radar wrote. A reader (`research/measure_history.py`) shows the `checker_version` stored on a check as it is; the shared
+  package describes only the current checkers, so a result stored under another one is never re-verified or
+  relabelled.
 - Code (until 0010): `services/bioradar/research/measure_checks.py` (`PRODUCER`, `CHECKER`, `CONTRACT`)
 
 ## Context
@@ -13,8 +16,7 @@ versions that produced them, so a reader of a stored result can tell which rules
 ## Decision
 
 A change of what triage extracts, or of how it is checked, is a new version. Results of earlier versions are
-kept as history and never rewritten; points not checked by the current checker are not current
-(`measure_checks.effective`). The versions so far:
+kept as history and never rewritten. The versions so far:
 
 | Version | What changed |
 |---|---|
@@ -26,5 +28,5 @@ kept as history and never rewritten; points not checked by the current checker a
 
 ## Consequences
 
-The version constants are the only place a version appears in code; the contract package pins the checker
-(`requirements-contract.txt`, checked by `make check-install`).
+A stored row is read under the version it was written with. The contract package pins the shared code the radar
+imports (`requirements-contract.txt`, checked by `make check-install`), not a list of checker versions.

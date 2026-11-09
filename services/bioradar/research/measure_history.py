@@ -9,27 +9,22 @@ an analysis that rests on one of those points, or a topic event that names one, 
 recorded. Such a point is history (authority radar_history): it is never current - the checks it went through
 are no longer kept up to date - and nothing is computed from it."""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.research.clock import utc
 
-# the last checker of the radar's own chain: its checks are the ones a frozen point is described by
-CHECKER = "biocheck.extraction_rules.v16"
 COMPARABILITY = "series_domain.v2"
 AUTHORITY = "radar_history"
 
 
 def latest_check(session, candidate_id):
-    """The candidate's latest check under the chain's last checker, or None."""
+    """The candidate's latest recorded check, whichever checker made it (shown as stored), or None."""
     if not candidate_id:
         return None
     return session.scalar(
         select(db.MeasurementCheck)
-        .where(
-            db.MeasurementCheck.candidate_id == candidate_id,
-            db.MeasurementCheck.checker_version == CHECKER,
-        )
+        .where(db.MeasurementCheck.candidate_id == candidate_id)
         .order_by(db.MeasurementCheck.id.desc())
         .limit(1)
     )
@@ -113,8 +108,9 @@ def comparability(session, m, at=None):
 
 
 def series_points(session, ids, at=None):
-    """The recorded points of `ids` as the frozen chain left them: exact value, latest check, comparability as
-    of `at` - and current false, always (history, not a current data-layer object)."""
+    """The recorded points of `ids` as the frozen chain left them: exact value, latest check (with the checker
+    version stored on it), comparability as of `at` - and current false, always (history, not a current
+    data-layer object)."""
     out = []
     points = (
         select(db.Measurement)
@@ -147,9 +143,27 @@ def series_points(session, ids, at=None):
     return out
 
 
+def checker_versions(session, read):
+    """The checker versions of the latest checks recorded for the candidates of the plan's version, as stored
+    (sorted, one of each); empty when nothing of the version was checked."""
+    candidates = select(db.MeasurementCandidate.id).where(
+        db.MeasurementCandidate.workspace_id == read.workspace_id,
+        db.MeasurementCandidate.is_demo == read.is_demo,
+        db.MeasurementCandidate.version_id == read.version_id,
+    )
+    latest = (
+        select(func.max(db.MeasurementCheck.id))
+        .where(db.MeasurementCheck.candidate_id.in_(candidates))
+        .group_by(db.MeasurementCheck.candidate_id)
+    )
+    found = select(db.MeasurementCheck.checker_version).where(db.MeasurementCheck.id.in_(latest)).distinct()
+    return sorted(session.scalars(found))
+
+
 def coverage(session, read):
     """What a model read of one recorded reading plan: characters read (overlaps once), skipped (no digit),
-    not read and why; and how many read windows gave no measure."""
+    not read and why; how many read windows gave no measure; and the checker versions its version's recorded
+    checks stand under."""
     ws = list(session.scalars(select(db.RecordReadWindow).where(db.RecordReadWindow.read_id == read.id)))
     empty = session.scalars(
         select(db.RecordReadAttempt.window_index).where(
@@ -180,6 +194,7 @@ def coverage(session, read):
         "skipped_no_digit_chars": union(("sent", "skipped_no_digit")) - union(("sent",)),
         "unread_chars": read.total_chars - model_read,
         "windows_read_without_measures": len(set(empty)),
+        "checker_versions": checker_versions(session, read),
         "unread_by_reason": {st: union(("sent", st)) - union(("sent",)) for st in unread},
         "read_until": read.read_until,
         "windows": {st: sum(1 for w in ws if w.state == st) for st in sorted({w.state for w in ws})},

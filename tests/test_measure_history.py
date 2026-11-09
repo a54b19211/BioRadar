@@ -14,6 +14,8 @@ from bioradar.research.run import investigate
 
 AT = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
 V1, V2 = "a" * 64, "b" * 64
+# checker versions the frozen rows carry: the last one the radar's own chain wrote, and a later one
+V16, V17 = "biocheck.extraction_rules.v16", "biocheck.extraction_rules.v17"
 FROZEN = (
     db.Measurement,
     db.MeasurementCandidate,
@@ -64,7 +66,7 @@ def history_rows():
                 insert(db.MeasurementCheck.__table__).values(
                     id=n,
                     candidate_id=n,
-                    checker_version=measure_history.CHECKER,
+                    checker_version=V16,
                     contract_version="extraction_consistency.v3",
                     status="consistent",
                     gate="series",
@@ -174,13 +176,44 @@ def test_a_recorded_point_reads_as_it_was_recorded_and_never_as_current():
     assert first["extraction_check"] == {
         "status": "consistent",
         "gate": "series",
-        "checker_version": measure_history.CHECKER,
+        "checker_version": V16,
         "check_id": 1,
         "reason": None,
     }
     assert first["comparability"]["state"] == "comparable"
     assert second["comparability"]["reasons"] == ["withdrawn_by_correction"]  # the recorded correction
     assert counts() == before  # read only
+
+
+def test_a_point_shows_its_latest_check_under_the_version_that_check_was_stored_with():
+    history_rows()
+    with db.engine().begin() as c:  # a later check of candidate 1 by another checker
+        c.execute(
+            insert(db.MeasurementCheck.__table__).values(
+                id=3,
+                candidate_id=1,
+                checker_version=V17,
+                contract_version="extraction_consistency.v3",
+                status="inconsistent",
+                gate="candidate",
+                gate_reason="unit_mismatch",
+                created_at=AT,
+            )
+        )
+    before = counts()
+    with db.session() as s:
+        first, second = measure_history.series_points(s, [1, 2])
+        [plan] = [measure_history.coverage(s, r) for r in s.scalars(select(db.RecordRead))]
+    assert first["extraction_check"] == {  # the newer check, as stored: not turned into the older version
+        "status": "inconsistent",
+        "gate": "candidate",
+        "checker_version": V17,
+        "check_id": 3,
+        "reason": "unit_mismatch",
+    }
+    assert second["extraction_check"]["checker_version"] == V16  # only a v16 check: still shown as v16
+    assert plan["checker_versions"] == [V17]  # candidate 1 alone, latest check v17
+    assert counts() == before
 
 
 def test_an_analysis_that_rests_on_recorded_points_still_hands_them_to_the_planner_as_history():
@@ -209,6 +242,7 @@ def test_a_recorded_reading_plan_is_still_shown():
         1500,
         {"budget_spent": 1200},
     )
+    assert item["checker_versions"] == [V16]  # the version its recorded check was stored with
 
 
 def test_a_session_refuses_every_write_to_the_frozen_tables():

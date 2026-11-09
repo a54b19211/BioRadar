@@ -7,8 +7,8 @@
 ## Decision
 
 - **Fabric owns every objective measurement**: extraction (its `datafabric.measure_extract.v1`, the radar's
-  measure.v10 rules moved without change), BioCheck checking (v3 contract, checker v16), coverage and owed
-  windows, corrections and retractions, processor and checker upgrades. The radar no longer extracts, checks,
+  measure.v10 rules moved without change), BioCheck checking (v3 contract; the checker version is stored on every object), coverage
+  and owed windows, corrections and retractions, processor and checker upgrades. The radar no longer extracts, checks,
   re-reads or upgrades anything: triage only classifies (topic, alert, signal, objects, watch, closure); its
   prompt asks for no measures and is shown no "known series" names, so no workspace steers the shared
   extraction. Everything triage still returns is the workspace's own state (v3.1 6.1, Observation): which
@@ -55,8 +55,11 @@
   PostgreSQL refuses every insert, update, delete and truncate on them (migration 0023, trigger
   `bioradar_frozen_history`); the session refuses ORM writes before they are sent (`db.FrozenHistory`).
   `research/measure_history.py` reads them: an analysis or a topic event that names one of their points still
-  shows it as recorded (authority `radar_history`), never as current, and nothing is computed from it;
-  `/api/measure-coverage` still shows the recorded reading plans.
+  shows it as recorded (authority `radar_history`), never as current, and nothing is computed from it. A point
+  carries the latest check recorded for its candidate under the `checker_version` stored on that check (the
+  last checker the radar's own chain wrote is v16, so that is what its rows say); nothing maps it to another
+  version. `/api/measure-coverage` still shows the recorded reading plans, each with the checker versions its
+  version's recorded checks stand under.
 
 ## Behaviour changes
 

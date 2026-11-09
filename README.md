@@ -67,7 +67,7 @@ make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Pyt
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-MechEvidence 评价契约用共享契约包 `extraction-contract` 里的 `mech_v2`（纯函数，这里固定 1.14.1；测量核对已归 Fabric，雷达只用 `mech_v2`，`bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
+MechEvidence 评价契约用共享契约包 `extraction-contract` 里的 `mech_v2`（纯函数，版本和哈希见 `requirements-contract.txt`；测量核对已归 Fabric，雷达只用 `mech_v2`，`bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
 
 ```sh
 cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复现的 wheel，构建时会校验哈希

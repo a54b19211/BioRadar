@@ -17,8 +17,9 @@ log already records, and they age badly: a reader cannot tell which of them stil
   argued) gets a short record here, `docs/decisions/NNNN-<topic>.md`, and the code points to it.
 - Concrete failures that justify a rule stay in the comment as the failure itself ("an older deferred
   version read by record id never got done and blocked the queue head"), not as a round number.
-- Version identifiers that are part of the data (`measure.v10`, checker v16, `extraction_normalize.v5`) stay:
-  they name which rules produced a stored result.
+- Version identifiers that are part of the data (a stored row's producer and `checker_version`) stay as they
+  were written: they name which rules produced a stored result, and a reader shows them as stored, never
+  rewritten as a later version.
 
 ## Consequences
 
