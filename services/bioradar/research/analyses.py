@@ -17,7 +17,7 @@ from bioradar.research.pipeline import Failed, Run
 
 log = logging.getLogger("bioradar")
 LEASE = lease.ANALYSIS_LEASE
-DIRECTIONS = {"pipeline", "science", "business", "public_health"}
+DIRECTIONS = {"pipeline", "science", "business", "public_health", "policy"}
 
 
 class NotFound(Exception):

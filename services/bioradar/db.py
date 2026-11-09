@@ -51,7 +51,7 @@ class Investigation(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     workspace_id: Mapped[str] = mapped_column(String(100))
     question: Mapped[str] = mapped_column(Text)
-    direction: Mapped[str] = mapped_column(String(30))  # pipeline | science | business | public_health
+    direction: Mapped[str] = mapped_column(String(30))  # one of analyses.DIRECTIONS
     is_demo: Mapped[bool] = mapped_column(Boolean)
     topic_id: Mapped[str | None] = mapped_column(ForeignKey("topics.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)

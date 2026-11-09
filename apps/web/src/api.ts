@@ -4,7 +4,7 @@ import { reactive } from "vue";
 
 // ---- types ---------------------------------------------------------------------------------
 
-export type Direction = "pipeline" | "science" | "business" | "public_health";
+export type Direction = "pipeline" | "science" | "business" | "public_health" | "policy";
 export type Method = "planner" | "baseline";
 export type State = "queued" | "running" | "completed" | "failed";
 export type Level = "low" | "medium" | "high";

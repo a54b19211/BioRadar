@@ -23,6 +23,7 @@ SEARCH_SCOPES = {
     "science": ("research",),
     "business": ("business", "pipeline"),
     "public_health": ("public_health", "research"),
+    "policy": ("policy", "pipeline"),
 }
 
 

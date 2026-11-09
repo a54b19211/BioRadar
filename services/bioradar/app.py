@@ -562,7 +562,7 @@ class SeedRecord(BaseModel):
 
 class Ask(BaseModel):
     question: str = Field(min_length=4, max_length=2000)
-    direction: Literal["pipeline", "science", "business", "public_health"]
+    direction: Literal["pipeline", "science", "business", "public_health", "policy"]
     method: Literal["planner", "baseline"] = "planner"
     is_demo: bool = False
     sources: list[str] | None = None

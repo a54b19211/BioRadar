@@ -135,7 +135,7 @@ class TriageItem(BaseModel):
     index: int = Field(description="记录序号，从1开始")
     topic: int | None = Field(default=None, description="归入已有专题的序号；新事件填null")
     new_topic: str = Field(default="", description="不属于已有专题且值得跟踪时，给新专题一句话标题")
-    direction: Literal["pipeline", "science", "business", "public_health"] = Field(
+    direction: Literal["pipeline", "science", "business", "public_health", "policy"] = Field(
         description="这条记录所属的研究方向，必填，不能不答"
     )
     alert: Literal["none", "normal", "important", "urgent"]

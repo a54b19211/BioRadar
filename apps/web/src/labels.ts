@@ -1,4 +1,6 @@
 // Chinese labels for the codes the backend sends, and tag colours. Unknown codes are shown as they are.
+import type { Direction } from "./api";
+
 type TagType = "primary" | "success" | "warning" | "danger" | "info";
 
 const maps = {
@@ -7,7 +9,8 @@ const maps = {
     science: "科研",
     business: "商业",
     public_health: "公卫",
-  },
+    policy: "政策监管",
+  } satisfies Record<Direction, string>,
   method: { planner: "逐步规划", baseline: "固定流程" },
   state: {
     queued: "排队中",

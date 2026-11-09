@@ -76,7 +76,7 @@ async function submit() {
         <el-form-item label="研究方向">
           <el-select v-model="form.direction" style="width: 140px">
             <el-option
-              v-for="d in ['pipeline', 'science', 'business', 'public_health']"
+              v-for="d in ['pipeline', 'science', 'business', 'public_health', 'policy']"
               :key="d"
               :value="d"
               :label="label('direction', d)"
