@@ -1726,3 +1726,80 @@ def test_each_biocheck_request_has_its_own_outbound_record(monkeypatch):
         ("report:verify", 1, "failed"),
     ]
     assert rows[0].binding == rows[1].binding  # the same content, bound the same way
+
+
+def test_the_window_of_a_long_record_goes_from_the_reader_to_biocheck(monkeypatch):
+    """A long record is read, then reported, as excerpts. The reader and every BioCheck request are told
+    which characters of the record the text holds and how long the record is, so that what lies outside
+    (here the risk sentence at the end) is not taken for missing from the record; a row stored without the
+    layout says unknown, never the whole record."""
+    from bioradar.material import Material
+    from bioradar.research.run import report
+    from bioradar.research.run.windows import record_layout, window_range
+
+    risk = "The risk in the Democratic Republic of the Congo was assessed as very high."
+    text = (
+        "XQ-17 PFS的HR为0.69。\n"
+        + "\n".join(f"第{i}段背景说明。" + "无关内容" * 60 for i in range(60))
+        + "\n"
+        + risk
+        + "，"
+        + "尾部说明" * 100
+    )
+    reads, biocheck, sent = [], [], []
+    base = fake_model(sent)
+
+    def model(settings_, stage, system, payload, model_cls, **options):
+        value, call = base(settings_, stage, system, payload, model_cls, **options)
+        if stage == "read":
+            reads.append(payload["material"])
+            value = schemas.Reading(
+                relevant=True,
+                facts=[
+                    schemas.ReadFact(text="PFS风险比", quote="HR为0.69", checks=["Q1"], stance="supports")
+                ],
+                answered=["Q1"],
+            )
+        return value, call
+
+    def fake_biocheck(s, operation, body):
+        biocheck.append(body)
+        if operation == "generate":
+            return {"draft": "PFS的HR为0.69[E1]。", "llm_calls": []}
+        return {"status": "PASS", "claims": [], "coverage": {"verdict": "complete"}, "llm_calls": []}
+
+    monkeypatch.setattr(llm, "chat_json", model)
+    monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
+    monkeypatch.setattr(services, "biocheck", fake_biocheck)
+    row = analyses.create(question="XQ-17 的PFS结果？", direction="pipeline", is_demo=True, enqueue=False)
+    run = Run(row, settings(), fabric=FakeFabric([record("L1", "XQ-17 长文", text)], clean=True))
+    run.run()
+
+    def ranges_of(window, shown):
+        """The window says: an excerpt of this record, whose ranges are where the text sent really came
+        from, and the risk sentence at the record's end lies in none of them and is not in the text."""
+        assert window["coverage"] == "excerpt" and window["record_chars"] == len(text)
+        assert risk not in shown and not any(a <= text.index(risk) < b for a, b in window["ranges"])
+        assert all(text[a : a + 10] in shown and text[b - 10 : b] in shown for a, b in window["ranges"])
+        return window["ranges"]
+
+    assert len(reads) == 1 and len(text) > settings().read_characters
+    read_ranges = ranges_of(reads[0]["window"], reads[0]["text"])
+    assert len(biocheck) >= 2  # generate and verify
+    for body in biocheck:
+        (evidence,) = body["evidence"]
+        assert evidence["id"] == "E1" and len(evidence["text"]) < len(reads[0]["text"])
+        assert (
+            ranges_of(evidence["window"], evidence["text"]) != read_ranges
+        )  # cut again from the read window
+    with db.session() as s:
+        stored = s.scalars(select(db.Evidence).where(db.Evidence.analysis_id == row.id)).one()
+        meta = dict(stored.meta)
+        meta.pop("record_layout")  # as a row stored before the layout was kept
+        stored.meta = meta
+    assert [e["window"] for e in report.report_input(run)["evidence"]] == [{"coverage": "unknown"}]
+    whole = Material.part("甲" * 50, {"kind": "clean_text"})
+    layout = record_layout(whole)
+    assert window_range(whole, layout) == {"coverage": "full"}
+    assert window_range(whole.slice(0, 5), layout)["coverage"] == "excerpt"
+    assert window_range(whole, None) == {"coverage": "unknown"}

@@ -1,0 +1,525 @@
+{
+ "scenario": "test_the_window_of_a_long_record_goes_from_the_reader_to_biocheck",
+ "views": {
+  "first_source_revoked": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      },
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "read",
+       "tokens": 15
+      },
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "assess",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [
+      {
+       "available_at": "2026-09-27T08:00:00+08:00",
+       "material_kind": "official_notice",
+       "published_at": "2026-09-27",
+       "record_id": "L1",
+       "ref": "E1",
+       "source": "external_archive",
+       "title": "",
+       "url": null,
+       "verified": true,
+       "version_id": "vL10000000000000000000000000000000000000000000000000000000000000",
+       "withheld": "来源已撤权"
+      }
+     ],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 1,
+        "gain": 0.3,
+        "kind": "search",
+        "new": 1,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "record_id": "L1"
+        },
+        "evidence_gain": 0.6,
+        "gain": 1.0,
+        "kind": "read",
+        "ref": "E1",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [
+         "E1"
+        ],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "answered",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "hypothesis": "",
+        "hypothesis_stance": "none",
+        "id": "F1",
+        "object": "",
+        "quote": "",
+        "ref": "E1",
+        "stance": "supports",
+        "text": "",
+        "withheld": "来源已撤权"
+       }
+      ],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS结果？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS结果？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n\n- [E1] 来源已撤权（external_archive L1）",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS结果？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "readable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      },
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "read",
+       "tokens": 15
+      },
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "assess",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [
+      {
+       "available_at": "2026-09-27T08:00:00+08:00",
+       "material_kind": "official_notice",
+       "published_at": "2026-09-27",
+       "record_id": "L1",
+       "ref": "E1",
+       "source": "external_archive",
+       "title": "XQ-17 长文",
+       "url": null,
+       "verified": true,
+       "version_id": "vL10000000000000000000000000000000000000000000000000000000000000"
+      }
+     ],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 1,
+        "gain": 0.3,
+        "kind": "search",
+        "new": 1,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "record_id": "L1"
+        },
+        "evidence_gain": 0.6,
+        "gain": 1.0,
+        "kind": "read",
+        "ref": "E1",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [
+         "E1"
+        ],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "answered",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "hypothesis": "",
+        "hypothesis_stance": "none",
+        "id": "F1",
+        "object": "",
+        "quote": "HR为0.69",
+        "ref": "E1",
+        "stance": "supports",
+        "text": "PFS风险比"
+       }
+      ],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS结果？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS结果？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n\n- [E1] XQ-17 长文（external_archive L1，版本 vL1000000000，2026-09-27）",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS结果？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ],
+  "source_list_unreadable": [
+   {
+    "detail": {
+     "calls": [
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "plan",
+       "tokens": 15
+      },
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "read",
+       "tokens": 15
+      },
+      {
+       "error": null,
+       "finish_reason": "stop",
+       "model": "fake",
+       "requests": 1,
+       "seconds": 0.1,
+       "service": "radar",
+       "stage": "assess",
+       "tokens": 15
+      }
+     ],
+     "completed_at": null,
+     "created_at": "<now>",
+     "cutoff": null,
+     "direction": "pipeline",
+     "error_code": null,
+     "evidence": [
+      {
+       "available_at": "2026-09-27T08:00:00+08:00",
+       "material_kind": "official_notice",
+       "published_at": "2026-09-27",
+       "record_id": "L1",
+       "ref": "E1",
+       "source": "external_archive",
+       "title": "",
+       "url": null,
+       "verified": true,
+       "version_id": "vL10000000000000000000000000000000000000000000000000000000000000",
+       "withheld": "来源授权状态暂时无法确认"
+      }
+     ],
+     "id": "<id1>",
+     "investigation_id": "<id2>",
+     "is_demo": true,
+     "method": "planner",
+     "parent_id": null,
+     "progress": {
+      "actions": [
+       {
+        "args": {
+         "terms": [
+          "PFS"
+         ]
+        },
+        "found": 1,
+        "gain": 0.3,
+        "kind": "search",
+        "new": 1,
+        "origin": "plan",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       },
+       {
+        "args": {
+         "record_id": "L1"
+        },
+        "evidence_gain": 0.6,
+        "gain": 1.0,
+        "kind": "read",
+        "ref": "E1",
+        "source": "external_archive",
+        "status": "completed",
+        "target_checks": [
+         "Q1"
+        ]
+       }
+      ],
+      "checks": [
+       {
+        "evidence": [
+         "E1"
+        ],
+        "exploratory": [],
+        "id": "Q1",
+        "importance": 1.0,
+        "objects": [],
+        "required": true,
+        "status": "answered",
+        "text": "当前PFS疗效数值"
+       }
+      ],
+      "facts": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "hypothesis": "",
+        "hypothesis_stance": "none",
+        "id": "F1",
+        "object": "",
+        "quote": "",
+        "ref": "E1",
+        "stance": "supports",
+        "text": "",
+        "withheld": "来源授权状态暂时无法确认"
+       }
+      ],
+      "notes": null,
+      "queries": [
+       {
+        "checks": [
+         "Q1"
+        ],
+        "origin": "plan",
+        "terms": [
+         "PFS"
+        ]
+       }
+      ],
+      "stop": {
+       "decision": "complete",
+       "reason": "test"
+      }
+     },
+     "question": "XQ-17 的PFS结果？",
+     "result": null,
+     "reviews": [],
+     "stage": "done",
+     "state": "queued",
+     "trigger": "manual"
+    },
+    "export": "# XQ-17 的PFS结果？\n\n- 方法：planner　状态：queued　核验：NOT_RUN\n- 截止时间：当前　模型调用：0\n\n（没有生成报告）\n\n## 材料\n\n- [E1] 来源授权状态暂时无法确认（external_archive L1）",
+    "summary": [
+     {
+      "completed_at": null,
+      "created_at": "<now>",
+      "cutoff": null,
+      "direction": "pipeline",
+      "error_code": null,
+      "id": "<id1>",
+      "investigation_id": "<id2>",
+      "is_demo": true,
+      "method": "planner",
+      "parent_id": null,
+      "question": "XQ-17 的PFS结果？",
+      "result": {
+       "assessment": null,
+       "report_status": null,
+       "usage": null
+      },
+      "stage": "done",
+      "state": "queued",
+      "trigger": "manual"
+     }
+    ]
+   }
+  ]
+ }
+}

@@ -11,7 +11,7 @@ from bioradar.material import of
 from bioradar.research import prompts, schemas
 from bioradar.research.run import search, submit
 from bioradar.research.run.search import clean_terms, doc_key
-from bioradar.research.run.windows import adopt, hit_spans, table_header_omitted
+from bioradar.research.run.windows import adopt, hit_spans, record_layout, table_header_omitted, window_range
 from bioradar.text import squash
 
 if TYPE_CHECKING:
@@ -35,12 +35,13 @@ def read(run: "Run", candidate):
     hit["read"] = True
     doc = document(run, hit, pinned)
     material, window, omitted = reading_window(run, hit, doc)
+    layout = record_layout(of(doc))
     ref = f"E{len(run.p['refs']) + 1}"
     run.p["refs"][ref] = f"{source}|{record_id}"
-    read_id = store(run, hit, ref, doc, material, window, omitted)
+    read_id = store(run, hit, ref, doc, material, window, omitted, layout)
     follow_relations(run, hit, doc)
     checks = {c["id"]: c for c in run.p["checks"]}
-    reading = ask_reader(run, ref, hit, doc, material.text, read_id)
+    reading = ask_reader(run, ref, hit, doc, material.text, read_id, window_range(material, layout))
     if reading is None or not reading.relevant:
         return 0.0, ref
     before = {c["id"] for c in run.p["checks"] if c["status"] != "open"}
@@ -115,9 +116,9 @@ def reading_window(run: "Run", hit, doc):
     return material, window, omitted
 
 
-def store(run: "Run", hit, ref, doc, material, window, omitted):
+def store(run: "Run", hit, ref, doc, material, window, omitted, layout):
     """The evidence row of this read and the outbound record of what the reader is about to get; returns
-    that record's id."""
+    that record's id. `layout`: see windows.record_layout."""
     with run.writing() as s:
         # A worker that died mid-read may have left this ref behind without saving progress.
         s.execute(delete(db.Evidence).where(db.Evidence.analysis_id == run.id, db.Evidence.ref == ref))
@@ -143,6 +144,10 @@ def store(run: "Run", hit, ref, doc, material, window, omitted):
                     "proof_available_at": doc["proof_available_at"],
                     "replay_mode": doc["read_at"]["mode"],
                     "window": window,
+                    # where the parts of the record's whole text lie in it: the report's excerpt is cut from
+                    # this window, and BioCheck is told which characters of the record it holds
+                    # (windows.window_range). A row stored without it is "unknown", never the whole record.
+                    "record_layout": layout,
                     "text_level": doc["text_level"],
                     "relations": doc["relations"],
                     "origin_group": doc["origin_group"],
@@ -184,8 +189,10 @@ def follow_relations(run: "Run", hit, doc):
             run.found = 1.0  # a correction or retraction arrived
 
 
-def ask_reader(run: "Run", ref, hit, doc, text, read_id):
-    """The reader's facts from this record's window (None: no call made, or no valid answer)."""
+def ask_reader(run: "Run", ref, hit, doc, text, read_id, window):
+    """The reader's facts from this record's window (None: no call made, or no valid answer). `window` says
+    which part of the record `text` is (windows.window_range), so what the reader did not get is not read as
+    missing from the record."""
     material = {
         "ref": ref,
         "title": doc["title"],
@@ -194,6 +201,7 @@ def ask_reader(run: "Run", ref, hit, doc, text, read_id):
         "material_kind": doc["material_kind"],
         "verified": doc["verified"],
         "events": doc["events"],
+        "window": window,
         "text": text,
     }
     known = {

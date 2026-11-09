@@ -519,6 +519,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -805,6 +815,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -840,6 +860,16 @@
       "material_read_id": 2,
       "origin_group": null,
       "proof_available_at": "2026-09-29T08:00:00+08:00",
+      "record_layout": {
+       "chars": 23,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 23,
+         "sha": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+        }
+       ]
+      },
       "relations": [],
       "replay_mode": "current",
       "table_header_omitted": 0,
@@ -1202,6 +1232,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -1237,6 +1277,16 @@
       "material_read_id": 2,
       "origin_group": null,
       "proof_available_at": "2026-09-29T08:00:00+08:00",
+      "record_layout": {
+       "chars": 23,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 23,
+         "sha": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+        }
+       ]
+      },
       "relations": [],
       "replay_mode": "current",
       "table_header_omitted": 0,
@@ -1599,6 +1649,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -1634,6 +1694,16 @@
       "material_read_id": 2,
       "origin_group": null,
       "proof_available_at": "2026-09-29T08:00:00+08:00",
+      "record_layout": {
+       "chars": 23,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 23,
+         "sha": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+        }
+       ]
+      },
       "relations": [],
       "replay_mode": "current",
       "table_header_omitted": 0,
@@ -2031,6 +2101,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -2066,6 +2146,16 @@
       "material_read_id": 2,
       "origin_group": null,
       "proof_available_at": "2026-09-29T08:00:00+08:00",
+      "record_layout": {
+       "chars": 23,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 23,
+         "sha": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+        }
+       ]
+      },
       "relations": [],
       "replay_mode": "current",
       "table_header_omitted": 0,
@@ -2467,6 +2557,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -2502,6 +2602,16 @@
       "material_read_id": 2,
       "origin_group": null,
       "proof_available_at": "2026-09-29T08:00:00+08:00",
+      "record_layout": {
+       "chars": 23,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 23,
+         "sha": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+        }
+       ]
+      },
       "relations": [],
       "replay_mode": "current",
       "table_header_omitted": 0,
@@ -3058,6 +3168,16 @@
       "material_read_id": 1,
       "origin_group": null,
       "proof_available_at": "2026-09-30T08:00:00+08:00",
+      "record_layout": {
+       "chars": 35,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 35,
+         "sha": "1e1655f77ee801f9d4be82f2db0ba6c3acc9878a1ae4e9e27728ab958ab97dec"
+        }
+       ]
+      },
       "relations": [
        {
         "kind": "corrects",
@@ -3093,6 +3213,16 @@
       "material_read_id": 2,
       "origin_group": null,
       "proof_available_at": "2026-09-29T08:00:00+08:00",
+      "record_layout": {
+       "chars": 23,
+       "parts": [
+        {
+         "at": 0,
+         "chars": 23,
+         "sha": "bb1ce85b67b275b8807011dc09566477cbf3c2f2088656a9fd4111bead31fd1f"
+        }
+       ]
+      },
       "relations": [],
       "replay_mode": "current",
       "table_header_omitted": 0,

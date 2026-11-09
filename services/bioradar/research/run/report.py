@@ -8,7 +8,7 @@ from bioradar.adapters.services import ServiceError
 from bioradar.research.lineage import previous_for_biocheck
 from bioradar.research.run import slots, submit
 from bioradar.research.run.assess import hypothesis_stance
-from bioradar.research.run.windows import report_text
+from bioradar.research.run.windows import report_text, window_range
 
 if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
@@ -76,7 +76,7 @@ def report_evidence(run: "Run", rows):
     for r in sent:
         window = report_text(submit.material_of(run, r), quotes.get(r.ref, []))
         run.report_windows.append((r, noticed(window, (r.meta or {}).get("clean_text_state"))))
-    texts = {r.ref: m.text for r, m in run.report_windows}
+    windows = {r.ref: m for r, m in run.report_windows}
     return [
         {
             "id": r.ref,
@@ -85,7 +85,10 @@ def report_evidence(run: "Run", rows):
             "published_at": r.published_at,
             "source_kind": source_kind(r.material_kind),
             "verified": r.verified,
-            "text": texts[r.ref],
+            "text": windows[r.ref].text,
+            # which characters of the record `text` holds and how long the record is; "unknown" for a row
+            # stored before the layout was kept - never taken as the whole record
+            "window": window_range(windows[r.ref], (r.meta or {}).get("record_layout")),
             # Fabric's explicit same-origin group; absent means independence is unknown, not proven
             "origin_group": (r.meta or {}).get("origin_group"),
             # The version time facts as Fabric gave them, one field each, never merged (task book 06 2.4).

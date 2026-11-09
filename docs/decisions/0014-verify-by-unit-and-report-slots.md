@@ -67,4 +67,9 @@
 - Each evidence item carries `first_seen_at`, `proof_available_at` (null: no proof) and `replay_mode` (the mode
   its read ran in), as Fabric gave them. The merged `available_at` stays an internal clock for cutoffs and is
   never sent: `/v2/verify` rejects it. An evidence row stored before these were kept sends null.
+- Each evidence item carries `window`: which characters of the record's whole text its `text` holds - `full`, or
+  `excerpt` with `chars`, `record_chars` and `ranges` (`[start, end)` in the whole text) - and `unknown` for a row
+  stored before the read kept `evidence.meta.record_layout`; the reader gets the same for its window. BioCheck
+  reads `unknown` as an excerpt, so "the text has no X" is never taken for "the record has no X". `/v2/verify`
+  refuses an unknown field: deploy BioCheck with `window` first.
 - Not done: `[R#]` receipts, per-slot scope and time (the run's own for all slots, so nothing to compare).

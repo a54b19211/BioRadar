@@ -1,6 +1,6 @@
 """What of a record a model or service gets: the reading window (adopt), the report input (excerpt,
-report_text) and the notice for table rows sent without their header. Material in, Material out: every
-character keeps where it came from (bioradar.material)."""
+report_text), the notice for table rows sent without their header, and what part of the record a window is
+(window_range). Material in, Material out: every character keeps where it came from (bioradar.material)."""
 
 import re
 
@@ -63,14 +63,62 @@ def hit_spans(material, positions):
     return spans, unresolved
 
 
-def merge_spans(spans):
-    """[a, b) spans sorted and merged where they touch or overlap, as [a, b] lists."""
+def merge_spans(spans, gap=0):
+    """[a, b) spans sorted and merged where they touch or overlap (or lie at most `gap` apart), as [a, b]
+    lists."""
     out = []
     for a, b in sorted([list(s) for s in spans]):
-        if out and a <= out[-1][1]:
+        if out and a <= out[-1][1] + gap:
             out[-1][1] = max(out[-1][1], b)
         else:
             out.append([a, b])
+    return out
+
+
+UNKNOWN_WINDOW = {"coverage": "unknown"}
+MAX_RANGES = 50  # ranges of one window that are listed; the rest is only counted (ranges_omitted)
+
+
+def record_layout(whole):
+    """Where each part of a record's whole text lies in it, kept with the evidence row: a window cut again
+    later (the report's excerpt) is a slice of a slice, and only this says which characters of the record it
+    holds. {"chars": length of the whole text, "parts": [{"sha": the part's text_sha256, "at": where its first
+    character is in the whole text, "chars": its length}]}."""
+    parts, pos = [], 0
+    for text, part, start in whole.segments:
+        if part is not None and start == 0:  # the whole text holds each part once, from its first character
+            parts.append({"sha": part["text_sha256"], "at": pos, "chars": len(text)})
+        pos += len(text)
+    return {"chars": pos, "parts": parts}
+
+
+def window_range(window, layout):
+    """Which part of the record a window's text is, as the reader and BioCheck are told:
+    {"coverage": "full"}, or {"coverage": "excerpt", "chars": the window's length, "record_chars": the whole
+    text's length, "ranges": [[a, b], ...]}, the characters [a, b) of the whole text the window holds (the
+    radar's own words in it - joiners, headings, notices - are in no range; pieces only a line break apart are
+    one range). {"coverage": "unknown"} when nothing says where the window was cut from: the row was stored
+    before the layout was kept, or the window draws on text the layout does not know. Unknown is never read
+    as the whole record."""
+    parts = {p["sha"]: p for p in (layout or {}).get("parts", [])}
+    spans = []
+    for text, part, start in window.segments:
+        if part is None:
+            continue
+        place = parts.get(part["text_sha256"])
+        if place is None:
+            return dict(UNKNOWN_WINDOW)
+        spans.append((place["at"] + start, place["at"] + start + len(text)))
+    if not spans:
+        return dict(UNKNOWN_WINDOW)
+    held = merge_spans(spans)
+    if all(any(a <= p["at"] and p["at"] + p["chars"] <= b for a, b in held) for p in parts.values()):
+        return {"coverage": "full"}
+    ranges = merge_spans(held, gap=2)
+    out = {"coverage": "excerpt", "chars": len(window), "record_chars": layout["chars"]}
+    out["ranges"] = ranges[:MAX_RANGES]
+    if len(ranges) > MAX_RANGES:
+        out["ranges_omitted"] = len(ranges) - MAX_RANGES
     return out
 
 
