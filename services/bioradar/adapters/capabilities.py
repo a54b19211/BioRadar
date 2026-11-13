@@ -35,8 +35,6 @@ def _entries(receipt: Mapping) -> list[Mapping]:
 @dataclass(frozen=True)
 class SourceCapabilities:
     version: str
-    definition_sha256: str | None
-    receipt_sha256: str | None
     # source_id -> Fabric's capabilities object, as given
     by_source: Mapping[str, Mapping] = field(default_factory=dict)
     # sources whose every entry says capabilities.readable is true (sources and retired_sources alike)
@@ -62,8 +60,6 @@ class SourceCapabilities:
         readable = frozenset(source for source, seen in flags.items() if all(seen))
         return cls(
             version=VERSION,
-            definition_sha256=_text(receipt.get("definition_sha256")),
-            receipt_sha256=_text(receipt.get("receipt_sha256")),
             by_source=by_source,
             readable=readable,
         )
@@ -99,15 +95,11 @@ class SourceCapabilities:
         return isinstance(diff, dict) and bool(diff)
 
     def snapshot(self) -> dict:
-        """What the analysis records of the moment it planned: which receipt, never a permission."""
+        """What the analysis records of the moment it planned: which sources Fabric listed and which were
+        readable, never a permission."""
         return {
             "capabilities_version": self.version,
-            "definition_sha256": self.definition_sha256,
-            "receipt_sha256": self.receipt_sha256,
             "sources": len(self.by_source),
             "readable": len(self.readable),
+            "readable_sources": sorted(self.readable),
         }
-
-
-def _text(value) -> str | None:
-    return value if isinstance(value, str) else None

@@ -46,9 +46,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -415,9 +416,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -511,9 +513,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -758,9 +761,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -1120,9 +1124,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -1512,9 +1517,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -1905,9 +1911,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -2302,9 +2309,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],
@@ -2707,9 +2715,10 @@
     "capability_snapshots": [
      {
       "capabilities_version": "datafabric.source_capabilities.v1",
-      "definition_sha256": "f64978224821edd7088fe5f9563113de301cb20f4bb0333d8087680255607e1c",
       "readable": 1,
-      "receipt_sha256": "8e58e4433a10f5093f6ce0ab7eb100707cfeb27e7b5e12ad46758b4b04435b60",
+      "readable_sources": [
+       "external_archive"
+      ],
       "sources": 1
      }
     ],

@@ -238,9 +238,9 @@ class Run:
             # still run, these are left out and the run says so
             self.input = {**self.input, "sources": chosen}
             self.note("source_not_selectable", ", ".join(skipped))
-        seen = self.p.setdefault("capability_snapshots", [])
-        if not seen or seen[-1].get("receipt_sha256") != caps.receipt_sha256:
-            seen.append(caps.snapshot())
+        seen, snapshot = self.p.setdefault("capability_snapshots", []), caps.snapshot()
+        if not seen or seen[-1] != snapshot:
+            seen.append(snapshot)
 
     def run(self):
         self.plan_with_capabilities()

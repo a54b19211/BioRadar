@@ -17,7 +17,7 @@ def test_the_real_receipt_gives_readable_from_sources_and_retired_sources_alike(
     # a retired source is readable (old references still resolve through Fabric's alias) but never selectable
     assert "legacy_documents" in caps.readable and not caps.selectable("legacy_documents")
     assert caps.selectable("pubmed") and not caps.selectable("reviewed_graph")
-    assert caps.snapshot()["receipt_sha256"] == RECEIPT["receipt_sha256"]
+    assert caps.snapshot()["readable_sources"] == sorted(caps.readable)
 
 
 def test_unavailable_sources_are_not_readable_whatever_else_they_say():

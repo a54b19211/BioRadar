@@ -43,7 +43,7 @@ def test_the_receipt_the_run_planned_with_is_recorded_for_audit(offered):
     run = run_over(fabric, ["pubmed"])
     run.run()
     [snapshot] = run.p["capability_snapshots"]
-    assert snapshot["receipt_sha256"] == fabric.caps.receipt_sha256 and snapshot["readable"] == 1
+    assert snapshot["readable_sources"] == ["pubmed"] and snapshot["readable"] == 1
     assert snapshot["capabilities_version"] == "datafabric.source_capabilities.v1"
 
 
