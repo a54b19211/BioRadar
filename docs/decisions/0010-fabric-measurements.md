@@ -1,7 +1,7 @@
 # 0010 Measurements are Fabric's: the radar consumes its objects and keeps only the topic's selection
 
-- Status: accepted (2026-11-07). Radar side of Fabric's `docs/decisions/0006-measurements.md`; design
-  `devtools/design/r2-measurement-migration.md` §4 and its revision `-r2.md` §2, §5.
+- Status: accepted (2026-11-07). Radar side of Fabric's measurement objects (Fabric `clean/measurements.py`,
+  `clean/measurement_reads.py`); the design records are in `/home/zk_test/zk_projects/雷达设计文档/` (server).
 - Supersedes for new data: 0002 (the radar's producer and checker versions) and the extraction part of 0003.
 
 ## Decision
