@@ -1,4 +1,4 @@
-"""What Fabric says each source can do (GET /api/history/sources, `capabilities`), as one typed object.
+"""What Fabric says each source can do (GET /api/fabric/sources, `capabilities`), as one typed object.
 
 Fabric is the one authority for source identity, licence state and implemented capability; the radar keeps
 no list of sources of its own. A receipt is read whole or not at all: a receipt of another version, or an

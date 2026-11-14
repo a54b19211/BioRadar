@@ -38,11 +38,11 @@ def fabric_with(state, source="nmpa", known=True):
 
     def handler(request):
         sent.append(request.url.path)
-        if request.url.path == "/api/history/sources":
+        if request.url.path == "/api/fabric/sources":
             return httpx.Response(200, json=sources_receipt({source}))
-        if request.url.path == "/api/history/records":
+        if request.url.path == "/api/fabric/records":
             return httpx.Response(200, json={"items": [attachment(source=source)], "next_cursor": None})
-        if request.url.path == "/api/history/derived-text":
+        if request.url.path == "/api/fabric/derived-text":
             return httpx.Response(200, json={"versions": {V: state}})
         return httpx.Response(404, json={})
 
@@ -73,7 +73,7 @@ def test_parsed_attachment_text_becomes_the_document_text_with_its_parent_named(
     assert heading[1] is None and doc["title"] not in heading[0] and body[1]["kind"] == "clean_text"
     assert PARENT in doc["text"]
     assert route(doc) is None
-    assert "/api/history/derived-text" in sent
+    assert "/api/fabric/derived-text" in sent
 
 
 def test_not_yet_parsed_attachment_waits_and_final_failure_is_a_gap():
@@ -100,7 +100,7 @@ def test_older_fabric_without_the_endpoint_leaves_the_attachment_pending():
         transport=httpx.MockTransport(
             lambda r: (
                 httpx.Response(200, json={"items": [attachment()], "next_cursor": None})
-                if r.url.path == "/api/history/records"
+                if r.url.path == "/api/fabric/records"
                 else httpx.Response(404, json={})
             )
         ),
@@ -119,14 +119,14 @@ def test_every_source_fabric_declares_attachment_text_for_is_read_that_way():
         assert (
             doc["text"].startswith("【附件正文（附件版本") and doc["attachment_text"]["status"] == "parsed"
         ), source
-        assert "/api/history/derived-text" in sent and "/api/history/clean-text" not in sent
+        assert "/api/fabric/derived-text" in sent and "/api/fabric/clean-text" not in sent
         assert route(doc) is None
 
 
 def test_an_attachment_of_a_source_without_attachment_text_is_read_as_clean_text():
     fabric, sent = fabric_with(PARSED, source="who_don")
     fabric.search("who_don", (), is_demo=False)
-    assert "/api/history/derived-text" not in sent and "/api/history/clean-text" in sent
+    assert "/api/fabric/derived-text" not in sent and "/api/fabric/clean-text" in sent
 
 
 def test_with_the_capabilities_unknown_an_attachment_waits_and_is_not_called_empty():
@@ -134,7 +134,7 @@ def test_with_the_capabilities_unknown_an_attachment_waits_and_is_not_called_emp
     [doc], _ = fabric.search("nmpa", (), is_demo=False)
     assert doc["attachment_text"] == {"state": "capability_unknown"} and doc["text"] == ""
     assert route(doc) == "attachment_pending"  # kept for the retry path, not a gap
-    assert "/api/history/derived-text" not in sent and "/api/history/clean-text" not in sent
+    assert "/api/fabric/derived-text" not in sent and "/api/fabric/clean-text" not in sent
 
 
 def test_pending_is_kept_for_retry_and_a_gap_is_recorded(monkeypatch):

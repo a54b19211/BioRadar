@@ -19,7 +19,7 @@ def snapshotted_fabric(*, unreachable_after_snapshot=False):
     state = {"down": False}
 
     def handler(request):
-        if request.url.path != "/api/history/sources":
+        if request.url.path != "/api/fabric/sources":
             return httpx.Response(404, json={})
         if state["down"]:
             return httpx.Response(503, json={"error": {"code": "unavailable"}})

@@ -266,7 +266,7 @@ def test_semantic_search_goes_through_fabric_with_the_analysis_cutoff():
         "布病 聚集", scopes=("public_health", "research"), sources=("who_don",), is_demo=True, cutoff=cutoff
     )
     method, path, auth, body = sent[0]
-    assert (method, path, auth) == ("POST", "/api/history/search", "Bearer read-token")
+    assert (method, path, auth) == ("POST", "/api/fabric/search", "Bearer read-token")
     assert body["mode"] == "public_history_reconstruction" and body["cutoff"] == cutoff.isoformat()
     assert body["scopes"] == ["public_health", "research"] and body["is_demo"] is True
     assert body["sources"] == ["who_don"]  # the recall is limited to the source of the search
@@ -440,7 +440,7 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
 
     def handler(request):
         path, params = request.url.path, request.url.params
-        if path.startswith("/api/history/versions/"):
+        if path.startswith("/api/fabric/versions/"):
             return httpx.Response(
                 200,
                 json={
@@ -448,7 +448,7 @@ def test_a_search_hit_is_read_as_exactly_the_artifact_it_was_verified_against():
                     "source_record_id": "NCT1",
                     "version_id": v,
                     "is_demo": True,
-                    "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
+                    "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a VersionRecord (required)
                     "raw_sha256": "r" * 64,
                     "record_kind": "trial",
                     "title": "T",
@@ -519,7 +519,7 @@ def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one
 
     def handler(request):
         path, params = request.url.path, request.url.params
-        if path.startswith("/api/history/versions/"):
+        if path.startswith("/api/fabric/versions/"):
             return httpx.Response(
                 200,
                 json={
@@ -527,7 +527,7 @@ def test_an_attachment_artifact_a_hit_named_is_never_replaced_by_the_current_one
                     "source_record_id": "P1#attachment=x.xls",
                     "version_id": v,
                     "is_demo": True,
-                    "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a HistoryRecord (required)
+                    "first_seen_at": "2026-01-01T00:00:00+00:00",  # always in a VersionRecord (required)
                     "raw_sha256": "r" * 64,
                     "record_kind": "document",
                     "title": "附件",

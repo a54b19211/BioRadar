@@ -1,4 +1,4 @@
-"""Data-Fabric history API (徐子雯). The radar only reads fixed versions; it never writes Fabric tables."""
+"""Data-Fabric API (资料库, 徐子雯). The radar only reads fixed versions; it never writes Fabric tables."""
 
 import json
 import time
@@ -336,7 +336,7 @@ class Fabric:
         self.caps: SourceCapabilities | None = None
 
     def _get(self, path, params, token=None):
-        endpoint = path.removeprefix("/api/history/").split("/")[0]
+        endpoint = path.removeprefix("/api/fabric/").split("/")[0]
         count = self.requests.setdefault(endpoint, {"n": 0, "errors": 0})
         count["n"] += 1
         try:
@@ -359,7 +359,7 @@ class Fabric:
         return response.json()
 
     def _post(self, path, body, token=None):
-        endpoint = path.removeprefix("/api/history/").split("/")[0]
+        endpoint = path.removeprefix("/api/fabric/").split("/")[0]
         count = self.requests.setdefault(endpoint, {"n": 0, "errors": 0})
         count["n"] += 1
         try:
@@ -384,7 +384,7 @@ class Fabric:
     def semantic_search(
         self, query, *, scopes, is_demo, sources=(), cutoff=None, now=None, top_k=10, mode=None
     ):
-        """WeKnora recall verified by Fabric (POST /api/history/search). Every hit was checked at this mode
+        """WeKnora recall verified by Fabric (POST /api/fabric/search). Every hit was checked at this mode
         and cutoff: source permission, the version visible then, and that the chunk is that version's fixed
         text; `sources` limits the recall to those sources (none: every source the reader may read). Returns
         (hits, summary): hits [{source, record_id, version_id, score, text, locators}] at the
@@ -394,7 +394,7 @@ class Fabric:
         mode = read_mode(mode, cutoff)
         at = (cutoff or now or datetime.now(UTC)).isoformat()
         data = self._post(
-            "/api/history/search",
+            "/api/fabric/search",
             {
                 "query": query[:2000],
                 "mode": mode,
@@ -470,7 +470,7 @@ class Fabric:
             params["source_record_ids"] = list(record_ids)
         if cursor:
             params["cursor"] = cursor
-        data = self._get("/api/history/records", params)
+        data = self._get("/api/fabric/records", params)
         docs = [document(item) for item in data["items"]]
         self.complete(docs, is_demo=is_demo, mode=params["mode"], cutoff=params["cutoff"])
         return docs, data.get("next_cursor")
@@ -487,7 +487,7 @@ class Fabric:
         for record_id, version_id in refs:
             try:
                 item = self._get(
-                    f"/api/history/versions/{version_id}",
+                    f"/api/fabric/versions/{version_id}",
                     {
                         "source_id": source,
                         "source_record_id": record_id,
@@ -504,7 +504,7 @@ class Fabric:
             try:
                 doc = document(item)
             except (KeyError, TypeError, ValueError, AttributeError):
-                # a raw record that cannot be read as a HistoryRecord is never that version
+                # a raw record that cannot be read as a VersionRecord is never that version
                 raise FabricError("version_identity_mismatch", f"{record_id}@{version_id[:12]}") from None
             if not fixed_version_is(doc, source, record_id, version_id, is_demo, cutoff):
                 # the read named one version: anything else is never that version's text
@@ -522,7 +522,7 @@ class Fabric:
         at = (cutoff or datetime.now(UTC)).isoformat()
         try:
             item = self._get(
-                f"/api/history/versions/{version_id}",
+                f"/api/fabric/versions/{version_id}",
                 {
                     "source_id": source,
                     "source_record_id": record_id,
@@ -538,12 +538,12 @@ class Fabric:
         try:
             return fixed_version_is(document(item), source, record_id, version_id, is_demo, cutoff)
         except (KeyError, TypeError, ValueError, AttributeError):
-            return False  # a raw record that cannot be read as a HistoryRecord is never that version
+            return False  # a raw record that cannot be read as a VersionRecord is never that version
 
     def registry_changes(self, source, version_ids, *, is_demo, mode, cutoff):
         """Fabric's registry diff of each version against its previous version: {version_id: {state, ...}}."""
         data = self._get(
-            "/api/history/registry-changes",
+            "/api/fabric/registry-changes",
             {
                 "source_id": source,
                 "is_demo": str(is_demo).lower(),
@@ -565,7 +565,7 @@ class Fabric:
         ids = list(version_ids)
         for start in range(0, len(ids), 100):
             data = self._get(
-                "/api/history/version-differences",
+                "/api/fabric/version-differences",
                 {
                     "source_id": source,
                     "is_demo": str(is_demo).lower(),
@@ -581,7 +581,7 @@ class Fabric:
         """Fabric's processing-layer text of each version (attachments):
         {version_id: {state, status, text, ...}}."""
         data = self._get(
-            "/api/history/derived-text",
+            "/api/fabric/derived-text",
             {
                 "source_id": source,
                 "is_demo": str(is_demo).lower(),
@@ -608,7 +608,7 @@ class Fabric:
         }
         if processor_version:
             params["processor_version"] = processor_version
-        return self._get("/api/history/clean-text", params).get("versions") or {}
+        return self._get("/api/fabric/clean-text", params).get("versions") or {}
 
     def complete(self, docs, *, is_demo, mode, cutoff):
         """What the radar reads of each version: the cleaning layer's text (or the parsed attachment),
@@ -714,7 +714,7 @@ class Fabric:
                         out[key] = clean.get("text") or ""
                 elif p["kind"] == "projection_text":
                     record = self._get(
-                        f"/api/history/versions/{p['version_id']}",
+                        f"/api/fabric/versions/{p['version_id']}",
                         {
                             "source_id": p["source"],
                             "source_record_id": p["record_id"],
@@ -856,7 +856,7 @@ class Fabric:
         """Tang's reviewed graph (read only): entity candidates for an exact name in one graph record, each
         with its identity status and the fixed record versions it was read from (node evidence)."""
         return self._get(
-            f"/api/history/graph/{doc['version_id']}/resolve",
+            f"/api/fabric/graph/{doc['version_id']}/resolve",
             {
                 "source_id": doc["source"],
                 "source_record_id": doc["record_id"],
@@ -869,7 +869,7 @@ class Fabric:
 
     def changes(self, source, *, is_demo, after=0, limit=100):
         data = self._get(
-            "/api/history/changes",
+            "/api/fabric/changes",
             {"source_id": source, "is_demo": str(is_demo).lower(), "after": after, "limit": limit},
         )
         items = [document(item) for item in data["items"]]
@@ -880,14 +880,14 @@ class Fabric:
     def head(self, source, *, is_demo):
         """The feed's current last sequence number."""
         data = self._get(
-            "/api/history/changes",
+            "/api/fabric/changes",
             {"source_id": source, "is_demo": str(is_demo).lower(), "after": 0, "limit": 1},
         )
         return data.get("max_seq") or 0
 
     def source_health(self, source):
         """Fabric's own record of its crawl tasks for this source (state, last success/failure, scope)."""
-        return self._get("/api/history/source-health", {"source_id": source})
+        return self._get("/api/fabric/source-health", {"source_id": source})
 
     def latest(self, source, *, is_demo):
         """The newest record of a feed, or None."""
@@ -898,7 +898,7 @@ class Fabric:
         return items[0] if items else None
 
     def sources(self):
-        return self._get("/api/history/sources", {})
+        return self._get("/api/fabric/sources", {})
 
     def capabilities(self) -> SourceCapabilities:
         """One read of Fabric's source list, parsed. FabricError / httpx.HTTPError when it cannot be read,
@@ -918,7 +918,7 @@ class Fabric:
     def fetch(self, source, query, *, max_records=10, deadline_seconds=60):
         """Ask Fabric to collect fresh public records, wait for the run, return the new documents."""
         response = self.client.post(
-            "/api/history/fetch",
+            "/api/fabric/fetch",
             json={
                 "source_id": source,
                 "query": query,
@@ -936,11 +936,11 @@ class Fabric:
         deadline = time.monotonic() + deadline_seconds + 30
         while run["state"] not in {"completed", "failed", "partial"} and time.monotonic() < deadline:
             time.sleep(2)
-            run = self._get(f"/api/history/runs/{run['id']}", {}, self.settings.fabric_admin_token)
+            run = self._get(f"/api/fabric/runs/{run['id']}", {}, self.settings.fabric_admin_token)
         if run["state"] == "failed":
             raise FabricError("fetch_failed", str(run.get("error"))[:300])
         data = self._get(
-            "/api/history/records",
+            "/api/fabric/records",
             {
                 "source_id": source,
                 "is_demo": "false",
@@ -955,7 +955,7 @@ class Fabric:
     def archive(self, body: dict):
         """Import a declared archive (scenario and history replay preparation only)."""
         response = self.client.post(
-            "/api/history/archives",
+            "/api/fabric/archives",
             json=body,
             timeout=120,
             headers={
@@ -973,7 +973,7 @@ class Fabric:
         found, unread = set(), []
         for run_id in run_ids:
             try:
-                coverage = self._get(f"/api/history/runs/{run_id}", {}).get("coverage") or {}
+                coverage = self._get(f"/api/fabric/runs/{run_id}", {}).get("coverage") or {}
             except (FabricError, httpx.HTTPError):
                 unread.append(run_id)
                 continue
@@ -982,7 +982,7 @@ class Fabric:
 
     def lead_coverage(self, source, start, end, *, is_demo, mode, cutoff) -> dict:
         """What Fabric's reads of a lead source's windows say of [start, end), as of the cutoff (GET
-        /api/history/records with window_start and window_end): the number of window receipts and the gaps
+        /api/fabric/records with window_start and window_end): the number of window receipts and the gaps
         among them. The windows are cut by the source's own observation time - GDELT's, neither the
         article's date nor this system's first sight. A window with no receipt, or one that cannot be asked,
         is not known to be whole and not known to be empty: `receipts` is 0, or `error` says why."""
@@ -997,7 +997,7 @@ class Fabric:
             "limit": 1,  # the leads themselves are the monitor's; the receipts come with any listing
         }
         try:
-            data = self._get("/api/history/records", params)
+            data = self._get("/api/fabric/records", params)
         except (FabricError, httpx.HTTPError) as exc:
             error = getattr(exc, "code", "fabric_unreachable")
             return {"window": window, "receipts": 0, "gaps": [], "error": error}
@@ -1014,7 +1014,7 @@ class Fabric:
         {items, next_after, more, withheld: {source: count}} - events of sources not readable now are only
         counted (docs/decisions/0010)."""
         return self._get(
-            "/api/history/measurements/changes",
+            "/api/fabric/measurements/changes",
             {"is_demo": str(is_demo).lower(), "after_seq": after_seq, "limit": limit},
         )
 
@@ -1022,7 +1022,7 @@ class Fabric:
         """Fabric's checked measurement objects of these versions (datafabric.measurements.v1), each with its
         state at the cutoff; with include_history also the ones not current."""
         return self._get(
-            "/api/history/measurements",
+            "/api/fabric/measurements",
             {
                 "source_id": source,
                 "is_demo": str(is_demo).lower(),

@@ -1,4 +1,4 @@
-"""Fabric's source list (GET /api/history/sources) as the tests' fake Fabrics answer it.
+"""Fabric's source list (GET /api/fabric/sources) as the tests' fake Fabrics answer it.
 
 tests/fixtures/fabric_sources_receipt.json is a receipt produced by Fabric's own listing code
 (db.source_listing on the r2/fabric-b1 branch) for every catalogued source, readable; the helpers below derive

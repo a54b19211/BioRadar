@@ -67,7 +67,7 @@ def record(
     version=None,
     unverified=False,
 ):
-    """A Fabric HistoryRecord as the API returns it."""
+    """A Fabric VersionRecord as the API returns it."""
     return {
         "source_id": source,
         "source_record_id": record_id,

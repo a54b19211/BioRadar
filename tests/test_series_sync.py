@@ -22,8 +22,8 @@ from bioradar.research import domain, monitor, scheduling, schemas, series_sync,
 from bioradar.research.run import investigate
 
 FIXTURE = pathlib.Path(__file__).parent / "fixtures" / "measurement_feed_contract.json"
-# a byte copy of clean-fabric tests/fixtures/measurement_feed_contract.json (b2fa2e6, unchanged at 0faf8e9)
-FIXTURE_SHA256 = "0bd804870dae1e8d0ceb74db8fb1eb15fc6fa56f72758b92818c02a26708b8af"
+# a byte copy of clean-fabric tests/fixtures/measurement_feed_contract.json (e8e9830, /api/fabric)
+FIXTURE_SHA256 = "f501e9c2e3a86da26643c9e6ae340274f79f125b4440a5db0d6ac2405edbd5e3"
 SOURCE = "external_archive"  # the demo monitoring source
 TOPIC = "卢旺达马尔堡疫情"
 V = version_id("who-a")

@@ -14,7 +14,7 @@
 
 **Arrival.** A monitoring round looks, with no model call, at every new version that touches a topic: an earlier
 version of its record was placed in the topic or read by an analysis of it, or the version corrects or retracts such
-a record. It asks Fabric's `/api/history/version-differences` at the mode and cutoff the version was read at (the
+a record. It asks Fabric's `/api/fabric/version-differences` at the mode and cutoff the version was read at (the
 pair `Fabric.complete` stamps on each document as `read_at`, the one its `/records` answer was given at). The result
 is one `version` event of the topic: the cause (`version` or `correction`), Fabric's kind of difference and its
 facts, why (`reason`), how it counts (`sample`), and `affected`, the propositions that rest on the record - those of

@@ -68,11 +68,11 @@ def fabric_answering(versions=None, status=200, readable=("clinicaltrials", "pub
 
     def handler(request):
         sent.append(request)
-        if request.url.path == "/api/history/sources":
+        if request.url.path == "/api/fabric/sources":
             return httpx.Response(200, json=receipt)
-        if request.url.path == "/api/history/records":
+        if request.url.path == "/api/fabric/records":
             return httpx.Response(200, json={"items": [trial()], "next_cursor": None})
-        if request.url.path == "/api/history/registry-changes":
+        if request.url.path == "/api/fabric/registry-changes":
             if status != 200:
                 return httpx.Response(status, json={"detail": "Not Found"})
             return httpx.Response(200, json={"versions": versions or {}})
@@ -119,7 +119,7 @@ def test_a_source_fabric_newly_declares_a_diff_for_gets_one_without_a_change_her
     fabric, sent = fabric_answering({V2: processed(STATUS)}, diff_sources={"pubmed"})
     docs, _ = fabric.search("clinicaltrials", (), is_demo=False)
     assert docs[0]["registry_diff"] is None  # Fabric no longer declares it for clinicaltrials here
-    assert "/api/history/registry-changes" not in [r.url.path for r in sent]
+    assert "/api/fabric/registry-changes" not in [r.url.path for r in sent]
     pubmed = trial()
     pubmed["source_id"] = "pubmed"
     fabric.client = httpx.Client(
@@ -128,7 +128,7 @@ def test_a_source_fabric_newly_declares_a_diff_for_gets_one_without_a_change_her
             lambda r: httpx.Response(
                 200,
                 json={"items": [pubmed], "next_cursor": None}
-                if r.url.path == "/api/history/records"
+                if r.url.path == "/api/fabric/records"
                 else {"versions": {V2: processed(STATUS)}},
             )
         ),
@@ -142,7 +142,7 @@ def test_when_the_capabilities_are_unknown_no_diff_is_attached_and_the_record_sa
     fabric.caps = None  # Fabric could not say what it declares
     [doc], _ = fabric.search("clinicaltrials", (), is_demo=False)
     assert doc["registry_diff"] == {"state": "capability_unknown"} and "登记变化" not in doc["text"]
-    assert "/api/history/registry-changes" not in [r.url.path for r in sent]
+    assert "/api/fabric/registry-changes" not in [r.url.path for r in sent]
     assert route(doc) is None  # unknown: triaged as before
 
 

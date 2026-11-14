@@ -98,7 +98,7 @@ def test_the_fabric_client_reads_the_capabilities_once_per_load_and_none_when_it
     fabric = fabric_answering(handler)
     assert fabric.caps is None
     assert fabric.load_capabilities().readable == {"pubmed"} and fabric.caps.readable == {"pubmed"}
-    assert asked == ["/api/history/sources"]
+    assert asked == ["/api/fabric/sources"]
     for broken in (httpx.Response(503, json={}), httpx.Response(200, json={"sources": []})):
         again = fabric_answering(lambda request, broken=broken: broken)
         assert again.load_capabilities() is None and again.caps is None

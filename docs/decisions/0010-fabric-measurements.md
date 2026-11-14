@@ -20,11 +20,11 @@
   object's family, dimensions and their per-dimension check), the series kernel (`series.py`), the series,
   correction and record-contradiction events, and the analyses they owe.
 - **`series_sync`** (one step of `monitor.tick`, no model call, so never paused by the token budget):
-  - the change feed `GET /api/history/measurements/changes` is stored page by page in `measurement_inbox`; the
+  - the change feed `GET /api/fabric/measurements/changes` is stored page by page in `measurement_inbox`; the
     page and the cursor (`monitor_cursors`, `fabric:measurements`) commit in one transaction - a round that dies
     inside a page reads it again and adds nothing; a page that is not the contract moves no cursor;
   - when triage places a version in a topic, its objects are pulled at once
-    (`GET /api/history/measurements?version_ids=`); an inbox row is linked as soon as its version has a topic,
+    (`GET /api/fabric/measurements?version_ids=`); an inbox row is linked as soon as its version has a topic,
     so "measurement before topic" and "topic before measurement" end with the same links, each once
     (unique `(workspace, kind, topic, object)`, inserted under a savepoint: a concurrent writer's link stands);
   - events Fabric withholds (their source, or their cause's source, is not readable now) are counted per source

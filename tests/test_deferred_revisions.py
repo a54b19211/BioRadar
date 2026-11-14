@@ -96,14 +96,14 @@ def test_the_adapter_reads_the_fixed_version_and_only_not_visible_is_a_gap():
     answers = {
         "a" * 64: httpx.Response(200, json=record),
         "b" * 64: httpx.Response(404, json={"detail": {"code": "version_not_found", "message": "-"}}),
-        "c" * 64: httpx.Response(503, json={"detail": {"code": "history_service_failed", "message": "-"}}),
+        "c" * 64: httpx.Response(503, json={"detail": {"code": "fabric_service_failed", "message": "-"}}),
     }
     asked = []
 
     def handler(request):
         asked.append((request.url.path, request.url.params.get("source_record_id")))
         version = request.url.path.rsplit("/", 1)[-1]
-        if request.url.path.startswith("/api/history/versions/"):
+        if request.url.path.startswith("/api/fabric/versions/"):
             return answers[version]
         return httpx.Response(404, json={})
 
@@ -112,6 +112,6 @@ def test_the_adapter_reads_the_fixed_version_and_only_not_visible_is_a_gap():
     )
     docs, missing = fabric.read_versions("who_don", [("A", "a" * 64), ("A", "b" * 64)], is_demo=False)
     assert [d["version_id"] for d in docs] == ["a" * 64] and missing == ["b" * 64]
-    assert asked[0] == ("/api/history/versions/" + "a" * 64, "A")
+    assert asked[0] == ("/api/fabric/versions/" + "a" * 64, "A")
     with pytest.raises(FabricError):  # a transient failure is not turned into a permanent gap
         fabric.read_versions("who_don", [("A", "c" * 64)], is_demo=False)

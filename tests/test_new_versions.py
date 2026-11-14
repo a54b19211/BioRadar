@@ -350,10 +350,10 @@ def fabric_answering(status=200):
 
     def handler(request):
         sent.append(request)
-        if request.url.path == "/api/history/records":
+        if request.url.path == "/api/fabric/records":
             item = record("DON-1", "t", "正文", source="who_don", version=V2)
             return httpx.Response(200, json={"items": [item], "next_cursor": None})
-        if request.url.path == "/api/history/version-differences" and status == 200:
+        if request.url.path == "/api/fabric/version-differences" and status == 200:
             return httpx.Response(200, json={"versions": {V2: compared("raw_changed", body_changed=True)}})
         return httpx.Response(status if status != 200 else 404, json={"detail": "Not Found"})
 
@@ -369,8 +369,8 @@ def test_the_differences_are_asked_at_the_mode_and_cutoff_the_record_was_read_at
     found = revision.differences(fabric, [doc], is_demo=False)
 
     assert found == {V2: compared("raw_changed", body_changed=True)}
-    [read] = [r for r in sent if r.url.path == "/api/history/records"]
-    [asked] = [r for r in sent if r.url.path == "/api/history/version-differences"]
+    [read] = [r for r in sent if r.url.path == "/api/fabric/records"]
+    [asked] = [r for r in sent if r.url.path == "/api/fabric/version-differences"]
     pair = (asked.url.params["mode"], asked.url.params["cutoff"])
     assert pair == ("operational_replay", cutoff.isoformat())
     assert pair == (read.url.params["mode"], read.url.params["cutoff"])

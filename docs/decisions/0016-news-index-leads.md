@@ -35,7 +35,7 @@ A record of a news index (`LEAD_SOURCES`: GDELT) is a lead, not a statement of i
   and GDELT's own observation time stay in Fabric and are read back by the version. `available_at` is when the
   radar could first read it: not the article's date, and not when GDELT observed it (three different times).
 - **Gaps registered.** `Run.display_group` asks Fabric for the receipts of that day's windows
-  (`Fabric.lead_coverage`: `GET /api/history/records` with `window_start`/`window_end`, cut by GDELT's observation
+  (`Fabric.lead_coverage`: `GET /api/fabric/records` with `window_start`/`window_end`, cut by GDELT's observation
   time) and keeps, beside the leads, the number of receipts and the gaps: a window still full at the finest size
   (`possibly_truncated`), one that `failed` or was `not_read`. No receipt, or Fabric not answering, is recorded as
   `receipts: 0` or `error`: unknown, never an empty window. The halving of windows and the truncation marks are

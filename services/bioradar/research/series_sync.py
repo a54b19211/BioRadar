@@ -5,13 +5,13 @@ upgrades (its ADR 0006). The radar keeps what is its own: which topic puts which
 series (series_points, the investigation's selection), the comparable-domain gate (domain.py), and the series
 events and analyses that follow from them.
 
-- sync() reads the change feed (GET /api/history/measurements/changes) page by page into measurement_inbox;
+- sync() reads the change feed (GET /api/fabric/measurements/changes) page by page into measurement_inbox;
   the cursor moves to the page's next_after in the same transaction that stored the page, so a round that
   dies inside a page reads it again and adds nothing. Events Fabric withholds (their source, or the source of
   their cause, is not readable now) are only counted per source (measurement_withheld); once that source can
   be read again, every version of it this workspace placed in a topic is pulled again by version and every
   linked object is read again (the feed does not replay what it withheld).
-- link_versions() pulls the objects of versions triage just put into a topic (GET /api/history/measurements),
+- link_versions() pulls the objects of versions triage just put into a topic (GET /api/fabric/measurements),
   in case their events have not come through the feed yet.
 - An inbox row is linked as soon as its version has a topic, whichever of the two came first; a row whose
   object had a later event (superseded, corrected, retracted, a correction withdrawn) is read again and its

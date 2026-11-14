@@ -77,7 +77,7 @@ counted for checks and possibly cited by the draft; removing it would need every
 inputs, and a report written without it would silently differ from what the plan and the reads support.
 Stopping is the conservative behaviour v3 6.1 asks for, it is one rule for every call, and the analyst can
 start a new analysis on the sources still readable. Revocations are rare; the cost is one Fabric request
-(`GET /api/history/sources`) per carrying call, counted in `fabric_requests` like every other request.
+(`GET /api/fabric/sources`) per carrying call, counted in `fabric_requests` like every other request.
 
 ## (c) The monitor's exits show a received lead at once and a level only behind the gate
 

@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     session_secret: str = ""  # signs session cookies; random, never a login credential; empty: no sign-in
     workspace_id: str = "default"
 
-    # Data-Fabric history API (徐子雯). Records are read at a fixed version and cutoff.
+    # Data-Fabric API (资料库, 徐子雯). Records are read at a fixed version and cutoff.
     fabric_url: str = "http://127.0.0.1:18511"
     fabric_read_token: str = ""
     fabric_admin_token: str = ""
@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # kept out of the activity counts, the activity baseline and "first seen" (research/groups.py).
     backfill_run_ids: list[str] = []
 
-    # Semantic search through Fabric (POST /api/history/search): WeKnora recalls candidates, Fabric verifies
+    # Semantic search through Fabric (POST /api/fabric/search): WeKnora recalls candidates, Fabric verifies
     # each one at the analysis cutoff (source permission, the version visible then, the fixed text) and only
     # then reranks; replays can use it too. Off: no semantic search.
     semantic_search: bool = False

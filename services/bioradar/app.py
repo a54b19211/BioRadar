@@ -797,7 +797,7 @@ def measure_coverage(
     """Read-only history: the reading plans of the radar's own measurement chain from before Fabric took it
     over (frozen, docs/decisions/0010) - per fixed version, what of its cleaned text a model read, what was
     left unread and why, the checker versions its recorded checks stand under (as stored), and the plans by
-    state. Fabric's coverage of its own reading is /api/history/measure-coverage there."""
+    state. Fabric's coverage of its own reading is /api/fabric/measure-coverage there."""
     s = settings()
     where = (db.RecordRead.workspace_id == s.workspace_id, db.RecordRead.is_demo == is_demo)
     with db.session() as session:

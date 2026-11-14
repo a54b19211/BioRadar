@@ -4,7 +4,7 @@
 
 ## Fabric's capabilities replace the radar's lists
 
-- `GET /api/history/sources` carries `capabilities` per source (`datafabric.source_capabilities.v1`).
+- `GET /api/fabric/sources` carries `capabilities` per source (`datafabric.source_capabilities.v1`).
   `adapters/capabilities.SourceCapabilities` reads it whole or not at all. `readable` is every entry of
   `sources` and `retired_sources` whose `capabilities.readable` is true; `unavailable_sources` never count.
   Nothing is inferred from a source's group (collected, graph, retired).
