@@ -17,7 +17,6 @@ from bioradar.adapters.fabric import FabricError
 from bioradar.adapters.services import ServiceError
 from bioradar.app import app
 from bioradar.config import settings
-from bioradar.mech import contract
 from bioradar.research import analyses, attempts, lease
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mech-contract-v2"
@@ -175,8 +174,13 @@ REVIEW = '{"observations":[]}'
 PROVIDER_USAGE = {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}
 
 
+def digest(body) -> str:
+    return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+
+
 class FakeMech:
-    """MechEvidence v2 as the radar sees it: GET /v2/evaluator, POST /v2/evaluate. Each evaluation makes
+    """MechEvidence v2 as the radar sees it: POST /v2/reuse-key, POST /v2/evaluate. Its key and echo are its
+    own (any stable digest will do: the radar only compares them with what it was told). Each evaluation makes
     two model "requests" (decompose, review); before each it asks the radar's authorize endpoint and sends
     only on a decision that echoes its attempt, after each it posts the outcome and believes it only on an
     acknowledgement that echoes every field - the rules of MechEvidence's authorization.py. Its receipt is
@@ -190,11 +194,28 @@ class FakeMech:
         self.extra_attempt = False  # asks for a third permission and never reports it
         self.counter = 0
 
-    def evaluator_answer(self, settings):
+    def key_of(self, request):
+        unkeyed = ("authorization_ref", "max_llm_calls", "expected_evaluator_id")
+        return digest({**{k: v for k, v in request.items() if k not in unkeyed}, "by": self.evaluator})
+
+    def echo(self, request):
+        return [
+            {
+                "id": m["id"],
+                "binding_sha256": digest(m["binding"]),
+                "binding_checked": "self_consistent",
+                "locators_returned": 0,
+                "locators": [],
+            }
+            for m in request["materials"]
+        ]
+
+    def reuse_key_answer(self, settings, request):
         return {
-            "contract_version": contract.CONTRACT_V2,
+            "contract_version": "mechevidence.evaluate.v2",
             "evaluator": self.evaluator,
-            "authorization": {"mode": "per_attempt_trusted_endpoint", "configured": True},
+            "reuse_key": self.key_of(request),
+            "materials": self.echo(request),
         }
 
     def evaluate(self, settings, request):
@@ -204,7 +225,7 @@ class FakeMech:
         if request.get("expected_evaluator_id") != self.evaluator["evaluator_id"]:
             body = {"error_code": "evaluator_changed", "evaluator": self.evaluator, "llm_calls": []}
             raise ServiceError("mechevidence", "evaluator_changed", "", (), body)
-        key = contract.reuse_key(request, self.evaluator)
+        key = self.key_of(request)
         calls = []
         for index, stage in enumerate(
             ("decompose", "review") + (("review",) if self.extra_attempt else ()), 1
@@ -286,8 +307,8 @@ class FakeMech:
         receipt.update(
             evaluator=json.loads(json.dumps(self.evaluator)),
             reuse_key=key,
-            scope=contract.normal_scope(request["scope"]),
-            materials=contract.material_echo(request),
+            scope=request["scope"],
+            materials=self.echo(request),
             llm_calls=calls,
         )
         return receipt
@@ -295,6 +316,6 @@ class FakeMech:
 
 def install(monkeypatch, mech):
     """The radar's calls to MechEvidence go to the stand-in."""
-    monkeypatch.setattr(services, "mechevidence_evaluator", mech.evaluator_answer)
+    monkeypatch.setattr(services, "mechevidence_reuse_key", mech.reuse_key_answer)
     monkeypatch.setattr(services, "mechevidence_v2", mech.evaluate)
     monkeypatch.setattr(services, "mechevidence_contract", lambda settings: CONTRACT)

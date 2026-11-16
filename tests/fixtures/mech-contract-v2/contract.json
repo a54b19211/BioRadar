@@ -705,5 +705,170 @@
     ],
     "type": "object"
   },
+  "reuse_key_schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "contract_version": {
+        "type": "string"
+      },
+      "evaluator": {
+        "properties": {
+          "batch_size": {
+            "type": "integer"
+          },
+          "code_version": {
+            "type": "string"
+          },
+          "contract_version": {
+            "type": "string"
+          },
+          "evaluator_id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "model_config": {
+            "properties": {
+              "endpoint_id": {
+                "type": "string"
+              },
+              "max_tokens": {
+                "type": "integer"
+              },
+              "model": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "temperature": {
+                "type": "number"
+              },
+              "thinking": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "thinking",
+              "temperature",
+              "max_tokens",
+              "endpoint_id"
+            ],
+            "type": "object"
+          },
+          "ordering_rule": {
+            "type": "string"
+          },
+          "prompts": {
+            "properties": {
+              "decompose_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "review_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "decompose_sha256",
+              "review_sha256"
+            ],
+            "type": "object"
+          },
+          "rules_version": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "contract_version",
+          "rules_version",
+          "ordering_rule",
+          "batch_size",
+          "prompts",
+          "model_config",
+          "code_version",
+          "evaluator_id"
+        ],
+        "type": "object"
+      },
+      "materials": {
+        "items": {
+          "properties": {
+            "binding_checked": {
+              "enum": [
+                "self_consistent"
+              ],
+              "type": "string"
+            },
+            "binding_sha256": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "locators": {
+              "items": {
+                "properties": {
+                  "locators": {
+                    "items": {},
+                    "type": "array"
+                  },
+                  "segment": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "segment",
+                  "locators"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "locators_returned": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "binding_sha256",
+            "binding_checked",
+            "locators_returned",
+            "locators"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "reuse_key": {
+        "maxLength": 64,
+        "minLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      }
+    },
+    "required": [
+      "contract_version",
+      "evaluator",
+      "reuse_key",
+      "materials"
+    ],
+    "type": "object"
+  },
   "schema_version": "mechevidence.evaluate.v2.receipt.1"
 }

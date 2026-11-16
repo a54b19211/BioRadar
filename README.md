@@ -67,7 +67,7 @@ make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Pyt
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-MechEvidence 评价契约（mechevidence.evaluate.v2）：请求一侧的规则（evaluator id、reuse key、回显、文献身份）在 `bioradar.mech.contract` / `bioradar.mech.identity`，是 MechEvidence 规则的副本，`tests/test_mech_contract.py` 用 MechEvidence 发布的夹具核对；回执格式不复制，雷达在发送前从 MechEvidence 的 `GET /v2/contract` 取 JSON Schema（每个服务地址取一次，进程内缓存），按它校验回执和模型调用记录，取不到或不是 v2 回执格式时不发送（`mechevidence_contract_unavailable` / `mechevidence_contract_invalid`）。跨字段规则在 `bioradar.mech.receipt`。
+MechEvidence 评价契约（mechevidence.evaluate.v2）：规则只在 MechEvidence 一处（evaluator id、reuse key、文献身份、回执跨字段规则），雷达不留副本。雷达只做三件事：组请求；向 `POST /v2/reuse-key` 要评价器、reuse key 和材料回显（查缓存、单份材料能否发送都靠它，422 的材料不发送）；收到回执后用通用 jsonschema 按 `GET /v2/contract` 发布的 JSON Schema 校验形状，并与 reuse-key 的答复逐项比对（`bioradar.mech.receipt`，每个服务地址取一次，进程内缓存；取不到或不是 v2 格式时不发送：`mechevidence_contract_unavailable` / `mechevidence_contract_invalid`）。MechEvidence 返回前自己跑完整回执规则，不合格答 502 `receipt_invalid`。雷达自己的规则只有 attempt 账本核对（`bioradar.mech.ledger`）。
 
 模型调用用 OpenAI 官方 `openai` 库（`services/bioradar/adapters/llm.py`，任何 OpenAI 兼容服务：DeepSeek、vLLM、通义），从 PyPI 安装。
 

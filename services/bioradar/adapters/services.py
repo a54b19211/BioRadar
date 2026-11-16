@@ -90,21 +90,23 @@ def biocheck(settings: Settings, operation: str, body: dict) -> dict:
     )
 
 
-def mechevidence_evaluator(settings: Settings) -> dict:
-    """GET /v2/evaluator: who would evaluate now ({contract_version, evaluator: {..., evaluator_id}, ...})."""
+def mechevidence_reuse_key(settings: Settings, body: dict) -> dict:
+    """POST /v2/reuse-key: the evaluator, reuse key and material echo MechEvidence would use for this v2
+    request ({contract_version, evaluator, reuse_key, materials}); nothing is evaluated. A request it refuses
+    comes back as ServiceError with its error code (422 body) or evaluator_changed (409)."""
     return _post(
         "mechevidence",
         settings.mechevidence_url,
         settings.mechevidence_token,
-        "/v2/evaluator",
-        None,
+        "/v2/reuse-key",
+        body,
         30,
-        "GET",
     )
 
 
 def mechevidence_contract(settings: Settings) -> dict:
-    """GET /v2/contract: the v2 receipt format ({contract_version, schema_version, receipt_schema})."""
+    """GET /v2/contract: the v2 formats
+    ({contract_version, schema_version, receipt_schema, reuse_key_schema})."""
     return _post(
         "mechevidence",
         settings.mechevidence_url,

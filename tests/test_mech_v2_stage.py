@@ -19,7 +19,6 @@ from sqlalchemy import select
 from bioradar import db
 from bioradar.config import settings
 from bioradar.material import of
-from bioradar.mech import contract
 from bioradar.research import analyses, lease
 from bioradar.research.pipeline import Run
 from bioradar.research.run import Withheld, report, submit
@@ -139,7 +138,7 @@ def test_an_evaluation_is_sent_adopted_cached_and_accounted_for(monkeypatch):
     result = ready.go()
     assert result["status"] == "completed" and result["overall"] == "supported" and result["reused"] is False
     assert (
-        result["contract_version"] == contract.CONTRACT_V2
+        result["contract_version"] == "mechevidence.evaluate.v2"
         and result["evaluator_id"] == EVALUATOR["evaluator_id"]
     )
     assert [m["ref"] for m in result["materials"]] == ["E1", "E2"] and "llm_calls" not in result
@@ -241,7 +240,7 @@ def test_an_evaluator_that_changed_does_not_reuse_the_old_ones_result(monkeypatc
     first = Ready(monkeypatch)
     first.go()
     upgraded = dict(EVALUATOR, rules_version="mechevidence.aggregate.v2")
-    upgraded["evaluator_id"] = contract.evaluator_id_of(upgraded)
+    upgraded["evaluator_id"] = "b" * 64
     other = Ready(monkeypatch, mech=FakeMech(first.client, evaluator=upgraded))
     result = other.go()
     assert result["reused"] is False and result["evaluator_id"] == upgraded["evaluator_id"]
@@ -317,10 +316,7 @@ def test_a_receipt_for_another_request_is_failed_kept_and_feeds_nothing(monkeypa
 def test_a_receipt_that_echoes_other_materials_or_another_evaluator_is_failed(monkeypatch):
     for damage, field in (
         (lambda r: r["materials"][0].update(binding_sha256="1" * 64), "materials"),
-        (
-            lambda r: r["evaluator"].update(rules_version="other"),
-            "evaluator.evaluator_id(recomputed from its fields)",
-        ),
+        (lambda r: r["evaluator"].update(rules_version="other"), "evaluator"),
     ):
         ready = Ready(monkeypatch)
         ready.mech.edit = lambda receipt, damage=damage: (damage(receipt), receipt)[1]
@@ -452,7 +448,7 @@ def test_a_service_that_fails_after_a_permission_leaves_the_request_counted_with
     ready.mech.evaluate_original = ready.mech.evaluate
 
     def dies(settings_, request):
-        key = contract.reuse_key(request, ready.mech.evaluator)
+        key = ready.mech.key_of(request)
         ready.mech.attempt(request, key, "decompose", 1, [], last=True)  # permission taken, then nothing
         raise ServiceError("mechevidence", "timeout")
 
@@ -479,7 +475,7 @@ def test_usage_the_service_did_not_report_is_recorded_as_not_known_not_as_zero(m
 
 def test_an_evaluator_that_changes_before_the_request_is_asked_again_once(monkeypatch):
     upgraded = dict(EVALUATOR, rules_version="mechevidence.aggregate.v2")
-    upgraded["evaluator_id"] = contract.evaluator_id_of(upgraded)
+    upgraded["evaluator_id"] = "b" * 64
     ready = Ready(monkeypatch)
     ready.mech.swap_before_answering = upgraded
     result = ready.go()
@@ -498,7 +494,7 @@ def test_an_evaluator_that_keeps_changing_is_unstable(monkeypatch):
         dict(
             EVALUATOR,
             rules_version=f"v{n}",
-            evaluator_id=contract.evaluator_id_of(dict(EVALUATOR, rules_version=f"v{n}")),
+            evaluator_id=f"{n:064x}",
         )
         for n in range(10)
     )

@@ -3,10 +3,12 @@
 What goes out is not just text: every material is re-read from Fabric by its binding right before the
 request (a part that is unreadable or no longer the bound text is not sent), the request carries the
 binding, the scope in three states and an authorization the radar issued for exactly this evaluation, and
-the evaluation key (the reuse key, computed here with MechEvidence's own function) says what it would be a
-result of. The answer is adopted only through MechEvidence's receipt rules and only if the set of model
-requests it archives is the set the radar allowed itself (bioradar.mech.ledger): a receipt that says its
-audit is complete is not believed on that word alone. A result that is not adopted (failed,
+the evaluation key (the reuse key, which MechEvidence computes and answers at POST /v2/reuse-key; the
+radar keeps no copy of the rule) says what it would be a result of. MechEvidence checks its own receipts
+before answering; the radar checks a receipt against the published JSON Schema, that it is the answer to
+what POST /v2/reuse-key said (evaluator, key, material echo), and that the set of model requests it archives
+is the set the radar allowed itself (bioradar.mech.ledger): a receipt that says its audit is complete is not
+believed on that word alone. A result that is not adopted (failed,
 receipt_mismatch, ledger_mismatch, audit_incomplete) feeds no report and no cache. A complete one is
 cached by its key; a hit is used only after the sources it came from are confirmed readable now and every
 fixed version is visible at this analysis's cutoff. Every send and every write is fenced by the analysis
@@ -25,10 +27,9 @@ from bioradar.adapters import services
 from bioradar.adapters.fabric import FabricError, noticed
 from bioradar.adapters.services import ServiceError
 from bioradar.material import MaterialError, reread
-from bioradar.mech import contract
 from bioradar.mech import receipt as receipt_format
 from bioradar.mech.ledger import Attempt, reconcile
-from bioradar.mech.request import RequestInvalid, check_request
+from bioradar.mech.receipt import CONTRACT_V2
 from bioradar.research import attempts
 from bioradar.research.run import Withheld, submit
 
@@ -46,6 +47,20 @@ class EvaluatorChanged(Exception):
     def __init__(self, evaluator):
         super().__init__("evaluator_changed")
         self.evaluator = evaluator
+
+
+@dataclass
+class Keyed:
+    """What MechEvidence answered for a request at POST /v2/reuse-key: who would evaluate it, its reuse
+    key and the material echo its receipt must carry."""
+
+    evaluator: dict
+    key: str
+    echo: list[dict]
+
+    @property
+    def hashes(self) -> list[str]:
+        return [row["binding_sha256"] for row in self.echo]
 
 
 @dataclass
@@ -94,7 +109,7 @@ def parts_of(binding: dict) -> list[dict]:
 def alone(item: dict) -> dict:
     """A one-material request, to ask whether this material could be sent at all."""
     return {
-        "contract_version": contract.CONTRACT_V2,
+        "contract_version": CONTRACT_V2,
         "question": "q",
         "mechanism": "m",
         "scope": {name: {"state": "unknown"} for name in ("species", "system", "disease")},
@@ -105,8 +120,10 @@ def alone(item: dict) -> dict:
 
 def bind(run: "Run", rows, describe) -> list[Bound]:
     """The materials that can be sent: each re-read from Fabric by its binding. Text that names no fixed
-    version (read before bindings existed), a part Fabric will not give now (revoked, not visible) and a part
-    whose text is no longer the bound text are left out, each with a note; none of them is sent."""
+    version (read before bindings existed), a part Fabric will not give now (revoked, not visible), a part
+    whose text is no longer the bound text and a material MechEvidence refuses (POST /v2/reuse-key
+    answers 422) are left out, each with a note; none of them is sent. ServiceError when MechEvidence cannot
+    be asked."""
     bound = []
     for row in rows:
         material = noticed(submit.material_of(run, row), (row.meta or {}).get("clean_text_state"))
@@ -125,46 +142,41 @@ def bind(run: "Run", rows, describe) -> list[Bound]:
             continue
         item = {"id": row.ref, "title": row.title, "text": text, "binding": binding, **describe(row)}
         try:
-            check_request(alone(item))
-        except RequestInvalid as bad:
+            services.mechevidence_reuse_key(run.s, alone(item))
+        except ServiceError as bad:
+            if not bad.body:  # no answer at all: MechEvidence cannot be asked, not a bad material
+                raise
             run.note("mechevidence_material_invalid", f"{row.ref} {bad.code}")
             continue
         bound.append(Bound(row, item, parts_of(binding)))
     return bound
 
 
-def identity(run: "Run") -> dict:
-    """Who would evaluate now (GET /v2/evaluator), checked for being one evaluator's whole identity; the
-    receipt format it answers in (GET /v2/contract) is fetched here too, once, before anything is sent."""
-    answer = services.mechevidence_evaluator(run.s)
-    evaluator = answer.get("evaluator") if isinstance(answer, dict) else None
-    try:
-        sound = contract.evaluator_id_of(evaluator) == evaluator["evaluator_id"]
-        sound = (
-            sound and isinstance(evaluator["batch_size"], int) and isinstance(evaluator["ordering_rule"], str)
-        )
-    except (KeyError, TypeError):
-        sound = False
-    if not sound or answer.get("contract_version") != contract.CONTRACT_V2:
-        raise ServiceError("mechevidence", "evaluator_invalid")
-    receipt_format.published(run.s)
-    return evaluator
+def keyed(run: "Run", base: dict) -> Keyed:
+    """Who would evaluate this request now, its reuse key and material echo, as MechEvidence answers them
+    (POST /v2/reuse-key), checked against the format it publishes (GET /v2/contract, fetched here once, before
+    anything is sent)."""
+    schema = receipt_format.published(run.s)
+    answer = services.mechevidence_reuse_key(run.s, base)
+    if receipt_format.reuse_key_problems(answer, schema) or answer["contract_version"] != CONTRACT_V2:
+        raise ServiceError("mechevidence", "reuse_key_invalid")
+    return Keyed(answer["evaluator"], answer["reuse_key"], answer["materials"])
 
 
 # ---- the cache ----
 
 
-def cached(run: "Run", key: str, evaluator: dict, bound: list[Bound], sources: set[str]):
+def cached(run: "Run", keyed: Keyed, bound: list[Bound], sources: set[str]):
     """The stored complete evaluation of exactly this request by exactly this evaluator, or None. A hit is
     used only after Fabric confirms now that every source it came from can be read (a revoked source gives
     Withheld, not a stale answer) and that every fixed version it drew on is visible at this analysis's
     cutoff."""
     with db.session() as s:
-        row = s.get(db.MechEvaluation, key)
+        row = s.get(db.MechEvaluation, keyed.key)
         if row is None:
             return None
         found = (row.evaluator_id, row.contract_version, row.response.get("complete"), list(row.sources))
-    if found[:3] != (evaluator["evaluator_id"], contract.CONTRACT_V2, True):
+    if found[:3] != (keyed.evaluator["evaluator_id"], CONTRACT_V2, True):
         return None
     run.confirm_sources(set(found[3]) | sources)
     try:
@@ -185,8 +197,9 @@ def cached(run: "Run", key: str, evaluator: dict, bound: list[Bound], sources: s
     return row
 
 
-def store(run: "Run", key, evaluator, request, bound, sources, response, how):
+def store(run: "Run", keyed: Keyed, request, bound, sources, response, how):
     """The evaluation into the cache (the first complete result for a key stays) and this analysis's use."""
+    key, evaluator = keyed.key, keyed.evaluator
     with run.writing() as s:
         if s.get(db.MechEvaluation, key) is None:
             try:
@@ -194,14 +207,14 @@ def store(run: "Run", key, evaluator, request, bound, sources, response, how):
                     s.add(
                         db.MechEvaluation(
                             reuse_key=key,
-                            contract_version=contract.CONTRACT_V2,
+                            contract_version=CONTRACT_V2,
                             evaluator_id=evaluator["evaluator_id"],
                             evaluator=evaluator,
                             proposition={"question": request["question"], "mechanism": request["mechanism"]},
-                            scope=contract.normal_scope(request["scope"]),
+                            scope=request["scope"],
                             materials=[
                                 {"id": b.item["id"], "binding_sha256": h, "binding": b.item["binding"]}
-                                for b, h in zip(bound, contract.binding_hashes(request))
+                                for b, h in zip(bound, keyed.hashes)
                             ],
                             sources=sorted(sources),
                             response={k: v for k, v in response.items() if k != "llm_calls"},
@@ -214,7 +227,7 @@ def store(run: "Run", key, evaluator, request, bound, sources, response, how):
         s.add(db.MechEvaluationUse(analysis_id=run.id, reuse_key=key, how=how))
 
 
-def result_of(response: dict, key, evaluator, request, bound, reused: bool) -> dict:
+def result_of(response: dict, keyed: Keyed, bound, reused: bool) -> dict:
     """The mechanism result an analysis keeps: the evaluation without its audit, and which evaluator, key and
     material bindings it is the result of."""
     dropped = {
@@ -229,14 +242,11 @@ def result_of(response: dict, key, evaluator, request, bound, reused: bool) -> d
     return {
         "status": "completed",
         **{k: v for k, v in response.items() if k not in dropped},
-        "contract_version": contract.CONTRACT_V2,
-        "evaluator_id": evaluator["evaluator_id"],
-        "reuse_key": key,
+        "contract_version": CONTRACT_V2,
+        "evaluator_id": keyed.evaluator["evaluator_id"],
+        "reuse_key": keyed.key,
         "reused": reused,
-        "materials": [
-            {"ref": b.item["id"], "binding_sha256": h}
-            for b, h in zip(bound, contract.binding_hashes(request))
-        ],
+        "materials": [{"ref": b.item["id"], "binding_sha256": h} for b, h in zip(bound, keyed.hashes)],
     }
 
 
@@ -246,7 +256,7 @@ def result_of(response: dict, key, evaluator, request, bound, reused: bool) -> d
 def reported(call, schema: dict) -> dict | None:
     """A call of a receipt or an error answer as a log record, or None when its shape is not the
     contract's (it is not believed for anything, its requests are then accounted from the ledger)."""
-    if contract.call_shape_problems(call, schema):
+    if receipt_format.call_shape_problems(call, schema):
         return None
     outputs = call["outputs"]
     return {
@@ -348,29 +358,53 @@ def ledger_rows(ref: str) -> list[Attempt]:
         ]
 
 
-def adopt(run: "Run", request, key, evaluator, issued, receipt, bound, sources, ids) -> dict:
-    """The mechanism result for a 200 receipt: adopted only if MechEvidence's rules and the radar's ledger
-    both agree; otherwise failed, with the receipt kept for audit."""
-    outcome = contract.adopt(request, receipt, evaluator["evaluator_id"], receipt_format.published(run.s))
-    result, rejected = outcome["result"], outcome["rejected"]
+def judged(receipt, keyed: Keyed, schema: dict) -> tuple[str | None, dict]:
+    """(reason, detail) of a 200 receipt that is not adoptable, or (None, {}). Not the published shape:
+    receipt_invalid; not the answer to what POST /v2/reuse-key said: receipt_mismatch; an audit it does not
+    call complete or a cut raw answer: audit_incomplete. MechEvidence's own cross-field rules are its to
+    enforce (it never returns a receipt that breaks them) and are not repeated here."""
+    invalid = receipt_format.shape_problems(receipt, schema)
+    if invalid:
+        return "receipt_invalid", {"mismatch": [], "invalid": invalid}
+    expected = {
+        "contract_version": CONTRACT_V2,
+        "evaluator": keyed.evaluator,
+        "reuse_key": keyed.key,
+        "materials": keyed.echo,
+    }
+    mismatch = [
+        {"field": field, "expected": value, "received": receipt[field]}
+        for field, value in expected.items()
+        if receipt[field] != value
+    ]
+    if mismatch:
+        return "receipt_mismatch", {"mismatch": mismatch}
+    if receipt["audit_complete"] is not True or any(
+        out["truncated"] for call in receipt["llm_calls"] for out in call["outputs"]
+    ):
+        return "audit_incomplete", {"mismatch": []}
+    return None, {}
+
+
+def adopt(run: "Run", request, keyed: Keyed, issued, receipt, bound, sources, ids) -> dict:
+    """The mechanism result for a 200 receipt: adopted only if it is the published shape, the answer to this
+    request and agrees with the radar's ledger; otherwise failed, with the receipt kept for audit."""
+    reason, detail = judged(receipt, keyed, receipt_format.published(run.s))
     calls = receipt.get("llm_calls") if isinstance(receipt, dict) else []
-    problems = [] if rejected else reconcile(ledger_rows(issued.ref), receipt, issued.max_attempts)
-    if rejected is not None or problems:
-        reason = result["reason"] if rejected is not None else "ledger_mismatch"
-        detail = {k: v for k, v in (rejected or {}).items() if k != "response"} or {
-            "reconciliation": problems
-        }
+    problems = [] if reason else reconcile(ledger_rows(issued.ref), receipt, issued.max_attempts)
+    if reason is not None or problems:
+        reason = reason or "ledger_mismatch"
+        detail = detail or {"reconciliation": problems}
         reject(run, issued.ref, reason, receipt, detail)
         account(run, issued.ref, calls, ids)
         run.note(f"mechevidence_{reason}")
         return {"status": "failed", "reason": reason}
     account(run, issued.ref, calls, ids)
-    response = result["response"]
-    if response["complete"]:
-        store(run, key, evaluator, request, bound, sources, response, "computed")
+    if receipt["complete"]:
+        store(run, keyed, request, bound, sources, receipt, "computed")
     else:
-        run.note("mechevidence_incomplete", ", ".join(response["not_complete_because"]))
-    return result_of(response, key, evaluator, request, bound, False)
+        run.note("mechevidence_incomplete", ", ".join(receipt["not_complete_because"]))
+    return result_of(receipt, keyed, bound, False)
 
 
 # ---- the stage ----
@@ -387,78 +421,79 @@ def fail(run: "Run", ref: str, exc: ServiceError, ids) -> dict:
     return {"status": "failed", "reason": exc.code}
 
 
-def send(run: "Run", base, key, evaluator, bound, sources, ids) -> dict:
+def send(run: "Run", base, keyed: Keyed, bound, sources, ids) -> dict:
     budget = max(1, min(10, run.calls_left() - 4))
     materials = [
-        {"ref": b.item["id"], "binding_sha256": h, "parts": b.parts}
-        for b, h in zip(bound, contract.binding_hashes(base))
+        {"ref": b.item["id"], "binding_sha256": h, "parts": b.parts} for b, h in zip(bound, keyed.hashes)
     ]
     with run.writing() as s:
         issued = attempts.issue(
             s,
             run=run,
-            evaluation_key=key,
-            evaluator=evaluator,
+            evaluation_key=keyed.key,
+            evaluator=keyed.evaluator,
             materials=materials,
             sources=sources,
             max_attempts=2 * budget,  # a format retry is a second request of a call
             seconds=run.s.mechevidence_authorization_seconds,
         )
-    request = {**base, "authorization_ref": issued.ref, "max_llm_calls": budget}
-    try:
-        check_request(request)
-    except RequestInvalid as bad:
-        run.note("mechevidence_request_invalid", bad.code)
-        submit.mark(run, ids, "not_sent")
-        return {"status": "failed", "reason": "request_invalid", "code": bad.code}
+    request = {
+        **base,
+        "expected_evaluator_id": keyed.evaluator["evaluator_id"],
+        "authorization_ref": issued.ref,
+        "max_llm_calls": budget,
+    }
     try:
         with submit.outbound(run, ids):
             run.confirm_sources(sources)
             receipt = services.mechevidence_v2(run.s, request)
     except ServiceError as exc:
         return fail(run, issued.ref, exc, ids)
-    return adopt(run, request, key, evaluator, issued, receipt, bound, sources, ids)
+    return adopt(run, request, keyed, issued, receipt, bound, sources, ids)
 
 
 def evaluate(run: "Run", target: dict, rows, describe) -> None:
     """The mechanism stage for contract v2: sets run.p["mechanism_result"]."""
     run.upstream_still_readable()
-    bound = bind(run, rows, describe)
+    try:
+        bound = bind(run, rows, describe)
+    except ServiceError as exc:
+        run.note(f"mechevidence_{exc.code}")
+        run.p["mechanism_result"] = {"status": "failed", "reason": exc.code}
+        return
     if not bound:
         run.p["mechanism_result"] = {"status": "not_run", "reason": "no_bound_material"}
         return
     sources = run.carried({b.row.source for b in bound})
     _, ids = submit.send_rows(run, "mechanism", "mechevidence", [b.row for b in bound])
-    for attempt in range(2):  # one refetch of the evaluator after a 409, then it is unstable
+    base = {
+        "contract_version": CONTRACT_V2,
+        "question": run.asked,
+        "mechanism": target["statement"],
+        "scope": scope_of(target),
+        "materials": [b.item for b in bound],
+        "authorization_ref": "auth-pending",
+    }
+    for attempt in range(2):  # one re-key after a 409, then the evaluator is unstable
         try:
-            evaluator = identity(run)
+            found = keyed(run, base)
         except ServiceError as exc:
             submit.mark(run, ids, "not_sent")
             run.note(f"mechevidence_{exc.code}")
             run.p["mechanism_result"] = {"status": "failed", "reason": exc.code}
             return
-        base = {
-            "contract_version": contract.CONTRACT_V2,
-            "question": run.asked,
-            "mechanism": target["statement"],
-            "scope": scope_of(target),
-            "materials": [b.item for b in bound],
-            "expected_evaluator_id": evaluator["evaluator_id"],
-            "authorization_ref": "auth-pending",
-        }
-        key = contract.reuse_key(base, evaluator)
         try:
-            hit = cached(run, key, evaluator, bound, sources)
+            hit = cached(run, found, bound, sources)
         except Withheld:
             submit.mark(run, ids, "withheld")
             raise
         if hit is not None:
             submit.mark(run, ids, "reused")
-            store(run, key, evaluator, base, bound, sources, hit.response, "reused")
-            run.p["mechanism_result"] = result_of(hit.response, key, evaluator, base, bound, True)
+            store(run, found, base, bound, sources, hit.response, "reused")
+            run.p["mechanism_result"] = result_of(hit.response, found, bound, True)
             return
         try:
-            run.p["mechanism_result"] = send(run, base, key, evaluator, bound, sources, ids)
+            run.p["mechanism_result"] = send(run, base, found, bound, sources, ids)
             return
         except EvaluatorChanged:
             run.note("mechevidence_evaluator_changed", f"attempt {attempt + 1}")
