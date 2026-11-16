@@ -1,4 +1,5 @@
 import httpx
+import openai
 from fabric_receipts import capabilities_of
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -58,7 +59,7 @@ def test_empty_output_at_limit_is_reported_not_retried(monkeypatch):
 
 def test_timeout_is_not_resent(monkeypatch):
     def slow(s, body, call, limit=None, before_send=None):
-        raise httpx.ReadTimeout("slow")
+        raise openai.APITimeoutError(request=httpx.Request("POST", "http://model.invalid"))
 
     monkeypatch.setattr(llm, "post", slow)
     parsed, call = llm.chat_json(settings(), "t", "sys", {}, Answer)

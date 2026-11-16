@@ -201,3 +201,24 @@ def test_a_follow_ups_plan_retry_goes_out_while_the_earlier_rounds_sources_stay_
     assert model_plan.checks[0].text == "后续进展" and len(sent) == 2
     # the earlier report checked by the plan (previous_report), then before each of the two requests
     assert fabric.reads == 3 and stored(run)[1] == [(2, 30, None, [200, 200])]
+
+
+def test_the_openai_client_sends_the_settings_and_the_thinking_switch(monkeypatch):
+    """Through the real openai client (stub HTTP): base_url, key and the DeepSeek switch reach the wire."""
+    seen = []
+
+    def handler(request):
+        seen.append((str(request.url), request.headers["authorization"], json.loads(request.content)))
+        answer = {"message": {"content": VALID}, "finish_reason": "stop"}
+        return httpx.Response(200, json={"choices": [answer]})
+
+    monkeypatch.setattr(llm, "client", lambda: httpx.Client(transport=httpx.MockTransport(handler)))
+
+    own = settings().model_copy(
+        update={"llm_provider": "deepseek", "llm_base_url": "http://model.invalid/v1", "llm_api_key": "k1"}
+    )
+    parsed, call = llm.chat_json(own, "t", "sys", {}, schemas.Reading)
+    url, auth, body = seen[0]
+    assert parsed.relevant is False and call["requests"] == 1 and call["http"] == [200]
+    assert url == "http://model.invalid/v1/chat/completions" and auth == "Bearer k1"
+    assert body["thinking"] == {"type": "disabled"} and body["response_format"] == {"type": "json_object"}

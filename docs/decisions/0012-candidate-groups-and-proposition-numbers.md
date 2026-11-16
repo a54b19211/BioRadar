@@ -55,7 +55,7 @@ of `chosen_topics` as `topic_id`, else - a group no topic holds, as a group of l
 (at most 8) as `seed_records`, each pinned to its newest visible version; `lead_group` marks a chosen group of
 leads alone (0 confirmed).
 The output is the selection list (ranking, outcome, coverage) and every group with its members and candidates;
-keeping it with a hash is the D1 script's job (devtools `env/d1/select_t1.sh`).
+keeping it with a hash is the D1 script's job.
 
 A completed topic analysis numbers its judgments in the transaction that stores the result: it locks the topic
 row, takes `topics.next_prop_seq`, and keeps an earlier `prop_id` (looked up through the parent chain) only when

@@ -74,9 +74,9 @@ cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复
 uv pip install --no-index --find-links "${EXTRACTION_CONTRACT_WHEELS:-../extraction-contract/dist}" --require-hashes -r requirements-contract.txt
 ```
 
-模型调用的 HTTP 一侧同样是共享包 `zk-llm-transport`（0.1.1，来自同级 `llm-transport/dist`，哈希在 `requirements-transport.txt`；`LLM_TRANSPORT_WHEELS` 指定别处）。
+模型调用用 OpenAI 官方 `openai` 库（`services/bioradar/adapters/llm.py`，任何 OpenAI 兼容服务：DeepSeek、vLLM、通义），从 PyPI 安装。
 
-`pyproject.toml` 的 find-links 指向 `../extraction-contract/dist` 和 `../llm-transport/dist`；放在别处时用 `EXTRACTION_CONTRACT_WHEELS`、`LLM_TRANSPORT_WHEELS` 指定。uv.lock 不会记录本地 wheel 的哈希，所以哈希只在上面这一步按 `requirements-contract.txt`、`requirements-transport.txt` 校验。
+`pyproject.toml` 的 find-links 指向 `../extraction-contract/dist`；放在别处时用 `EXTRACTION_CONTRACT_WHEELS` 指定。uv.lock 不会记录本地 wheel 的哈希，所以哈希只在上面这一步按 `requirements-contract.txt` 校验。
 
 编辑 `ops/.env`：填 Fabric 地址和令牌、三个服务的地址和令牌、模型的地址/模型名/密钥（变量名就是 `services/bioradar/config.py` 里的设置名加 `BIORADAR_` 前缀）。JSON 值要加单引号，例如 `BIORADAR_SOURCES='["pubmed","clinicaltrials"]'`。然后：
 
@@ -150,7 +150,7 @@ make check-install      # 在 /tmp 只按 uv.lock 新建环境（uv sync --locke
 make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
 ```
 
-`make lint` 的规则：所有仓库共用一份基础规则 `E4, E7, E9, F, W, I`（devtools `README.md` 的“共用的代码门槛”）。圈复杂度只由 `make metrics` 管，不开 ruff 的 C90。在基础规则之上多开规则的仓库：
+`make lint` 的规则：所有仓库共用一份基础规则 `E4, E7, E9, F, W, I`。圈复杂度只由 `make metrics` 管，不开 ruff 的 C90。在基础规则之上多开规则的仓库：
 
 | 仓库 | 多开的规则 |
 |---|---|
@@ -159,7 +159,7 @@ make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 
 
 `make bootstrap`、`make check-install`（`uv sync --locked` 核对 uv.lock）在 uv 缓存里没有的包要从 PyPI 下载，`make web-check` 的 `npm ci` 要访问 npm。zktest 上直连有时超时，这时只给这几条命令临时加上本机已有的 HTTP 代理（mihomo，监听 127.0.0.1:7890），例如 `HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 make check-install`（`web-check` 的容器用主机网络并带上这两个变量）；不要把代理写进全局配置。uv 下载失败时报的是网络错误，不是 `The lockfile needs to be updated`（只有后者说明 uv.lock 过期）。
 
-`make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`，各仓库是同一份文件，量哪些目录写在
+`make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`，量哪些目录写在
 `pyproject.toml` 的 `[tool.code-metrics]`）；超过的函数必须在 `scripts/metrics_exceptions.txt` 写明冻结时的行数/圈复杂度
 和理由，不许再变大，清单只减不增。`tests/golden/` 是行为基线：每个流程场景存盘的
 progress、证据和外发记录，以及对外视图（详情、列表、导出）逐字节比对；有意改行为时用
@@ -167,7 +167,7 @@ progress、证据和外发记录，以及对外视图（详情、列表、导出
 
 改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
 
-真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`（没有时显示为跳过，不算通过），`devtools/env/line_checks.sh` 从 `wt/clean-planner` 起一个服务来跑。各项检查的实际结果（通过、跳过的个数）以那次运行的 `summary.tsv` 为准，这里不记数字。
+真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`（没有时显示为跳过，不算通过），指向一个从 `clean-planner` 起的 planner 服务。各项检查的实际结果（通过、跳过的个数）以那次运行的 `summary.tsv` 为准，这里不记数字。
 
 ## 验收实验
 
@@ -238,4 +238,4 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
 - **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
 - **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（detached，标签 `archive/live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
-- **整洁度还剩的**：雷达模型调用的 HTTP 一侧已走共享的 `llm_transport`（与 BioCheck、MechEvidence 相同），测量链路已归 Fabric（0010），来源目录的副本已删（0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告照常显示草稿，页面和导出标明状态和原因（`apps/web/`）；被待核的上一轮报告交给追问时仍标为待核线索（见 `docs/decisions/0005`、`0006`）。
+- **整洁度还剩的**：雷达模型调用直接用 `openai` 库，测量链路已归 Fabric（0010），来源目录的副本已删（0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告照常显示草稿，页面和导出标明状态和原因（`apps/web/`）；被待核的上一轮报告交给追问时仍标为待核线索（见 `docs/decisions/0005`、`0006`）。

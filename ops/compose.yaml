@@ -7,7 +7,6 @@ x-backend: &backend
     network: host
     additional_contexts:
       contract-wheels: ${EXTRACTION_CONTRACT_WHEELS:-../../extraction-contract/dist}
-      transport-wheels: ${LLM_TRANSPORT_WHEELS:-../../llm-transport/dist}
     args:
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}

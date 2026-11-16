@@ -1,13 +1,13 @@
-"""The radar's own model calls. One function, OpenAI-compatible /chat/completions: the HTTP side (request
-body, sending, resend after a refusal, counting requests) is the shared llm_transport; the prompt description,
-the format retry, the error codes and the call record are the radar's."""
+"""The radar's own model calls. One function over the official `openai` client (any OpenAI-compatible
+/chat/completions: DeepSeek, vLLM, 通义); the prompt description, the format retry, the error codes and the
+call record are the radar's."""
 
 import hashlib
 import json
 import time
 
 import httpx
-import llm_transport as lt
+import openai
 from pydantic import BaseModel, ValidationError
 
 from bioradar import guard
@@ -37,13 +37,19 @@ def describe(model_cls: type[BaseModel]) -> str:
     return "\n".join(fields(schema))
 
 
-# Usually refused before the model runs, but that is not guaranteed (it may still be billed), so resends are
-# few and each one counts against the caller's request budget.
+# Resent after these statuses, waiting BACKOFF seconds before each resend (seen 2026-11-03: DeepSeek 503
+# for ~25 minutes). The resend loop is here, not the client's max_retries, because every request - a resend
+# too - must pass guard.check and the caller's before_send first and counts against the request budget.
 REFUSED = (429, 503)
-BACKOFF = (5, 20, 60)  # seconds before each resend; seen 2026-11-03: DeepSeek 503 for ~25 minutes
+BACKOFF = (5, 20, 60)
 
-# Raised by a caller's before_send: this request may not go out (`reason`); the ones before it did.
-SendBlocked = lt.SendBlocked
+
+class SendBlocked(Exception):
+    """Raised by a caller's before_send: this request may not go out (`reason`); the ones before it did."""
+
+    def __init__(self, reason: str):
+        super().__init__(reason)
+        self.reason = reason
 
 
 def client() -> httpx.Client:
@@ -51,65 +57,53 @@ def client() -> httpx.Client:
     return httpx.Client()
 
 
-def provider(settings: Settings) -> lt.Provider:
-    kind = settings.llm_provider if settings.llm_provider in ("deepseek", "vllm") else "openai_compatible"
-    return lt.Provider(
-        kind=kind,
-        base_url=settings.llm_base_url,
-        model=settings.llm_model,
-        api_key=settings.llm_api_key,
-        timeout_seconds=settings.llm_timeout_seconds,
-    )
+def build_body(settings: Settings, messages: list, *, max_tokens: int, thinking: bool) -> dict:
+    """The request body: the provider's per-call thinking switch, temperature 0 when not thinking."""
+    body = {"model": settings.llm_model, "messages": list(messages), "max_tokens": max_tokens,
+            "response_format": {"type": "json_object"}}
+    if settings.llm_provider == "deepseek":
+        body["thinking"] = {"type": "enabled" if thinking else "disabled"}
+    elif settings.llm_provider == "vllm":  # local vLLM serving Qwen reads the switch from its chat template
+        body["chat_template_kwargs"] = {"enable_thinking": bool(thinking)}
+    if not thinking:
+        body["temperature"] = 0
+    return body
 
 
 def post(settings: Settings, body: dict, call: dict, limit: int | None = None, before_send=None) -> dict:
-    """POST one request, resent after a refusal; before_send(requests already sent in this call) runs right
-    before every send and may raise SendBlocked. Returns the decoded JSON body; an unanswered request, a
-    non-2xx status and a body that is not JSON raise (httpx errors, ValueError). `call` keeps the request
-    count and one http entry (status or exception name) per request."""
-    where = provider(settings)
-    record = lt.CallRecord(
-        stage=call.get("stage", ""),
-        endpoint_id="",
-        model=settings.llm_model,
-        requests=call.get("requests", 0),
-    )
-
-    def before_attempt(start: lt.AttemptStart) -> None:
-        try:
-            guard.check()
-        except guard.Revoked:
-            raise SendBlocked("revoked") from None  # what was already sent is returned for settlement
-        if before_send is not None:
-            before_send(start.sent_before)
-
-    try:
-        with client() as http:
-            sent = lt.send(
-                where,
-                body,
-                record,
-                client=http,
-                before_attempt=before_attempt,
-                resend=lt.Resend(REFUSED, BACKOFF),
-                max_requests=limit or None,
-                sleep=lambda seconds: time.sleep(seconds),
-            )
-    finally:
-        if record.requests or "requests" in call:  # a call stopped before its first request has no count
-            call["requests"] = record.requests
-        if record.log:
-            statuses = [a.status if a.status is not None else a.exception for a in record.log]
-            call.setdefault("http", []).extend(statuses)
-    if sent.index is None:
-        raise SendBlocked("request_budget")
-    request = httpx.Request("POST", where.url)
-    if sent.exception is not None:  # no answer to this request (a timeout, a dropped connection)
-        raise (httpx.TimeoutException if sent.timed_out else httpx.TransportError)(sent.exception)
-    if sent.error:
-        response = httpx.Response(sent.status, request=request)
-        raise httpx.HTTPStatusError(sent.error, request=request, response=response)
-    return json.loads(sent.response_bytes)
+    """Send one request, resent after a refusal; guard.check and before_send(requests already sent in this
+    call) run right before every send and may raise SendBlocked. Returns the decoded JSON body; an unanswered
+    request and a non-2xx status raise openai errors, a body that is not JSON ValueError. `call` keeps the
+    request count and one http entry (status or exception name) per request."""
+    extra = {k: body[k] for k in ("thinking", "chat_template_kwargs") if k in body}
+    plain = {k: v for k, v in body.items() if k not in extra}
+    with client() as http:
+        api = openai.OpenAI(base_url=settings.llm_base_url or None, api_key=settings.llm_api_key or "-",
+                            timeout=settings.llm_timeout_seconds, max_retries=0, http_client=http)
+        for pause in (*BACKOFF, None):
+            sent = call.get("requests", 0)
+            if limit and sent >= limit:
+                raise SendBlocked("request_budget")
+            try:
+                guard.check()
+            except guard.Revoked:
+                raise SendBlocked("revoked") from None  # what was already sent is returned for settlement
+            if before_send is not None:
+                before_send(sent)
+            call["requests"] = sent + 1
+            try:
+                raw = api.chat.completions.with_raw_response.create(**plain, extra_body=extra or None)
+            except openai.APIStatusError as exc:
+                call.setdefault("http", []).append(exc.status_code)
+                if exc.status_code not in REFUSED or pause is None or (limit and sent + 1 >= limit):
+                    raise
+            except openai.APIError as exc:
+                call.setdefault("http", []).append(type(exc).__name__)
+                raise
+            else:
+                call.setdefault("http", []).append(raw.status_code)
+                return raw.http_response.json()
+            time.sleep(pause)
 
 
 def chat_json(
@@ -145,7 +139,7 @@ def chat_json(
     }
     started = time.monotonic()
     for attempt in range(2):
-        body = lt.build_body(provider(settings), messages, max_tokens=max_tokens, thinking=thinking)
+        body = build_body(settings, messages, max_tokens=max_tokens, thinking=thinking)
         if max_requests and call.get("requests", 0) >= max_requests:
             call["error"] = call["error"] or "request_budget"
             break
@@ -155,11 +149,11 @@ def chat_json(
         except SendBlocked as exc:
             call["error"], call["blocked"] = "send_blocked", exc.reason
             break
-        except httpx.TimeoutException:
+        except openai.APITimeoutError:
             call["error"] = "timeout"  # not resent: the provider may have billed it
             break
-        except httpx.HTTPError as exc:
-            call["error"] = f"http_error:{getattr(getattr(exc, 'response', None), 'status_code', '')}"
+        except openai.APIError as exc:
+            call["error"] = f"http_error:{getattr(exc, 'status_code', '')}"
             break
         except ValueError:
             call["error"] = "response_not_json"

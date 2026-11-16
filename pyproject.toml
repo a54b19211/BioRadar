@@ -12,14 +12,14 @@ dependencies = [
   "sqlalchemy>=2.0,<3", "psycopg[binary]>=3.2,<4", "alembic>=1.14,<2",
   "redis>=5,<8", "rq>=2,<3", "httpx>=0.28,<1",
   "extraction-contract==2.0.0",  # pinned by wheel hash: requirements-contract.txt
-  "zk-llm-transport==0.1.1",  # pinned by wheel hash: requirements-transport.txt
+  "openai>=2,<3",
 ]
 
 [tool.uv]
 # the one uv of the environment (README, 启动); uv refuses to run this project with another version
 required-version = "==0.13.0"
-# the shared wheels, built from the sibling extraction-contract and llm-transport checkouts (README)
-find-links = ["../extraction-contract/dist", "../llm-transport/dist"]
+# the shared contract wheel, built from the sibling extraction-contract checkout (README)
+find-links = ["../extraction-contract/dist"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10", "ruff>=0.9,<1"]
@@ -36,7 +36,7 @@ target-version = "py312"
 line-length = 110
 
 [tool.ruff.lint]
-# the base rule set of every repository (devtools README): pyflakes, the pycodestyle errors that are bugs or
+# the base rule set of every repository: pyflakes, the pycodestyle errors that are bugs or
 # hide statements, whitespace, import order. Complexity is gated by scripts/code_metrics.py, not by C90.
 # Extra here: all of E, line length (E501) included.
 select = ["E4", "E7", "E9", "F", "W", "I"]
