@@ -51,8 +51,6 @@ const maps = {
     insufficient: "证据不足",
     no_claim: "无需核验",
   },
-  // the check of a measured reading (Fabric's check.status, SeriesPoint.check_status)
-  readingCheck: { consistent: "已核一致", inconsistent: "有冲突", unchecked: "未核" },
   // why a report or a topic's level is marked 待核 (hold_reason); other reasons are shown as they are
   hold: {
     not_checked: "核验没有运行",

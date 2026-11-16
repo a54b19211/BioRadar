@@ -13,7 +13,7 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 | 部分 | 仓库 | 雷达怎么用 |
 | --- | --- | --- |
-| 资料、版本、材料关系、测量对象 | fabric | 只读 HTTP（`BIORADAR_FABRIC_URL`），不写它的库 |
+| 资料、版本、材料关系 | fabric | 只读 HTTP（`BIORADAR_FABRIC_URL`），不写它的库 |
 | 下一步选择与停止 | a54b19211/Bio-Planner | `BIORADAR_PLANNER_URL`，默认端口 18561 |
 | 写稿与逐句核验 | BioCheck | `BIORADAR_BIOCHECK_URL`，默认端口 18562 |
 | 机制证据评价 | MechEvidence | `BIORADAR_MECHEVIDENCE_URL`，默认端口 18563 |
@@ -98,7 +98,7 @@ curl -b c.txt localhost:18100/api/analyses/<id>
 
 ```sh
 make test               # 全部单元测试（SQLite，Fabric、模型和各服务都是替身）
-make test-pg            # 真实 PostgreSQL 上的租约、测量变更流、冻结表测试（临时 postgres:17-alpine 容器；没有 Docker 就失败）
+make test-pg            # 真实 PostgreSQL 上的租约、冻结表测试（临时 postgres:17-alpine 容器；没有 Docker 就失败）
 make test-redis         # 队列在真实 Redis 上的测试（临时 redis:7.4-alpine 容器）
 make lint               # ruff：基础规则 E4, E7, E9, F, W, I，本仓库另开 E（行宽 110）
 make metrics            # 函数 80 行 / 圈复杂度 20；例外写在 scripts/metrics_exceptions.txt，只减不增
@@ -123,12 +123,11 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 
 ## 未完成
 
-- 真实模型验收：真实阅读、Fabric 测量抽取的准确率、规模测试和 24 小时连续运行还没做。
+- 真实模型验收：真实阅读、规模测试和 24 小时连续运行还没做。
 - 规划可能把题面没点名的地点、机构、病名写进待查问题（现在由规划规则拦），要用新代码完整重跑 D 验证。
 - C 的 planner 定向稿没有稳定 PASS：数据和计算都对，写稿模型的总结句会自相矛盾；可以让 BioCheck 写稿时总结句只复述正文，或覆盖检查判不完整时带理由重写全稿。
 - D 的判断不稳定：大固定材料集一次只读 20 篇；下一步按来源类型（官方通报优先）排读取顺序。
 - 监测分诊里出现删帖、辟谣（`information_events`）的记录应直接作为专题分析的种子（A 漏读过删帖信号）。
 - 演示来源 `external_archive` 里三个场景混在一起，检索「更正」会命中别的场景。
-- 测量迁移的后续：雷达旧测量数据没导入 Fabric（旧点只作历史显示）；planner 契约还不收 `measurement_ref` / `check_ref`；序列不判阶段推进；页面没有序列图。
 - 一份分析里只要有一条材料不可读，整份正文都暂不显示（没有按句子保留其余部分）。
 - 公共卫生专题的「重新唤醒」在新代码上还没复现过；A 的新聚集该唤醒旧专题还是另开，要看 `research/prompts.py` 的 TRIAGE 再验一次。

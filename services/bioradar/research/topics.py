@@ -195,8 +195,7 @@ def level_gates(session, topics) -> dict[str, dict]:
         query = select(db.Analysis.id, db.Analysis.state, db.Analysis.result).where(db.Analysis.id.in_(ids))
         latest = {i: (state, result) for i, state, result in session.execute(query)}
     return {
-        t.id: views.level_publication(latest.get(t.last_analysis_id), bool(t.pending_reason))
-        for t in topics
+        t.id: views.level_publication(latest.get(t.last_analysis_id), bool(t.pending_reason)) for t in topics
     }
 
 
@@ -220,44 +219,6 @@ def event_view(e: db.TopicEvent) -> dict:
     is not shown; the record, the closure flag and what the program recorded are."""
     detail = {**e.detail, "alert": None, "signal": "", "objects": []} if e.kind == "observed" else e.detail
     return {"at": e.at.isoformat(), "kind": e.kind, **detail}
-
-
-READINGS = 200  # the readings a topic's detail lists
-
-
-def reading_view(p: db.SeriesPoint) -> dict:
-    """A reading of a topic (a point of its series) as it leaves the radar, with the mark of its check:
-    consistent (已核一致), inconsistent (有冲突) or unchecked (未核). Whether it may be compared is a separate
-    answer (`comparable`: its domain is complete and proven, research/domain.py), so a reading that is not
-    checked is shown and never summed or trended. A unit or period Fabric does not know stays as it says."""
-    return {
-        "id": p.measurement_id,
-        "object": p.object,
-        "metric": p.metric,
-        "scope": p.scope,
-        "value": p.value_text,
-        "unit": p.unit,
-        "period": p.period,
-        "source": p.source,
-        "record_id": p.record_id,
-        "quote": p.quote,
-        "check": p.check_status or "unchecked",
-        "comparable": not p.gate_reasons,
-        "reasons": list(p.gate_reasons),
-    }
-
-
-def readings(session, topic_id: str) -> list[dict]:
-    """The topic's readings Fabric holds current now, newest period first. A reading that was replaced (by
-    its check's answer, a newer processor, a correction) has left: the facts of a topic are its current
-    objects, never the count of the objects Fabric created."""
-    query = (
-        select(db.SeriesPoint)
-        .where(db.SeriesPoint.topic_id == topic_id, db.SeriesPoint.left_at.is_(None))
-        .order_by(db.SeriesPoint.period_end.desc(), db.SeriesPoint.id.desc())
-        .limit(READINGS)
-    )
-    return [reading_view(p) for p in session.scalars(query)]
 
 
 def topic_view(topic: db.Topic, gate: dict, *, events=False) -> dict:
@@ -297,5 +258,4 @@ def topic_view(topic: db.Topic, gate: dict, *, events=False) -> dict:
                     .order_by(db.Observation.available_at)
                 )
             ]
-            value["readings"] = readings(session, topic.id)
     return value

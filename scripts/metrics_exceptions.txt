@@ -5,7 +5,6 @@
 # and on a listed function that got bigger, so the list only shrinks.
 #
 # Series comparison of one point against the points before it: one pass, one branch per kind of change.
-services/bioradar/research/series.py:evaluate  60/32  series comparison, one branch per kind of change (step, high/low, streak, stage)
 #
 # The Fabric adapter assembles a record's material from four Fabric layers on the client side; it shrinks to one
 # call when Fabric serves the readable material in one response.

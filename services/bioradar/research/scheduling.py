@@ -1,5 +1,5 @@
-"""Automatic analyses: which topics are owed one now, and what each is handed - the series it rests on,
-the corrections and record contradictions since its last analysis, the analysts' reviews."""
+"""Automatic analyses: which topics are owed one now, and what each is handed - the new versions since its
+last analysis, the analysts' reviews."""
 
 import logging
 from datetime import datetime, timedelta
@@ -8,85 +8,11 @@ from sqlalchemy import func, select
 
 from bioradar import db
 from bioradar.config import Settings
-from bioradar.research import analyses, measure_history, prompts, propositions, revision, series_sync
+from bioradar.research import analyses, prompts, propositions, revision
 from bioradar.research.clock import parse_time
 from bioradar.research.topics import ALERTS, event, owed_at
 
 log = logging.getLogger("bioradar")
-
-
-def series_basis_points(session, topic_id, at=None) -> list:
-    """The structured record of the points the latest series event used, each with whether it is current and
-    its latest check (series_basis states them only when all are current). As of `at` (a cutoff): the latest
-    series event visible then, never one computed later."""
-    last = session.scalar(
-        visible(select(db.TopicEvent), db.TopicEvent.at, at)
-        .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
-        .order_by(db.TopicEvent.id.desc())
-        .limit(1)
-    )
-    used = sorted({i for c in (last.detail["changes"] if last else []) for i in c.get("rows", [])}, key=str)
-    return described(session, topic_id, used, at)  # current or not, with its state
-
-
-def _fabric(ids):
-    return [i for i in ids if series_sync.is_fabric_id(i)], [
-        i for i in ids if not series_sync.is_fabric_id(i)
-    ]
-
-
-def recorded(session, topic_id, ids) -> list:
-    """The points an event names: the topic's points of Fabric objects (series_points), or points of the
-    radar's own frozen chain (measurements, read only)."""
-    objects, frozen = _fabric(ids)
-    rows = series_sync.rows(session, topic_id, objects)
-    if frozen:
-        rows += list(session.scalars(select(db.Measurement).where(db.Measurement.id.in_(frozen))))
-    return rows
-
-
-def point_id(p):
-    return p.measurement_id if isinstance(p, db.SeriesPoint) else p.id
-
-
-def described(session, topic_id, ids, at=None) -> list:
-    """The structured, read-only record of these points (the planner's series input)."""
-    objects, frozen = _fabric(ids)
-    out = series_sync.points(session, topic_id, objects, at)
-    return out + (measure_history.series_points(session, frozen, at) if frozen else [])
-
-
-def series_basis(session, topic_id, at=None) -> str:
-    """The latest computed series change of a topic in words, for the analysis it triggers: values, periods
-    and records, so the investigation starts from what the program found instead of searching blind. As of
-    `at` (a cutoff): the latest series event visible then. Only a change computed from Fabric's objects whose
-    points are all still in the series with a proven domain is stated; the radar's own frozen points are
-    history and never a current conclusion."""
-    last = session.scalar(
-        visible(select(db.TopicEvent), db.TopicEvent.at, at)
-        .where(db.TopicEvent.topic_id == topic_id, db.TopicEvent.kind == "series")
-        .order_by(db.TopicEvent.id.desc())
-        .limit(1)
-    )
-    if last is None or last.detail.get("authority") != "fabric":
-        return ""
-    d = last.detail
-    used = sorted({i for c in d["changes"] for i in c.get("rows", [])})
-    rows = series_sync.rows(session, topic_id, used)
-    if not used or len(rows) != len(used) or not all(series_sync.proven(r) for r in rows):
-        return (
-            ""  # a point it used left the series (corrected, superseded) or has a gap: no current conclusion
-        )
-    points = "；".join(
-        f"{r.period} {r.value_text}{r.unit}（记录 {r.record_id}，已核 check {r.check_ref}）" for r in rows
-    )
-    scope = f"（{d['scope']}）" if d.get("scope") else ""
-    found = "、".join(sorted({c["kind"] for c in d["changes"]}))
-    return (
-        f"程序按已入账观测算出：{d['object']}·{d['metric']}{scope}：{points}。判断：{found}。"
-        f"比较组：{rows[0].family}，必要维度（病种、人群、日期口径等）均已核实或由已核字段承担。"
-        "这只是待核实的线索，请回原文核对数值、口径和期间。"
-    )
 
 
 def visible(query, column, at):
@@ -102,147 +28,6 @@ def handed_events(session, topic_id):
     ):
         out.update(e.detail.get("handed_events") or [])
     return out
-
-
-def correction_batch(session, topic_id, since, at=None, limit=10):
-    """(events, handed ids, earliest time of what is left over or None) of the topic's correction events not
-    handed to an analysis yet, as of the cutoff: at most `limit` correcting record versions, oldest first; the
-    repeats of one in the batch are handed with it."""
-    handed = handed_events(session, topic_id)
-    rows = session.scalars(
-        visible(select(db.TopicEvent), db.TopicEvent.at, at)
-        .where(
-            db.TopicEvent.topic_id == topic_id,
-            db.TopicEvent.kind == "correction",
-            db.TopicEvent.at >= since,
-        )
-        .order_by(db.TopicEvent.id)
-    )
-    out, given, keys, left = [], [], set(), None
-    for e in rows:
-        if e.id in handed:
-            continue
-        d = e.detail
-        key = (d.get("by_source"), d["record"], d.get("by_version_id"), d.get("reason"))
-        if key not in keys and len(out) >= limit:
-            left = min(left, parse_time(e.at)) if left else parse_time(e.at)
-            continue
-        if key not in keys:
-            keys.add(key)
-            out.append(e)
-        given.append(e.id)
-    return out, given, left
-
-
-def correction_events(session, topic_id, since, at=None, limit=10):
-    """The correction events of a topic since it was owed and not handed yet, as of the cutoff: one per
-    correcting record version (bounded), oldest first."""
-    return correction_batch(session, topic_id, since, at, limit)[0]
-
-
-def conflict_basis(session, topic_id, since, at=None, limit=10):
-    """(question text, pinned seeds, point ids, handed event ids, earliest time of what is left over or None)
-    of the record contradictions a topic is owed an analysis for: each record at the version
-    that states one identity with two values, both values and their quotes; as of the cutoff, the `limit`
-    oldest events not handed to an analysis yet, one seed per (source, record, version)."""
-    handed = handed_events(session, topic_id)
-    rows = [
-        e
-        for e in session.scalars(
-            visible(select(db.TopicEvent), db.TopicEvent.at, at)
-            .where(
-                db.TopicEvent.topic_id == topic_id,
-                db.TopicEvent.kind == "record_conflict",
-                db.TopicEvent.at >= since,
-            )
-            .order_by(db.TopicEvent.id)
-        )
-        if e.id not in handed
-    ]
-    rows, rest = rows[:limit], rows[limit:]
-    left = min(parse_time(e.at) for e in rest) if rest else None
-    lines, seeds, ids, seen = [], [], [], set()
-    for e in rows:
-        d = e.detail
-        points = recorded(session, topic_id, [x["id"] for x in d.get("points") or []])
-        if not points:
-            continue
-        ids += [point_id(p) for p in points if point_id(p) not in ids]
-        key = (points[0].source, d["record"], d.get("version"))
-        if key not in seen:
-            seen.add(key)
-            seeds.append(
-                {
-                    "source": points[0].source,
-                    "record_id": d["record"],
-                    "version_id": d.get("version"),
-                    "title": "原文内部矛盾",
-                }
-            )
-        values = "；".join(f"{p.value_text}{p.unit}（原句：{p.quote}）" for p in points)
-        lines.append(
-            f"记录 {d['record']}（版本 {d.get('version')}）对 {d.get('period')} 的同一指标"
-            f"给出不同数值：{values}"
-        )
-    text = (
-        (
-            "\n原文内部矛盾，两个值都已保留、都不参与比较，请读这一版原文核实：\n"
-            + "\n".join(f"- {line}" for line in lines)
-        )
-        if lines
-        else ""
-    )
-    return text, seeds, ids, [e.id for e in rows], left
-
-
-def correction_seeds(session, topic_id, since, at=None, events=None):
-    """The correcting records themselves, as sources the analysis must read: a correction that
-    withdrew a point is named even when its replacement never passed checking."""
-    seeds, seen = [], set()
-    for e in events if events is not None else correction_events(session, topic_id, since, at):
-        d = e.detail
-        key = (d.get("by_source"), d["record"], d.get("by_version_id"))
-        if d.get("by_source") and key not in seen:
-            seen.add(key)
-            kind = "撤回通知" if d.get("relation") == "retracts" else "更正通知"
-            seeds.append(
-                {
-                    "source": d["by_source"],
-                    "record_id": d["record"],
-                    "version_id": d.get("by_version_id"),
-                    "title": kind,
-                }
-            )
-    return seeds
-
-
-def correction_basis(session, topic_id, since, at=None, events=None) -> str:
-    """The corrections Fabric stated for this topic's points, as of the cutoff: which
-    notice withdrew which values - whether or not a replacement passed checking - and, when the replacement
-    was placed in another topic, that the program did not use it here. The notices are seeds of the
-    analysis."""
-    lines = []
-    for e in events if events is not None else correction_events(session, topic_id, since, at):
-        d = e.detail
-        old = recorded(session, topic_id, d["withdrawn"])
-        olds = "、".join(f"{m.period} {m.value_text}{m.unit}（记录 {m.record_id}）" for m in old)
-        notice = f"记录 {d['record']}" + (
-            f"（{d['by_source']}，版本 {d['by_version_id']}）" if d.get("by_source") else ""
-        )
-        if d.get("reason") == "cross_domain_correction":
-            new = session.get(db.Measurement, d["by"])
-            value = f"{new.value_text}{new.unit}" if new else "?"
-            lines.append(
-                f"{notice} 的更正值 {value} 被归到另一个领域，程序没有用它替代本专题的 {olds}，"
-                "请核实更正是否适用于本专题。"
-            )
-        else:
-            verb = "撤回" if d.get("relation") == "retracts" else "更正"
-            lines.append(
-                f"{notice} {verb}了本专题的 {olds}：旧值已不再计入本专题的序列；"
-                "更正后的数值是否已核实、是否属于本专题，请读这份通知核实。"
-            )
-    return ("\n来源更正，请逐条核实：\n" + "\n".join(f"- {line}" for line in lines)) if lines else ""
 
 
 def review_basis(session, topic_id, since) -> str:
@@ -371,9 +156,7 @@ def _start_one(session, owed_topic, reason, later, cutoff):
     topic_id = owed_topic.id
     topic = session.get(db.Topic, topic_id)
     question, seeds = _base_question(session, topic, reason, cutoff)
-    question, seeds, points, handed, leftover, reassess = _bases(
-        session, owed_topic, reason, cutoff, question, seeds
-    )
+    question, seeds, handed, leftover, reassess = _bases(session, owed_topic, reason, cutoff, question, seeds)
     row = analyses.create(
         question=question,
         direction=topic.direction,
@@ -383,7 +166,6 @@ def _start_one(session, owed_topic, reason, later, cutoff):
         topic_id=topic.id,
         parent_id=topic.last_analysis_id,
         seed_records=seeds,
-        series_points=points,
         reassess=reassess,
         session=session,
     )
@@ -434,40 +216,14 @@ def _base_question(session, topic, reason, cutoff):
 
 
 def _bases(session, owed_topic, reason, cutoff, question, seeds):
-    """What each reason of the debt adds to the question, the seeds and the series points; returns
-    (question, seeds, points, events handed over, events left over with the time they stay owed from, the
+    """What each reason of the debt adds to the question and the seeds; returns
+    (question, seeds, events handed over, events left over with the time they stay owed from, the
     propositions the analysis is asked to judge again)."""
     topic_id = owed_topic.id
     reasons = reason.split("+")
-    points = []
-    if "series_change" in reasons:
-        question += series_basis(session, topic_id, cutoff)
-        points = series_basis_points(session, topic_id, cutoff)
     if "analyst_review" in reasons:
         question += review_basis(session, topic_id, owed_topic.pending_since)
     handed, leftover, reassess = [], {}, []  # what this analysis is given; what stays owed, from when
-    corrected = [r for r in reasons if r in {"cross_domain_correction", "source_corrected"}]
-    if corrected:
-        since = owed_topic.pending_since
-        batch, given, left = correction_batch(session, topic_id, since, cutoff)
-        handed += given
-        if left is not None:
-            leftover.update(dict.fromkeys(corrected, left))
-        question += correction_basis(session, topic_id, since, cutoff, events=batch)
-        seeds += correction_seeds(
-            session, topic_id, since, cutoff, events=batch
-        )  # pinned: never merged with a head
-    if "record_conflict" in reasons:
-        text, pinned, ids, given, left = conflict_basis(session, topic_id, owed_topic.pending_since, cutoff)
-        handed += given
-        if left is not None:
-            leftover["record_conflict"] = left
-        question += text
-        seeds += pinned  # the version that contradicts itself, read as that version (fixed read)
-        known = {p["measurement_id"] for p in points}
-        points = list(points) + [
-            p for p in described(session, topic_id, ids, cutoff) if p["measurement_id"] not in known
-        ]
     if "new_version" in reasons:
         batch, given, left = version_batch(session, topic_id, owed_topic.pending_since, cutoff)
         handed += given
@@ -476,7 +232,7 @@ def _bases(session, owed_topic, reason, cutoff, question, seeds):
         text, pinned, reassess = version_basis(session, owed_topic, batch)
         question += text
         seeds += pinned
-    return question, seeds, points, handed, leftover, reassess
+    return question, seeds, handed, leftover, reassess
 
 
 def _settle_debt(topic, reason, later, leftover, cutoff):

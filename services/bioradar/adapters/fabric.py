@@ -853,7 +853,7 @@ class Fabric:
                         ]
 
     def graph_resolve(self, doc, name, *, cutoff=None, mode=None):
-        """the human-reviewed graph (read only): entity candidates for an exact name in one graph record, each
+        """Tang's reviewed graph (read only): entity candidates for an exact name in one graph record, each
         with its identity status and the fixed record versions it was read from (node evidence)."""
         return self._get(
             f"/api/fabric/graph/{doc['version_id']}/resolve",
@@ -1008,27 +1008,3 @@ class Fabric:
             for a, b, kind in sorted(found, key=lambda gap: tuple(part or "" for part in gap))
         ]
         return {"window": window, "receipts": len(receipts), "gaps": gaps}
-
-    def measurement_changes(self, *, is_demo, after_seq=0, limit=100):
-        """Fabric's measurement event feed after a sequence number (datafabric.measurement_changes.v1):
-        {items, next_after, more, withheld: {source: count}} - events of sources not readable now are only
-        counted (docs/设计.md 决策 0010)."""
-        return self._get(
-            "/api/fabric/measurements/changes",
-            {"is_demo": str(is_demo).lower(), "after_seq": after_seq, "limit": limit},
-        )
-
-    def measurements(self, source, version_ids, *, is_demo, mode, cutoff, include_history=False):
-        """Fabric's checked measurement objects of these versions (datafabric.measurements.v1), each with its
-        state at the cutoff; with include_history also the ones not current."""
-        return self._get(
-            "/api/fabric/measurements",
-            {
-                "source_id": source,
-                "is_demo": str(is_demo).lower(),
-                "mode": mode,
-                "cutoff": cutoff,
-                "version_ids": list(version_ids),
-                "include_history": str(include_history).lower(),
-            },
-        )

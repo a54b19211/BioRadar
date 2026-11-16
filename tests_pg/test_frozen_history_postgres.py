@@ -77,8 +77,7 @@ def test_the_radars_own_new_tables_stay_writable():
     with db.engine().begin() as connection:
         connection.execute(
             text(
-                "INSERT INTO measurement_withheld (workspace_id, is_demo, source_id, events, last_seq, "
-                "state, position, updated_at) VALUES ('default', true, 'who_don', 1, 1, 'withheld', 0, now())"
+                "INSERT INTO monitor_cursors (source, is_demo, after_seq) VALUES ('frozen-test', true, 0)"
             )
         )
-        connection.execute(text("DELETE FROM measurement_withheld"))
+        connection.execute(text("DELETE FROM monitor_cursors WHERE source = 'frozen-test'"))

@@ -1,14 +1,13 @@
 """Continuous monitoring, one round at a time (tick): new Fabric records -> routing and triage -> topics
--> Fabric's measurement objects into the topics' series -> topic states -> automatic analyses. The parts are
-research/triage.py, series_sync.py (docs/设计.md 决策 0010), topics.py and scheduling.py."""
+-> topic states -> automatic analyses. The parts are research/triage.py, topics.py and scheduling.py."""
 
 import logging
 from datetime import datetime
 
 from bioradar import db
-from bioradar.adapters.fabric import LEAD_SOURCES, Fabric
+from bioradar.adapters.fabric import Fabric
 from bioradar.config import settings
-from bioradar.research import analyses, series_sync
+from bioradar.research import analyses
 from bioradar.research.clock import parse_time
 from bioradar.research.revision import arrive
 from bioradar.research.scheduling import start_analyses
@@ -72,10 +71,6 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         deferred = defer(triage_docs, is_demo=is_demo)
         if deferred:
             routed[DEFERRED] = routed.get(DEFERRED, 0) + deferred
-    if not paused:  # the objects of the versions placed now, in case their events are not in the feed yet
-        placed = [d for d in triage_docs if d["source"] not in LEAD_SOURCES]  # a lead is placed in no topic
-        series_sync.link_versions(s, fabric, placed, is_demo=is_demo, cutoff=cutoff)
-    measured = series_sync.sync(s, fabric, is_demo=is_demo, cutoff=cutoff)  # no model call: never paused
     _move_cursors(ends, docs, is_demo)
     latest = max([parse_time(d["available_at"]) for d in docs], default=None)
     clock = clock or cutoff or latest or db.now()
@@ -95,7 +90,6 @@ def _round(s, fabric, *, is_demo, cutoff, clock):
         "paused": "daily_auto_tokens" if paused else None,
         "clock": clock.isoformat(),
         "topics": reasons,
-        "measurements": measured,
         "analyses": created,
     }
 

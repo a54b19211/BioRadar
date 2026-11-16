@@ -1,5 +1,5 @@
 """Candidate groups: which of the materials the radar has seen may belong to one event, as a view over rows
-that already exist (observations, the points of series_points, the evidence analyses read). There is no member
+that already exist (observations, the evidence analyses read). There is no member
 table: the analysis of a topic stores the member list of its display group in `analyses.result`
 (docs/设计.md 决策 0012).
 
@@ -42,7 +42,6 @@ RELATION_KINDS = ("reposts", "supplements", "corrects", "retracts")  # the Fabri
 KEY_WINDOW = timedelta(days=30)  # how far apart a key match may be seen: a search range, not a merging rule
 REGION_CLUES = 5  # the groups one material that names a place but no pathogen may be a candidate of
 MAX_MATERIALS = 20000  # the newest materials of the 30 days a view reads; more is reported as truncated
-PROVEN = ("checked", "carried")  # the states of a measurement dimension that make it known (domain.py)
 # the order of the group the first judgment is about (task book 00 1.4); a key counts when those before tie
 SELECTION_KEYS = ("confirmed_groups desc", "first_seen_at asc", "id asc")
 CHUNK = 500
@@ -472,35 +471,6 @@ def _chunks(values):
     return [values[i : i + CHUNK] for i in range(0, len(values), CHUNK)]
 
 
-def _keys(session, s: Settings, ids, *, is_demo: bool) -> dict:
-    """version id -> (pathogen, region, quote) from the series points of its Fabric measurements. A dimension
-    is known only when proven and when the version's points agree on it; the coverage dimension is the only
-    place the radar holds a region."""
-    seen = defaultdict(lambda: {"disease": set(), "coverage": set()})
-    quotes = {}
-    for chunk in _chunks(ids):
-        points = session.scalars(
-            select(db.SeriesPoint)
-            .where(
-                db.SeriesPoint.workspace_id == s.workspace_id,
-                db.SeriesPoint.is_demo == is_demo,
-                db.SeriesPoint.version_id.in_(chunk),
-            )
-            .order_by(db.SeriesPoint.id)
-        )
-        for p in points:
-            quotes.setdefault(p.version_id, p.quote)
-            known = seen[p.version_id]
-            for d in p.dims:
-                if d.get("kind") in known and d.get("state") in PROVEN and d.get("norm"):
-                    known[d["kind"]].add(d["norm"])
-
-    def one(values):
-        return next(iter(values)) if len(values) == 1 else ""
-
-    return {v: (one(f["disease"]), one(f["coverage"]), quotes[v]) for v, f in seen.items()}
-
-
 def _relations(session, ids, cutoff: datetime) -> dict:
     """version id -> the relations Fabric stated for it, as an analysis recorded them when it read it. Only
     what analyses had recorded by the cutoff: a later reading does not write back into an earlier moment."""
@@ -548,7 +518,7 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
     leads_read, more_leads = _newest(session, s, of_leads=True, limit=MAX_LEADS, **read)
     truncated, rows = more or more_leads, news + leads_read
     ids = [o.version_id for o in rows]
-    keys, relations = _keys(session, s, ids, is_demo=is_demo), _relations(session, ids, cutoff)
+    relations = _relations(session, ids, cutoff)
     materials = []
     for o in rows:
         own = f"record:{o.source}:{o.record_id}"
@@ -557,7 +527,6 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
         if key != own and key.startswith("record:"):
             _, source, record = key.split(":", 2)
             stated.add(("reposts", source, record))
-        pathogen, region, quote = keys.get(o.version_id, ("", "", ""))
         materials.append(
             Material(
                 version_id=o.version_id,
@@ -566,9 +535,6 @@ def load(session, s: Settings, *, is_demo: bool, cutoff: datetime, background) -
                 available_at=utc(o.available_at),
                 activity_key=key,
                 background=o.version_id in background,
-                pathogen=pathogen,
-                region=region,
-                quote=quote,
                 relations=tuple(sorted(stated)),
                 topics=(o.topic_id,) if o.topic_id else (),
                 relevance=o.relevance or "",

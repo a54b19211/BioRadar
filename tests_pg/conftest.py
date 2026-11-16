@@ -29,7 +29,7 @@ os.environ["BIORADAR_BIOCHECK_URL"] = "http://biocheck.invalid"
 from bioradar import db  # noqa: E402
 
 # the tables the tests write, with everything that refers to them (CASCADE)
-TEST_TABLES = "analyses, investigations, topics, monitor_cursors, measurement_inbox, measurement_withheld"
+TEST_TABLES = "analyses, investigations, topics, monitor_cursors"
 TEST_TABLES += ", record_corrections"
 
 
