@@ -1,16 +1,12 @@
-"""The radar's own measurement chain from before the cut-over to Fabric is history, read only
-(docs/decisions/0010): an analysis, a topic event or a reading plan that names one of its rows still shows it
-as recorded - never as current, never computed from - and reading it writes nothing."""
+"""The radar's own measurement tables from before the cut-over are frozen history: a reading plan is still
+shown as recorded, and nothing writes them."""
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import func, insert, select, update
 
 from bioradar import app, db
-from bioradar.research import measure_history, scheduling
-from bioradar.research.run import investigate
 
 AT = datetime(2026, 9, 1, 8, 0, tzinfo=UTC)
 V1, V2 = "a" * 64, "b" * 64
@@ -164,72 +160,6 @@ def history_rows():
 def counts():
     with db.session() as s:
         return [s.scalar(select(func.count()).select_from(m)) for m in FROZEN]
-
-
-def test_a_recorded_point_reads_as_it_was_recorded_and_never_as_current():
-    history_rows()
-    before = counts()
-    with db.session() as s:
-        first, second = measure_history.series_points(s, [2, 1])
-    assert (first["measurement_id"], first["value"], first["authority"]) == (1, "10", "radar_history")
-    assert first["current"] is False and second["current"] is False
-    assert first["extraction_check"] == {
-        "status": "consistent",
-        "gate": "series",
-        "checker_version": V16,
-        "check_id": 1,
-        "reason": None,
-    }
-    assert first["comparability"]["state"] == "comparable"
-    assert second["comparability"]["reasons"] == ["withdrawn_by_correction"]  # the recorded correction
-    assert counts() == before  # read only
-
-
-def test_a_point_shows_its_latest_check_under_the_version_that_check_was_stored_with():
-    history_rows()
-    with db.engine().begin() as c:  # a later check of candidate 1 by another checker
-        c.execute(
-            insert(db.MeasurementCheck.__table__).values(
-                id=3,
-                candidate_id=1,
-                checker_version=V17,
-                contract_version="extraction_consistency.v3",
-                status="inconsistent",
-                gate="candidate",
-                gate_reason="unit_mismatch",
-                created_at=AT,
-            )
-        )
-    before = counts()
-    with db.session() as s:
-        first, second = measure_history.series_points(s, [1, 2])
-        [plan] = [measure_history.coverage(s, r) for r in s.scalars(select(db.RecordRead))]
-    assert first["extraction_check"] == {  # the newer check, as stored: not turned into the older version
-        "status": "inconsistent",
-        "gate": "candidate",
-        "checker_version": V17,
-        "check_id": 3,
-        "reason": "unit_mismatch",
-    }
-    assert second["extraction_check"]["checker_version"] == V16  # only a v16 check: still shown as v16
-    assert plan["checker_versions"] == [V17]  # candidate 1 alone, latest check v17
-    assert counts() == before
-
-
-def test_an_analysis_that_rests_on_recorded_points_still_hands_them_to_the_planner_as_history():
-    history_rows()
-    before = counts()
-    recorded = [{"measurement_id": 1}, {"measurement_id": 2}]
-    points = investigate.series_state(SimpleNamespace(input={"series_points": recorded}, cutoff=None))
-    assert [(p["record_id"], p["value"], p["current"]) for p in points] == [
-        ("R1", "10", False),
-        ("R2", "12", False),
-    ]
-    with db.session() as s:
-        # the topic's last series event names recorded points: no current conclusion is drawn from them
-        assert scheduling.series_basis(s, "t1") == ""
-        assert [p["measurement_id"] for p in scheduling.series_basis_points(s, "t1")] == [1, 2]
-    assert counts() == before
 
 
 def test_a_recorded_reading_plan_is_still_shown():

@@ -106,16 +106,11 @@ class FakeFabric:
 
     def __init__(self, records, clean=False, readable=()):
         """readable: further source ids Fabric lets the radar read, besides the sources of the records."""
-        from fabric_measurements import Measured
-
         from bioradar.adapters.fabric import document, part
         from bioradar.material import Material
 
         self.extra_readable = set(readable)
         self.caps = None
-        self.measured = (
-            Measured()
-        )  # Fabric's measurement objects of these records (none unless a test adds them)
 
         self.docs = [document(r) for r in records]
         for d in self.docs:
@@ -241,12 +236,6 @@ class FakeFabric:
             if doc is not None and doc["version_id"] not in self.revoked:
                 out[part_key(p)] = doc["text"] + (" tampered" if doc["version_id"] in self.tampered else "")
         return out
-
-    def measurement_changes(self, *, is_demo, after_seq=0, limit=50):
-        return self.measured.changes(is_demo=is_demo, after_seq=after_seq, limit=limit)
-
-    def measurements(self, source, version_ids, **read):
-        return self.measured.measurements(source, version_ids, **read)
 
     def version_visible(self, source, record_id, version_id, *, is_demo, cutoff=None, mode=None):
         """Whether the fixed version can be read now, or at the cutoff (not before it was available)."""

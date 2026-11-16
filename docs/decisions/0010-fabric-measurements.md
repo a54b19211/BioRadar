@@ -1,5 +1,7 @@
 # 0010 Measurements are Fabric's: the radar consumes its objects and keeps only the topic's selection
 
+> 2026-11-16 作废：测量程序已从 Fabric 和雷达整个删除（雷达迁移 0026、Fabric V048 删表）。下文只作历史。
+
 - Status: accepted (2026-11-07). Radar side of Fabric's measurement objects (Fabric `clean/measurements.py`,
   `clean/measurement_reads.py`); the design records are in `/home/zk_test/zk_projects/雷达设计文档/` (server).
 - Supersedes for new data: 0002 (the radar's producer and checker versions) and the extraction part of 0003.

@@ -11,7 +11,7 @@ from test_monitor import DAY, triage_by_title
 from bioradar import db
 from bioradar.adapters import llm
 from bioradar.config import settings
-from bioradar.research import analyses, monitor, series_sync
+from bioradar.research import analyses, monitor
 from bioradar.research.pipeline import Run
 
 ASK = {"question": "XQ-17 的进展如何？", "direction": "pipeline"}
@@ -94,7 +94,7 @@ def test_monitoring_reads_only_offered_sources_and_reports_the_others(monkeypatc
     first = monitor.tick(is_demo=False, fabric=fabric)
     assert first["source_not_selectable"] == ["legacy_documents"]
     with db.session() as s:
-        feeds = {c.source for c in s.query(db.Cursor)} - {series_sync.FEED}  # Fabric's measurement feed
+        feeds = {c.source for c in s.query(db.Cursor)}
         assert feeds == {"who_don"}  # legacy never got a cursor
 
 

@@ -225,25 +225,6 @@ export interface Topic {
   hold_reason: string | null;
 }
 
-// One reading of a topic, a point of its series, with the mark of its check. A reading whose source cannot be
-// read now has no words (object, metric, quote) and says why in `withheld`.
-export interface Reading {
-  id: string;
-  object: string;
-  metric: string;
-  scope: string;
-  value: string;
-  unit: string; // "unknown" when the check could not find one
-  period: string;
-  source: string;
-  record_id: string;
-  quote: string;
-  check: "consistent" | "inconsistent" | "unchecked";
-  comparable: boolean; // only a reading with a complete, proven domain is compared
-  reasons: string[];
-  withheld?: string;
-}
-
 // An event is { at, kind } plus the keys of its detail, which depend on the kind.
 export interface TopicEvent {
   at: string;
@@ -273,7 +254,6 @@ export interface Observation {
 export interface TopicFull extends Topic {
   events: TopicEvent[];
   observations: Observation[];
-  readings: Reading[];
 }
 
 export interface TickSummary {

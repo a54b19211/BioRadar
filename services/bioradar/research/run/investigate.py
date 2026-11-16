@@ -6,11 +6,9 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from bioradar import db
 from bioradar.adapters import services
 from bioradar.adapters.fabric import FabricError, time_value
 from bioradar.adapters.services import ServiceError
-from bioradar.research import measure_history, series_sync
 from bioradar.research.run import Failed, decisions, read, search
 from bioradar.research.run.search import FABRIC_PAGE, MAX_PAGES, doc_key
 from bioradar.text import squash
@@ -259,43 +257,6 @@ def weigh(run: "Run", result):
     return result
 
 
-def series_state(run: "Run"):
-    """The series values this analysis rests on (recorded when it was created), each with its quality
-    state as of now: a Fabric object's state is read again from Fabric for these points alone (at the cutoff,
-    with the permission of now), so a value corrected or revoked during the run reaches the planner as it
-    stands. A point of the radar's own frozen chain is history: never current. Read only - the planner may
-    choose to re-read a value's record, it cannot admit a value to a series."""
-    recorded = (run.input.get("series_points") or [])[:64]
-    if not recorded:
-        return []
-    objects = [p for p in recorded if series_sync.is_fabric_id(p["measurement_id"])]
-    frozen = [p["measurement_id"] for p in recorded if not series_sync.is_fabric_id(p["measurement_id"])]
-    with db.session() as session:
-        points = measure_history.series_points(session, frozen, run.cutoff) if frozen else []
-    if objects:
-        points += series_sync.read_points(
-            run.s, run.fabric, objects, run.cutoff, is_demo=run.input["is_demo"]
-        )
-    # the planner contract's field lengths (SeriesPoint)
-    keys = {"source": 80, "record_id": 400, "version_id": 128, "object": 200, "metric": 200, "value": 40}
-    keys |= {"unit": 50, "period": 40}
-    return [
-        {k: str(p.get(k) or "")[:n] for k, n in keys.items()}
-        | {
-            "current": bool(p["current"]),
-            "extraction_check": {
-                k: p["extraction_check"][k]
-                for k in ("status", "gate", "checker_version", "check_id", "reason")
-            }
-            if p.get("extraction_check")
-            else None,
-            # a layer apart from the check: whether the value may be compared now
-            "comparability": p["comparability"],
-        }
-        for p in points
-    ]
-
-
 def planner_request(run: "Run", offered):
     """The request of one round: the question, the checks, what may be done next and what was done. A check
     goes with the status it has: answered (with its E# evidence: a candidate answer the reader grounded,
@@ -314,8 +275,6 @@ def planner_request(run: "Run", offered):
             "reads_left": max(0, budget["max_reads"] - reads),
         },
         "policy": run.input["method"],
-        # the series values the question rests on, quality state re-read now (read only)
-        "series": series_state(run),
         # the material this investigation may use, and what the radar says about each way of finding it
         "sources": list(run.input["sources"]),
         "channels": decisions.channels(run),

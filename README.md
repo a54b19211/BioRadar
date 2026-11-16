@@ -12,7 +12,7 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
 | 部分 | 维护人 | 位置 |
 | --- | --- | --- |
 | 运行、接入、部署 | 李明洋 | `services/bioradar/app.py`、`config.py`、`db.py`、`ops.py`、`text.py`、`adapters/`、`research/analyses.py`、`research/views.py`、`research/lease.py`、`research/clock.py`、`research/lineage.py`、`db/`、`ops/` |
-| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`run/`（各阶段）、`state.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py`、`topics.py`、`triage.py`、`series_sync.py`、`domain.py`、`series.py`、`scheduling.py` |
+| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`run/`（各阶段）、`state.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py`、`topics.py`、`triage.py`、`scheduling.py` |
 | 页面、导出、验收评测 | 刘金彦 | `apps/web/`、`scripts/scenarios.py` |
 | 资料、版本、材料关系 | 徐子雯（图谱：唐蔚雯） | 仓库 ZK_Data-Fabric-test |
 | 下一步选择与停止 | 李明洋 / 孙博文 | 仓库 query-planner |
@@ -55,7 +55,6 @@ BioRadar 是医药与公共卫生情报雷达。它做两件事：
   `execute` 认领时写入，`recover` 释放；分析的每一次写入（进度、证据、材料发送记录、模型调用记录、最终结果）都在行锁里核对令牌，
   每一次对外发送（模型、BioCheck、MechEvidence）之前也核对；核对是“令牌仍是自己的**且**租约未过期”的一条 UPDATE，同时续租，所以过期的租约不会被复活。被取代或过期的 worker 得到 `lease.Lost`、什么也不写并记一条日志；它在失去租约之前已经发出的请求，晚到的回答、用量和原文仍记入旧尝试的审计（`llm_calls.lease_token`、`llm_outputs`），计入这份分析的预算
   （见 [`docs/decisions/0007`](docs/decisions/0007-rq-dispatch-and-database-lease.md)）。
-- Fabric 测量变更流（`series_sync`）：不经 RQ，由 monitor 每轮读；每一页和游标在同一个事务里提交，同一专题同一测量对象只连一次（唯一约束 + 保存点，见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)）。
 - 这些保证在真实 PostgreSQL 上由 `make test-pg`（`tests_pg/`）验证；SQLite 没有行锁，单元测试证明不了。测试会 `TRUNCATE`，所以只对脚本为本次运行新建的容器和专用库（`radar_pgtest_<随机>`）运行：运行前核对库里的运行标记、容器 ID、端口和库名与清单一致（`tests_pg/guard.py`），手工给的 URL（含回环地址、现役库）一律拒绝。
 
 ## 启动
@@ -209,9 +208,9 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 
 ## 测量归 Fabric，雷达只管专题的序列（2026-11-07）
 
-客观测量（抽取、BioCheck 核验、覆盖与欠账、更正与撤回、处理器和核验器升级）全部归 Fabric 加工层（Fabric 的 ADR 0006）。雷达的分诊只做分类，不再抽数；雷达自己的抽取、核验、续读和运维代码已删除。`series_sync` 每轮读 Fabric 的测量变更流 `GET /api/fabric/measurements/changes`（每页与游标同一事务提交），分诊把版本放进专题时按版本拉 `GET /api/fabric/measurements`，两种先后顺序结果相同、不重复；来源撤权期间被扣下的事件在恢复读取后按版本重拉。专题把哪个 Fabric 测量对象放进哪条序列记在 `series_points`（只有已确认身份才跨记录合并，临时身份只在本记录内成组），完整可比域门槛（`domain.py`）、序列计算（`series.py`）、序列/更正/记录内矛盾事件和自动分析仍是雷达的。分析运行时每个序列点的状态都按截止时间、以当下权限重新向 Fabric 读。
+2026-11-16 起没有测量程序：Fabric 和雷达都不再从公告里抽数字存成序列（序列同步、`series_points`、测量收件箱已删除，迁移 0026 删表）。分析要用数字时由模型读 Fabric 的清洗正文、引用原句，BioCheck 按引用的原文核对。
 
-雷达原来的八张测量表（`measurements`、`measurement_candidates`、`measurement_check_tasks`、`measurement_checks`、`record_reads`、`record_read_windows`、`record_read_attempts`、`record_corrections`）连数据一起保留，冻结为只读：PostgreSQL 触发器拒绝任何写入和清空（迁移 0023），会话层在发出前就拒绝。旧分析和旧专题事件引用的旧测量点照常显示（`authority: radar_history`，从不算当前），`/api/measure-coverage` 照常显示旧的阅读计划。设计与取舍见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)。
+雷达原来的八张测量表（`measurements`、`measurement_candidates`、`measurement_check_tasks`、`measurement_checks`、`record_reads`、`record_read_windows`、`record_read_attempts`、`record_corrections`）连数据一起保留，冻结为只读：PostgreSQL 触发器拒绝任何写入和清空（迁移 0023），会话层在发出前就拒绝。分析不再读它们，`/api/measure-coverage` 照常显示旧的阅读计划。设计与取舍见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)。
 
 ## 2026-11-03 讨论室修订
 
@@ -222,7 +221,6 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --ski
 - **待真实模型验证**：T-22 的真实阅读验收、Fabric 测量抽取的真实准确率、规模测试和 24 小时实际运行；Codex 提的回归用例（BioCheck 覆盖检查误判「情报假设」标题、C04-W2 矛盾、C05-W2「已定稿未生效」、research_scope 等内部字段名要译成中文）。
 - **T-22 未修完**：用 before 那份「题面没提武汉、待查问题却写武汉」的规划去读，阅读规则仍扳不过被收窄的待查问题（3 次实测结果不稳）；现在从规划处防（待查问题不得写题面未点名的地点、机构、病名），还要用新代码完整重跑 D-S1 验证。
 - **WeKnora 检索的范围和上限**（按当前代码）：进 WeKnora 的来源、业务范围和知识库由 Fabric 的 `DATAFABRIC_INDEX_TARGETS` 决定；哪些来源实际已入库，以 Fabric 的 `/api/fabric/index/counts` 和每次检索回执里的 `coverage` 为准，这里不记。桥不再有上传预算（`r4/bridge-thin` 已撤），也没有"同一范围超过 1000 篇返回 400"的限制：桥的检索是对整个知识库一次关键词、一次向量的混合检索（`extensions/kdd/service.py` 的 `search`），每路候选最多 60（`MAX_CANDIDATES`）；Fabric 对每个命中再核对，过滤后可能不足 top_k，不足不等于库里没有更多相关材料。桥没有截止时间参数，历史回放照样走这条路：由 Fabric 按这次的模式和截止时间核对来源许可、可见版本和固定正文；没入库或还没 `ready` 的版本搜不到（字面检索照样读得到）。桥只返回登记在自己回执本里、未停用、范围已授权的条目，其余按原因计数、不返回（`_searchable`）。
-- **测量迁移的后续**（`docs/decisions/0010`）：雷达旧测量数据导入 Fabric（映射表与等价证明）没做，旧点目前只作历史显示；planner 契约不收额外字段，`measurement_ref` / `check_ref` 要先改 planner；Fabric 现在只对 who_don 抽测量；Fabric 的测量对象不带阶段（计划/在建/投运），序列不再判阶段推进；没有确认身份的对象只在同一记录内成组；页面只在专题事件里显示序列，没有序列图。
 - **T-14 的边界**：一份分析里只要有一条材料不可读，整份正文都暂不显示（没有按句子拆分保留其余部分）；同时第一次登录建管理员有极小概率撞唯一约束，重试即可。现役上线时要在 `radar.env` 加 `BIORADAR_SESSION_SECRET`。
 - **C 的 planner 定向稿没有 PASS**（第十九节「跑通」标准里唯一没达到的一条）：数据、更正、程序计算都对，问题出在写稿模型的总结句自相矛盾（见上表），BioCheck 的覆盖检查判为不完整；修订只改单句，改不了全篇层面的矛盾。另外 planner 仍会读进 A/B 场景的更正记录（演示来源里三个场景混在一起）。下一步：潘倩在 BioCheck 写稿提示里要求总结句只复述正文已写的结论；或者覆盖检查判为不完整时让雷达带着理由重写一次全稿。
 - **公共卫生专题的「重新唤醒」**：最终代码的运行里，被唤醒的只有一个药品专题（沃森 13 价疫苗）；公共卫生专题走完萌发→升温→降温/休眠→唤醒，只在 11-02 第 4 轮（旧代码）的卫健委疫情通报专题上出现过。A 的 L4 按事件独立性开成了新专题而不是唤醒旧专题。下一步：孙博文确认 L4 应当唤醒原专题还是另开专题（`research/prompts.py` 的 TRIAGE），再用 `scenarios.py abc --only A` 验一次。

@@ -170,44 +170,7 @@ def observation(version, record, at, topic_id, *, source="who_don", key=None):
     )
 
 
-def point(topic_id, version, record):
-    s = settings()
-    dims = [
-        {"kind": "disease", "norm": "ebola", "state": "checked"},
-        {"kind": "coverage", "norm": "drc", "state": "carried"},
-        {"kind": "population", "norm": "all", "state": "unknown"},
-    ]
-    return db.SeriesPoint(
-        workspace_id=s.workspace_id,
-        is_demo=True,
-        topic_id=topic_id,
-        measurement_id="m-" + version,
-        source="who_don",
-        record_id=record,
-        version_id=version,
-        object="cases",
-        metric="cases",
-        unit="",
-        measure_kind="count",
-        scope_mode="object_metric_total",
-        period="2026-10",
-        period_type="month",
-        period_precision="month",
-        period_start=T0,
-        period_end=T0,
-        value_text="1",
-        quote="1 case reported",
-        object_key="o",
-        joined_by_rule="r",
-        dims=dims,
-        dims_key="k",
-        gate_version="v",
-        series_key="s",
-        available_at=T0,
-    )
-
-
-def test_the_view_of_a_topic_is_built_from_observations_points_evidence_and_the_backfill():
+def test_the_view_of_a_topic_is_built_from_observations_evidence_and_the_backfill():
     s = settings()
     with db.session() as session:
         topic = db.Topic(
@@ -242,8 +205,6 @@ def test_the_view_of_a_topic_is_built_from_observations_points_evidence_and_the_
                 observation("v2", "N1", day(2), topic.id, source="news", key="record:who_don:D1"),
                 observation("v3", "D2", day(3), None),
                 observation("v0", "D0", day(-5), None),  # read by the backfill
-                point(topic.id, "v1", "D1"),
-                point(topic.id, "v3", "D2"),
                 db.Evidence(
                     analysis_id=analysis.id,
                     ref="E1",
@@ -265,15 +226,8 @@ def test_the_view_of_a_topic_is_built_from_observations_points_evidence_and_the_
 
     joined = members(found)
     assert {k: v["basis"] for k, v in joined.items()} == {"v1": "same_record", "v2": "fabric_relation"}
-    [candidate] = found["group"]["candidates"]  # D2 has the same pathogen and region, and is no member
-    assert (candidate["version_id"], candidate["basis"]) == ("v3", "key_match")
-    [other] = found["others"]  # D2's own group: D2 and the background record the evidence relates it to
-    # the background record is a member, not counted; D1's candidate D2 moves D2's first seen, not its start
-    assert (other["confirmed_groups"], other["start"], other["first_seen_at"]) == (
-        1,
-        day(3).isoformat(),
-        day(1).isoformat(),
-    )
+    assert found["group"]["candidates"] == []  # no pathogen or region is known of a material: no key match
+    assert found["others"] == []  # nothing links D2 to the topic without a key
     assert found["truncated"] is False
 
 

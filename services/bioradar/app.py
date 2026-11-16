@@ -525,11 +525,6 @@ def redact_topics(values: list[dict]) -> list[dict]:
                         if key in e:
                             e[key] = [] if isinstance(e[key], list) else ""
                     e["withheld"] = withheld(sources.get(record, ""), readable)
-        for r in v.get("readings", []):  # a reading is the record's content: only its ids and mark stay
-            why = withheld(r["source"], readable)
-            if why:
-                r.update(object="", metric="", scope="", value="", unit="", period="", quote="")
-                r.update(comparable=False, reasons=[], withheld=why)
         out.append(v)
     return out
 
