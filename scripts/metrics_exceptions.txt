@@ -12,5 +12,5 @@ services/bioradar/research/series.py:evaluate  60/32  series comparison, one bra
 services/bioradar/adapters/fabric.py:Fabric.attach_clean_text  57/23  client-side join of Fabric's layers, replaced by one Fabric material call
 services/bioradar/adapters/fabric.py:Fabric.attach_attachment_text  58/22  client-side join of Fabric's layers, replaced by one Fabric material call
 #
-# The radar's model call loop around the shared llm_transport (which owns the HTTP side).
+# The radar's model call loop over the openai client (request budget, send checks, format retry).
 services/bioradar/adapters/llm.py:chat_json  90/20  prompt description, format retry and call record, with one exit and error code per model-side failure (blocked, timeout, HTTP, not JSON, no choices, empty after the length limit, invalid output)
