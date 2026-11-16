@@ -1,20 +1,24 @@
-"""The shared MechEvidence v2 contract (extraction_contract.mech_v2) as the radar uses it, against everything
-MechEvidence publishes about it: its fixtures (request, receipt, evaluator, 11 reuse-key cases, 51 receipt
-outcomes, service errors) and its literature identity contract. A change of the shared package that the
-fixtures do not follow shows here first."""
+"""The MechEvidence v2 contract as the radar uses it, against everything MechEvidence publishes about it:
+its fixtures (request, receipt, evaluator, 11 reuse-key cases, 51 receipt outcomes, service errors), its
+literature identity contract and its receipt format (GET /v2/contract). The radar's
+copy of the request-side rules and its cross-field receipt rules must reproduce MechEvidence's outcomes."""
 
 import hashlib
 import json
 from pathlib import Path
 
 import pytest
-from extraction_contract.mech_v2 import IdentityError, source_identity
 
+from bioradar.adapters import services
+from bioradar.adapters.services import ServiceError
 from bioradar.mech import contract
-from bioradar.mech.contract import UnsupportedRequest, adopt, evaluator_id_of, material_echo, reuse_key
+from bioradar.mech import receipt as receipt_format
+from bioradar.mech.contract import UnsupportedRequest, evaluator_id_of, material_echo, reuse_key
+from bioradar.mech.identity import IdentityError, source_identity
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mech-contract-v2"
-# MechEvidence r2/mech-v2 at 5bb6383: examples/contract-v2/*.json and examples/identity_contract.json
+# MechEvidence r2/mech-v2 at 5bb6383: examples/contract-v2/*.json and examples/identity_contract.json;
+# contract.json: MechEvidence split/extraction-contract at 148f988, the answer of GET /v2/contract
 PINNED = {
     "evaluator.json": "6d7918e8ba0ac0380f90c1f1e4a295274abb07e63e3c1999a3f24fcb6071322c",
     "negative_requests.json": "64e59dc086f34e079ddd7b0700b82eae02e81d1eecc7064fb6b6e5260fd6f939",
@@ -24,11 +28,19 @@ PINNED = {
     "reuse_keys.json": "cf8831bb9c5391566a25550b4627830a94f81ee6112134207030bf206a539f37",
     "service_errors.json": "12a8bba536ce5826aee5ce0065f3702f2b4a058e1fb4452f81e0ebf21cf22f54",
     "identity_contract.json": "55a6965de32ba09d89642441392624dd9556249523d223a3d5e095d6920bd864",
+    "contract.json": "7e6818d34297e2581ad783fa63a0a92ac5a89f29d82fc1a14ddde1237f28d1c8",
 }
 
 
 def load(name):
     return json.loads((FIXTURES / name).read_text(encoding="utf-8"))
+
+
+SCHEMA = receipt_format.load(load("contract.json"))
+
+
+def adopt(request, answer, expected):
+    return contract.adopt(request, answer, expected, SCHEMA)
 
 
 def test_the_fixtures_and_the_receipt_rules_are_the_ones_mechevidence_published():
@@ -134,6 +146,11 @@ def test_what_the_radar_does_with_each_receipt(name):
     document = load("receipt_outcomes.json")
     case = next(item for item in document["cases"] if item["name"] == name)
     outcome = adopt(document["request"], case["receipt"], document["expected_evaluator_id"])
+    # the shape messages are the schema validator's own; everything else is MechEvidence's exact outcome
+    shape = "invalid" in case["outcome"]["result"] and "invalid" in outcome["result"]
+    if shape:
+        for side in (outcome, case["outcome"]):
+            side["result"]["invalid"] = side["rejected"]["invalid"] = ["..."]
     assert json.loads(json.dumps(outcome)) == case["outcome"]
     status, reason = EXPECTED[name]
     assert outcome["result"]["status"] == status and outcome["result"].get("reason") == reason
@@ -203,3 +220,39 @@ def test_an_identity_error_is_part_of_the_key_not_a_crash():
     key = reuse_key(broken, evaluator)
     assert key != reuse_key(request, evaluator)
     assert contract.material_inputs(broken)[1]["identity"] == "error:material_identity_conflict"
+
+
+# ---- the receipt format is fetched from MechEvidence, never assumed ----
+
+
+def test_the_receipt_format_comes_from_mechevidence_and_its_absence_stops_the_send(monkeypatch):
+    settings = type("S", (), {"mechevidence_url": "http://mech.test", "mechevidence_token": "t"})()
+    monkeypatch.setattr(receipt_format, "_published", {})
+    asked = []
+    monkeypatch.setattr(services, "mechevidence_contract", lambda s: asked.append(1) or load("contract.json"))
+    first = receipt_format.published(settings)
+    assert receipt_format.published(settings) is first and asked == [1]  # fetched once
+
+    monkeypatch.setattr(receipt_format, "_published", {})
+
+    def down(s):
+        raise ServiceError("mechevidence", "unreachable")
+
+    monkeypatch.setattr(services, "mechevidence_contract", down)
+    with pytest.raises(ServiceError) as caught:
+        receipt_format.published(settings)
+    assert caught.value.code == "contract_unavailable"
+    for answer in (None, {}, dict(load("contract.json"), contract_version="mechevidence.evaluate.v1"),
+                   dict(load("contract.json"), receipt_schema={"type": 7})):
+        with pytest.raises(ServiceError) as caught:
+            receipt_format.load(answer)
+        assert caught.value.code == "contract_invalid"
+
+
+def test_one_model_call_is_checked_against_the_published_format():
+    call = load("receipt.json")["llm_calls"][0]
+    assert contract.call_shape_problems(call, SCHEMA) == []
+    broken = dict(call, requests="1", outputs=[dict(call["outputs"][0], attempt=1.0)])
+    del broken["stage"]
+    assert len(contract.call_shape_problems(broken, SCHEMA)) == 3
+    assert contract.call_shape_problems(["not", "a", "call"], SCHEMA)

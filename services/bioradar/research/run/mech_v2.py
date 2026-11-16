@@ -26,6 +26,7 @@ from bioradar.adapters.fabric import FabricError, noticed
 from bioradar.adapters.services import ServiceError
 from bioradar.material import MaterialError, reread
 from bioradar.mech import contract
+from bioradar.mech import receipt as receipt_format
 from bioradar.mech.ledger import Attempt, reconcile
 from bioradar.mech.request import RequestInvalid, check_request
 from bioradar.research import attempts
@@ -133,7 +134,8 @@ def bind(run: "Run", rows, describe) -> list[Bound]:
 
 
 def identity(run: "Run") -> dict:
-    """Who would evaluate now (GET /v2/evaluator), checked for being one evaluator's whole identity."""
+    """Who would evaluate now (GET /v2/evaluator), checked for being one evaluator's whole identity; the
+    receipt format it answers in (GET /v2/contract) is fetched here too, once, before anything is sent."""
     answer = services.mechevidence_evaluator(run.s)
     evaluator = answer.get("evaluator") if isinstance(answer, dict) else None
     try:
@@ -145,6 +147,7 @@ def identity(run: "Run") -> dict:
         sound = False
     if not sound or answer.get("contract_version") != contract.CONTRACT_V2:
         raise ServiceError("mechevidence", "evaluator_invalid")
+    receipt_format.published(run.s)
     return evaluator
 
 
@@ -240,10 +243,10 @@ def result_of(response: dict, key, evaluator, request, bound, reused: bool) -> d
 # ---- what the service reports and what the ledger knows ----
 
 
-def reported(call) -> dict | None:
+def reported(call, schema: dict) -> dict | None:
     """A call of a receipt or an error answer as a log record, or None when its shape is not the
     contract's (it is not believed for anything, its requests are then accounted from the ledger)."""
-    if contract.call_shape_problems(call):
+    if contract.call_shape_problems(call, schema):
         return None
     outputs = call["outputs"]
     return {
@@ -292,7 +295,8 @@ def account(run: "Run", ref: str, calls, ids) -> None:
     """Log the model calls of an evaluation: those the service reported in a believable shape, with their
     raw answers, and one row for every request the radar allowed that none of them accounts for. The
     material reads that fed the evaluation are linked to its first review call."""
-    trusted = [r for r in (reported(c) for c in (calls if isinstance(calls, list) else [])) if r is not None]
+    schema = receipt_format.published(run.s)
+    trusted = [r for r in (reported(c, schema) for c in (calls if isinstance(calls, list) else [])) if r]
     covered = {o["attempt_id"] for r in trusted for o in r["outputs"]}
     with db.session() as s:
         missing = [
@@ -347,7 +351,7 @@ def ledger_rows(ref: str) -> list[Attempt]:
 def adopt(run: "Run", request, key, evaluator, issued, receipt, bound, sources, ids) -> dict:
     """The mechanism result for a 200 receipt: adopted only if MechEvidence's rules and the radar's ledger
     both agree; otherwise failed, with the receipt kept for audit."""
-    outcome = contract.adopt(request, receipt, evaluator["evaluator_id"])
+    outcome = contract.adopt(request, receipt, evaluator["evaluator_id"], receipt_format.published(run.s))
     result, rejected = outcome["result"], outcome["rejected"]
     calls = receipt.get("llm_calls") if isinstance(receipt, dict) else []
     problems = [] if rejected else reconcile(ledger_rows(issued.ref), receipt, issued.max_attempts)

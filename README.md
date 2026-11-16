@@ -67,16 +67,9 @@ make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Pyt
 make init               # 生成 ops/.env（随机数据库密码和登录凭据）
 ```
 
-MechEvidence 评价契约用共享契约包 `extraction-contract` 里的 `mech_v2`（纯函数，版本和哈希见 `requirements-contract.txt`；测量核对已归 Fabric，雷达只用 `mech_v2`，`bioradar.mech` 导入它而不再带副本；pyproject.toml、uv.lock、requirements-contract.txt 三处必须同一版本，`make check-install` 会核对）。它不在任何包索引上，而是从同级目录的 extraction-contract 检出离线构建：
-
-```sh
-cd ../extraction-contract && bash scripts/build_and_verify.sh && cd -   # 可复现的 wheel，构建时会校验哈希
-uv pip install --no-index --find-links "${EXTRACTION_CONTRACT_WHEELS:-../extraction-contract/dist}" --require-hashes -r requirements-contract.txt
-```
+MechEvidence 评价契约（mechevidence.evaluate.v2）：请求一侧的规则（evaluator id、reuse key、回显、文献身份）在 `bioradar.mech.contract` / `bioradar.mech.identity`，是 MechEvidence 规则的副本，`tests/test_mech_contract.py` 用 MechEvidence 发布的夹具核对；回执格式不复制，雷达在发送前从 MechEvidence 的 `GET /v2/contract` 取 JSON Schema（每个服务地址取一次，进程内缓存），按它校验回执和模型调用记录，取不到或不是 v2 回执格式时不发送（`mechevidence_contract_unavailable` / `mechevidence_contract_invalid`）。跨字段规则在 `bioradar.mech.receipt`。
 
 模型调用用 OpenAI 官方 `openai` 库（`services/bioradar/adapters/llm.py`，任何 OpenAI 兼容服务：DeepSeek、vLLM、通义），从 PyPI 安装。
-
-`pyproject.toml` 的 find-links 指向 `../extraction-contract/dist`；放在别处时用 `EXTRACTION_CONTRACT_WHEELS` 指定。uv.lock 不会记录本地 wheel 的哈希，所以哈希只在上面这一步按 `requirements-contract.txt` 校验。
 
 编辑 `ops/.env`：填 Fabric 地址和令牌、三个服务的地址和令牌、模型的地址/模型名/密钥（变量名就是 `services/bioradar/config.py` 里的设置名加 `BIORADAR_` 前缀）。JSON 值要加单引号，例如 `BIORADAR_SOURCES='["pubmed","clinicaltrials"]'`。然后：
 

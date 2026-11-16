@@ -103,6 +103,19 @@ def mechevidence_evaluator(settings: Settings) -> dict:
     )
 
 
+def mechevidence_contract(settings: Settings) -> dict:
+    """GET /v2/contract: the v2 receipt format ({contract_version, schema_version, receipt_schema})."""
+    return _post(
+        "mechevidence",
+        settings.mechevidence_url,
+        settings.mechevidence_token,
+        "/v2/contract",
+        None,
+        30,
+        "GET",
+    )
+
+
 def mechevidence_v2(settings: Settings, body: dict) -> dict:
     """POST /v2/evaluate: the version-bound contract. A 409 evaluator_changed and a 502 come back as
     ServiceError with the service's whole answer in .body and its model calls in .calls."""

@@ -22,6 +22,7 @@ from bioradar.research import analyses, attempts, lease
 
 FIXTURES = Path(__file__).parent / "fixtures" / "mech-contract-v2"
 EVALUATOR = json.loads((FIXTURES / "evaluator.json").read_text("utf-8"))["evaluator"]
+CONTRACT = json.loads((FIXTURES / "contract.json").read_text("utf-8"))  # GET /v2/contract
 KEY = "2c3c86c0de61aa1dc6e8b69499044d06165147c72289c528c8f4c601cc558daf"
 TOKEN = "service-token-for-the-tests"
 VERSION = "a" * 64
@@ -296,3 +297,4 @@ def install(monkeypatch, mech):
     """The radar's calls to MechEvidence go to the stand-in."""
     monkeypatch.setattr(services, "mechevidence_evaluator", mech.evaluator_answer)
     monkeypatch.setattr(services, "mechevidence_v2", mech.evaluate)
+    monkeypatch.setattr(services, "mechevidence_contract", lambda settings: CONTRACT)

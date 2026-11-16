@@ -5,8 +5,6 @@ x-backend: &backend
     context: ..
     dockerfile: ops/Dockerfile.api
     network: host
-    additional_contexts:
-      contract-wheels: ${EXTRACTION_CONTRACT_WHEELS:-../../extraction-contract/dist}
     args:
       HTTP_PROXY: ${HTTP_PROXY:-}
       HTTPS_PROXY: ${HTTPS_PROXY:-}

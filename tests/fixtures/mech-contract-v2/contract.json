@@ -1,0 +1,709 @@
+{
+  "contract_version": "mechevidence.evaluate.v2",
+  "receipt_schema": {
+    "$defs": {
+      "llm_call": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string"
+              }
+            ]
+          },
+          "finish_reason": {},
+          "model": {
+            "type": "string"
+          },
+          "outputs": {
+            "items": {
+              "properties": {
+                "attempt": {
+                  "type": "integer"
+                },
+                "attempt_id": {
+                  "type": "string"
+                },
+                "content": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "decision_id": {
+                  "type": "string"
+                },
+                "delivered": {
+                  "enum": [
+                    "no",
+                    "unknown",
+                    "yes"
+                  ],
+                  "type": "string"
+                },
+                "error": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "index": {
+                  "type": "integer"
+                },
+                "sha256": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "maxLength": 64,
+                      "minLength": 64,
+                      "pattern": "^[0-9a-f]{64}$",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "status": {
+                  "anyOf": [
+                    {
+                      "type": "null"
+                    },
+                    {
+                      "type": "integer"
+                    }
+                  ]
+                },
+                "truncated": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "attempt",
+                "index",
+                "attempt_id",
+                "decision_id",
+                "delivered",
+                "status",
+                "error",
+                "content",
+                "sha256",
+                "truncated"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "requests": {
+            "type": "integer"
+          },
+          "seconds": {
+            "type": "number"
+          },
+          "stage": {
+            "enum": [
+              "decompose",
+              "review"
+            ],
+            "type": "string"
+          },
+          "usage": {}
+        },
+        "required": [
+          "stage",
+          "model",
+          "finish_reason",
+          "usage",
+          "seconds",
+          "error",
+          "requests",
+          "outputs"
+        ],
+        "type": "object"
+      }
+    },
+    "$id": "mechevidence.evaluate.v2.receipt.1",
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "properties": {
+      "assessability": {
+        "properties": {
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "assessable",
+              "limited",
+              "unassessable"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "limitations"
+        ],
+        "type": "object"
+      },
+      "audit_complete": {
+        "type": "boolean"
+      },
+      "claims": {
+        "items": {
+          "properties": {
+            "applicability_gaps": {
+              "items": {},
+              "type": "array"
+            },
+            "compatible": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "association",
+                "causal",
+                "reported"
+              ],
+              "type": "string"
+            },
+            "opposing": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "source_groups": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "supporting": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            },
+            "verdict": {
+              "enum": [
+                "insufficient",
+                "mixed",
+                "refuted",
+                "supported"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "text",
+            "verdict",
+            "supporting",
+            "opposing",
+            "compatible",
+            "applicability_gaps",
+            "source_groups",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "complete": {
+        "type": "boolean"
+      },
+      "conflicts": {
+        "items": {},
+        "type": "array"
+      },
+      "contract_version": {
+        "type": "string"
+      },
+      "evaluator": {
+        "properties": {
+          "batch_size": {
+            "type": "integer"
+          },
+          "code_version": {
+            "type": "string"
+          },
+          "contract_version": {
+            "type": "string"
+          },
+          "evaluator_id": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "model_config": {
+            "properties": {
+              "endpoint_id": {
+                "type": "string"
+              },
+              "max_tokens": {
+                "type": "integer"
+              },
+              "model": {
+                "type": "string"
+              },
+              "provider": {
+                "type": "string"
+              },
+              "temperature": {
+                "type": "number"
+              },
+              "thinking": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "provider",
+              "model",
+              "thinking",
+              "temperature",
+              "max_tokens",
+              "endpoint_id"
+            ],
+            "type": "object"
+          },
+          "ordering_rule": {
+            "type": "string"
+          },
+          "prompts": {
+            "properties": {
+              "decompose_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "review_sha256": {
+                "maxLength": 64,
+                "minLength": 64,
+                "pattern": "^[0-9a-f]{64}$",
+                "type": "string"
+              }
+            },
+            "required": [
+              "decompose_sha256",
+              "review_sha256"
+            ],
+            "type": "object"
+          },
+          "rules_version": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "service",
+          "contract_version",
+          "rules_version",
+          "ordering_rule",
+          "batch_size",
+          "prompts",
+          "model_config",
+          "code_version",
+          "evaluator_id"
+        ],
+        "type": "object"
+      },
+      "gaps": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "independence": {
+        "properties": {
+          "distinct_source_groups": {
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "distinct_source_groups",
+          "note"
+        ],
+        "type": "object"
+      },
+      "joins": {
+        "items": {
+          "properties": {
+            "applicability_gaps": {
+              "items": {},
+              "type": "array"
+            },
+            "compatible": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "from": {
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "opposing": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "source_groups": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "supporting": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "text": {
+              "type": "string"
+            },
+            "to": {
+              "type": "string"
+            },
+            "verdict": {
+              "enum": [
+                "compatible_only",
+                "supported",
+                "unestablished"
+              ],
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "text",
+            "verdict",
+            "supporting",
+            "opposing",
+            "compatible",
+            "applicability_gaps",
+            "source_groups",
+            "from",
+            "to"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "llm_calls": {
+        "items": {
+          "$ref": "#/$defs/llm_call"
+        },
+        "type": "array"
+      },
+      "material_notes": {
+        "items": {
+          "properties": {
+            "code": {
+              "type": "string"
+            },
+            "material": {
+              "anyOf": [
+                {
+                  "type": "null"
+                },
+                {
+                  "type": "string"
+                }
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "material",
+            "code",
+            "message"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "materials": {
+        "items": {
+          "properties": {
+            "binding_checked": {
+              "enum": [
+                "self_consistent"
+              ],
+              "type": "string"
+            },
+            "binding_sha256": {
+              "maxLength": 64,
+              "minLength": 64,
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "id": {
+              "type": "string"
+            },
+            "locators": {
+              "items": {
+                "properties": {
+                  "locators": {
+                    "items": {},
+                    "type": "array"
+                  },
+                  "segment": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "segment",
+                  "locators"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            },
+            "locators_returned": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "id",
+            "binding_sha256",
+            "binding_checked",
+            "locators_returned",
+            "locators"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "not_complete_because": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "observations": {
+        "items": {
+          "properties": {
+            "basis": {
+              "enum": [
+                "association",
+                "claim",
+                "intervention",
+                "review"
+              ],
+              "type": "string"
+            },
+            "causal_evidence": {
+              "type": "boolean"
+            },
+            "causal_test": {
+              "type": "boolean"
+            },
+            "context": {},
+            "id": {
+              "type": "string"
+            },
+            "material": {
+              "type": "string"
+            },
+            "passage": {
+              "type": "string"
+            },
+            "quote": {
+              "type": "string"
+            },
+            "relation": {
+              "enum": [
+                "compatible",
+                "refutes",
+                "supports"
+              ],
+              "type": "string"
+            },
+            "scope_match": {},
+            "scope_status": {
+              "enum": [
+                "matched",
+                "mismatched",
+                "unknown"
+              ],
+              "type": "string"
+            },
+            "source_group": {
+              "type": "string"
+            },
+            "targets": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "id",
+            "targets",
+            "material",
+            "passage",
+            "quote",
+            "relation",
+            "basis",
+            "causal_test",
+            "context",
+            "scope_match",
+            "scope_status",
+            "causal_evidence",
+            "source_group"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
+      "overall": {
+        "enum": [
+          "insufficient",
+          "partial",
+          "supported"
+        ],
+        "type": "string"
+      },
+      "rationale": {
+        "type": "string"
+      },
+      "reuse_key": {
+        "maxLength": 64,
+        "minLength": 64,
+        "pattern": "^[0-9a-f]{64}$",
+        "type": "string"
+      },
+      "scope": {
+        "properties": {
+          "disease": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "not_required",
+                  "stated",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          "species": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "not_required",
+                  "stated",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          },
+          "system": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "not_required",
+                  "stated",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              "value": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "state"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "species",
+          "system",
+          "disease"
+        ],
+        "type": "object"
+      },
+      "unresolved_counterevidence": {
+        "items": {},
+        "type": "array"
+      }
+    },
+    "required": [
+      "contract_version",
+      "evaluator",
+      "reuse_key",
+      "complete",
+      "not_complete_because",
+      "audit_complete",
+      "scope",
+      "materials",
+      "overall",
+      "rationale",
+      "claims",
+      "joins",
+      "observations",
+      "conflicts",
+      "unresolved_counterevidence",
+      "gaps",
+      "independence",
+      "material_notes",
+      "assessability",
+      "llm_calls"
+    ],
+    "type": "object"
+  },
+  "schema_version": "mechevidence.evaluate.v2.receipt.1"
+}
