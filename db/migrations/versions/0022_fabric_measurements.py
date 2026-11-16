@@ -1,4 +1,4 @@
-"""Fabric's measurement objects in the radar (docs/decisions/0010-fabric-measurements.md).
+"""Fabric's measurement objects in the radar (docs/设计.md 决策 0010).
 
 measurement_inbox: every Fabric measurement object this workspace has heard of (the change feed or a pull by
 version) and what the radar did with it. measurement_withheld: per source, the feed events Fabric withheld

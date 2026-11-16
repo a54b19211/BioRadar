@@ -1,4 +1,4 @@
-"""The radar's own measurement tables are frozen on PostgreSQL (migration 0023, docs/decisions/0010): every
+"""The radar's own measurement tables are frozen on PostgreSQL (migration 0023, docs/设计.md 决策 0010): every
 insert, update, delete and truncate is refused - also below the ORM, also for a raw statement - reads go on,
 and the radar's own new tables stay writable."""
 

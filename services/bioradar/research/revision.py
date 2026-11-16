@@ -1,4 +1,4 @@
-"""A new version of a record that propositions rest on (task book 05 2.6; docs/decisions/0015).
+"""A new version of a record that propositions rest on (task book 05 2.6; docs/设计.md 决策 0015).
 
 When a version arrives for a record that a topic placed or that an analysis of it read - or a version states
 that it corrects or retracts such a record - the monitor looks at it once, with no model call. Fabric's

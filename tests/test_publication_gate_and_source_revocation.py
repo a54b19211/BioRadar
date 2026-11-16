@@ -1,5 +1,5 @@
 """The two chain-1 defects that may not be waived, shown by fault injection, no model (fixed: see
-docs/decisions/0005-publication-gate-and-own-source-revocation.md); CHAIN1_DEFECT_OUTPUT (optional) receives
+docs/设计.md 决策 0005); CHAIN1_DEFECT_OUTPUT (optional) receives
 what actually happened, as evidence.
 1. verification mark: a report whose check did not run is marked 待核 (pending_verification) and is delivered
    with that mark, never as a finished report;

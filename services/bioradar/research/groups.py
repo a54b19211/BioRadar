@@ -1,7 +1,7 @@
 """Candidate groups: which of the materials the radar has seen may belong to one event, as a view over rows
 that already exist (observations, the points of series_points, the evidence analyses read). There is no member
 table: the analysis of a topic stores the member list of its display group in `analyses.result`
-(docs/decisions/0012).
+(docs/设计.md 决策 0012).
 
 A group is the set of materials joined by an explicit basis (BASES) and by nothing else. A key match - the
 same pathogen and region, seen within 30 days - joins nothing: it is a candidate link, listed apart, not

@@ -746,7 +746,7 @@ class MeasurementInbox(Base):
     and what the radar did with it: pending_topic (its version is in no topic yet), linked (in its version's
     topic, series_points), not_current (Fabric does not hold it current), open_ended_period (its period has a
     start and no end: it is no point of a series). due: to be linked or read again
-    (a later event of the object, a re-granted source). docs/decisions/0010."""
+    (a later event of the object, a re-granted source). docs/设计.md 决策 0010."""
 
     __tablename__ = "measurement_inbox"
     __table_args__ = (
@@ -889,7 +889,7 @@ class Review(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
-# The radar's own measurement chain from before Fabric took it over (docs/decisions/0010): kept as it is, read
+# The radar's own measurement chain from before Fabric took it over (ADR 0010): kept as it is, read
 # only. PostgreSQL refuses any write to these tables (migration 0023); a session refuses one before it is
 # sent.
 FROZEN_HISTORY = frozenset(

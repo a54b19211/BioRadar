@@ -1,6 +1,6 @@
 """Continuous monitoring, one round at a time (tick): new Fabric records -> routing and triage -> topics
 -> Fabric's measurement objects into the topics' series -> topic states -> automatic analyses. The parts are
-research/triage.py, series_sync.py (docs/decisions/0010), topics.py and scheduling.py."""
+research/triage.py, series_sync.py (docs/设计.md 决策 0010), topics.py and scheduling.py."""
 
 import logging
 from datetime import datetime

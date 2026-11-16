@@ -1,4 +1,4 @@
-"""Proposition numbers (task book 05 2.5, docs/decisions/0012): a judgment of a topic's analysis keeps one
+"""Proposition numbers (task book 05 2.5, docs/设计.md 决策 0012): a judgment of a topic's analysis keeps one
 `prop_id` through the analyses that follow it, and says what it rests on.
 
 The id is the topic's short id and a number taken from `topics.next_prop_seq` under the topic row's lock, in

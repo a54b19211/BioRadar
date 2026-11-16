@@ -1,4 +1,4 @@
-"""Stage investigate: query-planner chooses each next action among the candidates the program offers,
+"""Stage investigate: Bio-Planner chooses each next action among the candidates the program offers,
 until it stops or the budget does."""
 
 from datetime import datetime
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 BROWSE_TRIES = 2  # attempts per page of a browsed material set
 SUPPLY = 3  # usable unread records that make a plain new search worth less than reading them
-PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # query-planner Check
+PLANNER_CHECK = ("id", "text", "required", "importance", "status", "evidence")  # Bio-Planner Check
 
 
 def candidates(run: "Run"):
@@ -71,7 +71,7 @@ def searches(run: "Run", done, live):
                         "channel": channel,
                         "args": {"terms": q["terms"]},
                         "target_checks": q["checks"],
-                        # an object a read record named with a decisive fact (query-planner ranks it
+                        # an object a read record named with a decisive fact (Bio-Planner ranks it
                         # with the question's named objects)
                         "follows_up": q.get("origin", "").startswith("object:"),
                         "_value": q.get("value", 1),
@@ -226,7 +226,7 @@ def reads(run: "Run"):
             | ({"version_id": hit["version_id"]} if hit.get("version_id") else {}),
             "target_checks": hit["checks"],
             "critical": hit["critical"],
-            # query-planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
+            # Bio-Planner's 0.4-1.0 range: search-term coverage of the text and a title naming an
             # object the question asks about
             "scope_match": round(
                 0.4 + 0.3 * order.coverage(hit) + (0.3 if order.named(hit["title"]) else 0), 3
@@ -238,7 +238,7 @@ def reads(run: "Run"):
 
 
 def weigh(run: "Run", result):
-    """What each candidate is expected to add, as query-planner's impact: a search is worth more the
+    """What each candidate is expected to add, as Bio-Planner's impact: a search is worth more the
     more its terms come from evidence (a found object 1.0, a decisive record's terms 0.8, the plan's
     0.6, a background record's 0.2), and a plain new search less while records already found wait
     to be read; a read whose text has none of the search terms and names nothing asked about is
@@ -305,7 +305,7 @@ def planner_request(run: "Run", offered):
     reads = sum(1 for a in run.p["actions"] if a["kind"] == "read" and a["status"] == "completed")
     return {
         "question": run.asked,
-        # only query-planner's Check contract; objects and the rest stay in the radar
+        # only Bio-Planner's Check contract; objects and the rest stay in the radar
         "checks": [{k: c[k] for k in PLANNER_CHECK} for c in run.p["checks"]],
         "candidates": offered,
         "history": decisions.history(run.p["actions"]),

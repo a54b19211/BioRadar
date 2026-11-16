@@ -4,11 +4,11 @@ After=network.target
 StartLimitIntervalSec=0
 
 [Service]
-WorkingDirectory=%h/zk_projects/BioRadar
+WorkingDirectory=/data/projects/BioRadar
 EnvironmentFile=%h/.config/bioradar/radar.env
 Environment=PYTHONUNBUFFERED=1
-Environment=PYTHONPATH=%h/zk_projects/BioRadar/services
-ExecStart=%h/zk_projects/BioRadar/.venv/bin/python -m bioradar.ops worker
+Environment=PYTHONPATH=/data/projects/BioRadar/services
+ExecStart=/data/projects/BioRadar/.venv/bin/python -m bioradar.ops worker
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=120

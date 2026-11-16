@@ -1,4 +1,4 @@
-"""The complete comparable domain of a Fabric measurement object (docs/decisions/0003 and 0010).
+"""The complete comparable domain of a Fabric measurement object (docs/设计.md 决策 0003 and 0010).
 This is the radar's research method; the object and its check are Fabric's.
 
 A number is compared automatically only inside a group whose metric family is determined and every dimension

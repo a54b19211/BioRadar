@@ -1,4 +1,4 @@
-"""Data-Fabric API (资料库, 徐子雯). The radar only reads fixed versions; it never writes Fabric tables."""
+"""Data-Fabric API (资料库). The radar only reads fixed versions; it never writes Fabric tables."""
 
 import json
 import time
@@ -853,7 +853,7 @@ class Fabric:
                         ]
 
     def graph_resolve(self, doc, name, *, cutoff=None, mode=None):
-        """Tang's reviewed graph (read only): entity candidates for an exact name in one graph record, each
+        """the human-reviewed graph (read only): entity candidates for an exact name in one graph record, each
         with its identity status and the fixed record versions it was read from (node evidence)."""
         return self._get(
             f"/api/fabric/graph/{doc['version_id']}/resolve",
@@ -1012,7 +1012,7 @@ class Fabric:
     def measurement_changes(self, *, is_demo, after_seq=0, limit=100):
         """Fabric's measurement event feed after a sequence number (datafabric.measurement_changes.v1):
         {items, next_after, more, withheld: {source: count}} - events of sources not readable now are only
-        counted (docs/decisions/0010)."""
+        counted (docs/设计.md 决策 0010)."""
         return self._get(
             "/api/fabric/measurements/changes",
             {"is_demo": str(is_demo).lower(), "after_seq": after_seq, "limit": limit},

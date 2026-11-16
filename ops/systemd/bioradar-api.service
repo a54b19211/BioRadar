@@ -4,10 +4,10 @@ After=network.target
 StartLimitIntervalSec=0
 
 [Service]
-WorkingDirectory=%h/zk_projects/BioRadar
+WorkingDirectory=/data/projects/BioRadar
 EnvironmentFile=%h/.config/bioradar/radar.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=%h/zk_projects/BioRadar/.venv/bin/uvicorn bioradar.app:app --app-dir services --host 127.0.0.1 --port 18100
+ExecStart=/data/projects/BioRadar/.venv/bin/uvicorn bioradar.app:app --app-dir services --host 127.0.0.1 --port 18100
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=120

@@ -3,122 +3,84 @@
 BioRadar 是医药与公共卫生情报雷达。它做两件事：
 
 1. **回答研究问题**：你问一个问题，它到 Data-Fabric 里找材料、逐篇阅读、需要时让程序算数，再交给 BioCheck 写稿并逐句核验，最后给出带引用的报告和结构化判断（结论、置信、真实性、影响、核实优先级）。
-2. **持续监测**：新材料一进 Fabric，它就分诊、归入专题，按资料时间推进专题状态（萌发 → 升温 → 降温 → 休眠 → 再唤醒）；Fabric 抽出的测量对象（已核一致、有冲突、未核都带标记）按专题进序列，专题页逐条列出读数和核验标记；只有已核且口径完整的才参与比较，重要变化自动触发一次分析。
+2. **持续监测**：新材料一进 Fabric，它就分诊、归入专题，按资料时间推进专题状态（萌发 → 升温 → 降温 → 休眠 → 再唤醒）；Fabric 抽出的测量对象（已核一致、有冲突、未核都带标记）按专题进序列，只有已核且口径完整的才参与比较，重要变化自动触发一次分析。
 
 历史回放（例如 2019 年底的武汉）走同一套流程，只是每一步都带截止时间，Fabric 只返回截止前公开可见的版本。
 
-## 谁维护什么
+代码地图、开发约定和设计取舍在 [docs/设计.md](docs/设计.md)。部署和共用设施（WeKnora、PostgreSQL 17、systemd 与监控）见仓库 a54b19211/ZK-radar-deploy，这里不重复。
 
-| 部分 | 维护人 | 位置 |
+## 依赖的服务
+
+| 部分 | 仓库 | 雷达怎么用 |
 | --- | --- | --- |
-| 运行、接入、部署 | 李明洋 | `services/bioradar/app.py`、`config.py`、`db.py`、`ops.py`、`text.py`、`adapters/`、`research/analyses.py`、`research/views.py`、`research/lease.py`、`research/clock.py`、`research/lineage.py`、`db/`、`ops/` |
-| 研究方法（调查流程、提示词、计算、监测与专题规则） | 孙博文 | `services/bioradar/research/pipeline.py`、`run/`（各阶段）、`state.py`、`prompts.py`、`schemas.py`、`compute.py`、`monitor.py`、`topics.py`、`triage.py`、`series_sync.py`、`domain.py`、`series.py`、`scheduling.py` |
-| 页面、导出、验收评测 | 刘金彦 | `apps/web/`、`scripts/scenarios.py` |
-| 资料、版本、材料关系 | 徐子雯（图谱：唐蔚雯） | 仓库 ZK_Data-Fabric-test |
-| 下一步选择与停止 | 李明洋 / 孙博文 | 仓库 query-planner |
-| 写稿与逐句核验 | 潘倩 | 仓库 BioCheck |
-| 机制证据评价 | 汪鑫怡 | 仓库 MechEvidence |
-| 语义检索 | 李明洋 | 仓库 WeKnora |
-| 评测辅助 | 李明洋 | 仓库 medical-qa-data-factory（`eval radar`） |
+| 资料、版本、材料关系、测量对象 | fabric | 只读 HTTP（`BIORADAR_FABRIC_URL`），不写它的库 |
+| 下一步选择与停止 | a54b19211/Bio-Planner | `BIORADAR_PLANNER_URL`，默认端口 18561 |
+| 写稿与逐句核验 | BioCheck | `BIORADAR_BIOCHECK_URL`，默认端口 18562 |
+| 机制证据评价 | MechEvidence | `BIORADAR_MECHEVIDENCE_URL`，默认端口 18563 |
+| 语义检索 | WeKnora，经 fabric 的 `weknora/` 模块 | 雷达只开关 `BIORADAR_SEMANTIC_SEARCH`，不直连 |
+| 人工审核图谱 | Atlas，经 Fabric 来源 `reviewed_graph` | `BIORADAR_GRAPH_LOOKUP`，默认关闭 |
+
+三个专业服务都是独立 HTTP 服务，自己调模型，响应里返回 `llm_calls`，雷达记账。服务没配置时，对应步骤记为未运行，不用别的方法顶替。
 
 ## 一次分析是怎么跑的
 
 ```
 提问 ─► plan        模型拟定待查问题 Q1..Qn 和检索词（关闭思考模式）
-     ─► investigate 循环：query-planner 选下一步 → 雷达执行
-                     search  到 Fabric 按词检索（可选 WeKnora 语义检索）
+     ─► investigate 循环：planner 选下一步 → 雷达执行
+                     search  到 Fabric 按词检索（可选语义检索）
                      read    读一篇固定版本，模型摘出带逐字短引的事实 F1..Fn
                      fetch   （实时模式）让 Fabric 去上游抓新记录
      ─► compute     需要算数时，模型只写算式，程序用原文数值计算（A1..An）
      ─► mechanism   问题涉及机制时，把研究材料交给 MechEvidence
-     ─► report      BioCheck 按槽写稿 → 按断言单元逐句核验（`/v2/verify`，每段带节类型）→ 必要时修订再核验（最多两轮）
-     ─► assess      模型按核验后的报告给结构化判断和情报等级；某一槽的段落写成立、评估判不足时，用剩下的修订额度改写并重核，仍不一致则待核（ADR 0014）
+     ─► report      BioCheck 按槽写稿 → 按断言单元逐句核验（`/v2/verify`）→ 必要时修订再核验（最多两轮）
+     ─► assess      模型按核验后的报告给结构化判断和情报等级
 ```
 
-规则：编号全部由程序分配，模型只引用；短引由程序在原文里查找，找不到的事实直接丢弃；材料原文只在 `evidence` 表里存一次；模型调用（包括三个服务自己发起的）都记在 `llm_calls` 表里。每个阶段结束保存一次进度，worker 中断后从保存的阶段继续。
+编号全部由程序分配，模型只引用；短引由程序在原文里查找，找不到的事实直接丢弃；材料原文只在 `evidence` 表里存一次；模型调用（包括三个服务自己发起的）都记在 `llm_calls` 表里。每个阶段结束保存一次进度，worker 中断后从保存的阶段继续。
 
-`method=planner` 是逐步规划；`method=baseline` 是固定流程（每组检索词搜一次，按顺序读，读满即停），用作对照。
+`method=planner` 是逐步规划；`method=baseline` 是固定流程（每组检索词搜一次，按顺序读，读满即停），用作对照。`complete` 只表示停止调查，不等于报告 PASS。没通过核验的报告照常显示草稿和逐句核验意见，页面和导出标「报告待核」和原因。
 
-每次调用 planner，请求（不含历史）和完整响应记在 `analyses.progress.decisions`，历史由已保存的动作重建，哈希对得上才算同一个请求；一次分析合计不超过 1 MiB，超出的那一轮只留哈希并标 `snapshot_truncated`（`docs/decisions/0013`）。planner 要先于雷达部署：investigate 阶段开始时雷达读 planner 的 `/health`，没有 `channels`（0.2.0 之前的版本）就以 `planner_outdated` 停下这次分析，不会发更少的字段。`complete` 只表示停止调查，不等于报告 PASS。
-
-## RQ 派发与数据库租约的分工
-
-两套机制各管一件事，互不替代：
-
-| | 管什么 | 不管什么 |
-|---|---|---|
-| RQ（Redis） | 送达和唤醒：分析建好后 `analyses.dispatch` 入队，worker 取到就跑 | 这一行归谁、会不会跑两遍、过期后怎么办 |
-| 数据库租约（`research/lease.py`） | 归属、幂等、隔离、恢复：`SELECT … FOR UPDATE SKIP LOCKED` 认领并写入 `lease_token` / `lease_until`；过期的工人不能提交结果（任务、窗口和分析都带令牌）；工人崩溃后租约过期，下一个认领者接手一次；失败计一次尝试并退避，到上限转终态留待复核 | 把任务送到某个 worker |
-
-- 分析（`analyses`）：RQ 派发。`execute` 在行锁里查租约，已有人持有或已结束就直接返回，同一个分析不会同时跑两份；
-  monitor 每轮调用 `analyses.recover`，把租约过期（worker 崩溃）或任务没进 Redis 的分析重新入队。分析的租约带令牌（`analyses.lease_token`）：
-  `execute` 认领时写入，`recover` 释放；分析的每一次写入（进度、证据、材料发送记录、模型调用记录、最终结果）都在行锁里核对令牌，
-  每一次对外发送（模型、BioCheck、MechEvidence）之前也核对；核对是“令牌仍是自己的**且**租约未过期”的一条 UPDATE，同时续租，所以过期的租约不会被复活。被取代或过期的 worker 得到 `lease.Lost`、什么也不写并记一条日志；它在失去租约之前已经发出的请求，晚到的回答、用量和原文仍记入旧尝试的审计（`llm_calls.lease_token`、`llm_outputs`），计入这份分析的预算
-  （见 [`docs/decisions/0007`](docs/decisions/0007-rq-dispatch-and-database-lease.md)）。
-- Fabric 测量变更流（`series_sync`）：不经 RQ，由 monitor 每轮读；每一页和游标在同一个事务里提交，同一专题同一测量对象只连一次（唯一约束 + 保存点，见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)）。
-- 这些保证在真实 PostgreSQL 上由 `make test-pg`（`tests_pg/`）验证；SQLite 没有行锁，单元测试证明不了。测试会 `TRUNCATE`，所以只对脚本为本次运行新建的容器和专用库（`radar_pgtest_<随机>`）运行：运行前核对库里的运行标记、容器 ID、端口和库名与清单一致（`tests_pg/guard.py`），手工给的 URL（含回环地址、现役库）一律拒绝。
+planner 要先于雷达部署：investigate 开始时雷达读 planner 的 `/health`，没有 `channels`（0.2.0 之前）就以 `planner_outdated` 停下。
 
 ## 启动
 
-需要 Python 3.12、Docker Compose、Node 22，以及 uv 0.13.0（在 PATH 上，例如 `~/.local/bin/uv`；或者 `make UV=<路径>`；`pyproject.toml` 的 `required-version` 拒绝别的版本）。
+需要 Python 3.12、Docker Compose、Node 22，以及 uv 0.13.0（在 PATH 上，或 `make UV=<路径>`；`pyproject.toml` 的 `required-version` 拒绝别的版本）。
 
 ```sh
 make bootstrap          # .venv：只按 uv.lock 安装（uv sync --frozen，Python 3.12）
-make init               # 生成 ops/.env（随机数据库密码和登录凭据）
-```
-
-MechEvidence 评价契约（mechevidence.evaluate.v2）：规则只在 MechEvidence 一处（evaluator id、reuse key、文献身份、回执跨字段规则），雷达不留副本。雷达只做三件事：组请求；向 `POST /v2/reuse-key` 要评价器、reuse key 和材料回显（查缓存、单份材料能否发送都靠它，422 的材料不发送）；收到回执后用通用 jsonschema 按 `GET /v2/contract` 发布的 JSON Schema 校验形状，并与 reuse-key 的答复逐项比对（`bioradar.mech.receipt`，每个服务地址取一次，进程内缓存；取不到或不是 v2 格式时不发送：`mechevidence_contract_unavailable` / `mechevidence_contract_invalid`）。MechEvidence 返回前自己跑完整回执规则，不合格答 502 `receipt_invalid`。雷达自己的规则只有 attempt 账本核对（`bioradar.mech.ledger`）。
-
-模型调用用 OpenAI 官方 `openai` 库（`services/bioradar/adapters/llm.py`，任何 OpenAI 兼容服务：DeepSeek、vLLM、通义），从 PyPI 安装。
-
-编辑 `ops/.env`：填 Fabric 地址和令牌、三个服务的地址和令牌、模型的地址/模型名/密钥（变量名就是 `services/bioradar/config.py` 里的设置名加 `BIORADAR_` 前缀）。JSON 值要加单引号，例如 `BIORADAR_SOURCES='["pubmed","clinicaltrials"]'`。然后：
-
-```sh
+make init               # 生成 ops/.env（随机数据库密码、登录凭据、会话密钥）
+# 编辑 ops/.env：Fabric 地址和令牌、三个服务的地址和令牌、模型的地址/模型名/密钥
 make dev                # 启动 postgres、redis、api、worker、monitor、web
 ```
 
-网页在 `http://127.0.0.1:15176`，第一次用用户名 `admin` 和 `ops/.env` 里的 `BIORADAR_DEV_CREDENTIAL` 登录，这一步建出第一个管理员；之后在 `/docs` 里用 `POST /api/users` 加人，用 `PATCH /api/users/admin` 换掉管理员凭据（换掉后开发凭据不再能登录）。接口文档在 `http://127.0.0.1:18100/docs`。
+网页在 `http://127.0.0.1:15176`，第一次用用户名 `admin` 和 `ops/.env` 里的 `BIORADAR_DEV_CREDENTIAL` 登录，这一步建出第一个管理员；之后用 `POST /api/users` 加人，用 `PATCH /api/users/admin` 换掉管理员凭据。接口文档在 `http://127.0.0.1:18100/docs`。
 
-三个专业服务各自启动（见各自仓库的 README）：
+三个专业服务各自启动（见各自仓库的 README），例如 `uvicorn mechevidence.service:app --port 18563`。
 
-```sh
-cd ../query-planner && uvicorn planner.service:app --port 18561
-cd ../BioCheck      && uvicorn app.service:app --port 18562
-cd ../MechEvidence  && uvicorn mechevidence.service:app --port 18563
-```
+常驻运行用 `ops/systemd/` 的样例单元（api 18100、worker、monitor，以及 planner、biocheck、mechevidence），代码在 `/data/projects/<仓库>`，配置在 `~/.config/bioradar/*.env`（0600）；网页镜像用 `ops/Dockerfile.web` 构建，主机网络下的 nginx 配置是 `ops/nginx-host.conf`。改代码后：`uv sync --frozen`，有新迁移时 `alembic -c db/alembic.ini upgrade head`，再重启 api、worker、monitor。
 
-### zktest 常驻部署
+## 配置
 
-- 进程：`ops/systemd/` 里的六个单元（`systemctl --user status 'bioradar-*'`）：api 18100、worker、monitor、planner 18561、biocheck 18562、mechevidence 18563。
-- 配置：`~/.config/bioradar/radar.env`、`planner.env`、`biocheck.env`、`mechevidence.env`（0600）。登录凭据在 `~/.config/bioradar/login.txt`。
-- 数据：PostgreSQL 15436 上的 `bioradar_live` 库，Redis 16379 的 3 号库。Fabric 用现役的 18511（只读）。
-- 网页：`bioradar-web` 容器走主机网络，监听 127.0.0.1:15176，配置是 `ops/nginx-host.conf`。改了前端后：
+变量名是 `services/bioradar/config.py` 里的设置名加 `BIORADAR_` 前缀；JSON 值要加单引号，例如 `BIORADAR_SOURCES='["pubmed","clinicaltrials"]'`。默认值都指向本机（PostgreSQL `127.0.0.1:15436`、Redis `127.0.0.1:16379`、Fabric `127.0.0.1:18511`）。常用的：
 
-  ```sh
-  docker build --network host -f ops/Dockerfile.web -t bioradar-web:main .
-  docker rm -f bioradar-web && docker run -d --name bioradar-web --network host --restart unless-stopped \
-    -v $PWD/ops/nginx-host.conf:/etc/nginx/conf.d/default.conf:ro bioradar-web:main
-  ```
+| 变量 | 说明 |
+| --- | --- |
+| `BIORADAR_DATABASE_URL`、`BIORADAR_REDIS_URL` | 数据库与 RQ 队列 |
+| `BIORADAR_FABRIC_URL`、`BIORADAR_FABRIC_READ_TOKEN` | Fabric 读接口 |
+| `BIORADAR_PLANNER_URL`、`BIORADAR_BIOCHECK_URL`、`BIORADAR_MECHEVIDENCE_URL`（及各自 `_TOKEN`） | 专业服务；空表示该步不运行 |
+| `BIORADAR_BIOCHECK_VERIFY` | `v2`（默认，按断言单元核验）或 `v1` |
+| `BIORADAR_MECHEVIDENCE_CONTRACT` | `v1`（默认）或 `v2`（版本绑定契约，雷达签发每次模型请求的授权） |
+| `BIORADAR_MODEL_ATTEMPT_TOKEN` | v2 时 MechEvidence 回调雷达授权端点用的令牌（即它的 `MECH_AUTHORIZATION_TOKEN`）；`MECH_AUTHORIZATION_URL` / `MECH_OUTCOME_URL` 指向本服务的 `/internal/v1/model-attempts/authorize` 与 `/{attempt_id}/outcome` |
+| `BIORADAR_LLM_PROVIDER`、`BIORADAR_LLM_BASE_URL`、模型名与密钥 | 雷达自己的模型调用（`openai` 库，任何 OpenAI 兼容服务） |
+| `BIORADAR_SEMANTIC_SEARCH` | 经 Fabric `POST /api/fabric/search` 做语义检索；命中只是指针，原文回 Fabric 按固定版本读 |
+| `BIORADAR_GRAPH_LOOKUP` | 规划时按题面对象查人工审核图谱（每次最多 3 个对象、每个前 5 个图包）；图包目前只有实体和 document_refs，没有已审核的关系边 |
+| `BIORADAR_MONITOR_SOURCES`、`BIORADAR_BACKFILL_RUN_IDS` | 监测读哪些来源；哪些 Fabric 回填批次只算背景 |
+| `BIORADAR_AUTO_ANALYSES_PER_HOUR`、`BIORADAR_DAILY_AUTO_TOKENS` | 自动分析的频率和每日 token 软上限 |
+| `BIORADAR_SESSION_SECRET` | 会话 cookie 签名密钥（`make init` 随机生成） |
 
-- 监测：每 30 秒读一次 Fabric 变更流。一个来源第一次被监测时从它**当前的末尾**开始（`legacy_documents` 有 62 万条历史记录，不能全部分诊）；历史材料用回放分析。自动分析每小时最多 6 次（`BIORADAR_AUTO_ANALYSES_PER_HOUR`）。
-- 改代码后：`git pull`，`uv sync --frozen`，有新迁移时 `alembic -c db/alembic.ini upgrade head`，再 `systemctl --user restart bioradar-api bioradar-worker bioradar-monitor`。
-- WeKnora（李明洋）：雷达不直接连桥或 WeKnora。语义检索的实际路径是：雷达 → Fabric `POST /api/fabric/search` → weknora-kdd 桥 → WeKnora。雷达这一侧只有一个开关 `BIORADAR_SEMANTIC_SEARCH`（`config.py` 的 `semantic_search`），没有 WeKnora 或桥的地址和令牌（`ops/env.example` 里的 `BIORADAR_WEKNORA_*` 是旧版设置，代码不再读）；桥的地址、令牌和知识库在 Fabric 一侧配（`WEKNORA_KDD_URL`、`WEKNORA_KDD_TOKEN`、`DATAFABRIC_INDEX_TARGETS`）。`bioradar-weknora-kdd` 单元监听 127.0.0.1:18564（端口在 `~/.config/systemd/user/bioradar-weknora-kdd.service.d/port.conf`，代码是 WeKnora 的 `extensions/kdd`，检出是 WeKnora 仓库的 worktree `~/zk_projects/WeKnora-kdd-bridge`，即单元的 WorkingDirectory）。雷达按分析方向给 Fabric 一组范围（管线题查 pipeline+research，公卫题查 public_health+research，政策题查 policy+pipeline，见 `research/run/search.py` 的 `SEARCH_SCOPES`）；Fabric 召回后按这次的模式和截止时间核对来源许可、可见版本和固定正文，再重排；命中只是指针，原文回 Fabric 按固定版本读。历史回放也走这条路，由 Fabric 按截止时间核对。
-- Fabric 采集（徐子雯）：公开源由 Fabric publisher 按 `~/.config/datafabric-publication/runtime.env` 的 `DATAFABRIC_WATCHES` 定时刷新（最多 8 个）。现在是 WHO、Europe PMC 六组（BCMA、III 期随机、暴发标题、GLP-1 类、ADC/CAR-T/双抗、监管审批）和 ClinicalTrials III 期，查看状态用 `/api/fabric/source-health?source_id=…`。
+来源能力只来自 Fabric 的 `/sources`（`capabilities`）：新分析和监测只用 Fabric 标为可选的来源，`legacy_documents` 可读不可选。监测每 30 秒读一次 Fabric 变更流，一个来源第一次被监测时从当前末尾开始；历史材料用回放分析。
 
-- 图谱（唐蔚雯）：`BIORADAR_GRAPH_LOOKUP=true` 时规划按题面对象查 reviewed_graph（每次最多 3 个对象、每个对象只看检索到的前 5 个图包，不是查全），图包指向的原文进阅读候选，实体身份状态（多为 unresolved）原样保留。现役默认关闭：当前图包里只有实体和 document_refs，没有已审核的关系边，开了只是多一条找原文的路，不提供关系判断。开启前确认 Fabric 里有 reviewed_graph 来源且雷达有读权限。
-- 自动工作每日 token 软上限：现役设为 3000 万（`BIORADAR_DAILY_AUTO_TOKENS`，主持人同意放宽；默认 300 万）。
-
-2026-11-03 从旧版切换过来。旧库 `bioradar`、旧配置备份 `~/.config/bioradar.before-rebuild-20261103/`、旧网页容器 `bioradar-zktest-web-1` 都保留着，需要退回时运行 `bash ~/.config/bioradar-rollback.sh`。同日 11:53 升到讨论室复核通过的 `7f302c2`（BioCheck `7af7044`，迁移 0003、0004），升级前的配置、提交号和 `bioradar_live` 全库备份在 `~/.config/bioradar-backups/20261103115246/`（当时用的退回脚本 `.rebuild-work/tools/update_live_undo.sh` 已不存在，现役之后也已多次升级，这一步不再是可用的退回入口）。
-
-## 用一个真实问题跑一次
-
-网页「提问与调查」里输入，例如：
-
-> BCMA×CD3 双特异性抗体用于多发性骨髓瘤，哪些管线值得继续调研？比较证据阶段、竞争项目、失败原因与安全性限制。
-
-方向选「管线」，方法选「逐步规划」。分析详情页能看到：每一步检索和阅读、读了哪些固定版本、每条事实的短引、BioCheck 逐句核验结果、判断表和模型调用账。没通过核验的报告也照常显示草稿和逐句核验意见，页面和导出都标「报告待核」和原因；通过核验后才算已核。可以继续「追问」（新分析会带上旧报告做比较），或「导出」成 Markdown。
-
-用接口也一样：
+## 接口
 
 ```sh
 curl -c c.txt -X POST localhost:18100/api/session -H 'content-type: application/json' -d '{"name":"<用户名>","credential":"<登录凭据>"}'
@@ -127,49 +89,29 @@ curl -b c.txt -X POST localhost:18100/api/analyses -H 'content-type: application
 curl -b c.txt localhost:18100/api/analyses/<id>
 ```
 
-历史回放：加上 `"cutoff": "2019-12-31T00:00:00+08:00"`（必须带时区）。哪些资料可见由 `"replay_mode"` 定：
-`current`（不带 cutoff）、`operational_replay`（当时系统实际已有的）、`public_history_reconstruction`（有公开可得证明的）；
-后两种必须带 cutoff。不给 `replay_mode` 时，有 cutoff 按 `public_history_reconstruction`，没有按 `current`。追问沿用上一轮的模式。
+- `direction`：`pipeline`、`public_health`、`policy` 等；决定检索范围（`research/run/search.py` 的 `SEARCH_SCOPES`）。
+- 历史回放：加 `"cutoff": "2019-12-31T00:00:00+08:00"`（必须带时区）。`"replay_mode"`：`current`（不带 cutoff）、`operational_replay`（当时系统实际已有的）、`public_history_reconstruction`（有公开可得证明的）；后两种必须带 cutoff，不给时有 cutoff 按 `public_history_reconstruction`。追问沿用上一轮的模式。
+- 追问、导出（Markdown）、专题、观测、用户管理（`/api/users`，角色 viewer / analyst / admin）等其余接口见 `/docs`。
+- 分析详情里能看到每一步检索和阅读、读了哪些固定版本、每条事实的短引、逐句核验结果、判断表和模型调用账；`publishable`、`hold`、`hold_reason` 标明是否已核。
 
 ## 检查
 
 ```sh
-make bootstrap          # .venv 只按 uv.lock 安装
-make test               # 全部测试（SQLite，Fabric、模型和各服务都是替身）
-make test-pg            # 真实 PostgreSQL 上的测试（tests_pg/）：租约与令牌、测量变更流与连接、冻结的旧测量表：临时 postgres:17-alpine 容器，按本次创建的 ID 拆除；没有 Docker 就失败，不跳过
-make test-redis         # 队列在真实 Redis 上的测试（tests_redis/）：临时 redis:7.4-alpine 容器（口令、运行标记、清单与 test-pg 同一套），只对本次创建的容器运行
-make check              # = make test + make test-pg + make test-redis + make lint + make metrics + make web-check
-make check-install      # 在 /tmp 只按 uv.lock 新建环境（uv sync --locked），逐个导入 bioradar 模块
-make check-migrations   # 起一个临时 postgres:17-alpine：upgrade head → 与模型比对 → downgrade base → upgrade head；容器按本次创建的 ID 拆除（连匿名卷，`docker rm -v`），清单留在 /tmp/radar-migcheck-<随机>.containers.jsonl
+make test               # 全部单元测试（SQLite，Fabric、模型和各服务都是替身）
+make test-pg            # 真实 PostgreSQL 上的租约、测量变更流、冻结表测试（临时 postgres:17-alpine 容器；没有 Docker 就失败）
+make test-redis         # 队列在真实 Redis 上的测试（临时 redis:7.4-alpine 容器）
+make lint               # ruff：基础规则 E4, E7, E9, F, W, I，本仓库另开 E（行宽 110）
+make metrics            # 函数 80 行 / 圈复杂度 20；例外写在 scripts/metrics_exceptions.txt，只减不增
+make check              # 以上全部 + make web-check
+make check-install      # /tmp 里只按 uv.lock 新建环境，逐个导入 bioradar 模块
+make check-migrations   # 临时 PostgreSQL 上 upgrade → 比对模型 → downgrade → upgrade
 ```
 
-`make lint` 的规则：所有仓库共用一份基础规则 `E4, E7, E9, F, W, I`。圈复杂度只由 `make metrics` 管，不开 ruff 的 C90。在基础规则之上多开规则的仓库：
-
-| 仓库 | 多开的规则 |
-|---|---|
-| BioRadar | `E`（含行宽 E501，110） |
-| BioCheck | `E`（含行宽 E501，120） |
-
-`make bootstrap`、`make check-install`（`uv sync --locked` 核对 uv.lock）在 uv 缓存里没有的包要从 PyPI 下载，`make web-check` 的 `npm ci` 要访问 npm。zktest 上直连有时超时，这时只给这几条命令临时加上本机已有的 HTTP 代理（mihomo，监听 127.0.0.1:7890），例如 `HTTPS_PROXY=http://127.0.0.1:7890 HTTP_PROXY=http://127.0.0.1:7890 make check-install`（`web-check` 的容器用主机网络并带上这两个变量）；不要把代理写进全局配置。uv 下载失败时报的是网络错误，不是 `The lockfile needs to be updated`（只有后者说明 uv.lock 过期）。
-
-`make metrics` 是函数长度和圈复杂度的门槛（80 行 / 20，`scripts/code_metrics.py`，量哪些目录写在
-`pyproject.toml` 的 `[tool.code-metrics]`）；超过的函数必须在 `scripts/metrics_exceptions.txt` 写明冻结时的行数/圈复杂度
-和理由，不许再变大，清单只减不增。`tests/golden/` 是行为基线：每个流程场景存盘的
-progress、证据和外发记录，以及对外视图（详情、列表、导出）逐字节比对；有意改行为时用
-`BIORADAR_GOLDEN_UPDATE=1` 重新生成，并在同一个提交里审阅差异。设计取舍记在 `docs/decisions/`。
-
-改到数据库或队列时，再在真实 PostgreSQL/RQ 上跑一次提问到报告的完整流程。
-
-真实 planner 服务的测试要 `BIORADAR_TEST_PLANNER_URL`（没有时显示为跳过，不算通过），指向一个从 `clean-planner` 起的 planner 服务。各项检查的实际结果（通过、跳过的个数）以那次运行的 `summary.tsv` 为准，这里不记数字。
+`tests/golden/` 是行为基线（存盘的 progress、证据、外发记录和对外视图，逐字节比对）；有意改行为时用 `BIORADAR_GOLDEN_UPDATE=1` 重新生成，并在同一个提交里审阅差异。真实 planner 的测试要 `BIORADAR_TEST_PLANNER_URL`，没有时显示为跳过。`test-pg` 和 `test-redis` 只对脚本本次新建的容器运行（`tests_pg/guard.py` 核对），手工给的 URL 一律拒绝。访问 PyPI / npm 超时时，只给那几条命令临时加 `HTTPS_PROXY` / `HTTP_PROXY`，不写进全局配置。
 
 ## 验收实验
 
-`scripts/scenarios.py` 在隔离环境里跑四个实验：
-
-- **A** 不明病原聚集（模拟）：四波材料、假传言、删帖信号、两次空轮、结案、再唤醒。
-- **B** 新药突破（模拟）：机制原始实验与反证、早期队列、随机试验、同一试验的数字更正。
-- **C** 产业趋势（模拟）：三家公司订单更正，利用率必须由程序计算。
-- **D** 新冠 2019 年真实公开资料回放：四个截止点（2019-12-31、2020-01-01、01-20、01-21），加 2016–2017 年疑似 MERS 对照和 2018 年流感季对照，另做 2019-12-01 至 2020-01-21 逐日监测回放。
+`scripts/scenarios.py` 在隔离环境里跑四个实验：A 不明病原聚集（模拟）、B 新药突破（模拟）、C 产业趋势（模拟，利用率必须由程序计算）、D 新冠 2019 年真实公开资料回放（四个截止点，加 MERS 和流感季对照，另有逐日监测回放）。
 
 ```sh
 python scripts/scenarios.py abc --data <场景目录> --out <输出目录>
@@ -177,58 +119,16 @@ python scripts/scenarios.py d --data <场景目录>/D --out <输出目录>
 python scripts/scenarios.py d --data <场景目录>/D --out <输出目录> --skip-import --cases none --daily 2019-12-01 2020-01-21
 ```
 
-模拟场景的日期整体提前两个月（Fabric 不接受未来的可见时间），先后顺序和间隔不变。每次分析都带截止时间，看不到后面的波次。结果写在 `<输出目录>/runs.jsonl`（每次运行一行）和 `reports/`。密封答案放在雷达读不到的目录，评分用 data-factory 的 `eval radar` 做辅助，再由非作者独立复核。
-
-## 2026-11 重构后的实际结果
-
-2026-11-02 至 11-03 在 zktest 隔离环境里跑了 9 轮。下面是最终代码（BioRadar `rebuild` 分支最后几个提交）的结果，运行记录在 `/home/zk_test/zk_projects/.rebuild-work/out/`（`abc/`、`d/`、`d-daily/`，每行一次运行）。PASS 只表示 BioCheck 机器核验没发现问题；「独立核对」是非作者对照密封答案逐句读稿。
-
-**A/B/C 定向分析**
-
-| 分析 | BioCheck | 关键消息覆盖 | 独立核对 |
-| --- | --- | --- | --- |
-| A planner | PASS | 7/8（漏 SIM-A-43 删帖信号） | 关键事实全对：门诊 5 人不累加，两院 7 人，14 条更正为 12 人、净增 5 人，假传言未证实，转发不算独立来源。混进一句 B 场景转载标题（已注明无关） |
-| B planner | PASS | 9/9 | 关键事实 9/9：更正后 HR 0.69（0.51–0.93）取代 0.62，同一 240 人非新试验，OS 44% 未成熟，毒性 40/120 对 26/120，低表达 6 人不外推，未获批、未正式发表 |
-| C planner | REVIEW（最终代码跑了 4 次，都没有 PASS） | 11/11 | 数据和计算都对：更正后订单 6400 万元、32 套，同比 33.3%；收入 28.6%、回款 15.4%，回款覆盖率 92.9%→83.3%；程序算出工时利用率 60.0%→53.2%（−6.8 个百分点）。但总结句写错：把没被更正的收入、回款也说成「来自已被更正的初稿」，又说前文用过的衡简数据「未见支持」 |
-| A/B/C baseline | A PASS、B PASS、C 4 次里 1 次 PASS（11/11） | — | 四个 baseline 都出稿 |
-
-**专题生命周期**：A/B/C 三个专题按资料时间升温 → 两次空轮保持降温 → 结案后休眠；L4（另一医院 4 人新聚集）开成新专题并判为重要、升温，触发自动分析。重启（R1）后状态从数据库恢复。
-
-**实验 D（2019 年真实公开资料回放，18 次分析，0 失败）**
-
-- 聚集终点：2019-12-31 截止判为重要、「需要最高优先级核实」；但 01-01 和 01-21 两个截止点退回一般（固定材料 1,500 多篇，每次只读 20 篇，读到的多是季节性流感材料）。
-- 人传人终点：01-20 判为「保留的竞争假设，未证实也未排除」；01-21 仍判待证实——读到的材料里没有当晚公开确认的原文。
-- 对照：2016–2017 年三次香港疑似 MERS、2018 年英格兰和香港流感季，6 个截止点全部判为一般，零误报。
-- 逐日监测（2019-12-01 至 2020-01-21，45 次自动分析，0 失败）：「武汉不明原因肺炎聚集」专题在材料第一天可见的 2020-01-01 建立，判为重要、升温；01-11 升为紧急。
-
-**花费**（最终一轮）：A 约 32 万 token，B 约 34 万，C 每次约 23–26 万，专题自动分析 45 万；D 定向 303 万；逐日监测 620 万。重构以来全部运行约 5,250 万 token。没有一次因预算或截断失败。
-
-## 来源能力与 MechEvidence v2（2026-11-07）
-
-来源能力只来自 Fabric 的 `/sources`（`capabilities`），雷达不再保存任何来源集合；新分析和监看只用 Fabric 标为可选的来源，`legacy_documents` 可读不可选。`BIORADAR_MECHEVIDENCE_CONTRACT=v2` 时机制评价走版本绑定契约：发出前向 Fabric 重读材料，雷达签发授权并在 `/internal/v1/model-attempts/*` 回答服务每次模型请求，回执只有在契约规则与雷达自己的尝试账本都一致时才采用。设计与取舍见 [`docs/decisions/0009`](docs/decisions/0009-fabric-capabilities-and-mechevidence-v2.md)。环境变量：`BIORADAR_MODEL_ATTEMPT_TOKEN`（服务令牌，MechEvidence 的 `MECH_AUTHORIZATION_TOKEN`），`MECH_AUTHORIZATION_URL` / `MECH_OUTCOME_URL` 指向本服务的 `/internal/v1/model-attempts/authorize` 与 `/{attempt_id}/outcome`。
-
-## 测量归 Fabric，雷达只管专题的序列（2026-11-07）
-
-客观测量（抽取、BioCheck 核验、覆盖与欠账、更正与撤回、处理器和核验器升级）全部归 Fabric 加工层（Fabric 的 ADR 0006）。雷达的分诊只做分类，不再抽数；雷达自己的抽取、核验、续读和运维代码已删除。`series_sync` 每轮读 Fabric 的测量变更流 `GET /api/fabric/measurements/changes`（每页与游标同一事务提交），分诊把版本放进专题时按版本拉 `GET /api/fabric/measurements`，两种先后顺序结果相同、不重复；来源撤权期间被扣下的事件在恢复读取后按版本重拉。专题把哪个 Fabric 测量对象放进哪条序列记在 `series_points`（只有已确认身份才跨记录合并，临时身份只在本记录内成组），完整可比域门槛（`domain.py`）、序列计算（`series.py`）、序列/更正/记录内矛盾事件和自动分析仍是雷达的。分析运行时每个序列点的状态都按截止时间、以当下权限重新向 Fabric 读。
-
-雷达原来的八张测量表（`measurements`、`measurement_candidates`、`measurement_check_tasks`、`measurement_checks`、`record_reads`、`record_read_windows`、`record_read_attempts`、`record_corrections`）连数据一起保留，冻结为只读：PostgreSQL 触发器拒绝任何写入和清空（迁移 0023），会话层在发出前就拒绝。旧分析和旧专题事件引用的旧测量点照常显示（`authority: radar_history`，从不算当前），`/api/measure-coverage` 照常显示旧的阅读计划。设计与取舍见 [`docs/decisions/0010`](docs/decisions/0010-fabric-measurements.md)。
-
-## 2026-11-03 讨论室修订
-
-当时加的能力（观测账、评估核验、规划范围、读取排序、用户与角色、来源撤权、模型服务故障退避）和实测记录在 [`docs/decisions/0008-room-revision-record-2026-11-03.md`](docs/decisions/0008-room-revision-record-2026-11-03.md)；现行行为以代码和测试为准。
+模拟场景的日期整体提前两个月（Fabric 不接受未来的可见时间）。结果写在 `<输出目录>/runs.jsonl` 和 `reports/`。密封答案放在雷达读不到的目录，评分由非作者独立复核。PASS 只表示 BioCheck 机器核验没发现问题，不等于独立复核通过。
 
 ## 未完成
 
-- **待真实模型验证**：T-22 的真实阅读验收、Fabric 测量抽取的真实准确率、规模测试和 24 小时实际运行；Codex 提的回归用例（BioCheck 覆盖检查误判「情报假设」标题、C04-W2 矛盾、C05-W2「已定稿未生效」、research_scope 等内部字段名要译成中文）。
-- **T-22 未修完**：用 before 那份「题面没提武汉、待查问题却写武汉」的规划去读，阅读规则仍扳不过被收窄的待查问题（3 次实测结果不稳）；现在从规划处防（待查问题不得写题面未点名的地点、机构、病名），还要用新代码完整重跑 D-S1 验证。
-- **WeKnora 检索的范围和上限**（按当前代码）：进 WeKnora 的来源、业务范围和知识库由 Fabric 的 `DATAFABRIC_INDEX_TARGETS` 决定；哪些来源实际已入库，以 Fabric 的 `/api/fabric/index/counts` 和每次检索回执里的 `coverage` 为准，这里不记。桥不再有上传预算（`r4/bridge-thin` 已撤），也没有"同一范围超过 1000 篇返回 400"的限制：桥的检索是对整个知识库一次关键词、一次向量的混合检索（`extensions/kdd/service.py` 的 `search`），每路候选最多 60（`MAX_CANDIDATES`）；Fabric 对每个命中再核对，过滤后可能不足 top_k，不足不等于库里没有更多相关材料。桥没有截止时间参数，历史回放照样走这条路：由 Fabric 按这次的模式和截止时间核对来源许可、可见版本和固定正文；没入库或还没 `ready` 的版本搜不到（字面检索照样读得到）。桥只返回登记在自己回执本里、未停用、范围已授权的条目，其余按原因计数、不返回（`_searchable`）。
-- **测量迁移的后续**（`docs/decisions/0010`）：雷达旧测量数据导入 Fabric（映射表与等价证明）没做，旧点目前只作历史显示；planner 契约不收额外字段，`measurement_ref` / `check_ref` 要先改 planner；Fabric 现在只对 who_don 抽测量；Fabric 的测量对象不带阶段（计划/在建/投运），序列不再判阶段推进；没有确认身份的对象只在同一记录内成组；页面只在专题事件里显示序列，没有序列图。
-- **T-14 的边界**：一份分析里只要有一条材料不可读，整份正文都暂不显示（没有按句子拆分保留其余部分）；同时第一次登录建管理员有极小概率撞唯一约束，重试即可。现役上线时要在 `radar.env` 加 `BIORADAR_SESSION_SECRET`。
-- **C 的 planner 定向稿没有 PASS**（第十九节「跑通」标准里唯一没达到的一条）：数据、更正、程序计算都对，问题出在写稿模型的总结句自相矛盾（见上表），BioCheck 的覆盖检查判为不完整；修订只改单句，改不了全篇层面的矛盾。另外 planner 仍会读进 A/B 场景的更正记录（演示来源里三个场景混在一起）。下一步：潘倩在 BioCheck 写稿提示里要求总结句只复述正文已写的结论；或者覆盖检查判为不完整时让雷达带着理由重写一次全稿。
-- **公共卫生专题的「重新唤醒」**：最终代码的运行里，被唤醒的只有一个药品专题（沃森 13 价疫苗）；公共卫生专题走完萌发→升温→降温/休眠→唤醒，只在 11-02 第 4 轮（旧代码）的卫健委疫情通报专题上出现过。A 的 L4 按事件独立性开成了新专题而不是唤醒旧专题。下一步：孙博文确认 L4 应当唤醒原专题还是另开专题（`research/prompts.py` 的 TRIAGE），再用 `scenarios.py abc --only A` 验一次。
-- **D 的判断不稳定、人传人没有在 01-21 判出**：大固定材料集一次只读 20 篇，挑选按检索词命中。下一步：D 的固定材料先按来源类型（官方通报优先）排读取顺序；人传人确认原文（卫健委 01-20 23:17）因许可没有全文，需要徐子雯确认能否作为可读材料导入 Fabric。
-- **A 漏读删帖信号 SIM-A-43**：截图访问记录没有被任何检索词命中。下一步：监测分诊里出现 `information_events`（删帖、辟谣）的记录直接作为专题分析的种子。
-- **跨专题材料混入**：演示来源 `external_archive` 里 A/B/C 三个场景混在一起，搜「更正」会命中别的场景的更正。已在阅读提示里要求按对象判断相关性；C 稿里仍偶尔出现别的场景的句子。
-- **BioCheck、MechEvidence 的 GitHub 远端**（a54b19211 名下）在 zktest 上 `ls-remote` 没有返回分支，主分支以 zktest 上的仓库为准；需要仓库主人确认远端地址和权限。
-- **Fabric 改动在审核中**：`feat/radar-rebuild`（document_evidence、并发归档死锁修复）等徐子雯、唐蔚雯审核合进 `dev`。现役 Fabric 是 `04a8888`（detached，标签 `archive/live/epmc-hotfix-20261103`），雷达只读它；pubmed 在现役许可里不可读，雷达线上配置没有 pubmed。
-- **整洁度还剩的**：雷达模型调用直接用 `openai` 库，测量链路已归 Fabric（0010），来源目录的副本已删（0009）。还没拆的长函数和理由列在 `scripts/metrics_exceptions.txt`。待核的报告照常显示草稿，页面和导出标明状态和原因（`apps/web/`）；被待核的上一轮报告交给追问时仍标为待核线索（见 `docs/decisions/0005`、`0006`）。
+- 真实模型验收：真实阅读、Fabric 测量抽取的准确率、规模测试和 24 小时连续运行还没做。
+- 规划可能把题面没点名的地点、机构、病名写进待查问题（现在由规划规则拦），要用新代码完整重跑 D 验证。
+- C 的 planner 定向稿没有稳定 PASS：数据和计算都对，写稿模型的总结句会自相矛盾；可以让 BioCheck 写稿时总结句只复述正文，或覆盖检查判不完整时带理由重写全稿。
+- D 的判断不稳定：大固定材料集一次只读 20 篇；下一步按来源类型（官方通报优先）排读取顺序。
+- 监测分诊里出现删帖、辟谣（`information_events`）的记录应直接作为专题分析的种子（A 漏读过删帖信号）。
+- 演示来源 `external_archive` 里三个场景混在一起，检索「更正」会命中别的场景。
+- 测量迁移的后续：雷达旧测量数据没导入 Fabric（旧点只作历史显示）；planner 契约还不收 `measurement_ref` / `check_ref`；序列不判阶段推进；页面没有序列图。
+- 一份分析里只要有一条材料不可读，整份正文都暂不显示（没有按句子保留其余部分）。
+- 公共卫生专题的「重新唤醒」在新代码上还没复现过；A 的新聚集该唤醒旧专题还是另开，要看 `research/prompts.py` 的 TRIAGE 再验一次。

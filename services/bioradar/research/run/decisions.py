@@ -1,4 +1,4 @@
-"""What query-planner is asked each round and what is kept of its answer (task book 04, 2.5; ADR 0013).
+"""What Bio-Planner is asked each round and what is kept of its answer (task book 04, 2.5; ADR 0013).
 
 Every call of the planner leaves one record in `progress.decisions`: the request without its history, a
 reference to the history (how many actions, and their hash), the hash of the whole request, the whole answer,
@@ -35,7 +35,7 @@ def digest(value) -> str:
 
 
 def history(actions) -> list[dict]:
-    """The actions done, as query-planner's history. Channels go on the history exactly as on the candidates,
+    """The actions done, as Bio-Planner's history. Channels go on the history exactly as on the candidates,
     or the planner does not recognise an action as done."""
     return [history_item(a) for a in actions]
 

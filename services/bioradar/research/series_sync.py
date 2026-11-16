@@ -1,4 +1,4 @@
-"""Fabric's measurement objects in the radar's topics (docs/decisions/0010-fabric-measurements.md).
+"""Fabric's measurement objects in the radar's topics (docs/设计.md 决策 0010).
 
 Fabric owns every objective measurement - extraction, BioCheck checking, corrections, processor and checker
 upgrades (its ADR 0006). The radar keeps what is its own: which topic puts which Fabric object into which

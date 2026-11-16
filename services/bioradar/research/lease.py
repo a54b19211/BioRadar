@@ -1,5 +1,5 @@
 """Leased work rows: ownership, fencing and recovery of the radar's analyses. Delivery is not done here: an
-analysis reaches a worker as an RQ job (docs/decisions/0007).
+analysis reaches a worker as an RQ job (docs/设计.md 决策 0007).
 
 A worker claims a row by writing a fresh token and an expiry (lease_token, lease_until) under a row lock. Only
 the holder of a lease that has not run out may settle the row afterwards, so a worker that took longer than

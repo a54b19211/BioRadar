@@ -1,4 +1,4 @@
-"""HTTP calls to the professional services: query-planner, BioCheck (潘倩), MechEvidence (汪鑫怡).
+"""HTTP calls to the professional services: Bio-Planner, BioCheck, MechEvidence.
 
 Each operation is one synchronous request. The service calls its own model and returns `llm_calls`,
 which the radar adds to the analysis ledger. A timeout is not retried: the service may have paid
@@ -53,7 +53,7 @@ def decide(settings: Settings, body: dict) -> dict:
 
 
 def planner_health(settings: Settings) -> dict:
-    """GET /health of query-planner: {status, version, kinds, channels}; a planner older than 0.2.0 answers
+    """GET /health of Bio-Planner: {status, version, kinds, channels}; a planner older than 0.2.0 answers
     only {status}."""
     return _post("planner", settings.planner_url, settings.planner_token, "/health", None, 10, "GET")
 

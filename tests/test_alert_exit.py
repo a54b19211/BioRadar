@@ -1,4 +1,4 @@
-"""The monitor's exits (docs/decisions/0005, section c): a received lead is shown at once as a program fact;
+"""The monitor's exits (ADR 0005, section c): a received lead is shown at once as a program fact;
 the triage model's verdict on a record never leaves, and a topic's level is shown with the mark of its latest
 analysis (待核 until that analysis's report passed)."""
 

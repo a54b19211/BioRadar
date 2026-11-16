@@ -4,10 +4,10 @@ After=network.target
 StartLimitIntervalSec=0
 
 [Service]
-WorkingDirectory=%h/zk_projects/BioCheck
+WorkingDirectory=/data/projects/BioCheck
 EnvironmentFile=%h/.config/bioradar/biocheck.env
 Environment=PYTHONUNBUFFERED=1
-ExecStart=%h/zk_projects/BioCheck/.venv/bin/uvicorn app.service:app --host 127.0.0.1 --port 18562
+ExecStart=/data/projects/BioCheck/.venv/bin/uvicorn app.service:app --host 127.0.0.1 --port 18562
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=120

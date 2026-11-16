@@ -103,7 +103,7 @@ def fake_model(sent):
 
 
 def first_policy(body):
-    """Stand-in for query-planner: search first, then read in order, stop when nothing is left."""
+    """Stand-in for Bio-Planner: search first, then read in order, stop when nothing is left."""
     for i, c in enumerate(body["candidates"]):
         if c["kind"] in {"search", "read"}:
             return {"decision": "continue", "candidate": i, "reason": "test"}
@@ -1519,7 +1519,7 @@ def test_question_objects_found_in_the_reviewed_graph_bring_their_source_records
     monkeypatch.setattr(llm, "chat_json", fake_model([]))
     monkeypatch.setattr(services, "decide", lambda s, body: first_policy(body))
     monkeypatch.setattr(services, "biocheck", empty_report)
-    graph_record = record("G1", "唐的所选文档当前图观测", "XQ-17 drug node", source="reviewed_graph")
+    graph_record = record("G1", "所选文档当前图观测", "XQ-17 drug node", source="reviewed_graph")
     fabric = FakeFabric(RECORDS + [graph_record])
     asked = []
 

@@ -263,7 +263,7 @@ def first_candidates(run: "Run", required):
 
 
 def graph(run: "Run", checks):
-    """The question's own objects looked up in Tang's reviewed graph (read only, through Fabric).
+    """The question's own objects looked up in the human-reviewed graph (read only, through Fabric).
     Graph records visible at the cutoff that mention the exact name are resolved; each candidate keeps
     its identity status (unresolved stays unresolved) and the records it was read from become reading
     candidates, re-read from Fabric at the cutoff like any other hit. Nothing is merged or inferred."""

@@ -1,6 +1,6 @@
 """Monitoring input: new Fabric records, routed by program rules or triaged by the model in batches into
 topics. Triage only classifies: the measurements a record states are extracted and checked by Fabric
-(docs/decisions/0010-fabric-measurements.md)."""
+(docs/设计.md 决策 0010)."""
 
 import logging
 from datetime import datetime, timedelta

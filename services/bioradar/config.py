@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     session_secret: str = ""  # signs session cookies; random, never a login credential; empty: no sign-in
     workspace_id: str = "default"
 
-    # Data-Fabric API (资料库, 徐子雯). Records are read at a fixed version and cutoff.
+    # Data-Fabric API (资料库). Records are read at a fixed version and cutoff.
     fabric_url: str = "http://127.0.0.1:18511"
     fabric_read_token: str = ""
     fabric_admin_token: str = ""
@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # each one at the analysis cutoff (source permission, the version visible then, the fixed text) and only
     # then reranks; replays can use it too. Off: no semantic search.
     semantic_search: bool = False
-    graph_lookup: bool = False  # look question objects up in Tang's reviewed graph through Fabric
+    graph_lookup: bool = False  # look question objects up in the human-reviewed graph through Fabric
 
     # Professional services. Empty URL means the step is skipped and reported as not run.
     planner_url: str = ""

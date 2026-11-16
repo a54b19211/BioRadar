@@ -1,5 +1,5 @@
 """The radar's own measurement chain from before Fabric took it over, read only
-(docs/decisions/0010-fabric-measurements.md).
+(docs/设计.md 决策 0010).
 
 Until the cut-over the radar extracted measures in triage and continuation reading, checked them with BioCheck
 and stored series points itself. Those tables are kept, unchanged and frozen: measurements,

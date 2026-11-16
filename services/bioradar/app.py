@@ -795,7 +795,7 @@ def measure_coverage(
     is_demo: bool = False, version_id: str | None = None, state: str | None = None, limit: int = 100
 ):
     """Read-only history: the reading plans of the radar's own measurement chain from before Fabric took it
-    over (frozen, docs/decisions/0010) - per fixed version, what of its cleaned text a model read, what was
+    over (frozen, docs/设计.md 决策 0010) - per fixed version, what of its cleaned text a model read, what was
     left unread and why, the checker versions its recorded checks stand under (as stored), and the plans by
     state. Fabric's coverage of its own reading is /api/fabric/measure-coverage there."""
     s = settings()

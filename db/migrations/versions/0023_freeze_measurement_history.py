@@ -1,5 +1,5 @@
 """The radar's own measurement chain from before Fabric took it over is frozen history
-(docs/decisions/0010-fabric-measurements.md): PostgreSQL refuses every insert, update, delete and truncate on
+(docs/设计.md 决策 0010): PostgreSQL refuses every insert, update, delete and truncate on
 its tables. The rows are kept as they are; nothing is moved or deleted. Downgrading lifts the freeze only."""
 
 from alembic import op

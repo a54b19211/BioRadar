@@ -1,4 +1,4 @@
-"""What the radar asks query-planner (sources, channels) and what it keeps of every answer (task book 04, 2.2
+"""What the radar asks Bio-Planner (sources, channels) and what it keeps of every answer (task book 04, 2.2
 and 2.5): a record per call that rebuilds the request, within a size limit, and a planner too old to take the
 request is refused."""
 
@@ -197,7 +197,7 @@ def test_conflict_and_open_reach_the_planner_as_they_are_and_complete_does_not_m
 PLANNER = os.environ.get("BIORADAR_TEST_PLANNER_URL")
 
 
-@pytest.mark.skipif(not PLANNER, reason="BIORADAR_TEST_PLANNER_URL (a running query-planner) is not set")
+@pytest.mark.skipif(not PLANNER, reason="BIORADAR_TEST_PLANNER_URL (a running Bio-Planner) is not set")
 def test_a_real_planner_takes_the_request_and_answers_with_its_record(monkeypatch):
     monkeypatch.undo()  # the real /health, not the stand-in
     s = settings().model_copy(

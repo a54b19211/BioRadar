@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from bioradar.research.pipeline import Run
 
 
-# MechEvidence (汪鑫怡) only evaluates research material; news, notices and posts are not sent.
+# MechEvidence only evaluates research material; news, notices and posts are not sent.
 MECH_KIND = {
     "primary_research": {"source_kind": "primary", "document_type": "research_article"},
     "conference_abstract": {"source_kind": "primary", "document_type": "conference_abstract"},

@@ -1,4 +1,4 @@
-"""GDELT leads in the candidate-group view (task book 05, step 1; docs/decisions/0016): the triage judges
+"""GDELT leads in the candidate-group view (task book 05, step 1; docs/设计.md 决策 0016): the triage judges
 them for relevance alone, the view lists them apart and counts none as a member, a backfill's are left out,
 the gaps of the day's windows are registered."""
 

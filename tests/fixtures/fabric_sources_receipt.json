@@ -549,7 +549,7 @@
    "limitations": [
     "不是全图完整邻域；任何原来源撤权保守封整个派生来源组"
    ],
-   "name": "唐的有界审核图发布",
+   "name": "有界人工审核图发布",
    "native_id": "明确选择范围及批次；包内namespace+源实体/关系ID",
    "published_seq": 10,
    "read_enabled": true,
@@ -646,7 +646,7 @@
    "license_url": null,
    "limitations": [
     "普通导入未审核；不能倒填本地首次见到时间",
-    "映射只接纳有出处审核，不做唐蔚雯负责的消歧"
+    "映射只接纳有出处审核，不做消歧"
    ],
    "name": "受控历史归档",
    "native_id": "归档原站ID；demo和真实资料隔离",

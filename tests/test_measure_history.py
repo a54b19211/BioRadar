@@ -1,5 +1,5 @@
 """The radar's own measurement chain from before the cut-over to Fabric is history, read only
-(docs/decisions/0010): an analysis, a topic event or a reading plan that names one of its rows still shows it
+(ADR 0010): an analysis, a topic event or a reading plan that names one of its rows still shows it
 as recorded - never as current, never computed from - and reading it writes nothing."""
 
 from datetime import UTC, datetime

@@ -1,4 +1,4 @@
-"""Fabric's measurement objects into the radar's topics (research/series_sync.py, docs/decisions/0010): the
+"""Fabric's measurement objects into the radar's topics (research/series_sync.py, docs/设计.md 决策 0010): the
 feed and the pull by version, both arrival orders, the cursor, withheld events, series keys, the domain gate
 on Fabric's objects, corrections and supersessions, and what an analysis is handed and reads."""
 
@@ -517,9 +517,9 @@ def test_an_analysis_reads_each_points_state_from_fabric_when_it_runs(placing):
 PLANNER = os.environ.get("BIORADAR_TEST_PLANNER_URL")
 
 
-@pytest.mark.skipif(not PLANNER, reason="BIORADAR_TEST_PLANNER_URL (a running query-planner) is not set")
+@pytest.mark.skipif(not PLANNER, reason="BIORADAR_TEST_PLANNER_URL (a running Bio-Planner) is not set")
 def test_a_real_planner_takes_fabric_points_and_asks_to_verify_one_that_is_no_longer_current(placing):
-    """Radar's decide request over HTTP to a running query-planner (no stand-in), with the series state read
+    """Radar's decide request over HTTP to a running Bio-Planner (no stand-in), with the series state read
     from Fabric: accepted; a corrected value makes a read of its record the verification read."""
     from bioradar.adapters import services
 
